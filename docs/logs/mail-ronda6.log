@@ -1,0 +1,181 @@
+=== $ npm run -w packages/mail typecheck ===
+
+> @atiende/mail@0.1.0 typecheck
+> tsc --noEmit
+
+
+=== $ npm run -w packages/mail lint ===
+
+> @atiende/mail@0.1.0 lint
+> eslint src test scripts
+
+
+=== $ npm run -w packages/mail test ===
+
+> @atiende/mail@0.1.0 test
+> vitest run
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/packages/mail[39m
+
+ [32m✓[39m test/webhooks/verify-signature.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 18[2mms[22m[39m
+ [32m✓[39m test/provider/capture-provider.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 13[2mms[22m[39m
+ [32m✓[39m test/provider/resend-provider.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 9[2mms[22m[39m
+ [32m✓[39m test/security/signed-link.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/provider/smtp-provider.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+ [32m✓[39m test/provider/postmark-provider.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 19[2mms[22m[39m
+ [32m✓[39m test/theme/contrast.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/service/rate-limiter.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/templates/common.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/provider/factory.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 1[2mms[22m[39m
+ [32m✓[39m test/service/send-store.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+ [32m✓[39m test/webhooks/apply-event.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/service/retry.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/preferences/filter.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 1[2mms[22m[39m
+ [32m✓[39m test/components/email-layout.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[90m 23[2mms[22m[39m
+ [32m✓[39m test/webhooks/parse-resend-payload.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 21[2mms[22m[39m
+ [32m✓[39m test/recipients/types.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+ [32m✓[39m test/components/atiende-logo.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[90m 19[2mms[22m[39m
+ [32m✓[39m test/security/safe-url.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m test/provider/types.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/suppression/types.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/service/mail-service.test.ts [2m([22m[2m15 tests[22m[2m)[22m[90m 195[2mms[22m[39m
+ [32m✓[39m test/index.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/templates/catalog.test.ts [2m([22m[2m84 tests[22m[2m)[22m[33m 536[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m24 passed[39m[22m[90m (24)[39m
+[2m      Tests [22m [1m[32m220 passed[39m[22m[90m (220)[39m
+[2m   Start at [22m 12:11:09
+[2m   Duration [22m 1.90s[2m (transform 418ms, setup 0ms, collect 4.07s, tests 909ms, environment 3ms, prepare 1.53s)[22m
+
+
+=== $ npm run -w packages/mail test:coverage ===
+
+> @atiende/mail@0.1.0 test:coverage
+> vitest run --coverage
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/packages/mail[39m
+      [2mCoverage enabled with [22m[33mv8[39m
+
+ [32m✓[39m test/webhooks/verify-signature.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/provider/postmark-provider.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+ [32m✓[39m test/security/signed-link.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/provider/smtp-provider.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 10[2mms[22m[39m
+ [32m✓[39m test/provider/resend-provider.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 14[2mms[22m[39m
+ [32m✓[39m test/provider/capture-provider.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 14[2mms[22m[39m
+ [32m✓[39m test/service/send-store.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/templates/common.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/theme/contrast.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m test/provider/factory.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/service/rate-limiter.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/webhooks/apply-event.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/service/retry.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/webhooks/parse-resend-payload.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+ [32m✓[39m test/recipients/types.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+ [32m✓[39m test/preferences/filter.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 1[2mms[22m[39m
+ [32m✓[39m test/components/email-layout.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[90m 83[2mms[22m[39m
+ [32m✓[39m test/suppression/types.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/security/safe-url.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 1[2mms[22m[39m
+ [32m✓[39m test/provider/types.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/components/atiende-logo.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[90m 96[2mms[22m[39m
+ [32m✓[39m test/service/mail-service.test.ts [2m([22m[2m15 tests[22m[2m)[22m[90m 143[2mms[22m[39m
+ [32m✓[39m test/index.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/templates/catalog.test.ts [2m([22m[2m84 tests[22m[2m)[22m[33m 628[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m24 passed[39m[22m[90m (24)[39m
+[2m      Tests [22m [1m[32m220 passed[39m[22m[90m (220)[39m
+[2m   Start at [22m 12:11:12
+[2m   Duration [22m 2.38s[2m (transform 469ms, setup 0ms, collect 4.39s, tests 1.05s, environment 6ms, prepare 1.98s)[22m
+
+[34m % [39m[2mCoverage report from [22m[33mv8[39m
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-------------------|---------|----------|---------|---------|-------------------
+[32;1mAll files         [0m | [32;1m  96.48[0m | [32;1m   83.65[0m | [32;1m  96.47[0m | [32;1m  96.48[0m | [31;1m                 [0m 
+[32;1m src              [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  index.ts        [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  theme.ts        [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m src/components   [0m | [32;1m  89.23[0m | [32;1m   93.54[0m | [32;1m  83.33[0m | [32;1m  89.23[0m | [31;1m                 [0m 
+[32;1m  AtiendeLogo.tsx [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  EmailLayout.tsx [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  blocks.tsx      [0m | [32;1m  81.33[0m | [32;1m    90.9[0m | [33;1m  77.77[0m | [32;1m  81.33[0m | [31;1m193-235,295-296  [0m 
+[32;1m src/preferences  [0m | [32;1m    100[0m | [32;1m   85.71[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  filter.ts       [0m | [32;1m    100[0m | [32;1m   83.33[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m13               [0m 
+[32;1m  types.ts        [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m src/provider     [0m | [32;1m  95.77[0m | [32;1m   81.52[0m | [32;1m    100[0m | [32;1m  95.77[0m | [31;1m                 [0m 
+[32;1m  ...e-provider.ts[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  factory.ts      [0m | [32;1m    100[0m | [32;1m    92.3[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m50               [0m 
+[32;1m  ...k-provider.ts[0m | [32;1m  98.27[0m | [33;1m      75[0m | [32;1m    100[0m | [32;1m  98.27[0m | [31;1m39               [0m 
+[32;1m  ...d-provider.ts[0m | [32;1m    100[0m | [33;1m   73.91[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m39-47,54,64,68,70[0m 
+[32;1m  smtp-provider.ts[0m | [32;1m  82.97[0m | [33;1m   77.77[0m | [32;1m    100[0m | [32;1m  82.97[0m | [31;1m28-29,45-50      [0m 
+[32;1m  types.ts        [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m src/recipients   [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  types.ts        [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m src/security     [0m | [32;1m  93.75[0m | [32;1m      92[0m | [32;1m    100[0m | [32;1m  93.75[0m | [31;1m                 [0m 
+[32;1m  safe-url.ts     [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  signed-link.ts  [0m | [32;1m  92.98[0m | [32;1m      90[0m | [32;1m    100[0m | [32;1m  92.98[0m | [31;1m91-92,94-95      [0m 
+[32;1m src/service      [0m | [32;1m  95.65[0m | [32;1m   84.37[0m | [32;1m  93.75[0m | [32;1m  95.65[0m | [31;1m                 [0m 
+[32;1m  mail-service.ts [0m | [32;1m  93.93[0m | [32;1m   80.43[0m | [32;1m  85.71[0m | [32;1m  93.93[0m | [31;1m108-109,147-152  [0m 
+[32;1m  rate-limiter.ts [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  retry.ts        [0m | [32;1m    100[0m | [33;1m      50[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m25               [0m 
+[32;1m  send-store.ts   [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m src/suppression  [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  types.ts        [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m src/templates    [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  common.ts       [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  registry.ts     [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  render-html.ts  [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+  types.ts         |       0 |        0 |       0 |       0 | [31;1m                 [0m 
+[32;1m ...plates/catalog[0m | [32;1m  99.77[0m | [33;1m   54.54[0m | [32;1m    100[0m | [32;1m  99.77[0m | [31;1m                 [0m 
+[32;1m  ...generated.tsx[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  ...-received.tsx[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  ...-reminder.tsx[0m | [32;1m    100[0m | [33;1m      50[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m43               [0m 
+[32;1m  ...xpiration.tsx[0m | [32;1m  96.66[0m | [31;1m      20[0m | [32;1m    100[0m | [32;1m  96.66[0m | [31;1m44,58            [0m 
+[32;1m  ...ification.tsx[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  ...der-match.tsx[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  ...on-invite.tsx[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  ...ord-reset.tsx[0m | [32;1m    100[0m | [33;1m      50[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m53               [0m 
+[32;1m  ...-approval.tsx[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  ...ard-alert.tsx[0m | [32;1m    100[0m | [31;1m   33.33[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m54-64            [0m 
+[32;1m  ...age-ready.tsx[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  ...er-change.tsx[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  ...ch-digest.tsx[0m | [32;1m    100[0m | [31;1m      25[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m51-64            [0m 
+[32;1m  ...r-enabled.tsx[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  ...y-summary.tsx[0m | [32;1m    100[0m | [33;1m      50[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m62               [0m 
+[32;1m  ...nboarding.tsx[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m src/webhooks     [0m | [32;1m     95[0m | [32;1m   88.88[0m | [32;1m    100[0m | [32;1m     95[0m | [31;1m                 [0m 
+[32;1m  apply-event.ts  [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  ...nd-payload.ts[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+  types.ts         |       0 |        0 |       0 |       0 | [31;1m                 [0m 
+[32;1m  ...-signature.ts[0m | [32;1m  90.47[0m | [32;1m   83.33[0m | [32;1m    100[0m | [32;1m  90.47[0m | [31;1m52-53,77-78      [0m 
+-------------------|---------|----------|---------|---------|-------------------
+
+=== $ npm run -w packages/mail build ===
+
+> @atiende/mail@0.1.0 build
+> tsc -p tsconfig.build.json
+
+
+=== $ npm run -w packages/mail preview ===
+
+> @atiende/mail@0.1.0 preview
+> tsx scripts/preview.ts
+
+Vista previa generada: 16 plantillas en /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/packages/mail/preview
+  - email-verification (account_security, obligatoria): "Confirma tu correo — Atiende Licitaciones"
+  - organization-invite (account_security, obligatoria): "Te dieron acceso a Constructora Ejemplo S.A. de C.V. (ejemplo) en Atiende Licitaciones"
+  - password-reset (account_security, obligatoria): "Recupera tu acceso a Atiende Licitaciones"
+  - two-factor-enabled (account_security, obligatoria): "Activaste la verificación en dos pasos"
+  - backup-codes-generated (account_security, obligatoria): "Tus códigos de respaldo de verificación en dos pasos"
+  - welcome-onboarding (account_security, obligatoria): "Bienvenido a Atiende Licitaciones, Diana Castillo (ejemplo)"
+  - new-tender-match (tender_matches): "Nueva convocatoria: Suministro de equipo de cómputo para oficinas regionales (ejemplo)"
+  - tender-match-digest (tender_matches): "3 convocatorias nuevas que coinciden con tu perfil"
+  - tender-change (tender_changes): "Cambio en convocatoria: Suministro de equipo de cómputo para oficinas regionales (ejemplo)"
+  - pending-approval (approvals): "Una acción espera tu aprobación en Suministro de equipo de cómputo para oficinas regionales (ejemplo)"
+  - submission-package-ready (submission): "Tu paquete de licitación para Suministro de equipo de cómputo para oficinas regionales (ejemplo) está listo"
+  - deadline-reminder (deadlines): "Vence en 48 horas: Suministro de equipo de cómputo para oficinas regionales (ejemplo)"
+  - document-expiration (document_expiration): "Documento por vencer: Opinión de cumplimiento fiscal (ejemplo)"
+  - post-award-alert (post_award): "Vence en 10 días: Garantía de Suministro de equipo de cómputo para oficinas regionales (ejemplo)"
+  - weekly-summary (weekly_summary): "Tu resumen semanal de Atiende Licitaciones"
+  - contact-received (internal, obligatoria): "Nuevo contacto recibido: Fernanda Ibáñez (ejemplo)"
