@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 
 // W-10: el botón hamburguesa medía 40×40px y el primer link del drawer
 // móvil 36px de alto — por debajo del objetivo de ≥44×44px recomendado

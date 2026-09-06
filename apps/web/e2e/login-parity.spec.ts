@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 
 // W-11: LoginPage debía alinearse a la anatomía real del login de
 // atiende-restaurantes (pantalla partida, kicker, titular serif) — ver

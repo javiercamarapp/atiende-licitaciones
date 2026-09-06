@@ -1,0 +1,100 @@
+=== npm run test:e2e (build de produccion + npx playwright test, default workers) ===
+Sat Sep  5 20:02:44 CST 2026
+
+> @atiende/web@0.1.0 test:e2e
+> npm run build && playwright test
+
+
+> @atiende/web@0.1.0 build
+> tsc -b && vite build
+
+[36mvite v6.4.3 [32mbuilding for production...[36m[39m
+transforming...
+[32m✓[39m 1778 modules transformed.
+rendering chunks...
+computing gzip size...
+[2mdist/[22m[32mindex.html                                     [39m[1m[2m  1.07 kB[22m[1m[22m[2m │ gzip:  0.53 kB[22m
+[2mdist/[22m[2massets/[22m[35mLoginPage-BcYFrIpy.css                  [39m[1m[2m  0.19 kB[22m[1m[22m[2m │ gzip:  0.17 kB[22m
+[2mdist/[22m[2massets/[22m[35mindex-CcFMGUiw.css                      [39m[1m[2m 30.21 kB[22m[1m[22m[2m │ gzip:  6.50 kB[22m
+[2mdist/[22m[2massets/[22m[36mAgentesHerramientasPage-DHcjQb6m.js     [39m[1m[2m  0.48 kB[22m[1m[22m[2m │ gzip:  0.32 kB[22m
+[2mdist/[22m[2massets/[22m[36mOrganizacionesPage-De8JnSgT.js          [39m[1m[2m  0.49 kB[22m[1m[22m[2m │ gzip:  0.32 kB[22m
+[2mdist/[22m[2massets/[22m[36mUsuariosRolesPage-7EAyAPIF.js           [39m[1m[2m  0.49 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mGoNoGoPage-BEFq7c_S.js                  [39m[1m[2m  0.50 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mEntregasPage-Dg2Ci2i9.js                [39m[1m[2m  0.50 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mPanelPage-BxyuALS2.js                   [39m[1m[2m  0.50 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mRevisionPage-BIgjdTLz.js                [39m[1m[2m  0.51 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mRedaccionPage-BhnyBeWS.js               [39m[1m[2m  0.51 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mConfiguracionPage-CAzYLz6q.js           [39m[1m[2m  0.52 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mAuditoriaPage-C_uewM92.js               [39m[1m[2m  0.52 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mAnalisisBasesPage-C-zQvRYy.js           [39m[1m[2m  0.52 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mDescubrimientoPage-DXvOi1fK.js          [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mFirmantesAutorizadosPage-pIQE-zOv.js    [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mDocumentosVigenciasPage-BsHkNHpH.js     [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mMatchingPage-CPM4T-5E.js                [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.37 kB[22m
+[2mdist/[22m[2massets/[22m[36mCumplimientoDocumentalPage-BWASslfW.js  [39m[1m[2m  0.54 kB[22m[1m[22m[2m │ gzip:  0.36 kB[22m
+[2mdist/[22m[2massets/[22m[36mSeguimientoPage-CFwN_u_s.js             [39m[1m[2m  0.54 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mAprobacionesPage-F9jXPNwE.js            [39m[1m[2m  0.54 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mTarifasAprobadasPage-Czt6BQYl.js        [39m[1m[2m  0.55 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mExpedientePage-BPgi7MDy.js              [39m[1m[2m  0.55 kB[22m[1m[22m[2m │ gzip:  0.36 kB[22m
+[2mdist/[22m[2massets/[22m[36mPerfilCapacidadesPage-DsrzaAgQ.js       [39m[1m[2m  0.57 kB[22m[1m[22m[2m │ gzip:  0.38 kB[22m
+[2mdist/[22m[2massets/[22m[36msparkles-BWt83dUD.js                    [39m[1m[2m  0.68 kB[22m[1m[22m[2m │ gzip:  0.40 kB[22m
+[2mdist/[22m[2massets/[22m[36mcreateModulePage-C8A3xMp5.js            [39m[1m[2m  0.94 kB[22m[1m[22m[2m │ gzip:  0.56 kB[22m
+[2mdist/[22m[2massets/[22m[36mcard-pd69Dkuw.js                        [39m[1m[2m  1.09 kB[22m[1m[22m[2m │ gzip:  0.45 kB[22m
+[2mdist/[22m[2massets/[22m[36mNotFoundPage-Ht5hncr-.js                [39m[1m[2m  1.23 kB[22m[1m[22m[2m │ gzip:  0.70 kB[22m
+[2mdist/[22m[2massets/[22m[36mFuentesFrescuraPage-CIt80C8C.js         [39m[1m[2m  1.51 kB[22m[1m[22m[2m │ gzip:  0.77 kB[22m
+[2mdist/[22m[2massets/[22m[36mempty-state-7VUyQnqw.js                 [39m[1m[2m  1.78 kB[22m[1m[22m[2m │ gzip:  0.81 kB[22m
+[2mdist/[22m[2massets/[22m[36mPaqueteDescargablePage-pVuTcf1N.js      [39m[1m[2m  2.29 kB[22m[1m[22m[2m │ gzip:  1.23 kB[22m
+[2mdist/[22m[2massets/[22m[36mquery-Cr5JZM0v.js                       [39m[1m[2m 46.31 kB[22m[1m[22m[2m │ gzip: 14.39 kB[22m
+[2mdist/[22m[2massets/[22m[36mLoginPage-BBIFlupu.js                   [39m[1m[2m100.44 kB[22m[1m[22m[2m │ gzip: 28.41 kB[22m
+[2mdist/[22m[2massets/[22m[36mindex-D59hrryw.js                       [39m[1m[2m133.11 kB[22m[1m[22m[2m │ gzip: 41.88 kB[22m
+[2mdist/[22m[2massets/[22m[36mapp-platform-ba7btYbn.js                [39m[1m[2m239.43 kB[22m[1m[22m[2m │ gzip: 78.71 kB[22m
+[32m✓ built in 1.20s[39m
+
+[2mRunning [22m44[2m tests using [22m5[2m workers[22m
+
+  [32m✓[39m  [2m 3 [22m[chromium] › e2e/ai-disclosure.spec.ts:10:5 › Disclosure de IA (W-15) › /preparacion/redaccion muestra el aviso de uso de IA[2m (1.2s)[22m
+  [32m✓[39m  [2m 2 [22m[chromium] › e2e/ai-disclosure.spec.ts:10:5 › Disclosure de IA (W-15) › /preparacion/revision muestra el aviso de uso de IA[2m (1.2s)[22m
+  [32m✓[39m  [2m 1 [22m[chromium] › e2e/ai-disclosure.spec.ts:10:5 › Disclosure de IA (W-15) › /evaluacion/analisis-bases muestra el aviso de uso de IA[2m (1.2s)[22m
+  [32m✓[39m  [2m 5 [22m[chromium] › e2e/contraste.spec.ts:22:3 › Contraste de color (W-05, W-06) › los badges de estado de fuente (CAPTCHA / cambio de interfaz) no tienen violaciones serias de contraste[2m (1.9s)[22m
+  [32m✓[39m  [2m 4 [22m[chromium] › e2e/contraste.spec.ts:8:3 › Contraste de color (W-05, W-06) › el wordmark en modo oscuro no tiene violaciones serias de contraste[2m (2.2s)[22m
+  [32m✓[39m  [2m 6 [22m[chromium] › e2e/heading-order.spec.ts:12:5 › Orden de encabezados (W-07) › /entrega/paquete-descargable no tiene salto de nivel de encabezado[2m (1.4s)[22m
+  [32m✓[39m  [2m 7 [22m[chromium] › e2e/heading-order.spec.ts:12:5 › Orden de encabezados (W-07) › /convocatorias/fuentes-frescura no tiene salto de nivel de encabezado[2m (1.4s)[22m
+  [32m✓[39m  [2m 8 [22m[chromium] › e2e/login-landmarks.spec.ts:8:1 › /login tiene landmark <main>, un <h1> real y ningún contenido fuera de landmarks (W-08)[2m (1.5s)[22m
+  [32m✓[39m  [2m 9 [22m[chromium] › e2e/login-parity.spec.ts:9:3 › Paridad visual del login (W-11) › escritorio: layout de pantalla partida con kicker, titular y lámina decorativa[2m (1.0s)[22m
+  [32m✓[39m  [2m10 [22m[chromium] › e2e/login-parity.spec.ts:20:3 › Paridad visual del login (W-11) › móvil (390×844): la lámina decorativa se oculta y no hay scroll horizontal[2m (1.1s)[22m
+  [32m✓[39m  [2m11 [22m[chromium] › e2e/login-parity.spec.ts:32:3 › Paridad visual del login (W-11) › mantiene contraseña + enlace mágico (divergencia deliberada: sin Google OAuth)[2m (1.6s)[22m
+  [32m✓[39m  [2m12 [22m[chromium] › e2e/recorrido.spec.ts:26:3 › Recorrido esencial (W-14) › login → shell: /login carga y navegar a /panel muestra el AppShell[2m (2.0s)[22m
+  [32m✓[39m  [2m13 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Panel (/panel) carga sin violaciones serious/critical[2m (2.2s)[22m
+  [32m✓[39m  [2m14 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Perfil y capacidades (/empresa/perfil-capacidades) carga sin violaciones serious/critical[2m (2.3s)[22m
+  [32m✓[39m  [2m15 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Documentos y vigencias (/empresa/documentos-vigencias) carga sin violaciones serious/critical[2m (1.9s)[22m
+  [32m✓[39m  [2m16 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Firmantes autorizados (/empresa/firmantes-autorizados) carga sin violaciones serious/critical[2m (2.1s)[22m
+  [32m✓[39m  [2m17 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Tarifas aprobadas (/empresa/tarifas-aprobadas) carga sin violaciones serious/critical[2m (2.2s)[22m
+  [32m✓[39m  [2m18 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Descubrimiento (/convocatorias/descubrimiento) carga sin violaciones serious/critical[2m (2.0s)[22m
+  [32m✓[39m  [2m19 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Matching (/convocatorias/matching) carga sin violaciones serious/critical[2m (2.0s)[22m
+  [32m✓[39m  [2m20 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Fuentes y frescura (/convocatorias/fuentes-frescura) carga sin violaciones serious/critical[2m (2.0s)[22m
+  [32m✓[39m  [2m21 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Go/No-Go (/evaluacion/go-no-go) carga sin violaciones serious/critical[2m (2.2s)[22m
+  [32m✓[39m  [2m23 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Cumplimiento documental (/preparacion/cumplimiento-documental) carga sin violaciones serious/critical[2m (2.3s)[22m
+  [32m✓[39m  [2m22 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Análisis de bases (/evaluacion/analisis-bases) carga sin violaciones serious/critical[2m (2.6s)[22m
+  [32m✓[39m  [2m24 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Redacción (/preparacion/redaccion) carga sin violaciones serious/critical[2m (2.3s)[22m
+  [32m✓[39m  [2m25 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Revisión (/preparacion/revision) carga sin violaciones serious/critical[2m (2.3s)[22m
+  [32m✓[39m  [2m26 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Expediente (/preparacion/expediente) carga sin violaciones serious/critical[2m (2.1s)[22m
+  [32m✓[39m  [2m28 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Entregas (/entrega/entregas) carga sin violaciones serious/critical[2m (2.3s)[22m
+  [32m✓[39m  [2m27 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Aprobaciones (/preparacion/aprobaciones) carga sin violaciones serious/critical[2m (2.3s)[22m
+  [32m✓[39m  [2m29 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Paquete descargable (/entrega/paquete-descargable) carga sin violaciones serious/critical[2m (2.3s)[22m
+  [32m✓[39m  [2m30 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Seguimiento post-adjudicación (/entrega/seguimiento) carga sin violaciones serious/critical[2m (2.3s)[22m
+  [32m✓[39m  [2m31 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Organizaciones (/backoffice/organizaciones) carga sin violaciones serious/critical[2m (1.8s)[22m
+  [32m✓[39m  [2m33 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Agentes y herramientas (/backoffice/agentes-herramientas) carga sin violaciones serious/critical[2m (2.3s)[22m
+  [32m✓[39m  [2m35 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Configuración (/configuracion) carga sin violaciones serious/critical[2m (2.3s)[22m
+  [32m✓[39m  [2m32 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Usuarios y roles (/backoffice/usuarios-roles) carga sin violaciones serious/critical[2m (2.3s)[22m
+  [32m✓[39m  [2m34 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Auditoría / Trazabilidad (/backoffice/auditoria) carga sin violaciones serious/critical[2m (2.3s)[22m
+  [32m✓[39m  [2m36 [22m[chromium] › e2e/recorrido.spec.ts:43:3 › Recorrido esencial (W-14) › drawer móvil (390×844): se abre, comparte SidebarNav y no hay scroll horizontal[2m (3.0s)[22m
+  [32m✓[39m  [2m38 [22m[chromium] › e2e/recorrido.spec.ts:66:3 › Recorrido esencial (W-14) › Fuentes y frescura: expone los 5 estados de fuente sin violaciones serious/critical[2m (2.7s)[22m
+  [32m✓[39m  [2m39 [22m[chromium] › e2e/recorrido.spec.ts:74:3 › Recorrido esencial (W-14) › Paquete descargable: arranca en "Borrador", nunca en "Listo", sin violaciones serious/critical[2m (2.7s)[22m
+  [32m✓[39m  [2m37 [22m[chromium] › e2e/recorrido.spec.ts:58:3 › Recorrido esencial (W-14) › tema oscuro: activa .dark en <html> y el panel sigue sin violaciones serious/critical[2m (2.8s)[22m
+  [32m✓[39m  [2m41 [22m[chromium] › e2e/skip-link.spec.ts:7:3 › Skip-link mueve el foco real (W-09) › en LoginPage, el skip-link mueve el foco al formulario (#login-form)[2m (1.3s)[22m
+  [32m✓[39m  [2m43 [22m[chromium] › e2e/touch-targets.spec.ts:9:3 › Objetivos táctiles ≥44×44px (W-10) › el botón hamburguesa mide al menos 44×44px[2m (1.1s)[22m
+  [32m✓[39m  [2m42 [22m[chromium] › e2e/skip-link.spec.ts:26:3 › Skip-link mueve el foco real (W-09) › en AppShell, el skip-link mueve el foco al contenido principal (#main-content)[2m (1.2s)[22m
+  [32m✓[39m  [2m44 [22m[chromium] › e2e/touch-targets.spec.ts:20:3 › Objetivos táctiles ≥44×44px (W-10) › el primer link del drawer móvil mide al menos 44px de alto[2m (1.2s)[22m
+  [32m✓[39m  [2m40 [22m[chromium] › e2e/recorrido.spec.ts:84:3 › Recorrido esencial (W-14) › todas las rutas del sidebar: sin scroll horizontal a 390×844[2m (15.9s)[22m
+
+[32m  44 passed[39m[2m (31.5s)[22m

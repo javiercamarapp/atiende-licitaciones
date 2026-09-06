@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 
 // W-08: LoginPage es la única pantalla que no usa <AppShell/> y no tenía
 // landmark <main> ni <h1> propio — axe reportaba landmark-one-main,

@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 
 // W-09: verificado por teclado real (Tab hasta el skip-link + Enter), no
 // solo por axe automatizado — axe no detecta a dónde se mueve el foco tras

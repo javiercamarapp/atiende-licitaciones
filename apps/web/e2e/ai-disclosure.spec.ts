@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 
 // W-15 (REQ-115): disclosure de uso de IA obligatorio también en el
 // "portal", antepuesto a los módulos que mostrarán contenido generado por

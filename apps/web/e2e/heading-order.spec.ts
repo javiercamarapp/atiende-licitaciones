@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 
 // W-07: `CardTitle` estaba fijo a <h3> sin forma de configurarlo — cualquier
 // página con `SectionHeader` (h1) + `Card` saltaba de h1 a h3 sin pasar por
