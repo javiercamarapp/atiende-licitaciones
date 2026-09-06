@@ -75,12 +75,51 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   await app.register(superadminPlugin);
   await app.register(metricsPlugin);
 
-  // Cabeceras de seguridad básicas (helmet). `contentSecurityPolicy: false`
-  // porque esta API no sirve HTML/frontend (solo JSON); un CSP pensado para
-  // páginas no aporta aquí y puede interferir con /docs (Swagger UI si se
-  // añade luego). El resto de cabeceras (X-Content-Type-Options,
-  // X-Frame-Options, Strict-Transport-Security, etc.) sí aplican.
-  await app.register(helmet, { contentSecurityPolicy: false });
+  // Cabeceras de seguridad (helmet).
+  //
+  // WI-01 (docs/auditoria-2/web-integrado.md): `contentSecurityPolicy:
+  // false` dejaba esta API sin NINGÚN CSP -- el razonamiento original ("solo
+  // sirve JSON, un CSP no aporta") ignoraba que `/docs/json` sí devuelve
+  // contenido consumible por un navegador, y que un CSP explícito es
+  // defensa en profundidad real incluso para una API JSON pura (mitiga que
+  // una respuesta alguna vez se sirva/interprete como HTML por un bug de
+  // negociación de contenido, o que un futuro endpoint sirva HTML sin que
+  // alguien recuerde revisar este registro). Se activa un CSP restrictivo
+  // real: `default-src`/`script-src 'self'` (esta API nunca sirve ni
+  // ejecuta JS de terceros), `connect-src 'self'` + los orígenes del
+  // frontend configurados en `CORS_ORIGINS` (el mismo origen que YA está
+  // autorizado a llamar a esta API vía CORS, ver arriba -- no se introduce
+  // una variable de entorno nueva), `frame-ancestors 'none'` (nunca debe
+  // poder embeberse en un iframe de ningún origen, ni siquiera el propio --
+  // más estricto que `X-Frame-Options: SAMEORIGIN`, que helmet ya fija por
+  // defecto y se conserva como respaldo para navegadores viejos sin
+  // soporte de CSP nivel 2) y `object-src 'none'` (sin plugins/objetos
+  // embebidos). `X-Content-Type-Options`/`Referrer-Policy` ya los fija
+  // helmet por defecto (`nosniff`/`no-referrer`, confirmado en
+  // `test/audit-api05-security-headers.test.ts`); `Permissions-Policy` NO
+  // tiene middleware propio en `helmet` 8.x (lo retiró por no estar
+  // estandarizado de forma estable) -- se fija a mano justo debajo, en un
+  // hook `onSend` que corre para TODA respuesta (incluidas 4xx/5xx).
+  await app.register(helmet, {
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        connectSrc: ["'self'", ...options.config.corsOrigins],
+        frameAncestors: ["'none'"],
+        objectSrc: ["'none'"],
+      },
+    },
+  });
+
+  // WI-01: Permissions-Policy explícito (deshabilita APIs de navegador que
+  // esta API JSON nunca necesita) -- sin esto, un navegador aplicaría sus
+  // valores por defecto (permitir todo al propio origen), un margen que no
+  // aporta nada aquí y sí una superficie defensiva innecesaria.
+  app.addHook('onSend', async (_request, reply, payload) => {
+    reply.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
+    return payload;
+  });
 
   // CORS configurable por entorno (CORS_ORIGINS, ver .env.example). Sin
   // orígenes configurados, ninguna petición cross-site con credenciales es
