@@ -76,3 +76,5 @@ export { TokenBucketRateLimiter, UnlimitedRateLimiter } from "./service/rate-lim
 export type { RateLimiter } from "./service/rate-limiter";
 export { InMemorySendRecordStore } from "./service/send-store";
 export type { SendRecord, SendRecordStore, SendStatus } from "./service/send-store";
+export { buildListUnsubscribeHeaders } from "./service/list-unsubscribe";
+export type { ListUnsubscribeInput } from "./service/list-unsubscribe";

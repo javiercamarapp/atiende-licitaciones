@@ -70,4 +70,22 @@ describe("createResendProvider", () => {
     const body = JSON.parse(init.body as string);
     expect(body.attachments).toEqual([{ filename: "logo.png", content: "QQ==", content_id: "logo", content_disposition: "inline" }]);
   });
+
+  it("ML-02: pasa List-Unsubscribe/List-Unsubscribe-Post en el body como headers", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, { id: "msg_1" }));
+    const provider = createResendProvider({ apiKey: "k", domain: "mail.atiende.mx", fetchImpl });
+    await provider.send({
+      ...BASE_MESSAGE,
+      headers: {
+        "List-Unsubscribe": "<https://app.atiende.mx/baja>, <mailto:soporte@atiende.mx?subject=unsubscribe>",
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      },
+    });
+    const [, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string);
+    expect(body.headers).toEqual({
+      "List-Unsubscribe": "<https://app.atiende.mx/baja>, <mailto:soporte@atiende.mx?subject=unsubscribe>",
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    });
+  });
 });

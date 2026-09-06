@@ -61,8 +61,18 @@ export interface EmailLayoutProps {
    *  correos de seguridad de cuenta (verificación, contraseña, 2FA), que no
    *  se pueden apagar por preferencia. */
   preferencesUrl?: string;
-  /** Liga de baja de un clic (RFC 8058 / art. 16 fr. II LFPDPPP). Solo en
-   *  categorías no obligatorias (alertas de convocatorias, resúmenes). */
+  /**
+   * Enlace de baja DENTRO DEL CUERPO del correo (art. 16 fr. II LFPDPPP).
+   * Solo en categorías no obligatorias (alertas de convocatorias, resúmenes).
+   *
+   * ML-02: esto NO es, por sí solo, la "baja de un clic" de RFC 8058 — esa
+   * norma define las cabeceras `List-Unsubscribe`/`List-Unsubscribe-Post`
+   * (el botón nativo que Gmail/Yahoo pintan junto al remitente), que
+   * `MailService.send()` calcula y pasa por separado al `MailProvider`
+   * (ver `service/list-unsubscribe.ts`) — este enlace del cuerpo es el
+   * respaldo visible para quien lee el correo completo, no un sustituto de
+   * esas cabeceras.
+   */
   unsubscribeUrl?: string;
   /**
    * Content-ID de un logo adjunto (ver `provider/types.ts#OutboundAttachment`),

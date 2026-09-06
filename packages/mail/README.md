@@ -66,9 +66,9 @@ src/
     capture-provider.ts           Guarda en memoria + opcionalmente JSONL en disco (dev/test)
     factory.ts                    createMailProviderFromEnv() — MAIL_PROVIDER decide cuál
   service/
-    mail-service.ts               MailService: preferencias → supresión → idempotencia → render →
-                                   límite de tasa → reintentos con backoff → registro
-    retry.ts / rate-limiter.ts / send-store.ts
+    mail-service.ts               MailService: preferencias → supresión → idempotencia (reserve) →
+                                   render → List-Unsubscribe → límite de tasa → reintentos → registro
+    retry.ts / rate-limiter.ts / send-store.ts / list-unsubscribe.ts
 scripts/preview.ts               npm run -w packages/mail preview → packages/mail/preview/*.html
 ```
 
@@ -232,6 +232,43 @@ llave de Redis con `EXPIRE <toleranceSeconds>`); `InMemoryWebhookReplayGuard`
 es solo para pruebas. Prueba de regresión:
 `test/webhooks/verify-signature.test.ts` reenvía la misma petición firmada
 dos veces y verifica que la segunda se rechaza como `replay`.
+
+### Cabeceras `List-Unsubscribe` de un clic (RFC 8058, ML-02)
+
+Desde febrero de 2024, Gmail y Yahoo EXIGEN las cabeceras
+`List-Unsubscribe`/`List-Unsubscribe-Post` para remitentes de volumen (y son
+buena práctica de entregabilidad para cualquier volumen). `MailService.send()`
+las calcula automáticamente para toda plantilla de categoría **no
+obligatoria** (`template.mandatory === false`) que traiga `unsubscribeUrl`
+en sus variables — nunca para seguridad de cuenta/interno — y las pasa como
+`OutboundEmail.headers` a los tres adaptadores, que ya sabían reenviar
+cabeceras arbitrarias:
+
+```
+List-Unsubscribe: <https://app.atiende.mx/preferencias/baja?d=...&s=...>, <mailto:soporte@atiende.mx?subject=unsubscribe>
+List-Unsubscribe-Post: List-Unsubscribe=One-Click
+```
+
+Esto es DISTINTO del enlace de baja dentro del cuerpo del correo (el que
+pinta `EmailLayout`, art. 16 fr. II LFPDPPP): las cabeceras son el botón
+nativo "Cancelar suscripción" que Gmail/Yahoo pintan junto al remitente, sin
+que la persona tenga que abrir el correo. `service/list-unsubscribe.ts`
+expone `buildListUnsubscribeHeaders()` como función pura, reutilizable si
+`apps/api`/`apps/worker` necesitan las mismas cabeceras fuera de
+`MailService` (p. ej. un reenvío manual).
+
+**Endpoint de un clic que debe exponer `apps/api`** (RFC 8058 exige que el
+`POST` del botón nativo del cliente de correo, sin interacción humana
+adicional, deje de recibir esos correos): un handler
+`POST /api/correo/baja?d=<payload>&s=<firma>` (la misma URL firmada que ya
+lleva `unsubscribeUrl`, verificada con
+`mailService.verifySignedLink(url)` — HMAC + expiración, ver "Enlaces
+firmados" abajo) que, si la firma es válida y no ha expirado, apaga la(s)
+categoría(s) de preferencia correspondientes para ese usuario y responde
+`200` sin cuerpo (nunca una redirección ni una página HTML: un cliente de
+correo hace el `POST` en segundo plano, no navega ahí). Ese endpoint vive
+fuera de este paquete (`packages/mail` no sabe de HTTP), igual que
+`POST /api/correo/eventos` para los webhooks de entrega.
 
 ### Reintentos y límite de tasa
 

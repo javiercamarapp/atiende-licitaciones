@@ -92,4 +92,31 @@ describe("createSmtpProvider", () => {
       }),
     );
   });
+
+  it("ML-02: pasa List-Unsubscribe/List-Unsubscribe-Post tal cual al transporter", async () => {
+    const sendMail = vi.fn().mockResolvedValue({ messageId: "m1" });
+    const provider = createSmtpProvider({
+      host: "smtp.ejemplo.mx",
+      port: 587,
+      user: "u",
+      pass: "p",
+      fromAddress: "avisos@atiende.mx",
+      transporterFactory: () => ({ sendMail }) as never,
+    });
+    await provider.send({
+      ...BASE_MESSAGE,
+      headers: {
+        "List-Unsubscribe": "<https://app.atiende.mx/baja>, <mailto:soporte@atiende.mx?subject=unsubscribe>",
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      },
+    });
+    expect(sendMail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        headers: {
+          "List-Unsubscribe": "<https://app.atiende.mx/baja>, <mailto:soporte@atiende.mx?subject=unsubscribe>",
+          "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+        },
+      }),
+    );
+  });
 });

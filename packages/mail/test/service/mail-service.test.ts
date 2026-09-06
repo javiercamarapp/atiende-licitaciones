@@ -275,6 +275,44 @@ describe("MailService.send", () => {
     expect(sendSpy).not.toHaveBeenCalled();
   });
 
+  it("ML-02: una categoría NO obligatoria manda List-Unsubscribe/List-Unsubscribe-Post al provider", async () => {
+    const sendSpy = vi.fn().mockResolvedValue({ ok: true, providerMessageId: "p1" });
+    const provider: MailProvider = { name: "fake", send: sendSpy };
+    const service = buildService(provider);
+
+    await service.send({
+      to: RECIPIENT,
+      templateId: newTenderMatchTemplate.id,
+      variables: TENDER_MATCH_VARS,
+      messageKey: "match:u1:headers",
+    });
+
+    expect(sendSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        headers: {
+          "List-Unsubscribe": `<${TENDER_MATCH_VARS.unsubscribeUrl}>, <mailto:${TENDER_MATCH_VARS.supportEmail}?subject=unsubscribe>`,
+          "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+        },
+      }),
+    );
+  });
+
+  it("ML-02: una categoría OBLIGATORIA (account_security) NUNCA manda List-Unsubscribe", async () => {
+    const sendSpy = vi.fn().mockResolvedValue({ ok: true, providerMessageId: "p1" });
+    const provider: MailProvider = { name: "fake", send: sendSpy };
+    const service = buildService(provider);
+
+    await service.send({
+      to: RECIPIENT,
+      templateId: emailVerificationTemplate.id,
+      variables: VALID_VARS,
+      messageKey: "verificacion:headers",
+    });
+
+    const [[sentMessage]] = sendSpy.mock.calls;
+    expect(sentMessage.headers?.["List-Unsubscribe"]).toBeUndefined();
+  });
+
   it("un destinatario NO suprimido pasa normalmente", async () => {
     const { provider } = fakeProvider([{ ok: true, providerMessageId: "p1" }]);
     const suppressionStore = new InMemorySuppressionStore();

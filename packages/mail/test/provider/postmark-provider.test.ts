@@ -66,4 +66,22 @@ describe("createPostmarkProvider", () => {
     const body = JSON.parse(init.body as string);
     expect(body.Attachments).toEqual([{ Name: "logo.png", Content: "QQ==", ContentType: "image/png", ContentID: "cid:logo" }]);
   });
+
+  it("ML-02: traduce List-Unsubscribe/List-Unsubscribe-Post al formato Headers: [{Name,Value}]", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, { MessageID: "m1", ErrorCode: 0 }));
+    const provider = createPostmarkProvider({ serverToken: "t", fromAddress: "avisos@atiende.mx", fetchImpl });
+    await provider.send({
+      ...BASE_MESSAGE,
+      headers: {
+        "List-Unsubscribe": "<https://app.atiende.mx/baja>, <mailto:soporte@atiende.mx?subject=unsubscribe>",
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      },
+    });
+    const [, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string);
+    expect(body.Headers).toEqual([
+      { Name: "List-Unsubscribe", Value: "<https://app.atiende.mx/baja>, <mailto:soporte@atiende.mx?subject=unsubscribe>" },
+      { Name: "List-Unsubscribe-Post", Value: "List-Unsubscribe=One-Click" },
+    ]);
+  });
 });

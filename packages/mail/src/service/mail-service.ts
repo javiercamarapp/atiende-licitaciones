@@ -5,6 +5,7 @@ import { assertRegisteredRecipient, type RegisteredRecipient } from "../recipien
 import { requireTemplate } from "../templates/registry";
 import type { LinkSigner, SignedLinkPayload, VerifySignedLinkResult } from "../security/signed-link";
 import type { SuppressionStore } from "../suppression/types";
+import { buildListUnsubscribeHeaders } from "./list-unsubscribe";
 import { computeBackoffDelay, DEFAULT_RETRY_POLICY, type RetryPolicy } from "./retry";
 import { UnlimitedRateLimiter, type RateLimiter } from "./rate-limiter";
 import { InMemorySendRecordStore, type SendRecord, type SendRecordStore } from "./send-store";
@@ -141,6 +142,19 @@ export class MailService {
     const toAddresses = recipients.map((r) => r.email);
     const rateLimitKey = toAddresses[0] ?? input.messageKey;
 
+    // ML-02: cabeceras List-Unsubscribe/List-Unsubscribe-Post (RFC 8058) —
+    // "baja de un clic" a nivel de protocolo, no solo el enlace dentro del
+    // cuerpo del correo. `unsubscribeUrl`/`supportEmail` vienen de
+    // `BaseVariablesSchema` (presentes en toda plantilla, aunque V esté
+    // type-erased aquí); `buildListUnsubscribeHeaders` ya descarta las
+    // categorías obligatorias y cualquier `unsubscribeUrl` ausente.
+    const variablesAsRecord = parsed.data as { unsubscribeUrl?: unknown; supportEmail?: unknown };
+    const listUnsubscribeHeaders = buildListUnsubscribeHeaders({
+      mandatory: template.mandatory,
+      unsubscribeUrl: typeof variablesAsRecord.unsubscribeUrl === "string" ? variablesAsRecord.unsubscribeUrl : undefined,
+      supportEmail: typeof variablesAsRecord.supportEmail === "string" ? variablesAsRecord.supportEmail : undefined,
+    });
+
     // ML-01: reserva atómica JUSTO ANTES de tocar el proveedor real — ver el
     // comentario de `SendRecordStore.reserve()`. Sin esto, dos llamadas
     // concurrentes con la misma `messageKey` ya pasaron el `get()` de arriba
@@ -182,6 +196,7 @@ export class MailService {
         text: rendered.text,
         fromLocalPart: input.fromLocalPart,
         idempotencyKey: input.messageKey,
+        ...(listUnsubscribeHeaders ? { headers: listUnsubscribeHeaders } : {}),
       });
 
       if (result.ok) {
