@@ -16,6 +16,7 @@
  * solo espacio de diferencia en el re-serializado invalida la firma.
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
+import type { WebhookReplayGuard } from "./replay-guard";
 
 export interface WebhookSignatureHeaders {
   svixId: string;
@@ -32,7 +33,21 @@ export interface VerifyWebhookOptions {
 
 export type VerifyWebhookResult =
   | { ok: true }
-  | { ok: false; reason: "secreto_invalido" | "cabeceras_incompletas" | "firma_invalida" | "timestamp_fuera_de_rango" };
+  | {
+      ok: false;
+      reason:
+        | "secreto_invalido"
+        | "cabeceras_incompletas"
+        | "firma_invalida"
+        | "timestamp_fuera_de_rango"
+        /** ML-05: mismo `svix-id` ya procesado dentro de la ventana de
+         *  tolerancia — solo puede devolverla
+         *  `verifyResendWebhookSignatureWithReplayGuard`, nunca esta función
+         *  base (que no conoce ningún `WebhookReplayGuard`). Quien exponga
+         *  el endpoint HTTP debe responder `409 Conflict` (o ignorar en
+         *  silencio) sin volver a aplicar `applyMailWebhookEvent`. */
+        | "replay";
+    };
 
 export function verifyResendWebhookSignature(
   rawBody: string,
@@ -80,4 +95,31 @@ export function verifyResendWebhookSignature(
   });
 
   return matches ? { ok: true } : { ok: false, reason: "firma_invalida" };
+}
+
+/**
+ * ML-05: compone `verifyResendWebhookSignature` con un `WebhookReplayGuard`
+ * para cerrar la ventana de reenvío (replay) dentro de la tolerancia del
+ * timestamp. Primero se verifica la firma (si es inválida o las cabeceras
+ * están incompletas, se rechaza SIN tocar el guardia de replay — una firma
+ * que nunca fue válida no debe "gastar" el `svix-id` de una petición
+ * legítima futura). Solo con firma válida se reclama el `svixId`: la
+ * primera vez pasa, cualquier repetición dentro de la ventana se rechaza
+ * con `{ ok: false, reason: "replay" }`.
+ */
+export async function verifyResendWebhookSignatureWithReplayGuard(
+  rawBody: string,
+  headers: WebhookSignatureHeaders,
+  secret: string,
+  replayGuard: WebhookReplayGuard,
+  options: VerifyWebhookOptions = {},
+): Promise<VerifyWebhookResult> {
+  const signatureResult = verifyResendWebhookSignature(rawBody, headers, secret, options);
+  if (!signatureResult.ok) return signatureResult;
+
+  const tolerance = options.toleranceSeconds ?? 300;
+  const now = options.now ? options.now() : Date.now();
+  const claimed = await replayGuard.claim(headers.svixId, tolerance, now);
+  if (!claimed) return { ok: false, reason: "replay" };
+  return { ok: true };
 }

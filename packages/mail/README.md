@@ -49,9 +49,10 @@ src/
   suppression/
     types.ts                     SuppressionStore (deny-all, fail-closed) + InMemorySuppressionStore
   webhooks/
-    types.ts / verify-signature.ts / parse-resend-payload.ts / apply-event.ts
-                                 Eventos de entrega (bounce/queja), firma Svix de Resend, y el
-                                 efecto de negocio (suprimir automáticamente ante bounce/queja)
+    types.ts / verify-signature.ts / replay-guard.ts / parse-resend-payload.ts / apply-event.ts
+                                 Eventos de entrega (bounce/queja), firma Svix de Resend, anti-replay
+                                 por svix-id (ML-05), y el efecto de negocio (suprimir automáticamente
+                                 ante bounce/queja)
   templates/
     common.ts                    BaseVariablesSchema (zod) + formatFechaEs()
     types.ts                     TemplateDefinition<V> (id, category, mandatory, schema, sampleData, render)
@@ -211,6 +212,26 @@ antes de confiar en el payload — ver `webhooks/`). `apps/api` expone el
 endpoint HTTP (`POST /api/correo/eventos`, al estilo Likida) que recibe el
 webhook, verifica la firma y llama a estas dos funciones; ese endpoint vive
 fuera de este paquete (`packages/mail` no sabe de HTTP).
+
+**Anti-replay de webhooks (ML-05).** `verifyResendWebhookSignature()` por sí
+sola solo rechaza por firma inválida o por `svix-timestamp` fuera de la
+ventana de tolerancia (300s default) — DENTRO de esa ventana, repetir
+exactamente la misma petición capturada (mismo `svix-id`, cuerpo y firma) se
+vuelve a verificar como válida cuantas veces se quiera. Para el endpoint HTTP
+real, `apps/api` debe usar
+`verifyResendWebhookSignatureWithReplayGuard(rawBody, headers, secret,
+replayGuard)` en vez de la función base: compone la verificación de firma
+con un `WebhookReplayGuard` (interfaz de este paquete, `webhooks/replay-guard.ts`)
+que reclama cada `svix-id` una sola vez dentro de la ventana — la segunda
+petición con el mismo `svix-id` responde `{ ok: false, reason: "replay" }`,
+que el handler HTTP debe traducir a `409 Conflict` (o ignorar en silencio)
+**sin** volver a llamar a `applyMailWebhookEvent`. `apps/api` implementa
+`WebhookReplayGuard` contra una tabla/caché real de vida corta (p. ej.
+`webhook_events_vistos (svix_id PRIMARY KEY, expira_en)` en Postgres, o una
+llave de Redis con `EXPIRE <toleranceSeconds>`); `InMemoryWebhookReplayGuard`
+es solo para pruebas. Prueba de regresión:
+`test/webhooks/verify-signature.test.ts` reenvía la misma petición firmada
+dos veces y verifica que la segunda se rechaza como `replay`.
 
 ### Reintentos y límite de tasa
 

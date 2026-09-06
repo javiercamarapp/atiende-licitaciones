@@ -24,8 +24,10 @@ export * from "./recipients/types";
 export * from "./suppression/types";
 
 export * from "./webhooks/types";
-export { verifyResendWebhookSignature } from "./webhooks/verify-signature";
+export { verifyResendWebhookSignature, verifyResendWebhookSignatureWithReplayGuard } from "./webhooks/verify-signature";
 export type { WebhookSignatureHeaders, VerifyWebhookOptions, VerifyWebhookResult } from "./webhooks/verify-signature";
+export { InMemoryWebhookReplayGuard } from "./webhooks/replay-guard";
+export type { WebhookReplayGuard } from "./webhooks/replay-guard";
 export { applyMailWebhookEvent } from "./webhooks/apply-event";
 export { parseResendWebhookPayload } from "./webhooks/parse-resend-payload";
 
