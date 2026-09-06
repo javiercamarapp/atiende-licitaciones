@@ -323,3 +323,6 @@ Formato por entrada: requisito · acción · archivos/commit · prueba · result
 
 ## Corrección — worker K (2026-09-06 16:0x)
 - **Acción:** corrector #106 (Opus, D-10) cerró WK6-01/02/03 en `c778526`, `caee2fe`, `93ea69f`. Hallazgo propio: el script de mutación que dejó el Sonnet cortado probaba HEAD sin los arreglos (falso «no detectada»); corregido y verificado en vivo (bajo mutación la suite falla con 2 fallos). 383/383 tests en 4 corridas completas, 0 timeouts. **Límite documentado:** la consulta por correlation_id (REQ-171) va contra JSONB sin índice; columna indexada `agent_runs.correlation_id` → backlog E20 (packages/db). **Siguiente:** reverificación independiente del worker K junto con las demás correcciones en curso.
+
+## Corrección — Google OIDC (2026-09-06 16:1x)
+- **Acción:** corrector #107 (Opus, D-10) cerró GO-07 (`da18559`) y GO-03 (`c4a0cf9`); las 3 pruebas nuevas de GO-07 fallan con 500 sin el arreglo (no falso verde). **Hallazgo nuevo GO-10 (ALTA):** en el login repetido con Google no se fija `app.current_user_id` antes de `app.my_organizations()` y `sel_user_totp_secrets` → el usuario que vuelve recibe `sin_acceso` aunque tenga organización y NO se le exige el 2FA (bypass de REQ-176). Comprobado en vivo por el corrector. D-09 no lo congela (solo aplica a cuenta nueva sin invitación). **Siguiente:** corrector #110 con test primero.
