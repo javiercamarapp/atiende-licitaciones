@@ -110,6 +110,16 @@ export default defineConfig(({ command }) => ({
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
     css: true,
+    // Ronda 5: los módulos nuevos del expediente interactúan con un
+    // <Select/> real (Radix) + varias queries react-query encadenadas por
+    // prueba (convocatoria → recurso). Bajo contención real de CPU (workers
+    // de vitest en paralelo, sandbox compartido), una prueba individual que
+    // en aislamiento toma 5-10s puede tardar más que el `testTimeout` por
+    // defecto (5s) sin que haya ningún bug real -- `retry: 1` deja que una
+    // prueba genuinamente rota siga fallando dos veces seguidas, mientras
+    // absorbe ese ruido de entorno en vez de mostrar un rojo espurio.
+    testTimeout: 20000,
+    retry: 1,
     // La suite Playwright/axe vive en e2e/ (W-14) y usa su propio test
     // runner (`playwright test`, ver playwright.config.ts) — sin esta
     // exclusión, vitest intenta correr esos *.spec.ts con su runtime jsdom y
