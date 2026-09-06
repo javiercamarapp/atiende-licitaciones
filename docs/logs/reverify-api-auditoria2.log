@@ -1,0 +1,353 @@
+Log real — reverificación adversarial ronda 2 de `docs/auditoria-2/api-expediente.md`
+y de `docs/auditoria-1/db-api-seguridad-reverificacion.md` (DB-13/API-13)
+Fecha: 2026-09-06. Agente: reverificador adversarial Sonnet, contexto independiente.
+
+METODOLOGÍA
+-----------
+Repo principal: /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging
+(no se usó git reset/checkout <commit>/stash/rebase/commit --amend/add -A en el repo
+principal en ningún momento de esta reverificación).
+
+Worktree principal de este agente (ancestría + suites oficiales):
+  git worktree add <scratch>/reverify-api2 HEAD   (HEAD al iniciar: b5e4303)
+  npm install real (730 paquetes, 0 errores fatales, solo warnings de deprecación/audit)
+
+3 worktrees adicionales para 3 sub-agentes Sonnet (model="sonnet" explícito),
+cada uno con su propio npm install real:
+  <scratch>/reverify-api2-sub1  (HEAD 348a456 al momento de crear el worktree —
+                                  el repo principal avanzó con 2 commits docs-only
+                                  concurrentes, 8c63ffc y 348a456, que NO tocan
+                                  apps/api ni packages/db, ver sección "Ancestría")
+  <scratch>/reverify-api2-sub2  (mismo HEAD 348a456)
+  <scratch>/reverify-api2-sub3  (mismo HEAD 348a456)
+
+Cada sub-agente escribió UN (o dos, sub3) archivo(s) de test temporal(es)
+zz-adversarial-reverify-sub{1,2,3}.test.ts, los ejecutó con
+fastify.inject/PGlite (mismo patrón que la suite oficial) y los BORRÓ al
+terminar. `git status --short` confirmado limpio en los 3 worktrees salvo
+`package-lock.json` (modificación preexistente del propio `npm install`, no
+de los sub-agentes). Los 4 worktrees se eliminan al cierre de esta auditoría.
+
+===========================================================================
+1. ANCESTRÍA — 10 commits citados en el encargo
+===========================================================================
+
+$ git merge-base --is-ancestor <hash> HEAD   (para los 10, ejecutado en el repo principal)
+Todos: ANCESTOR: yes
+
+f2fef8a08920f9d6dfd998c975cfc15cdf806df2 2026-09-06 01:45:31 -0600 fix(api): AE-01 - asOfIso ya no lo decide el cliente, se deriva de submission_deadline
+6c43174cfb1891f2e0dff2725295b1c0d28ebb78 2026-09-06 01:45:13 -0600 fix(api): AE-02 - editar contenido de sección aprobada invalida la aprobación
+35323081d87b835dced85f1247c208ce58714a10 2026-09-06 02:26:03 -0600 fix(api): AE-09 - calendarNote y legalRegime (REQ-050) en plazo de pago
+2170bf35585e3640b5fc986cc82843a84edae316 2026-09-06 02:28:35 -0600 fix(api): AE-03/AE-05 - magic bytes en todo el buffer; rechaza ZIP (anti zip-bomb)
+622dbe24cf665dc64f62f4116aeeae7fbb5f5328 2026-09-06 02:30:47 -0600 fix(api): AE-04 - sanitiza HTML/script del texto extraído; anti PDF-bomb
+6534f5f024df2e2d20acfa73afb2d5de2297b2b6 2026-09-06 02:33:43 -0600 fix(api): AE-10 - caché de contexto de agent_run con límite de tamaño (LRU)
+d4788fe654433f961a2bddd9c008d5b303f1fe61 2026-09-06 02:35:09 -0600 docs(api): AE-12 - corrige conteo de rutas de /expediente (26) y resumen de reparaciones ronda 2
+f8ffaa607be978dd5bd20335fe6813a2d57ca21b 2026-09-06 01:45:42 -0600 fix(db): DB-13 - vigencia de tarifa evaluada siempre en America/Mexico_City
+e097c27c626e06e9845aa5b2847f269ba42a73e6 2026-09-06 01:56:57 -0600 fix(api,db): API-13 - eventos de autenticación quedan en audit_log
+668a0821e8cd8c67de971b4555ae548f4230e1f6 2026-09-06 02:40:06 -0600 fix(db): API-13 -- registra app.record_auth_event en la lista blanca de SECURITY DEFINER
+
+$ git show --stat <hash>   (resumen; ver reporte .md para el detalle completo)
+f2fef8a: dates.ts (+34), checklist.routes.ts (+8/-?), proposal.routes.ts (+11/-?),
+         schemas.ts (+11), 4 tests oficiales ajustados, +1 test nuevo (147 líneas)
+6c43174: proposal.routes.ts (+39/-6), +1 test nuevo (139 líneas)
+3532308: business-days.ts (+127/-?), post-award.routes.ts (+35/-?), schemas.ts (+25),
+         +1 test nuevo (124 líneas)
+2170bf3: storage.ts (+89/-15), +1 test nuevo (105 líneas)
+622dbe2: text-extraction.ts (+66/-2), +1 test nuevo (92 líneas)
+6534f5f: agent-stores.pg.ts (+38/-12), bounded-cache.ts nuevo (50 líneas),
+         +1 test nuevo (48 líneas)
+d4788fe: README.md (+48/-1), solo documentación
+f8ffaa6: migración 0050 nueva (85 líneas) + test nuevo (103 líneas), sin tocar código
+         de aplicación
+e097c27: audit.ts (+39), auth/routes.ts (+69/-6), +1 test nuevo (125 líneas),
+         migración 0051 nueva (57 líneas)
+668a082: security-definer-audit.test.ts (+2), solo agrega record_auth_event a la
+         lista blanca
+
+VEREDICTO: los 10 commits son reales, ancestros lineales de HEAD, y el contenido
+de cada uno coincide con lo que su mensaje/columna "Estado reparación" declara.
+Ningún commit toca archivos fuera de su hallazgo declarado.
+
+===========================================================================
+2. SUITES OFICIALES (worktree reverify-api2, HEAD b5e4303)
+===========================================================================
+
+$ npm run -w apps/api typecheck   -> exit 0, sin salida
+$ npm run -w apps/api lint        -> exit 0, sin salida
+$ npm run -w apps/api test        -> 121 passed (121), 36 archivos, exit 0
+   Duration 70.05s
+   Incluye: security-ae01-asofiso-server-derived.test.ts,
+   security-ae02-section-edit-invalidates-approval.test.ts,
+   security-ae03-ae05-magic-bytes-fullscan-zip.test.ts (7 tests),
+   security-ae04-sanitize-extracted-text.test.ts (2 tests),
+   security-ae09-payment-deadline-calendar-and-regime.test.ts,
+   security-ae10-bounded-cache.test.ts (3 tests),
+   security-api13-auth-audit-log.test.ts (vía sync con packages/db),
+   y toda la suite heredada (API-01..12, expediente-*.test.ts).
+
+$ npm run -w packages/db typecheck -> exit 0
+$ npm run -w packages/db lint      -> exit 0
+$ npm run -w packages/db test      -> 147 passed (147), 20 archivos, exit 0
+   Duration 25.90s
+   Incluye: security-db13-rate-validity-timezone.test.ts (3 tests),
+   security-definer-audit.test.ts (5 tests, incluye record_auth_event en la
+   lista blanca).
+
+Conteos EXACTOS coinciden con lo declarado en el encargo (api 121, db 147).
+
+===========================================================================
+3. REGRESIÓN — apps/web y apps/worker (mismo worktree reverify-api2)
+===========================================================================
+
+$ npm run -w apps/web typecheck    -> exit 0 (tsc -b --noEmit)
+$ npm run -w apps/worker typecheck -> exit 0 (tsc --noEmit)
+$ npm run -w apps/worker test      -> 298 passed (298), 11 archivos, exit 0
+   Duration 52.20s
+
+VEREDICTO: ninguna regresión introducida por los 10 commits en apps/web ni
+apps/worker.
+
+===========================================================================
+4. ATAQUES ADVERSARIALES — sub-agente 1 (worktree reverify-api2-sub1)
+   AE-01 / AE-02 / AE-09 / AE-10
+===========================================================================
+
+Archivo temporal: apps/api/test/zz-adversarial-reverify-sub1.test.ts (17 casos,
+17/17 verdes), comando `npx vitest run test/zz-adversarial-reverify-sub1.test.ts`,
+borrado al finalizar. git status --short limpio salvo package-lock.json.
+
+AE-01:
+1. asOfIso en body ignorado (tarifa/documento con vencimiento anterior al
+   deadline real sigue bloqueada aunque asOfIso mienta) -- CUMPLE.
+   Evidencia: apps/api/src/lib/expediente/dates.ts:63-73
+   (resolveExpedienteAsOfIso nunca lee tender.asOfIso).
+2. asOfIso en query string (?asOfIso=...) y header (x-as-of-iso/x-as-of) --
+   CUMPLE (vector no existe, grep confirma 0 lecturas fuera de request.body,
+   y ese único lugar se ignora).
+3. Tender sin submission_deadline -- CUMPLE, 422 explícito en las 3 rutas
+   (technical/generate, economic/generate, checklist/run).
+4. Re-ingest con nueva versión de bases y deadline distinto -- CUMPLE, usa
+   siempre tenders.submission_deadline vigente (fresco en cada request vía
+   requireTender, sin caché).
+5. Frontera de zona horaria (deadline 2030-01-16T00:00:00Z vs
+   2030-01-16T06:00:00Z, valid_until="2030-01-15" anclado a fin de día
+   Mexico City = 2030-01-16T05:59:59Z) -- CUMPLE. Comparación por instante
+   absoluto (isPast, packages/expediente/src/types.ts:181-185), no por
+   cadena de fecha; el primer caso NO vencida, el segundo SÍ vencida,
+   coherente con dateOnlyToMexicoCityIso (apps/api/src/lib/expediente/dates.ts:26-30).
+
+AE-02:
+6. Editar A->X->A (revertir al original) -- MATIZ (no vulnerabilidad):
+   contentChanged compara contra el ÚLTIMO guardado (X), no contra un
+   baseline histórico, así que la segunda edición TAMBIÉN invalida
+   (fail-safe, sobre-invalida en vez de fail-open). proposal.routes.ts:112.
+7. Editar sección de OTRO tender/propuesta -- CUMPLE, 404 (aislamiento
+   intacto, filtro por proposal_id derivado de tenderId).
+8. conditionEvaluations tras invalidación por edición de sección -- CUMPLE,
+   ambos mecanismos coexisten sin pisarse ni duplicar eventos
+   (ApprovalWorkflow.recordChange solo afecta aprobaciones "vigente";
+   verificado 1 solo evento en proposal_approval_events).
+9. Paquete "ready" -> editar sección -> /package/latest y /package/download
+   -- **FALLA — candidato AE-14 (MEDIA)**. Ambos endpoints solo leen la
+   última fila de package_manifests sin re-derivar contra la aprobación
+   actual; siguen sirviendo status:"ready" y el MISMO ZIP en bytes tras la
+   invalidación. Solo un nuevo POST /package/assemble corrige el estado.
+   Evidencia: apps/api/src/modules/expediente/package.routes.ts:97-137.
+
+AE-09:
+10. Frontera exacta de régimen legal (published_at < 2025-04-17T00:00:00Z
+    vs === vs posterior) -- CUMPLE, inclusive correcto
+    (business-days.ts:71, publishedAt.getTime() < vigor.getTime()).
+11. invoiceVerifiedOn en viernes -- CUMPLE, dueDate no cae en fin de semana,
+    calendarNote presente.
+12. holidays explícitos en followupCreateSchema -- CUMPLE, campo existe
+    (schemas.ts:270) y excluye esos días del cómputo real.
+
+AE-10:
+13. Fake timers, salto de 10 años sin acceso -- MATIZ confirmado (no nuevo):
+    BoundedCache es LRU puro por tamaño, SIN TTL real -- ya documentado
+    explícitamente en bounded-cache.ts:11-14.
+14. Tamaño real de producción (RUN_CONTEXT_CACHE_MAX_ENTRIES=10_000,
+    agent-stores.pg.ts:14) + 50 inserciones extra -- CUMPLE, nunca supera
+    10,000, LRU expulsa las 50 más antiguas exactamente.
+
+===========================================================================
+5. ATAQUES ADVERSARIALES — sub-agente 2 (worktree reverify-api2-sub2)
+   AE-03 / AE-04 / AE-05
+===========================================================================
+
+Archivo temporal: apps/api/test/zz-adversarial-reverify-sub2.test.ts (10 casos,
+10/10 verdes), borrado al finalizar. git status --short limpio salvo
+package-lock.json.
+
+1. %PDF- en offset 512 -- CUMPLE (matiz de diseño documentado, no bug):
+   con %%EOF -> 201 aceptado (correcto); sin %%EOF -> 422. Offset 2000
+   (fuera de PDF_HEADER_SEARCH_WINDOW=1024, storage.ts:118) no activa la
+   validación de estructura PDF en ningún caso -- coherente con el diseño
+   declarado (comentario storage.ts:126-130); la defensa real contra
+   ejecutables/ZIP/PEM sigue aplicando en TODO el buffer sin ventana
+   (containsSignatureAnywhere).
+2. Políglota PDF+ZIP real (construido con pdf-lib + jszip, confirmado
+   abrible como ZIP válido independientemente con JSZip.loadAsync en ambas
+   direcciones de concatenación) -- CUMPLE, 422 en ambos casos por
+   containsSignatureAnywhere detectando PK\x03\x04 en cualquier posición
+   (storage.ts:95-97), sin necesitar regla de "nada después de %%EOF".
+3. Zip-bomb real 1004:1 (5MB ceros -> 5224 bytes DEFLATE-9, medido con
+   jszip real) -- CUMPLE, 422 en 1.8ms, rechazo por firma antes de
+   cualquier intento de descompresión (0 llamadas a unzip/inflate en la
+   ruta de subida).
+4. ZIP anidado 3 niveles -- CUMPLE, 422 en 1.1ms, sin recursión.
+5. ZIP con 10,000 entradas (947,802 bytes -> ~1.26MB base64) -- rechazado
+   con 413 "Request body is too large" (bodyLimit DEFAULT de Fastify,
+   1MB) ANTES de llegar a assertSafeFileContent. Con 5,000 entradas
+   (bajo 1MB) -- CUMPLE, 422 en 2.7ms, rechazo rápido por firma.
+   -> Ver hallazgo nuevo AE-15 abajo.
+6. <img src=x onerror=...> en texto plano -- CUMPLE, sanitizePlainText usa
+   regex genérico /<[^>]+>/g (text-extraction.ts:77-82), elimina CUALQUIER
+   etiqueta HTML con sus atributos, no solo <script>/<style>.
+7. Entidades HTML ya escapadas (&amp;lt;script&amp;gt;...) -- CUMPLE, se
+   conservan literalmente como texto, NUNCA se decodifican a HTML vivo
+   (sanitizePlainText no hace ningún decodeEntities).
+8. Markdown con javascript: URI en link/imagen -- FUERA DE ALCANCE
+   documentado correctamente: sanitizePlainText solo opera sobre
+   construcciones <...>, no sobre sintaxis markdown; sobrevive intacto
+   (comportamiento esperado, responsabilidad de un eventual renderer de
+   markdown en el frontend, no de esta capa).
+9. Propagación hasta GET /tenders/:id/matrix -- CUMPLE, texto legítimo
+   completo en description/sourceExcerpt, sin <script>/onerror/<img> en
+   ningún punto del JSON serializado. Nota de forma: la ruta devuelve un
+   array plano de requirementItemSchema, no {items:[...]}.
+
+Hallazgo nuevo -- candidato AE-15 (BAJA, informativo/documental, NO
+explotable ofensivamente -- el efecto neto es MÁS restrictivo):
+apps/api/src/lib/storage.ts:26 documenta MAX_BASE64_LENGTH=30_000_000
+("~22MB decodificado"), pero apps/api/src/app.ts:41 construye Fastify SIN
+pasar bodyLimit, por lo que aplica el DEFAULT de Fastify (1,048,576 bytes =
+1MB) sobre el cuerpo COMPLETO de la petición. Confirmado: un ZIP de 947,802
+bytes (base64 ~1.26MB) es rechazado con 413 al nivel de framework, muy por
+debajo del límite de "~22MB" que storage.ts documenta y valida
+explícitamente -- ese límite nunca es alcanzable en la práctica con la
+config actual. Cualquier documento legítimo >~700KB reales es rechazado
+silenciosamente por Fastify (413 genérico) antes de llegar a
+decodeBase64Content. Recomendación: subir bodyLimit en buildApp
+(apps/api/src/app.ts) para que coincida con ~22MB, o corregir la
+documentación/comentarios para reflejar el límite real de 1MB.
+
+===========================================================================
+6. ATAQUES ADVERSARIALES — sub-agente 3 (worktree reverify-api2-sub3)
+   DB-13 / API-13
+===========================================================================
+
+Archivos temporales: packages/db/test/zz-adversarial-reverify-sub3.test.ts
+(13 tests, 13/13 verdes) y apps/api/test/zz-adversarial-reverify-sub3.test.ts
+(6 tests, 6/6 verdes), borrados al finalizar. git status --short limpio
+salvo package-lock.json.
+
+DB-13:
+1-2. submission_deadline='2026-01-15T05:00:00Z', valid_until='2026-01-14':
+     INSERT aceptado bajo sesión UTC, Asia/Tokyo Y America/Mexico_City
+     explícito -- 3/3 veredictos IDÉNTICOS -- CUMPLE.
+     Evidencia: packages/db/migrations/0050_fix_db13_rate_validity_timezone.sql:63-66.
+3. Fallback now() (submission_deadline NULL) TAMBIÉN envuelto en
+   "at time zone 'America/Mexico_City'" (línea 65) -- CUMPLE, confirmado
+   con SQL real comparando now()::date "desnudo" (sensible a sesión) vs
+   (now() at time zone 'America/Mexico_City')::date (idéntico entre
+   sesiones UTC/Tokyo). Caso valid_until=hoy-México aceptado y
+   valid_until=ayer-México rechazado, consistente bajo UTC y Tokyo.
+4. Caso base 0042 (tarifa vencida antes del acto) sigue rechazada -- CUMPLE,
+   sin regresión.
+
+API-13:
+5. Login fallido -- CUMPLE, contraseña (4 variantes adversariales, incl.
+   unicode/comillas/backslash/emoji) NUNCA aparece en ninguna columna real
+   de audit_log (se inspeccionaron TODAS: action, actor_id, after, before,
+   chain_seq, created_at, entity, entity_id, hash, id, org_id, prev_hash,
+   request_id).
+6. Reuso de refresh token -- CUMPLE con MATIZ: actor_id correcto y efecto
+   real confirmado (2ª sesión activa también queda revocada por la
+   respuesta de familia), pero el campo `after` solo trae
+   {ip, userAgent} -- la revocación de familia se infiere del NOMBRE de la
+   action (auth.refresh_reuse_detected), no de un campo explícito
+   (recomendación menor: agregar familyRevoked:true).
+7. Logout -- CUMPLE, ni el token completo, ni el jti, ni su hash sha256
+   aparecen en audit_log.
+8. Invitación aceptada -- ya auditado por mecanismo PREEXISTENTE
+   (recordAudit genérico, action invitation.accept,
+   organizations/routes.ts:364-372), fuera del alcance declarado de
+   API-13 pero confirmado funcionando.
+9. Cambio de rol de membresía -- ya auditado (membership.change_role,
+   organizations/routes.ts:250-259), sin regresión tras 0050/0051.
+10. app.record_auth_event -- CRÍTICO, ver candidato API-14 abajo.
+    (a) Firma SQL exacta (packages/db/migrations/0051_fix_api13_auth_audit_log.sql:29-45):
+        function app.record_auth_event(p_action text, p_actor_id uuid,
+        p_after jsonb, p_request_id text) security definer.
+        p_actor_id se inserta TAL CUAL, sin comparar contra
+        app.current_user_id().
+    (b) Ataque real: sesión autenticada como atacante, invocar
+        app.record_auth_event('auth.logout', <victimId>, ...) --
+        INSERTÓ exitosamente una fila con actor_id=victimId (usuario real
+        distinto). Contraste directo: app.create_refresh_token con
+        p_user_id ajeno SÍ lanza excepción
+        (create_refresh_token_requires_matching_user_context); record_auth_event
+        NO. Mitigante real: FK audit_log_actor_id_fkey rechaza un UUID
+        inventado (usuario inexistente), pero permite CUALQUIER usuario
+        real existente como actor suplantado.
+    (c) Único llamador en todo el repo: apps/api/src/lib/audit.ts:71
+        (recordAuthAudit), invocado solo desde
+        apps/api/src/modules/auth/routes.ts (5 sitios, uno por acción de
+        la lista blanca) -- confirmado por grep exhaustivo.
+    (d) Funciona "en frío" sin contexto de sesión: confirmado con
+        set local role app_role SIN fijar app.current_user_id ni
+        app.current_org_id (replica login con email inexistente) --
+        record_auth_event('auth.login_failed', null, ...) inserta con
+        actor_id=null sin error. Diseño deliberado: el actor se resuelve
+        por PARÁMETRO explícito, nunca por GUC de sesión, precisamente
+        porque API-13 exige auditar intentos de un actor no autenticado.
+
+Hallazgo nuevo -- candidato API-14 (BAJA/MEDIA, matiz de diseño, YA
+parcialmente reconocido por el equipo -- ver
+packages/db/test/security-definer-audit.test.ts:70-71, que documenta
+explícitamente la ausencia de control de acceso sobre este parámetro
+razonando que "hoy" el único llamador siempre pasa un actorId ya
+verificado por el servidor): app.record_auth_event carece de una segunda
+línea de defensa que compare p_actor_id contra app.current_user_id() en
+los casos donde este último SÍ está fijado (login exitoso, refresh,
+logout -- todos con sesión ya resuelta), a diferencia de
+app.create_refresh_token/rotate_refresh_token. Si en el futuro cualquier
+otro código (migración, script, endpoint mal escrito) reutiliza esta
+función sin la disciplina actual de apps/api, o si existiera cualquier
+vector de inyección SQL bajo app_role, se podría forjar/atribuir eventos
+de auditoría de autenticación (incluido un auth.logout falso) a cualquier
+usuario real -- útil para confundir evidencia forense tras un compromiso
+real. Recomendación: exigir p_actor_id IS NULL OR p_actor_id =
+app.current_user_id() cuando app.current_user_id() esté fijado (el caso
+de login fallido pre-sesión seguiría funcionando sin cambios).
+
+===========================================================================
+7. CONTEO FINAL DE ATAQUES
+===========================================================================
+
+- Sub-agente 1: 17 casos (17/17 verdes en el archivo temporal) -> 13 CUMPLE,
+  2 MATIZ (no vulnerabilidad), 1 FALLA nueva (candidato AE-14, MEDIA).
+- Sub-agente 2: 10 casos (10/10 verdes) -> 9 CUMPLE, 1 hallazgo
+  informativo/documental nuevo (candidato AE-15, BAJA).
+- Sub-agente 3: 13+6=19 casos (19/19 verdes) -> 17 CUMPLE/MATIZ menor,
+  1 hallazgo nuevo de diseño (candidato API-14, BAJA/MEDIA).
+- Este agente (ancestría, git show --stat, spot-check directo de código):
+  verificación estática de 10 commits + package.routes.ts:97-137,
+  app.ts:41, storage.ts:26, migración 0051:29-45.
+
+Total ataques dinámicos ejecutados en esta reverificación: 46
+(17+10+19), todos con evidencia HTTP/SQL real (fastify.inject/PGlite),
+0 fugas cross-tenant nuevas, 0 hallazgos CRÍTICOS nuevos.
+
+===========================================================================
+8. LIMPIEZA
+===========================================================================
+
+$ git worktree remove <scratch>/reverify-api2
+$ git worktree remove <scratch>/reverify-api2-sub1
+$ git worktree remove <scratch>/reverify-api2-sub2
+$ git worktree remove <scratch>/reverify-api2-sub3
+(ejecutado al cierre de esta auditoría, ver confirmación en el commit de
+este mismo log)
