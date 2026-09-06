@@ -7,6 +7,34 @@ real (sin mocks en producción — MSW solo en pruebas de componente, ver
 sigue mostrando un estado honesto (vacío, error con `request_id`, o "endpoint
 pendiente en apps/api") en vez de datos ficticios.
 
+## Ronda 4 — correcciones de la auditoría adversarial (WI-01..05)
+
+`docs/auditoria-2/web-integrado.md` (auditor independiente, solo hallazgo)
+encontró 5 hallazgos nuevos, ninguno crítico. Estado tras esta ronda (ver
+también la columna "Estado reparación" de ese documento):
+
+- **WI-01 (Media, seguridad frontend)** — Content-Security-Policy real +
+  cabeceras de seguridad. Ver "Seguridad: Content-Security-Policy y
+  cabeceras" más abajo.
+- **WI-02 (Media, REQ-098)** — el `<input type="file">` de subida de
+  documentos ahora valida tipo/tamaño en cliente (`accept` + un mensaje
+  honesto antes de leer el archivo) — ver `src/lib/validateDocumentFile.ts`.
+  El servidor sigue siendo la validación real (magic bytes + ~22MB); esto
+  es un mensaje temprano, no un reemplazo.
+- **WI-03 (Baja/Media, sesión)** — `logout()` ahora llama a
+  `queryClient.clear()` y `switchOrg()` elimina las queries admin/globales
+  sin `currentOrgId` en su clave — ver `src/lib/queryClient.ts`.
+- **WI-04 (Baja, idempotencia/permisos)** — los botones Aprobar/Rechazar de
+  `TarifasAprobadasPage` se deshabilitan (por fila, no toda la tabla)
+  mientras su decisión está pendiente y hasta que el estado real se
+  refresca; un 409 de la API se muestra con un mensaje honesto en vez del
+  genérico. La condición de estado previo en el servidor (`UPDATE ... SET
+  status = ... WHERE status = 'draft'`) es responsabilidad del lado API de
+  esta misma ronda (ver `apps/api`).
+- **WI-05 (Baja, reproducibilidad)** — `test:e2e:full` arranca `apps/api`
+  con `RATE_LIMIT_PROFILE=e2e` (ver "Determinismo de `test:e2e:full`" más
+  abajo).
+
 ## Ronda 3 — arquitectura de datos y sesión
 
 - **Cliente API tipado** (`src/lib/api/`): `http.ts` (fetch de bajo nivel,
@@ -79,6 +107,32 @@ recorrido de negocio completo) hace falta una API real, y `test:e2e:full`
 `apps/api` con PGlite en memoria, espera `/healthz`, construye `apps/web`
 apuntando a esa API, corre la suite Playwright completa y apaga la API al
 terminar (propagando el código de salida real).
+
+**Determinismo de `test:e2e:full` (ronda 4, WI-05).**
+`docs/auditoria-2/web-integrado.md` encontró que la suite no era
+determinísticamente verde: `e2e/skip-link.spec.ts` recorre ~29 rutas
+seguidas, cada una con varias peticiones de arranque de sesión, y podía
+autoinducir un `429` real contra el límite global de `apps/api`. Dos
+mitigaciones:
+
+- `scripts/e2e-full.mjs` arranca `apps/api` con `RATE_LIMIT_PROFILE=e2e`
+  (ver `apps/api/src/lib/rate-limit-settings.ts` — literal exacto, nunca
+  activado por defecto ni por `NODE_ENV`, exclusivo de este harness), que
+  eleva los límites muy por encima de cualquier tráfico legítimo real.
+- `e2e/skip-link.spec.ts` además espacia sus peticiones cada 5 rutas
+  (`page.waitForTimeout`, solo activo en modo "full") como capa adicional,
+  no como la única mitigación.
+
+De paso se corrigió un bug de infraestructura de la propia suite
+(`playwright.config.ts`): Playwright vuelve a importar el archivo de
+configuración dentro de cada proceso *worker*, así que calcular el puerto a
+partir de `process.pid` sin fijarlo en ningún sitio hacía que cada worker
+recalculara un puerto DISTINTO al que de verdad tenía `vite preview`
+corriendo (`ERR_CONNECTION_REFUSED` real, reproducido corriendo la suite
+con más de un worker sin `PLAYWRIGHT_PORT` explícito) — ahora se fija en
+`process.env.PLAYWRIGHT_PORT` la primera vez que se evalúa el módulo, y los
+procesos worker (que heredan el `env` de Node por defecto) lo reutilizan en
+vez de recalcular el suyo.
 
 Variables de entorno (`.env`, ver `.env.example`):
 
@@ -328,6 +382,112 @@ redirige igual. Esto sigue siendo una comodidad de UI, no la barrera de
 seguridad real: cada endpoint de `apps/api` exige `Authorization: Bearer` y
 valida membresía/rol por su cuenta (`app.requireOrg`, `app.requireSuperadmin`)
 sin importar lo que la UI decida mostrar u ocultar.
+
+## Seguridad: Content-Security-Policy y cabeceras (ronda 4, WI-01)
+
+`docs/auditoria-2/web-integrado.md` (WI-01, Media) encontró que no existía
+NINGUNA Content-Security-Policy en todo el sistema: `apps/api` registra
+`@fastify/helmet` con `contentSecurityPolicy: false` explícito, y el HTML/JS
+que sirve `apps/web` no llevaba ninguna cabecera de seguridad propia. Esto
+agravaba el riesgo ya documentado de que el refresh token vive en
+`localStorage` (ver arriba, "Ronda 3 — arquitectura de datos y sesión"):
+sin CSP, un XSS con acceso a `document`/`window` tendría vía libre para
+inyectar un `<script>` y leer ese token.
+
+**Qué se agregó** (fuente única de verdad: `src/lib/security/csp.ts`):
+
+- `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'
+  https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;
+  img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri
+  'self'; form-action 'self'` — sin `'unsafe-inline'` ni `'unsafe-eval'` en
+  `script-src`: un `<script>` inline inyectado dinámicamente (el patrón
+  clásico de un XSS) no se ejecuta bajo esta política (verificado con un
+  test E2E real contra el navegador, `e2e/csp.spec.ts`, no solo leyendo el
+  string de la política).
+- `style-src` sí incluye `'unsafe-inline'`: Radix UI (base de casi todos
+  los componentes de `src/components/ui/`) posiciona popovers/tooltips con
+  `style="..."` calculado en tiempo de ejecución; no hay un mecanismo de
+  nonce/hash práctico para eso sin parchear la librería. El riesgo real que
+  importa mitigar (ejecución arbitraria de JS) sigue cerrado por
+  `script-src`; permitir estilos inline es un trade-off deliberado, mucho
+  menor.
+- `connect-src 'self'` asume que producción sirve `apps/web` y `apps/api`
+  bajo el MISMO origen (vía un reverse proxy — ver "Bug real de apps/api...
+  CORS" más abajo, que documenta por qué esto además evita ese bug). Si un
+  despliegue real usa `VITE_API_URL` apuntando a un origen distinto,
+  `connect-src` debe ampliarse para incluirlo explícitamente (editar
+  `src/lib/security/csp.ts`) — de lo contrario el propio navegador
+  bloqueará las peticiones a la API bajo esta CSP.
+- Dos mecanismos, misma fuente (`vite.config.ts`, plugin
+  `atiende-security-headers`):
+  1. Un `<meta http-equiv="Content-Security-Policy">` inyectado en el
+     `index.html` de producción (`vite build`/`npm run -w apps/web
+     build`) — funciona incluso en un hosting puramente estático que no
+     pueda añadir cabeceras HTTP propias. Deliberadamente NO se inyecta en
+     `vite dev` (rompería el preámbulo inline de Fast Refresh de
+     `@vitejs/plugin-react-swc`; sin impacto real, nadie navega a `vite
+     dev` en producción).
+  2. Cabeceras HTTP reales en `npm run -w apps/web preview` (`vite
+     preview`, el mismo artefacto que llegaría a producción) —
+     `Content-Security-Policy` (con `frame-ancestors 'none'`, que el
+     estándar CSP ignora dentro de un `<meta>`, ver
+     https://www.w3.org/TR/CSP3/#meta-element), `X-Content-Type-Options:
+     nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy:
+     strict-origin-when-cross-origin`. Verificado con `curl -sD -` contra
+     un `vite preview` real (antes de esta corrección, esa misma
+     verificación no traía ninguna cabecera).
+
+**Para producción real (nginx/Caddy sirviendo el `dist/` estático)**: el
+meta tag y las cabeceras de `vite preview` cubren desarrollo/staging/E2E,
+pero un hosting estático real (nginx, Caddy, un CDN) debe fijar las MISMAS
+cabeceras a nivel de servidor — son más difíciles de evadir que un meta tag
+(p. ej. `frame-ancestors` solo funciona como cabecera real) y no dependen de
+que el HTML se sirva sin modificar. Ejemplo nginx (ajustar `connect-src` si
+`apps/api` vive en otro origen):
+
+```nginx
+location / {
+    root /var/www/atiende-web/dist;
+    try_files $uri /index.html;
+
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+}
+```
+
+Ejemplo Caddy (`Caddyfile`):
+
+```caddy
+atiende.example.com {
+    root * /var/www/atiende-web/dist
+    try_files {path} /index.html
+    file_server
+
+    header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+    header X-Content-Type-Options "nosniff"
+    header X-Frame-Options "DENY"
+    header Referrer-Policy "strict-origin-when-cross-origin"
+}
+```
+
+**TODO pendiente (fuera de alcance de `apps/web` en esta ronda): mover el
+refresh token de `localStorage` a memoria + cookie httpOnly.** La CSP de
+arriba es defensa en profundidad (reduce la probabilidad de que un XSS
+llegue a ejecutarse), no elimina el riesgo de fondo: mientras el refresh
+token siga siendo legible por JavaScript (`localStorage`, ver
+`src/lib/api/session.ts`), un XSS que sí lograra ejecutarse podría leerlo y
+rotarlo indefinidamente. La mitigación real (cookie httpOnly + rotación del
+lado del servidor, invisible para JavaScript) requiere que `apps/api` deje
+de emitir el refresh token en el CUERPO de `/auth/login`/`/auth/refresh`
+(`authTokensSchema`, `apps/api/src/modules/auth/schemas.ts`) y en su lugar
+lo emita como `Set-Cookie: HttpOnly; Secure; SameSite=Strict`, además de
+leerlo de la cookie (no del body) en `/auth/refresh` — un cambio de
+contrato de `apps/api` que no existe hoy y está fuera del ámbito exclusivo
+de esta corrección de `apps/web` (ver alcance en
+`docs/auditoria-2/web-integrado.md`). Rastrear este TODO junto con REQ-098
+(seguridad de credenciales) hasta que `apps/api` ofrezca esa opción.
 
 ## Módulos sin conectar (fuera de alcance de esta ronda)
 

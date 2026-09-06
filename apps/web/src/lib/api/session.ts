@@ -15,6 +15,13 @@
 // requeriría un cambio de contrato en apps/api, fuera del alcance de
 // apps/web. El access token de vida corta SÍ vive solo en memoria (nunca en
 // localStorage), para minimizar la ventana de exposición.
+//
+// TODO(WI-01, docs/auditoria-2/web-integrado.md): mover este refresh token
+// a memoria + cookie httpOnly en cuanto apps/api ofrezca esa opción — ver
+// "Seguridad: Content-Security-Policy y cabeceras (ronda 4, WI-01)" en
+// apps/web/README.md para el detalle completo del riesgo, la mitigación
+// exacta que se necesita del lado de apps/api y por qué la CSP añadida en
+// esta ronda es defensa en profundidad, no un reemplazo de este cambio.
 export interface Tokens {
   accessToken: string | null;
   refreshToken: string | null;
