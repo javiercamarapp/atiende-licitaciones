@@ -93,8 +93,55 @@ const API_PROXY_PATHS = [
   "/readyz",
   "/docs",
 ];
+/**
+ * Rutas que, pese a caer bajo un prefijo proxeado, son PANTALLAS de la SPA y
+ * NO endpoints de la API.
+ *
+ * Ronda 8a (REQ-172..180): `/auth/google/callback` existe en los dos lados —
+ * en apps/api es el endpoint que canjea el `code` (responde JSON) y en
+ * apps/web es la pantalla donde aterriza el navegador de vuelta del
+ * proveedor OIDC (`GOOGLE_REDIRECT_URI`, ver
+ * src/pages/auth/GoogleCallbackPage.tsx). Compartir el mismo nombre es
+ * deliberado (así un despliegue con API y front en hosts distintos usa un
+ * único valor de `GOOGLE_REDIRECT_URI`), pero cuando este proxy pone a los
+ * dos en el MISMO origen, el prefijo "/auth" se tragaba la navegación del
+ * navegador y el usuario recibía el JSON de la API en vez de la pantalla —
+ * el flujo con Google era literalmente irrecorrible en `test:e2e:full`.
+ */
+const SPA_ROUTES_UNDER_PROXIED_PREFIXES = new Set(["/auth/google/callback"]);
+
 const apiProxy = e2eApiTarget
-  ? Object.fromEntries(API_PROXY_PATHS.map((p) => [p, { target: e2eApiTarget, changeOrigin: true }]))
+  ? Object.fromEntries(
+      API_PROXY_PATHS.map((p) => [
+        p,
+        {
+          target: e2eApiTarget,
+          changeOrigin: true,
+          // `bypass` devolviendo una ruta hace que Vite NO proxee y sirva
+          // ese archivo (el `index.html` de la SPA, que resuelve la ruta en
+          // el cliente con react-router). Devolver `undefined` deja pasar
+          // todo lo demás al proxy, como antes.
+          //
+          // La distinción es por TIPO de petición, no solo por ruta: en
+          // `/auth/google/callback` conviven dos cosas distintas con el
+          // mismo nombre — la NAVEGACIÓN del navegador (documento HTML: hay
+          // que servir la SPA) y, desde esa misma pantalla ya cargada, el
+          // `fetch` al endpoint homónimo de apps/api que canjea el `code`
+          // (JSON: hay que proxear). Sin este filtro, el `fetch` también
+          // recibía el `index.html` y la pantalla moría con "Unexpected
+          // token '<' ... is not valid JSON" — reproducido en vivo.
+          bypass(req: { url?: string; headers?: Record<string, string | string[] | undefined> }) {
+            const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
+            if (!SPA_ROUTES_UNDER_PROXIED_PREFIXES.has(pathname)) return undefined;
+            const dest = req.headers?.["sec-fetch-dest"];
+            const accept = req.headers?.accept;
+            const isDocumentNavigation =
+              dest === "document" || (dest === undefined && typeof accept === "string" && accept.includes("text/html"));
+            return isDocumentNavigation ? "/index.html" : undefined;
+          },
+        },
+      ]),
+    )
   : undefined;
 
 // https://vitejs.dev/config/
