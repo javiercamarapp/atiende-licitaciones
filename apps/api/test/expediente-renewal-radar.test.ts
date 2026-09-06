@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
-import type { DbClient } from '@atiende/db';
+import type { DbClient, DbExecutor } from '@atiende/db';
 import { createTestApp, registerAndLogin, createOrgFor, TEST_PLATFORM_API_KEY } from './helpers.js';
 
 /**
@@ -23,6 +23,37 @@ async function createTender(app: FastifyInstance, orgId: string, externalId: str
 
 function toDateOnly(d: Date): string {
   return d.toISOString().slice(0, 10);
+}
+
+/**
+ * R6-09 (corrección de la corrección R6-03): instrumenta el cliente de base
+ * de datos que comparte la app de prueba para contar cuántas sentencias SQL
+ * se ejecutan dentro de las transacciones mientras dura una operación. Es la
+ * forma DETERMINISTA de comprobar la ausencia de un patrón N+1, en vez de un
+ * umbral de milisegundos que depende de la carga de la máquina y de cuántos
+ * archivos de test corren en paralelo.
+ */
+function countTxQueries(db: DbClient): { stop: () => number } {
+  const originalTransaction = db.transaction.bind(db);
+  let count = 0;
+  db.transaction = (async <T,>(fn: (tx: DbExecutor) => Promise<T>): Promise<T> =>
+    originalTransaction(async (tx: DbExecutor) => {
+      const originalQuery = tx.query.bind(tx);
+      const counting: DbExecutor = {
+        ...tx,
+        query: (async (sql: string, params?: unknown[]) => {
+          count += 1;
+          return originalQuery(sql, params);
+        }) as DbExecutor['query'],
+      };
+      return fn(counting);
+    })) as DbClient['transaction'];
+  return {
+    stop() {
+      db.transaction = originalTransaction;
+      return count;
+    },
+  };
 }
 
 describe('expediente — radar de renovaciones (REQ-055)', () => {
@@ -128,7 +159,7 @@ describe('expediente — radar de renovaciones (REQ-055)', () => {
     expect(scan.json().alertsCreated).toBe(0);
   });
 
-  it('R6-03: 5,000 contratos (15,000 alertas candidatas) escanean en <2s en PGlite -- sin N+1, en lote y paginado por cursor', async () => {
+  it('R6-03: 5,000 contratos (15,000 alertas candidatas) se escanean con un numero de consultas O(paginas), no O(alertas) -- sin N+1, en lote y paginado por cursor', async () => {
     const owner = await registerAndLogin(app, 'c055-owner-6@example.com');
     const org = await createOrgFor(app, owner, 'C055 Org 6', 'c055-org-6');
     const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
@@ -152,26 +183,44 @@ describe('expediente — radar de renovaciones (REQ-055)', () => {
       [org.id]
     );
 
+    // R6-09: el criterio de aceptación de R6-03 es ESTRUCTURAL (ausencia de
+    // N+1), no un umbral de reloj de pared: contamos las sentencias SQL que
+    // el handler ejecuta dentro de su transacción. Con el N+1 original eran
+    // ~4 por alerta (~60,000 para 15,000 alertas); en lote deben ser O(número
+    // de páginas) -- 5,000 contratos / pageSize por defecto 2,000 = 3
+    // páginas x ~5 consultas + contexto de tenant y auditoría. Un umbral de
+    // milisegundos aquí era no determinista (esta suite corre en paralelo con
+    // otros archivos: se midió 1.1s aislado y 2.9s bajo carga completa) --
+    // exactamente el tipo de test intermitente que esta ronda vino a eliminar.
+    const queriesDuringScan = countTxQueries(db);
     const startedAt = Date.now();
     const scan = await app.inject({ method: 'POST', url: '/expediente/renewals/scan', headers, payload: {} });
     const elapsedMs = Date.now() - startedAt;
-    console.log(`R6-03 perf: 5000 contratos, primer escaneo=${elapsedMs}ms`);
+    const scanQueries = queriesDuringScan.stop();
+    console.log(`R6-03 perf: 5000 contratos, primer escaneo=${elapsedMs}ms, consultas SQL=${scanQueries}`);
 
     expect(scan.statusCode).toBe(200);
     expect(scan.json().evaluatedContracts).toBe(5000);
     expect(scan.json().alertsCreated).toBe(15000);
     expect(scan.json().truncated).toBe(false);
     expect(scan.json().nextCursor).toBeNull();
-    expect(elapsedMs).toBeLessThan(2000);
+    // O(páginas), no O(alertas): con N+1 serían decenas de miles.
+    expect(scanQueries).toBeLessThan(100);
+    // Techo de regresión generoso (no un umbral fino): la medición original
+    // de la auditoría con N+1 fue de 16.6-28s para este mismo volumen.
+    expect(elapsedMs).toBeLessThan(10_000);
 
-    // Segundo escaneo (dedupe en lote, no una consulta por alerta): también
-    // debe ser rápido y no duplicar ninguna alerta.
+    // Segundo escaneo (dedupe en lote, no una consulta por alerta): mismo
+    // criterio estructural, y no duplica ninguna alerta.
+    const queriesDuringSecondScan = countTxQueries(db);
     const startedAt2 = Date.now();
     const secondScan = await app.inject({ method: 'POST', url: '/expediente/renewals/scan', headers, payload: {} });
     const elapsedMs2 = Date.now() - startedAt2;
-    console.log(`R6-03 perf: 5000 contratos, segundo escaneo (dedupe)=${elapsedMs2}ms`);
+    const secondScanQueries = queriesDuringSecondScan.stop();
+    console.log(`R6-03 perf: 5000 contratos, segundo escaneo (dedupe)=${elapsedMs2}ms, consultas SQL=${secondScanQueries}`);
     expect(secondScan.json().alertsCreated).toBe(0);
-    expect(elapsedMs2).toBeLessThan(2000);
+    expect(secondScanQueries).toBeLessThan(100);
+    expect(elapsedMs2).toBeLessThan(10_000);
 
     const totalAlerts = await db.query<{ count: string }>('select count(*)::text as count from renewal_alerts where org_id = $1', [org.id]);
     expect(Number(totalAlerts.rows[0].count)).toBe(15000);
