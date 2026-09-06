@@ -35,7 +35,17 @@ function readSeed(): SeedData {
 const runId = Date.now().toString(36);
 const SIGNER_ROLE_TITLE = `representante_legal_${runId}`;
 const RATE_ITEM_CODE = `E2E-EXP-${runId}`;
-const BASES_SENTENCE = `El licitante deberá contar con un representante legal ${runId} autorizado para firmar la propuesta.`;
+// "poder notarial" es literal a propósito: `extractRequiredEvidence`
+// (packages/expediente/src/requirement-matrix.ts) solo llena
+// `requiredEvidence` para un puñado de frases reconocidas (fianza,
+// garantía, opinión de cumplimiento/32-D, acta constitutiva, poder
+// notarial, anexos, o requisitos económicos). Un requisito con
+// `requiredEvidence` VACÍO nunca llega a la rama de mapeo explícito de
+// `TechnicalProposalBuilder` -- queda "PENDIENTE" SIEMPRE, sin importar
+// qué mapeo declare esta prueba (encontrado real corriendo
+// test:e2e:full: la frase original, sin "poder notarial", dejaba el
+// requisito bloqueado pese al mapeo).
+const BASES_SENTENCE = `El licitante deberá contar con un representante legal ${runId} acreditado mediante poder notarial para firmar la propuesta.`;
 
 async function switchOrganization(page: import("@playwright/test").Page, orgName: string) {
   await page.goto("/panel");
