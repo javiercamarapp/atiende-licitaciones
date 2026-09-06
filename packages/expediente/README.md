@@ -17,7 +17,7 @@ Postgres.
 |---|---|---|
 | `requirement-matrix.ts` | `RequirementMatrixBuilder`: extrae `RequirementItem[]` de `TenderDocumentText` (bases/anexos/aclaraciones) vía `RuleBasedExtractor` (determinista, regex/léxico) y detecta `Conflict` entre documentos (plazos u obligatoriedad contradictorios) — nunca elige uno en silencio. `extractDeadline` reconoce "DD de mes de/del AAAA", "DD/MM/AAAA" y "DD-MM-AAAA". | REQ-156, REQ-166 |
 | `llm/extractor.ts` | Hook de extractor LLM (`LlmExtractorClient` + `LlmRequirementExtractor`) que se combina con el extractor de reglas en el mismo `RequirementMatrixBuilder`. `FakeLlmExtractorClient` para pruebas deterministas sin red. | REQ-156 |
-| `company-data.ts` | `CompanyDataResolver` (interfaz) + `CompanyDataService`: resuelve documentos/capacidades/experiencia/tarifas/firmantes con reglas duras — ausente → `missing`, vencido/no aprobado → `blocked`, nunca un valor inventado. Todas las fechas (`asOfIso`, `validFrom`, `expiresAt`) deben traer offset horario explícito (`assertExplicitOffset`); `resolveApprovedRate` lanza si `rate.currency !== "MXN"`. | REQ-157, REQ-158, REQ-164, REQ-166 |
+| `company-data.ts` | `CompanyDataResolver` (interfaz) + `CompanyDataService`: resuelve documentos/capacidades/experiencia/tarifas/firmantes con reglas duras — ausente → `missing`, vencido/no aprobado → `blocked`, nunca un valor inventado. Todas las fechas (`asOfIso`, `validFrom`, `expiresAt`) deben traer offset horario explícito válido (`assertExplicitOffset`: formato, rango -12:00/+14:00 y validez calendárica — EX-EXP-04/EX-EXP-13); `resolveApprovedRate` lanza si `rate.currency !== "MXN"`. | REQ-157, REQ-158, REQ-164, REQ-166 |
 | `technical-proposal.ts` | `TechnicalProposalBuilder`: mapea requisitos → dato de empresa aprobado, produce `ProposalStatement` con `source_ref` trazable; dato faltante/bloqueado = bloqueo de sección, nunca texto inventado. Un requisito `obligatorio` sin evidencia mapeable NUNCA se omite: queda como sección "PENDIENTE" con `SectionBlocker`. Un requisito `condicional` sin evidencia se trata igual (PENDIENTE) salvo que el llamador declare EXPLÍCITAMENTE, vía el parámetro `conditionEvaluations`, que no aplica al caso concreto (`false`); si no se declara nada, es fail-closed ("condicion_no_evaluable"), nunca desaparece en silencio (EX-EXP-03/EX-EXP-12). | REQ-157, REQ-158, REQ-164 |
 | `economic-proposal.ts` | `EconomicProposalBuilder`: cálculo económico 100% determinista (centavos en `bigint`, half-up), rechaza tarifas no aprobadas/vencidas de punta a punta (sin total parcial), genera carta + anexo desde el mismo objeto de totales (consistencia estructural). El constructor valida `ivaRate` en `[0, maxIvaRate]` (default 0.3) vía `assertValidIvaRate`. | REQ-029, REQ-030, REQ-157, REQ-160, REQ-164 |
 | `money.ts` | Aritmética monetaria en centavos (`bigint`), redondeo half-up explícito. `multiplyQuantityHalfUp` rechaza `quantity > MAX_QUANTITY` (1e7). | REQ-029 |
@@ -46,9 +46,14 @@ Todos los módulos se re-exportan desde `src/index.ts`.
   `currentInputsHash === inputsHash` de la aprobación vigente de alcance
   `"expediente"` como defensa independiente: `"ready"` es imposible con
   hash divergente incluso si el llamador olvida revalidar.
-- **Fechas siempre con offset explícito**: `isPast`/`CompanyDataService`
-  rechazan (lanzan excepción) cualquier fecha ISO sin `"Z"`/`"±HH:MM"` — el
-  veredicto de vencimiento nunca depende del `TZ` del proceso Node.
+- **Fechas siempre con offset explícito y válido**: `isPast`/
+  `CompanyDataService` rechazan (lanzan excepción) cualquier fecha ISO sin
+  `"Z"`/`"±HH:MM"`, con offset numéricamente imposible (fuera de -12:00 a
+  +14:00, o minutos fuera de 00-59), o calendáricamente inválida (p. ej. 29
+  de febrero en año no bisiesto) — el veredicto de vencimiento nunca
+  depende del `TZ` del proceso Node, y una fecha inválida SIEMPRE lanza
+  (fail-closed): `isPast` nunca compara `NaN` ni responde "no vencido"
+  sobre una fecha corrupta (EX-EXP-04/EX-EXP-13).
 - **Nunca firma el sistema**: `IntegrityChecklist` solo lee
   `userConfirmedSigned` (provisto por el llamador); no existe método que lo
   ponga en `true` desde dentro del paquete.

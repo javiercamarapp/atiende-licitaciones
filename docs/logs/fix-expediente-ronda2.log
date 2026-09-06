@@ -114,3 +114,35 @@ Suite completa DESPUÉS de la corrección (packages/expediente):
 npm run -w packages/expediente typecheck -> exit 0
 npm run -w packages/expediente lint -> exit 0
 
+================================================================================
+## EX-EXP-04 / EX-EXP-13 — rango de offset y validez calendárica (fail-closed, isPast nunca compara NaN)
+================================================================================
+
+Reproducción (worktree separado, HEAD=2a7b809, tests nuevos copiados,
+`src/types.ts` en su versión previa a esta corrección):
+
+  Test Files  2 failed | 14 passed (16)
+       Tests  11 failed | 346 passed (357)
+
+Fallos representativos: `assertExplicitOffset("...+99:00")` NO lanzaba
+(el regex de formato solo exigía 2 dígitos); `isPast("...+99:00", asOf)`
+devolvía `false` en vez de lanzar (NaN < NaN evaluado como "no vencido");
+`assertExplicitOffset("2026-02-30T...")` NO lanzaba (Date la reinterpreta
+en silencio como 1 de marzo); minutos de offset fuera de 00-59 no se
+detectaban.
+
+Corrección aplicada (packages/expediente/src/types.ts):
+`assertOffsetInRange` (rango real -12:00 a +14:00, minutos 00-59) y
+`assertValidCalendarComponents` (día/mes real incluyendo años bisiestos)
+se ejecutan dentro de `assertExplicitOffset`, más una defensa final
+`Number.isNaN(new Date(...).getTime())`. `isPast` ya no puede recibir una
+fecha inválida sin que `assertExplicitOffset` lance primero.
+
+Suite completa DESPUÉS de la corrección (packages/expediente):
+
+ Test Files  16 passed (16)
+      Tests  357 passed (357)
+
+npm run -w packages/expediente typecheck -> exit 0
+npm run -w packages/expediente lint -> exit 0
+

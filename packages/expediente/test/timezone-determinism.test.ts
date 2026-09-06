@@ -89,4 +89,40 @@ describe("isPast — determinismo ante el TZ del proceso (EX-EXP-04, REQ-160 vig
       expect(r.error).toContain("offset horario explícito");
     }
   });
+
+  /**
+   * EX-EXP-13 (ALTA, reverificación ronda 1): `assertExplicitOffset` solo
+   * validaba el FORMATO del offset, no su rango numérico ni la validez
+   * calendárica. Un offset imposible como "+99:00" pasaba, producía
+   * `Invalid Date` (NaN), e `isPast()` evaluaba `NaN < NaN` como `false`
+   * ("nunca vencido") — fail-open. Se repite el mismo protocolo de 3 zonas
+   * horarias reales para confirmar que el rechazo es consistente e
+   * independiente del `TZ` del proceso, no solo un caso feliz de una zona.
+   */
+  it("EX-EXP-13: un offset numéricamente imposible ('+99:00') se RECHAZA en las 3 zonas, NUNCA se evalúa como 'no vencido'", () => {
+    const isoConOffsetImposible = "2026-09-05T23:59:59+99:00";
+    const asOfIso = "2026-10-20T12:00:00-06:00";
+
+    const results = TIMEZONES.map((tz) => ({ tz, ...runIsPastUnderTz(tz, isoConOffsetImposible, asOfIso) }));
+    for (const r of results) {
+      expect(r.result, `TZ=${r.tz}: un offset imposible NUNCA debe producir un veredicto (antes: fail-open a 'no vencido')`).toBeUndefined();
+      expect(r.error, `TZ=${r.tz} debía lanzar un error de offset fuera de rango`).toContain("offset horario fuera del rango válido");
+    }
+  });
+
+  it("EX-EXP-13: una fecha calendáricamente inexistente ('2026-02-30') se RECHAZA en las 3 zonas, no se reinterpreta en silencio", () => {
+    const results = TIMEZONES.map((tz) => ({ tz, ...runIsPastUnderTz(tz, "2026-02-30T00:00:00-06:00", "2026-10-20T12:00:00-06:00") }));
+    for (const r of results) {
+      expect(r.result).toBeUndefined();
+      expect(r.error).toContain("día calendárico inválido");
+    }
+  });
+
+  it("EX-EXP-13: cadena vacía como fecha límite se rechaza consistentemente en las 3 zonas", () => {
+    const results = TIMEZONES.map((tz) => ({ tz, ...runIsPastUnderTz(tz, "", "2026-10-20T12:00:00-06:00") }));
+    for (const r of results) {
+      expect(r.result).toBeUndefined();
+      expect(r.error).toBeDefined();
+    }
+  });
 });
