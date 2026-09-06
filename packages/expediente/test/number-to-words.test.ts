@@ -75,4 +75,31 @@ describe("centsToPesosWords", () => {
       expect(centsToPesosWords(101n)).toBe("SON: UN PESO 01/100 M.N.");
     });
   });
+
+  describe("EX-EXP-05/EX-EXP-12(b): apócope de 'veintiún' FUSIONADO al final de centenas/millares/millones (reverificación ronda 1)", () => {
+    // El fix de la ronda anterior solo cubría "veintiuno" AISLADO (21,
+    // 21,000,000); no reconocía "veintiuno" pegado al final de una cadena
+    // más larga ("ciento veintiuno", "mil ciento veintiuno", y su
+    // propagación a "...mil"/"...millones").
+    const cases: Array<[bigint, string]> = [
+      [12100n, "SON: CIENTO VEINTIÚN PESOS 00/100 M.N."], // $121.00
+      [22100n, "SON: DOSCIENTOS VEINTIÚN PESOS 00/100 M.N."], // $221.00
+      [112100n, "SON: MIL CIENTO VEINTIÚN PESOS 00/100 M.N."], // $1,121.00
+      [212100n, "SON: DOS MIL CIENTO VEINTIÚN PESOS 00/100 M.N."], // $2,121.00
+      [2112100n, "SON: VEINTIÚN MIL CIENTO VEINTIÚN PESOS 00/100 M.N."], // $21,121.00
+      [12100000n, "SON: CIENTO VEINTIÚN MIL PESOS 00/100 M.N."], // $121,000.00
+      [12100000000n, "SON: CIENTO VEINTIÚN MILLONES PESOS 00/100 M.N."], // $121,000,000.00
+      [2121n, "SON: VEINTIÚN PESOS 21/100 M.N."], // $21.21
+    ];
+
+    it.each(cases)("centsToPesosWords(%s) aplica el apócope incluso fusionado al final de una cadena más larga", (cents, expected) => {
+      expect(centsToPesosWords(cents)).toBe(expected);
+    });
+
+    it("integerToWords propaga el apócope a 'mil'/'millones' cuando la centena de millar/millón termina en 21", () => {
+      expect(integerToWords(121_000)).toBe("ciento veintiún mil");
+      expect(integerToWords(121_000_000)).toBe("ciento veintiún millones");
+      expect(integerToWords(1_121)).toBe("mil ciento veintiuno"); // forma cardinal aislada: NO se apocopa aquí (solo en centsToPesosWords)
+    });
+  });
 });

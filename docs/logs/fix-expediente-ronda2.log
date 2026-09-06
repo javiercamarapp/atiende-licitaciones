@@ -85,3 +85,32 @@ Suite completa DESPUÉS de la corrección (packages/expediente):
 npm run -w packages/expediente typecheck -> exit 0
 npm run -w packages/expediente lint -> exit 0
 
+================================================================================
+## EX-EXP-05 / EX-EXP-12(b) — apócope 'veintiún' fusionado al final de centenas/millares/millones
+================================================================================
+
+Reproducción (worktree separado, HEAD=1dc9026, con los tests nuevos
+copiados y `src/number-to-words.ts` en su versión previa):
+
+  Test Files  1 failed | 14 passed (15)
+       Tests  8 failed | 331 passed (339)
+
+Fallos: 121, 221, 1121, 2121, 21121, 121000, 121000000 pesos imprimían
+"VEINTIUNO"/"...VEINTIUNO MIL"/"...VEINTIUNO MILLONES" en vez de
+"VEINTIÚN"/"...VEINTIÚN MIL"/"...VEINTIÚN MILLONES".
+
+Corrección aplicada (packages/expediente/src/number-to-words.ts):
+`apocopeUno` ahora comprueba el sufijo `"veintiuno"` (fusionado, sin
+espacio previo) ANTES que el sufijo `" uno"` (con espacio) — cubre tanto
+"veintiuno" aislado como pegado al final de "ciento veintiuno"/"mil ciento
+veintiuno"/etc., y su propagación a "...mil"/"...millones" (que reutilizan
+la misma función).
+
+Suite completa DESPUÉS de la corrección (packages/expediente):
+
+ Test Files  15 passed (15)
+      Tests  339 passed (339)
+
+npm run -w packages/expediente typecheck -> exit 0
+npm run -w packages/expediente lint -> exit 0
+

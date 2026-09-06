@@ -100,11 +100,31 @@ function threeDigitsToWords(n: number): string {
   return parts.join(" ");
 }
 
-/** Ajusta "uno" → "un"/"una" cuando precede a un sustantivo o a "mil"/"millón" (incluye el caso pegado "veintiuno" → "veintiún"). */
+/**
+ * Ajusta "uno" → "un"/"una" cuando precede a un sustantivo o a "mil"/
+ * "millón" (incluye el caso pegado "veintiuno" → "veintiún").
+ *
+ * EX-EXP-05/EX-EXP-12(b) (reverificación ronda 1): la versión anterior solo
+ * reconocía los sufijos EXACTOS `"uno"`, `"veintiuno"` y `" uno"` (con
+ * espacio), pero NO el sufijo fusionado `"...veintiuno"` sin espacio previo
+ * — "veintiuno" es una sola palabra pegada ("veinti" + "uno"), no dos
+ * palabras separadas por espacio. Por eso cualquier cantidad cuyas decenas
+ * de centena/millar/millón terminaran en 21 (121, 221, 1121, 2121, 121000,
+ * 121000000, …) seguía imprimiendo "VEINTIUNO" en vez de "VEINTIÚN": p. ej.
+ * `threeDigitsToWords(121)` = `"ciento veintiuno"`, que termina en
+ * `"veintiuno"` pero NO en `" uno"` (el carácter previo a "uno" es "i", no
+ * un espacio). Ahora se comprueba el sufijo `"veintiuno"` ANTES que el
+ * sufijo `" uno"`, cubriendo tanto el caso aislado como el fusionado al
+ * final de una cadena más larga, y su propagación a "mil"/"millones" (que
+ * reutilizan esta misma función sobre `threeDigitsToWords`/
+ * `threeDigitsAndThousands`).
+ */
 function apocopeUno(words: string, feminine: boolean): string {
+  const veintiunoApocope = feminine ? "veintiuna" : "veintiún";
+  if (words === "veintiuno") return veintiunoApocope;
+  if (words.endsWith("veintiuno")) return words.slice(0, -"veintiuno".length) + veintiunoApocope;
   if (words === "uno") return feminine ? "una" : "un";
-  if (words === "veintiuno") return feminine ? "veintiuna" : "veintiún";
-  if (words.endsWith(" uno")) return words.slice(0, -3) + (feminine ? "una" : "un");
+  if (words.endsWith(" uno")) return words.slice(0, -"uno".length) + (feminine ? "una" : "un");
   return words;
 }
 
