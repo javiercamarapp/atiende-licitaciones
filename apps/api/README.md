@@ -5,8 +5,11 @@ API HTTP de Atiende Licitaciones. Fastify + TypeScript + Zod
 `/docs/json`, requiere sesión) + `@fastify/helmet` + `@fastify/cors` +
 `prom-client` (`/metrics`) + logs `pino` con `request_id` +
 `@fastify/rate-limit`. Persistencia vía `@atiende/db` (PGlite en desarrollo
-y tests, Postgres real vía `pg` en producción — ver `packages/db/README.md`)
-y motor de relevancia de `@atiende/sources` (`MatchingEngine`).
+y tests, Postgres real vía `pg` en producción — ver `packages/db/README.md`),
+motor de relevancia de `@atiende/sources` (`MatchingEngine`) y motor del
+expediente de participación de `@atiende/expediente` (matriz de
+requisitos, propuesta técnica/económica, checklist de integridad, flujo de
+aprobación, paquete final — ver sección "expediente" más abajo).
 
 ## Arranque
 
@@ -162,6 +165,97 @@ organizaciones.
 - `GET/POST /admin/incidents`, `POST /admin/incidents/:id/resolve`.
 - `GET /admin/approvals` — `tool_calls` pendientes de todas las organizaciones.
 
+### expediente (E6-E9/E11 — expediente de participación real)
+Integra `@atiende/expediente` (paquete puro, sin DB) sobre `packages/db`
+mediante adaptadores en `src/lib/expediente/` (ver docstrings de cada
+archivo para el detalle de cada decisión de mapeo). Todas bajo el prefijo
+`/expediente/tenders/:tenderId/...`; roles con el mismo criterio del resto
+de la API (`WRITE_ROLES` = owner/admin/analyst/writer/reviewer para
+mutar, `viewer` solo lee), salvo aprobar (ver más abajo).
+
+- **Documentos y matriz (E6)** — `POST/GET /documents` (bóveda en disco con
+  sha256, ver `lib/storage.ts`; extracción de texto real vía `pdf-parse`
+  para PDF, o texto plano; un PDF sin capa de texto queda
+  `textExtractionStatus: "requires_ocr"` explícito, **nunca** vacío en
+  silencio — sin OCR real en esta ronda). Subir un nuevo documento
+  `document_kind: "bases"` cuando ya existía uno anterior se trata como
+  nueva versión de bases: inserta `tender_versions`/`tender_change_events`
+  ANTES del documento, lo que dispara el trigger de invalidación ya
+  existente (`packages/db/migrations/0022`) sobre
+  `requirement_items`/`compliance_items`/`proposals`/`proposal_approvals`
+  de esa convocatoria — el historial nunca se borra, solo se marca
+  `invalidated_at`. `POST /matrix/build` corre
+  `RequirementMatrixBuilder`/`RuleBasedExtractor` real sobre los documentos
+  con texto extraído e inserta `requirement_items` nuevos (no invalidados);
+  `PATCH /matrix/:id` (writer+) edita `matrixStatus`/`assignedTo`.
+  Conflictos entre documentos (`RequirementMatrixBuilder` detecta plazos u
+  obligatoriedad contradictorios) se persisten como incidentes visibles en
+  `requirement_conflicts` (`GET /conflicts`, `POST /conflicts/:id/resolve`).
+- **Propuesta (E7)** — `GET /proposal` (crea el expediente si no existe),
+  `POST /proposal/technical/generate` (`TechnicalProposalBuilder` real
+  sobre `CompanyDataService`; un mapeo declarado por el llamador
+  `{requirementId, kind, refKey}` resuelve a texto trazable, sin mapeo o
+  sin evidencia mapeable queda "PENDIENTE" explícito, nunca inventado) y
+  `POST /proposal/economic/generate` (`EconomicProposalBuilder`; **A8**:
+  una tarifa no aprobada/vencida bloquea ese concepto de punta a punta, sin
+  total parcial). `GET/PATCH /proposal/sections/:sectionKey` (writer+, nueva
+  versión en cada edición manual). El reporte de bloqueos/faltantes de la
+  última generación se persiste en `proposals.generation_report`.
+- **Checklist (E8)** — `POST /checklist/run` corre `IntegrityChecklist` real
+  (7 dimensiones) y lo persiste en `compliance_items`; `files`/
+  `formatLimits`/`requiredSignatures`/`presentAnnexRefs` los declara el
+  llamador (esta ronda no modela un "casillero de portal" propio ni un
+  tablero de firmas — límite de alcance documentado, no inferencia
+  fabricada); anexos obligatorios, documentos usados (con vigencia real) y
+  el resultado económico se derivan de datos reales. `GET /checklist` lista
+  el resultado vigente.
+- **Aprobación (E8)** — `ApprovalWorkflow` real
+  (`lib/expediente/approval-store.pg.ts`: la clase vive solo en memoria y no
+  expone hidratación, así que se reproduce un log append-only de eventos,
+  `proposal_approval_events`, sobre una instancia nueva en cada petición;
+  `proposal_approvals` queda como snapshot materializado de lectura simple).
+  `POST /approval/request-review` (writer/owner/admin),
+  `POST /approval/approve` (**solo reviewer/admin/owner**, reforzado en la
+  aplicación y en la política RLS de `proposal_approvals`,
+  `packages/db/migrations/0031`; autoaprobación por el mismo `actorId`
+  prohibida — la autoaprobación entre dos CUENTAS de la misma persona física
+  es un límite conocido y documentado de `packages/expediente`, EX-EXP-08),
+  `POST /approval/comments`, `GET /approval` (recalcula siempre el hash de
+  insumos ACTUAL con `sealInputs`/`computeInputsHash` — EX-EXP-17, nunca
+  reutiliza un hash guardado — e invalida automáticamente en memoria una
+  aprobación divergente al responder). **Nota importante**: la aplicabilidad
+  de un requisito condicional (`conditionEvaluations`) NO forma parte de
+  `ExpedienteInputs`, así que cambiarla entre dos generaciones de la
+  propuesta técnica no mueve el hash — `proposal/technical/generate` la
+  compara contra la declaración anterior y, si cambió, invalida
+  EXPLÍCITAMENTE (mismo mecanismo de evento persistido) la aprobación
+  afectada.
+- **Paquete (E8/E9)** — `POST /package/assemble` corre `PackageAssembler`
+  real: ZIP en disco (`STORAGE_DIR`) + fila en `package_manifests`
+  (`storage_ref`, `inputs_hash`). `status` (`draft`/`ready`) se DERIVA
+  siempre dentro del propio paquete (checklist verde + aprobación vigente de
+  alcance `"expediente"` con hash coincidente + sin documentos faltantes) —
+  esta ruta nunca lo declara por su cuenta (**A13/A14**).
+  `GET /package/latest`, `GET /package/download` (autenticada, cualquier
+  rol de lectura).
+- **Presentación declarada por el usuario (E9, A15)** — `GET /submission`,
+  `POST /submission/declare` (writer+): registra SOLO que el usuario declara
+  haber presentado (fecha + acuse opcional subido por el propio usuario,
+  guardado en disco). Este módulo **nunca** envía nada a un portal externo
+  — ni un cliente HTTP saliente en todo el archivo
+  (`modules/expediente/submission.routes.ts`), verificado estáticamente en
+  `test/expediente-package-and-submission.test.ts`.
+- **Post-adjudicación (E11)** — `GET/POST /post-award`, `PATCH
+  /post-award/:id` (writer+): hitos/garantías/facturación/pago.
+  `kind: "pago"` calcula `dueDate` a 17 días hábiles desde
+  `invoiceVerifiedOn` (`lib/expediente/business-days.ts`, regla
+  CONFIGURABLE con la fuente legal vigente como valor por defecto — LAASSP
+  nueva Art. 73, ver `docs/legal/verificacion-legal.md` fila REQ-105 y
+  `docs/DECISIONES.md` D-07 — nunca un número mágico sin trazabilidad).
+  Los recordatorios se ENCOLAN en `jobs` (`kind:
+  "post_award_followup_reminder"`) sin ningún envío externo — esta ronda
+  entrega la fila encolada, no un canal de notificación real.
+
 Todas las rutas devuelven errores en `application/problem+json` (RFC 7807):
 `{ type, title, status, detail?, requestId }`. En producción, un error 500
 nunca expone mensaje interno ni stack (`lib/errors.ts` +
@@ -254,6 +348,31 @@ solo, pasa establemente en <2s por caso).
   verdad (relectura con instancia nueva) + aprobación de `tool_calls` por rol.
 - `admin-backoffice.test.ts` — E10, usuario normal 403 en `/admin/*`,
   superadmin ve datos reales de más de una organización.
+- `expediente-documents-and-matrix.test.ts` — E6, extracción real de PDF
+  (`pdf-lib` genera el fixture) y texto plano, formato no soportado, roles,
+  **A6** (conflicto de plazos entre dos versiones de bases, historial
+  preservado). `expediente-text-extraction.test.ts` — unitario de
+  `lib/expediente/text-extraction.ts` (incluye `"requires_ocr"` vía mock,
+  ver docstring del archivo para por qué un PDF "en blanco" real generado
+  con `pdf-lib` no sirve para ese caso puntual).
+- `expediente-proposal.test.ts` — E7, **A8** de punta a punta (tarifa no
+  aprobada bloqueada, luego aprobada y recalculada), requisito sin mapeo
+  nunca inventado, edición de sección por rol, e invalidación explícita por
+  cambio de `conditionEvaluations`.
+- `expediente-checklist-and-approval.test.ts` — E8, checklist real (7
+  dimensiones), **A12** (rol indebido/autoaprobación) y **A11** (cambio de
+  insumo real invalida automáticamente).
+- `expediente-package-and-submission.test.ts` — E8/E9, **A13/A14** (ready
+  real vs. draft con motivos) con ZIP releído (`jszip`) y manifiesto
+  verificado, **A15** (declaración de presentación + escaneo estático sin
+  cliente HTTP saliente).
+- `expediente-post-award.test.ts` — E11, plazo de pago a 17 días hábiles
+  con fuente legal citada, job de recordatorio encolado, roles.
+- `expediente-e2e-flow.test.ts` — flujo completo de extremo a extremo
+  (bases → matriz → perfil → propuesta → checklist → aprobación → paquete
+  draft → ready → descarga → cambio de bases → invalidación → draft de
+  nuevo) sobre la API real, cerrando A6/A8/A10/A11/A13/A14/A15 en un solo
+  recorrido.
 
 ## Pendiente / fuera de alcance de esta ronda
 
@@ -274,10 +393,41 @@ solo, pasa establemente en <2s por caso).
 - Procedencia por CAMPO individual dentro de una fila de perfil de empresa
   (hoy es por fila completa, `field='*'`, salvo `company_profiles` que sí
   registra procedencia por campo real) — ver `lib/provenance.ts`.
-- `packages/expediente` (matriz de requisitos, checklist de integridad,
-  paquete final) es responsabilidad de otro paquete/agente, fuera de este
-  ámbito.
 - `DB-07` (docs/auditoria-1/db-api.md): los sitios de escritura de esta
   ronda no se migraron a `withTenantContext`/`applyTenantContext` de
   `@atiende/db` (decisión de alcance documentada); en su lugar, una prueba
   estática cierra el riesgo real (omitir `SET LOCAL ROLE app_role`).
+- **Ronda 3 (E6-E9/E11, expediente) — pendientes honestos**:
+  - **Sin OCR real**: un PDF sin capa de texto queda `"requires_ocr"`
+    explícito; no hay ningún motor de OCR conectado en esta ronda.
+  - **Sin firma real**: `IntegrityChecklist`/el checklist persistido solo
+    leen `userConfirmedSigned` declarado por el llamador — el sistema
+    nunca firma ni simula firma (mismo límite que `packages/expediente`).
+  - **Sin envío real a ningún portal**: `submissions` solo registra la
+    declaración del usuario; no existe ningún cliente HTTP saliente hacia
+    un portal de licitaciones en esta ronda (A15).
+  - **Sin extracción de texto por página real**: `extractDocumentText`
+    (`pdf-parse`) devuelve el texto completo del PDF como una sola
+    "página" (se guarda `page_count` real aparte, pero `source.page` de
+    cada requisito siempre es `1`) — limitación documentada, no una
+    extracción por página genuina.
+  - **`files`/`formatLimits`/`requiredSignatures`/`presentAnnexRefs` del
+    checklist son declarados por el llamador**, no inferidos de un
+    "casillero de portal" propio (no existe ese modelo en este esquema
+    todavía).
+  - **Autoaprobación entre dos CUENTAS de la misma persona física**
+    (EX-EXP-08, límite documentado de `packages/expediente`): solo se
+    compara `actorId`; una persona con dos cuentas/roles activos podría
+    aprobar su propio trabajo sin que este control lo detecte.
+  - **Recordatorios post-adjudicación sin canal de notificación real**: se
+    encolan en `jobs` (`kind: "post_award_followup_reminder"`); ningún
+    worker de esta ronda los consume para enviar nada (correcto: la tarea
+    pide "sin envío externo", no un canal de notificación).
+  - **Calendario oficial de días inhábiles incompleto**: `addBusinessDays`
+    (17 días hábiles, LAASSP Art. 73) solo excluye sábados/domingos por
+    defecto; el llamador puede pasar `holidays` explícitos, pero no hay una
+    lista oficial de feriados mexicanos cableada en esta ronda.
+  - **`2FA`/re-autenticación en la aprobación del expediente**: igual que
+    el resto de la API (ver punto de aprobaciones económicas arriba), la
+    aprobación queda en `audit_log` con el aprobador real, pero no exige un
+    segundo factor adicional.
