@@ -98,3 +98,4 @@
 2026-09-06 06:59  INCIDENTE  429 del servidor cortó #71 (web ronda 5) de nuevo; clasificador intermitente; reanudación y despacho #74 reintentados.
 2026-09-06 07:20  LATIDO  en curso #71 (web ronda 5) y #74 (fix críticos api ronda 5).
 2026-09-06 07:36  DESPERTAR  fix críticos api ronda 5 (#74) completado (227 tests, 0058-0061); reverificador #75 despachado; en curso #71.
+2026-09-06 07:39  DESPERTAR  #71 (web ronda 5) se detuvo esperando un monitor; reanudado para cerrar en primer plano; en curso #71,#75.
