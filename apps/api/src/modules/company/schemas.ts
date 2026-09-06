@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isoTimestamp, nullableIsoTimestamp } from '../../lib/schema-helpers.js';
 
 // ---------------------------------------------------------------------------
 // company_profiles (singleton por organización)
@@ -27,8 +28,8 @@ export const companyProfileSchema = z.object({
   employeeCount: z.number().nullable(),
   annualRevenue: z.number().nullable(),
   website: z.string().nullable(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
+  createdAt: isoTimestamp,
+  updatedAt: isoTimestamp,
 });
 
 // ---------------------------------------------------------------------------
@@ -49,8 +50,8 @@ export const capabilitySchema = z.object({
   description: z.string().nullable(),
   isVerified: z.boolean(),
   evidenceRef: z.string().nullable(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
+  createdAt: isoTimestamp,
+  updatedAt: isoTimestamp,
 });
 
 // ---------------------------------------------------------------------------
@@ -75,13 +76,13 @@ export const experienceSchema = z.object({
   description: z.string().nullable(),
   contractValue: z.number().nullable(),
   currency: z.string().nullable(),
-  startDate: z.string().nullable(),
-  endDate: z.string().nullable(),
+  startDate: nullableIsoTimestamp,
+  endDate: nullableIsoTimestamp,
   isVerified: z.boolean(),
   evidenceRef: z.string().nullable(),
   verifiable: z.boolean(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
+  createdAt: isoTimestamp,
+  updatedAt: isoTimestamp,
 });
 
 // ---------------------------------------------------------------------------
@@ -98,8 +99,8 @@ export const productServiceSchema = z.object({
   name: z.string(),
   category: z.string().nullable(),
   description: z.string().nullable(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
+  createdAt: isoTimestamp,
+  updatedAt: isoTimestamp,
 });
 
 // ---------------------------------------------------------------------------
@@ -124,8 +125,8 @@ export const locationSchema = z.object({
   country: z.string().nullable(),
   postalCode: z.string().nullable(),
   isPrimary: z.boolean(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
+  createdAt: isoTimestamp,
+  updatedAt: isoTimestamp,
 });
 
 // ---------------------------------------------------------------------------
@@ -144,10 +145,10 @@ export const registrationSchema = z.object({
   kind: z.string(),
   value: z.string(),
   issuingAuthority: z.string().nullable(),
-  validFrom: z.string().nullable(),
-  validUntil: z.string().nullable(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
+  validFrom: nullableIsoTimestamp,
+  validUntil: nullableIsoTimestamp,
+  createdAt: isoTimestamp,
+  updatedAt: isoTimestamp,
 });
 
 // ---------------------------------------------------------------------------
@@ -166,10 +167,10 @@ export const signatorySchema = z.object({
   fullName: z.string(),
   roleTitle: z.string().nullable(),
   idDocumentRef: z.string().nullable(),
-  validFrom: z.string().nullable(),
-  validUntil: z.string().nullable(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
+  validFrom: nullableIsoTimestamp,
+  validUntil: nullableIsoTimestamp,
+  createdAt: isoTimestamp,
+  updatedAt: isoTimestamp,
 });
 
 // ---------------------------------------------------------------------------
@@ -185,9 +186,9 @@ export const restrictionSchema = z.object({
   id: z.string().uuid(),
   kind: z.string(),
   description: z.string().nullable(),
-  validUntil: z.string().nullable(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
+  validUntil: nullableIsoTimestamp,
+  createdAt: isoTimestamp,
+  updatedAt: isoTimestamp,
 });
 
 // ---------------------------------------------------------------------------
@@ -204,11 +205,11 @@ export const documentSchema = z.object({
   documentType: z.string(),
   storageRef: z.string(),
   fileHash: z.string().nullable(),
-  validFrom: z.string().nullable(),
-  validUntil: z.string().nullable(),
+  validFrom: nullableIsoTimestamp,
+  validUntil: nullableIsoTimestamp,
   status: z.enum(['valid', 'expiring_soon', 'expired', 'pending_verification']),
-  createdAt: z.string(),
-  updatedAt: z.string(),
+  createdAt: isoTimestamp,
+  updatedAt: isoTimestamp,
 });
 
 // ---------------------------------------------------------------------------
@@ -232,9 +233,9 @@ export const rateSchema = z.object({
   currency: z.string(),
   status: z.enum(['draft', 'approved', 'archived']),
   approvedBy: z.string().uuid().nullable(),
-  approvedAt: z.string().nullable(),
-  validFrom: z.string().nullable(),
-  validUntil: z.string().nullable(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
+  approvedAt: nullableIsoTimestamp,
+  validFrom: nullableIsoTimestamp,
+  validUntil: nullableIsoTimestamp,
+  createdAt: isoTimestamp,
+  updatedAt: isoTimestamp,
 });

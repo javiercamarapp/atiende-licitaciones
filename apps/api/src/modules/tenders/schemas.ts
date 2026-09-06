@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isoTimestamp, nullableIsoTimestamp } from '../../lib/schema-helpers.js';
 
 export const TENDER_STATUSES = [
   'discovered',
@@ -23,12 +24,12 @@ export const tenderSchema = z.object({
   cpvCodes: z.array(z.string()),
   budgetAmount: z.number().nullable(),
   currency: z.string(),
-  submissionDeadline: z.string().nullable(),
-  publishedAt: z.string().nullable(),
+  submissionDeadline: nullableIsoTimestamp,
+  publishedAt: nullableIsoTimestamp,
   url: z.string().nullable(),
   status: z.enum(TENDER_STATUSES),
-  createdAt: z.string(),
-  updatedAt: z.string(),
+  createdAt: isoTimestamp,
+  updatedAt: isoTimestamp,
 });
 
 export const tenderListQuerySchema = z.object({
@@ -56,9 +57,9 @@ export const tenderVersionSchema = z.object({
   id: z.string().uuid(),
   changeKind: z.enum(CHANGE_KINDS),
   sourceVersion: z.string(),
-  effectiveAt: z.string(),
+  effectiveAt: isoTimestamp,
   payload: z.record(z.unknown()),
-  createdAt: z.string(),
+  createdAt: isoTimestamp,
 });
 
 export const tenderChangeEventSchema = z.object({
@@ -66,15 +67,15 @@ export const tenderChangeEventSchema = z.object({
   changeKind: z.enum(CHANGE_KINDS),
   tenderVersionId: z.string().uuid().nullable(),
   summary: z.string().nullable(),
-  createdAt: z.string(),
+  createdAt: isoTimestamp,
 });
 
 export const sourceFreshnessSchema = z.object({
   sourceId: z.string(),
   status: z.string(),
-  lastSuccessAt: z.string().nullable(),
-  startedAt: z.string(),
-  finishedAt: z.string().nullable(),
+  lastSuccessAt: nullableIsoTimestamp,
+  startedAt: isoTimestamp,
+  finishedAt: nullableIsoTimestamp,
   attempts: z.number(),
   ageSeconds: z.number().nullable(),
 });
