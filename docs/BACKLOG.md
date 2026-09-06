@@ -361,3 +361,7 @@ Cierra: REQ-199 a REQ-205 de `docs/ACEPTACION.md`; prueba mínima S11.
 ## Pruebas que cierra la Ampliación 2 (resumen)
 
 Las 12 pruebas mínimas obligatorias S1-S12 de `docs/ACEPTACION.md` se reparten así: S1-S3 → E13; S4-S7, S12 → E14; S8 → E15; S9-S10 → E16; S11 → E17 (bloqueada por falta de Docker en el entorno actual, no por diseño). Ninguna de las 12 tiene evidencia construida a la fecha de esta adición (2026-09-06); todas parten de PENDIENTE salvo S11 (BLOQUEADO_EXTERNO por Docker no disponible).
+
+## E18 — Restos de mail (BAJA, tras reverificación #102)
+- ML-08: alinear la ventana de espera del perdedor de `reserve()` con el timeout real del proveedor (+200 ms) para evitar resultado ambiguo (nunca duplica envío).
+- ML-09: CSS de respaldo para modo oscuro en las plantillas (hoy solo meta `color-scheme: light`).
