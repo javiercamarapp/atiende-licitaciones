@@ -30,6 +30,10 @@ const RATE_BASE = {
  * (`AuthProvider` restaura desde un refresh token guardado) en vez de un
  * login completo — más corto y suficiente para probar el comportamiento de
  * los botones Aprobar/Rechazar, que no depende del flujo de login.
+ *
+ * Ronda 5 (REQ-044/064): aprobar exige X-Step-Up -- se simula 2FA ya
+ * enrolado (`GET /auth/2fa/status` → enrolled:true) para poder llegar al
+ * modal de código y, tras verificarlo, a la mutación real de aprobar.
  */
 function mockAuthenticatedSessionWithOneOrgAdmin() {
   setTokens({ accessToken: null, refreshToken: "ref-1" });
@@ -37,15 +41,23 @@ function mockAuthenticatedSessionWithOneOrgAdmin() {
     http.post("*/auth/refresh", () => HttpResponse.json({ accessToken: "acc-1", refreshToken: "ref-1" })),
     http.get("*/me", () => HttpResponse.json({ id: "user-1", email: "admin@empresa.com", fullName: "Admin" })),
     http.get("*/organizations", () => HttpResponse.json([{ id: "org-a", name: "Organización A", slug: "org-a", role: "owner" }])),
+    http.get("*/auth/2fa/status", () => HttpResponse.json({ enrolled: true, enrolledAt: "2026-01-01T00:00:00Z" })),
+    http.post("*/auth/2fa/step-up", () => HttpResponse.json({ stepUpToken: "step-up-1", expiresAt: "2026-01-01T00:10:00Z" })),
   );
 }
 
-describe("TarifasAprobadasPage (WI-04)", () => {
+async function approveViaStepUp(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: "Aprobar" }));
+  await user.type(await screen.findByLabelText("Código TOTP o de respaldo", {}, { timeout: 10000 }), "123456");
+  await user.click(screen.getByRole("button", { name: "Verificar y continuar" }));
+}
+
+describe("TarifasAprobadasPage (WI-04, ronda 5: step-up 2FA)", () => {
   beforeEach(() => {
     mockAuthenticatedSessionWithOneOrgAdmin();
   });
 
-  it("deshabilita Aprobar/Rechazar de una fila mientras su propia decisión está pendiente", async () => {
+  it("deshabilita Aprobar/Rechazar de una fila mientras su propia decisión está pendiente (tras verificar el step-up)", async () => {
     const user = userEvent.setup();
     let resolveApprove: (() => void) | undefined;
     let approved = false;
@@ -66,12 +78,11 @@ describe("TarifasAprobadasPage (WI-04)", () => {
     renderWithProviders(<TarifasAprobadasPage />);
     await screen.findByText("SRV-001");
 
-    const approveButton = screen.getByRole("button", { name: "Aprobar" });
     const rejectButton = screen.getByRole("button", { name: "Rechazar" });
-    expect(approveButton).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Aprobar" })).toBeEnabled();
     expect(rejectButton).toBeEnabled();
 
-    await user.click(approveButton);
+    await approveViaStepUp(user);
 
     await waitFor(() => expect(screen.getByRole("button", { name: "Aprobando…" })).toBeDisabled());
     expect(screen.getByRole("button", { name: "Rechazar" })).toBeDisabled();
@@ -81,7 +92,7 @@ describe("TarifasAprobadasPage (WI-04)", () => {
     // Tras resolverse, la tarifa ya no está en "draft" -- desaparecen los
     // botones de decisión de esta fila (no solo se re-habilitan).
     await waitFor(() => expect(screen.queryByRole("button", { name: /Aprobar|Aprobando|Rechazar|Rechazando/ })).not.toBeInTheDocument());
-  });
+  }, 15000);
 
   it("muestra un mensaje honesto de 409 (la tarifa ya cambió de estado) y refresca la lista", async () => {
     const user = userEvent.setup();
@@ -106,24 +117,23 @@ describe("TarifasAprobadasPage (WI-04)", () => {
     );
     await screen.findByText("SRV-001");
 
+    // Rechazar NO exige step-up (solo aprobar, REQ-044/064) -- se conserva
+    // el flujo directo de antes.
     await user.click(screen.getByRole("button", { name: "Rechazar" }));
 
     expect(await screen.findByText(/ya cambió de estado/)).toBeInTheDocument();
     // La lista se refrescó: la fila ya no ofrece Aprobar/Rechazar (dejó de
     // estar en "draft" según la respuesta actualizada del servidor).
     await waitFor(() => expect(screen.queryByRole("button", { name: /Aprobar|Rechazar/ })).not.toBeInTheDocument());
-  });
+  }, 15000);
 
-  // WI-06 (docs/auditoria-2/reverificacion-final-integrada.md): un doble
-  // clic físico verdaderamente simultáneo (dos eventos de clic reales, sin
-  // ceder el control al event loop entre ellos) podía pasar el chequeo de
-  // `disabled` ANTES de que React confirmara el re-render que sigue al
-  // primer `mutate()` -- `fireEvent.click` dos veces sin `await` entre
-  // medias reproduce exactamente esa ventana (a diferencia de
-  // `userEvent.click`, que ya cede el control al event loop internamente).
-  // El guard síncrono (`useRef` fijado ANTES de `mutate()`) debe cerrarla:
-  // sin él, este test detecta 2 peticiones POST en vez de 1.
-  it("un doble clic físico real (sin esperar entre clics) en Aprobar dispara UNA sola petición de red", async () => {
+  // WI-06 (docs/auditoria-2/reverificacion-final-integrada.md), reubicado en
+  // ronda 5: el punto real de doble-envío ya no es el botón "Aprobar" (que
+  // ahora solo abre el modal de step-up) sino "Verificar y continuar" --
+  // dos clics físicos simultáneos ahí, sin esperar entre ellos, deben
+  // producir UNA sola petición real de aprobar.
+  it("un doble clic físico real en \"Verificar y continuar\" dispara UNA sola petición de aprobar", async () => {
+    const user = userEvent.setup();
     let approveCalls = 0;
     server.use(
       http.get("*/company/rates", () => HttpResponse.json([RATE_BASE])),
@@ -140,12 +150,15 @@ describe("TarifasAprobadasPage (WI-04)", () => {
       </>,
     );
     await screen.findByText("SRV-001");
-    const approveButton = screen.getByRole("button", { name: "Aprobar" });
+
+    await user.click(screen.getByRole("button", { name: "Aprobar" }));
+    await user.type(await screen.findByLabelText("Código TOTP o de respaldo", {}, { timeout: 10000 }), "123456");
+    const verifyButton = screen.getByRole("button", { name: "Verificar y continuar" });
 
     // Sin `await` entre los dos clics: ambos corren en el mismo tick
     // síncrono, antes de cualquier re-render.
-    fireEvent.click(approveButton);
-    fireEvent.click(approveButton);
+    fireEvent.click(verifyButton);
+    fireEvent.click(verifyButton);
 
     await waitFor(() => expect(approveCalls).toBeGreaterThanOrEqual(1));
     // Margen para que un segundo POST espurio (si el guard fallara) alcance
@@ -153,5 +166,20 @@ describe("TarifasAprobadasPage (WI-04)", () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(approveCalls).toBe(1);
     expect(screen.queryByText(/ya cambió de estado/)).not.toBeInTheDocument();
-  });
+  }, 15000);
+
+  it("dirige a Configuración cuando el usuario no tiene 2FA enrolado, en vez de pedir un código que la API rechazaría", async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.get("*/company/rates", () => HttpResponse.json([RATE_BASE])),
+      http.get("*/auth/2fa/status", () => HttpResponse.json({ enrolled: false, enrolledAt: null })),
+    );
+
+    renderWithProviders(<TarifasAprobadasPage />);
+    await screen.findByText("SRV-001");
+
+    await user.click(screen.getByRole("button", { name: "Aprobar" }));
+    expect(await screen.findByText("Aún no tienes 2FA enrolado", {}, { timeout: 10000 })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Ir a Configuración/ })).toHaveAttribute("href", "/configuracion");
+  }, 15000);
 });

@@ -134,7 +134,7 @@ export function useApproveRate() {
   const { currentOrgId } = useAuth();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => api.approveRate(currentOrgId!, id),
+    mutationFn: ({ id, stepUpToken }: { id: string; stepUpToken: string }) => api.approveRate(currentOrgId!, id, stepUpToken),
     // WI-04 (docs/auditoria-2/web-integrado.md): `onSettled` async + `await`
     // mantiene `isPending` en `true` hasta que el refetch de
     // ["company","rates",currentOrgId] termina de traer el estado real

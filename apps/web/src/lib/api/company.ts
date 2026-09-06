@@ -126,8 +126,14 @@ export async function proposeRate(orgId: string, input: RateInput): Promise<Rate
   return rateSchema.parse(raw);
 }
 
-export async function approveRate(orgId: string, id: string): Promise<Rate> {
-  const raw = await apiRequest<unknown>(`/company/rates/${id}/approve`, { method: "POST", orgId });
+/**
+ * Ronda 5 (REQ-044/064): exige `stepUpToken` de una sesión de step-up
+ * vigente (`POST /auth/2fa/step-up`) — sin 2FA enrolado y verificado,
+ * apps/api responde 403 con instrucción explícita antes de siquiera llegar
+ * a esta ruta.
+ */
+export async function approveRate(orgId: string, id: string, stepUpToken: string): Promise<Rate> {
+  const raw = await apiRequest<unknown>(`/company/rates/${id}/approve`, { method: "POST", orgId, stepUpToken });
   return rateSchema.parse(raw);
 }
 

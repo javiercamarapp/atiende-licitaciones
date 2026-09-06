@@ -9,6 +9,13 @@ export interface ApiRequestOptions {
   orgId?: string | null;
   /** Rutas públicas (login/registro/refresh): no exige access token. */
   skipAuth?: boolean;
+  /**
+   * Ronda 5 (REQ-044/064): token de una sesión de step-up vigente (`POST
+   * /auth/2fa/step-up`), exigido por apps/api en `X-Step-Up` antes de
+   * aprobar una tarifa o un expediente. Ausente/omitido en cualquier otra
+   * ruta.
+   */
+  stepUpToken?: string;
 }
 
 function buildHeaders(opts: ApiRequestOptions, accessToken: string | null): Record<string, string> {
@@ -30,6 +37,7 @@ function buildHeaders(opts: ApiRequestOptions, accessToken: string | null): Reco
     headers.Authorization = `Bearer ${accessToken}`;
   }
   if (opts.orgId) headers["X-Org-Id"] = opts.orgId;
+  if (opts.stepUpToken) headers["X-Step-Up"] = opts.stepUpToken;
   return headers;
 }
 

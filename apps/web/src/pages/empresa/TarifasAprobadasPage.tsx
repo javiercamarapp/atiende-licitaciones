@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Tag, Check, X, Plus } from "lucide-react";
 
+import { StepUpDialog } from "@/components/StepUpDialog";
 import { SectionHeader } from "@/components/layout/SectionHeader";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -72,16 +73,19 @@ export default function TarifasAprobadasPage() {
   // texto del botón; la barrera real es el `useRef`.
   const pendingRatesRef = useRef<Record<string, boolean>>({});
   const [submittingAction, setSubmittingAction] = useState<Record<string, "approve" | "reject">>({});
+  // Ronda 5 (REQ-044/064): aprobar exige X-Step-Up -- rechazar no. El id de
+  // la tarifa se guarda aquí mientras el modal de step-up está abierto; el
+  // guard síncrono (WI-06) se aplica en `runApprove`, justo antes de la
+  // llamada real a la API (tras verificar el código), no al abrir el modal.
+  const [stepUpTargetRateId, setStepUpTargetRateId] = useState<string | null>(null);
 
-  const handleRateAction = (rateId: string, action: "approve" | "reject") => {
+  const runReject = (rateId: string) => {
     if (pendingRatesRef.current[rateId]) return;
     pendingRatesRef.current[rateId] = true;
-    setSubmittingAction((prev) => ({ ...prev, [rateId]: action }));
+    setSubmittingAction((prev) => ({ ...prev, [rateId]: "reject" }));
 
-    const mutation = action === "approve" ? approveRate : rejectRate;
-    const successMessage = action === "approve" ? "Tarifa aprobada." : "Tarifa rechazada.";
-    mutation.mutate(rateId, {
-      onSuccess: () => toast.success(successMessage),
+    rejectRate.mutate(rateId, {
+      onSuccess: () => toast.success("Tarifa rechazada."),
       onError: (err) => toast.error(describeRateActionError(err)),
       onSettled: () => {
         pendingRatesRef.current[rateId] = false;
@@ -92,6 +96,28 @@ export default function TarifasAprobadasPage() {
         });
       },
     });
+  };
+
+  const runApprove = (rateId: string, stepUpToken: string) => {
+    if (pendingRatesRef.current[rateId]) return;
+    pendingRatesRef.current[rateId] = true;
+    setSubmittingAction((prev) => ({ ...prev, [rateId]: "approve" }));
+
+    approveRate.mutate(
+      { id: rateId, stepUpToken },
+      {
+        onSuccess: () => toast.success("Tarifa aprobada."),
+        onError: (err) => toast.error(describeRateActionError(err)),
+        onSettled: () => {
+          pendingRatesRef.current[rateId] = false;
+          setSubmittingAction((prev) => {
+            const next = { ...prev };
+            delete next[rateId];
+            return next;
+          });
+        },
+      },
+    );
   };
 
   const onSubmit = async (values: RateValues) => {
@@ -233,7 +259,7 @@ export default function TarifasAprobadasPage() {
                                         variant="outline"
                                         className="gap-1"
                                         disabled={isThisRatePending}
-                                        onClick={() => handleRateAction(rate.id, "approve")}
+                                        onClick={() => setStepUpTargetRateId(rate.id)}
                                       >
                                         <Check className="h-3.5 w-3.5" aria-hidden="true" />
                                         {pendingAction === "approve" ? "Aprobando…" : "Aprobar"}
@@ -244,7 +270,7 @@ export default function TarifasAprobadasPage() {
                                         variant="ghost"
                                         className="gap-1"
                                         disabled={isThisRatePending}
-                                        onClick={() => handleRateAction(rate.id, "reject")}
+                                        onClick={() => runReject(rate.id)}
                                       >
                                         <X className="h-3.5 w-3.5" aria-hidden="true" />
                                         {pendingAction === "reject" ? "Rechazando…" : "Rechazar"}
@@ -267,6 +293,17 @@ export default function TarifasAprobadasPage() {
           </Card>
         </div>
       )}
+      <StepUpDialog
+        open={stepUpTargetRateId !== null}
+        onOpenChange={(open) => {
+          if (!open) setStepUpTargetRateId(null);
+        }}
+        title="Verificación en dos pasos para aprobar la tarifa"
+        description="Aprobar una tarifa exige confirmar tu identidad con un segundo factor (REQ-044/064)."
+        onVerified={(stepUpToken) => {
+          if (stepUpTargetRateId) runApprove(stepUpTargetRateId, stepUpToken);
+        }}
+      />
     </div>
   );
 }
