@@ -26,3 +26,4 @@
 2026-09-05 19:58  DESPERTAR  corrector expediente (#20) 11 commits, 118/118; reverificador #26 despachado; en curso #14,#18,#23,#24,#25.
 2026-09-05 20:06  DESPERTAR  reverificación agents (#25): 11C/3P/0NC + AG-17..20 + regresión worker → #27 y WK-13 (#24); en curso #14,#18,#23,#24,#26,#27.
 2026-09-05 20:07  RONDA3  #28 tablero de aceptación y #29 CI/README/runbook despachados; en curso #14,#18,#23,#24,#26,#27.
+2026-09-05 20:12  DESPERTAR  corrector web (#18) 12 commits, 38 unit + 44 E2E, clon limpio OK; reverificador #30 despachado; en curso #14,#23,#24,#26,#27,#28,#29.
