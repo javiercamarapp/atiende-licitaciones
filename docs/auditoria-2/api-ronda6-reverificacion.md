@@ -444,3 +444,22 @@ a un valor defendible.
 9. Nada fabrica texto: cifrado, truncado, vacío y bombas siempre terminan en
    un estado explícito.
 10. Cross-org: 18/18 endpoints post-adjudicación sin fuga alguna.
+
+---
+
+## Estado de reparación (agente corrector Sonnet, apps/api, sobre esta reverificación)
+
+Un commit por hallazgo (`git log`, mensajes `fix(api): R6-nn ...` /
+`test(api): R6-nn ...`); evidencia real de "test rojo → arreglo → verde" en
+`docs/logs/fix-api-r6b.log`. Ámbito de este agente: `apps/api/**`
+(expediente/extracción PDF, post-award/renewals, `test/helpers.ts`) — no
+toca `apps/worker`, `apps/web` ni `packages/db`.
+
+| Hallazgo | Severidad | Estado reparación |
+|---|---|---|
+| R6-11 | ALTA | **REPARADO**. `extractPdfPages` (`apps/api/src/lib/expediente/text-extraction.ts`) comprueba `pdf.numPages > MAX_PDF_PAGES` inmediatamente tras `getDocument`, ANTES de tocar una sola página (antes se comprobaba después de extraer texto de todas). Dentro del bucle se acumulan caracteres y tiempo de pared página a página y se aborta en cuanto se cruza cualquier límite (antes se sumaba el total tras el bucle completo); se cede el event loop cada 20 páginas. Nuevo campo `limitExceeded: 'paginas'\|'caracteres'\|'tiempo'` + `detail` con el literal `rechazado_por_limite` (no se pudo usar como valor de `TextExtractionStatus`: esa columna tiene un `check` en `packages/db`, fuera de ámbito). Reproducción real del ataque del auditor (20.000 páginas en blanco, ~260 KB, generado con `pdf-lib`): código viejo confirmado en rojo (52,8 s, cae en `requires_ocr`); código nuevo, verde en <2 s (`test/expediente-text-extraction.test.ts`, caso "R6-11"). |
+| R6-12 | MEDIA | *(pendiente al escribir esta fila; ver commit siguiente)* |
+| R6-10 | MEDIA | *(pendiente)* |
+| R6-13 | MEDIA | *(pendiente)* |
+| R6-09 (criterio) | — | *(pendiente)* |
+| R6-14 | BAJA | *(pendiente)* |

@@ -109,4 +109,39 @@ describe('extractDocumentText (E6 + R6-01/R6-02)', () => {
     expect(result.text).toBeNull();
     expect(result.detail).toBeTruthy();
   });
+
+  /**
+   * R6-11 (docs/auditoria-2/api-ronda6-reverificacion.md, ALTA): los límites
+   * anti "PDF bomb" (AE-05, `MAX_PDF_PAGES=500`) se evaluaban DESPUÉS de
+   * extraer el texto de TODAS las páginas -- el reverificador midió 42 s de
+   * CPU síncrona para un PDF de 263 KB que declaraba 20.000 páginas en
+   * blanco, y como el texto concatenado quedaba vacío, el límite de páginas
+   * ni siquiera llegaba a dispararse (ganaba antes `requires_ocr`). Este
+   * caso reproduce EXACTAMENTE ese ataque: 20.000 páginas en blanco,
+   * generadas con `pdf-lib` (no un fixture manual), archivo resultante de
+   * unos 260 KB -- igual que midió el reverificador.
+   */
+  it('R6-11: una "bomba de páginas" (20.000 páginas en blanco, ~260 KB) se rechaza en menos de 2 s, ANTES de extraer texto de ninguna página, con estado explícito "rechazado_por_limite" -- nunca "requires_ocr"', async () => {
+    const doc = await PDFDocument.create();
+    for (let i = 0; i < 20_000; i += 1) {
+      doc.addPage([50, 50]);
+    }
+    const buffer = Buffer.from(await doc.save());
+    // El propio ataque depende de que el archivo generado sea pequeño frente
+    // al número de páginas -- si esto deja de cumplirse, el test ya no
+    // reproduce el escenario del acta.
+    expect(buffer.byteLength).toBeLessThan(1_000_000);
+
+    const startedAt = Date.now();
+    const result = await extractDocumentText(buffer, { filename: 'bomba.pdf', mimeType: 'application/pdf' });
+    const elapsedMs = Date.now() - startedAt;
+
+    expect(elapsedMs).toBeLessThan(2_000);
+    expect(result.status).toBe('failed');
+    expect(result.limitExceeded).toBe('paginas');
+    expect(result.detail).toContain('rechazado_por_limite');
+    expect(result.pageCount).toBe(20_000);
+    expect(result.text).toBeNull();
+    expect(result.pages).toBeNull();
+  });
 });

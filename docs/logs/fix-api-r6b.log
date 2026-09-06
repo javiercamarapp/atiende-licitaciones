@@ -1,0 +1,61 @@
+# fix-api-r6b.log — reparación de docs/auditoria-2/api-ronda6-reverificacion.md
+# Agente: Sonnet corrector, apps/api/** exclusivamente. Repo:
+# /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging
+# Metodología: test rojo primero (mutación/reproducción del hallazgo con el
+# código HEAD, confirmar rojo), luego el fix, luego verde. Commits pequeños
+# con push tras cada hallazgo.
+
+## R6-11 (ALTA) — límites anti "PDF bomb" evaluados DESPUÉS del trabajo
+
+Reproducción del ataque del auditor: PDF de 20.000 páginas en blanco
+generado con pdf-lib (no un fixture manual) -- mismo patrón que
+`docs/logs/reverify-r6-wk6.log` (bomba de paginas: archivo=269069 bytes /
+263 KB para 20.000 paginas).
+
+Rojo confirmado ejecutando el test nuevo contra una copia temporal del
+código pre-fix (`zz-text-extraction-OLD.ts` + `zz-r6-11-red-check.test.ts`,
+ambos borrados tras la comprobación, nunca commiteados):
+
+  OLD CODE elapsedMs= 52793 status= requires_ocr detail= PDF sin capa de
+  texto extraíble (probablemente escaneado). Requiere OCR, no soportado en
+  esta ronda.
+  × expected 52793 to be less than 2000
+
+Confirma el hallazgo exacto del acta: con el código viejo la bomba tarda
+~53s (más que los 42s medidos por el auditor, misma máquina bajo más carga)
+Y ni siquiera se rechaza por el límite de páginas -- cae en "requires_ocr".
+
+Fix (`apps/api/src/lib/expediente/text-extraction.ts`):
+- `extractPdfPages` comprueba `pdf.numPages > MAX_PDF_PAGES` INMEDIATAMENTE
+  después de `loadingTask.promise` (dato ya parseado por pdfjs, coste O(1)
+  frente al documento), ANTES de invocar `getPage`/`getTextContent` en
+  ninguna página.
+- Dentro del bucle página-a-página: se acumula la longitud de texto y se
+  aborta en cuanto se cruza `MAX_EXTRACTED_TEXT_LENGTH` (antes se sumaba
+  DESPUÉS de recorrer todas las páginas); se comprueba un presupuesto de
+  tiempo de pared (`MAX_EXTRACTION_MS=8000`) entre página y página.
+- Se cede el event loop cada `YIELD_EVERY_N_PAGES=20` páginas
+  (`setImmediate`) -- medido: con el tope de páginas ya aplicado ANTES del
+  bucle, ningún documento legítimo (<=500 páginas) satura el proceso lo
+  bastante como para justificar mover el trabajo a un `worker_thread`
+  aparte en esta ronda.
+- Nuevo campo `limitExceeded: 'paginas'|'caracteres'|'tiempo'` en
+  `TextExtractionResult` + `detail` explícito con el literal
+  "rechazado_por_limite" -- NO se añadió como valor de `TextExtractionStatus`
+  porque esa columna tiene un `check` en `packages/db` (migraciones
+  0029/0067: `text_extraction_status in ('extracted','requires_ocr',
+  'failed')` / con 'pending' en tender_documents) fuera del ámbito de este
+  agente; el estado explícito es `status:'failed'` + `limitExceeded` +
+  `detail`.
+
+Verde tras el fix (`test/expediente-text-extraction.test.ts`, incluye el
+nuevo caso R6-11):
+
+  ✓ test/expediente-text-extraction.test.ts (8 tests) 3603ms
+    ✓ R6-11: una "bomba de páginas" (20.000 páginas en blanco, ~260 KB) se
+      rechaza en menos de 2 s, ANTES de extraer texto de ninguna página,
+      con estado explícito "rechazado_por_limite" -- nunca "requires_ocr"
+      3339ms
+  Test Files  1 passed (1)
+       Tests  8 passed (8)
+

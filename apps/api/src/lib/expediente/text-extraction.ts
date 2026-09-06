@@ -50,6 +50,21 @@
  * texto extraído de un PDF -- un PDF con miles de páginas/objetos
  * repetidos podría inflar el texto extraído en memoria mucho más allá del
  * tamaño del archivo original.
+ *
+ * R6-11 (docs/auditoria-2/api-ronda6-reverificacion.md, ALTA): los límites
+ * de AE-05 se comprobaban DESPUÉS de extraer el texto de TODAS las páginas
+ * -- un PDF de 263 KB que declaraba 20.000 páginas (todas vacías) tardaba
+ * 42 s de CPU síncrona en el handler HTTP antes de que `MAX_PDF_PAGES`
+ * llegara a evaluarse, y como el texto concatenado quedaba vacío, ni
+ * siquiera llegaba a rechazarse por ese límite -- ganaba antes la rama
+ * `requires_ocr`. Ahora `extractPdfPages` comprueba `pdf.numPages` (dato ya
+ * disponible tras `getDocument`, sin tocar una sola página) ANTES de entrar
+ * al bucle, y dentro del bucle acumula caracteres y tiempo transcurrido
+ * página a página para poder abortar temprano sin esperar a terminar de
+ * recorrer el documento completo. El event loop se cede cada
+ * `YIELD_EVERY_N_PAGES` páginas (`setImmediate`) para que un documento
+ * legítimo de hasta `MAX_PDF_PAGES` páginas no bloquee el proceso de un
+ * tirón.
  */
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
@@ -63,6 +78,9 @@ export interface ExtractedPageText {
   text: string;
 }
 
+/** R6-11: cuál de los límites anti "PDF bomb" (AE-05) provocó un `status: 'failed'`. `undefined` para cualquier otro `'failed'` (formato corrupto, cifrado, etc.) -- explícito y verificable por código, no solo por el texto libre de `detail`. No se añade como valor de `TextExtractionStatus` porque esa columna tiene un `check` en `packages/db` (`text_extraction_status in ('extracted','requires_ocr','failed')`, migraciones 0029/0067) que este agente no está autorizado a tocar; el estado "rechazado por límite" es 'failed' + este campo + un `detail` explícito. */
+export type PdfBombLimit = 'paginas' | 'caracteres' | 'tiempo';
+
 export interface TextExtractionResult {
   status: TextExtractionStatus;
   /** Texto completo concatenado (todas las páginas unidas con `PAGE_BREAK`), para persistencia/búsqueda de texto completo. */
@@ -71,6 +89,8 @@ export interface TextExtractionResult {
   pages: ExtractedPageText[] | null;
   pageCount: number | null;
   detail?: string;
+  /** Ver `PdfBombLimit`. Presente y con estado explícito ("rechazado_por_limite" en `detail`) solo cuando `status === 'failed'` por AE-05/R6-11. */
+  limitExceeded?: PdfBombLimit;
 }
 
 /**
@@ -98,6 +118,10 @@ export function splitPersistedTextIntoPages(text: string): ExtractedPageText[] {
 /** AE-05: límites anti "PDF bomb" -- un PDF real de licitación (bases + anexos) nunca debería acercarse a estos límites; existen para acotar el costo de procesar un archivo adversarial, no para restringir el uso normal. */
 const MAX_PDF_PAGES = 500;
 const MAX_EXTRACTED_TEXT_LENGTH = 5_000_000; // ~5MB de texto extraído.
+/** R6-11: presupuesto de tiempo de pared para el bucle página-a-página de un solo PDF, comprobado ENTRE páginas (no interrumpe una página a medio parsear -- el margen real es este valor más el costo de la página más lenta en curso). Cubre el caso que `MAX_PDF_PAGES`/`MAX_EXTRACTED_TEXT_LENGTH` no acotan por sí solos: pocas páginas (<=500) pero carísimas de decodificar (p. ej. streams con ratio de compresión extremo). */
+const MAX_EXTRACTION_MS = 8_000;
+/** R6-11: cada cuántas páginas se cede el event loop (`setImmediate`) durante la extracción, para que un documento legítimo de hasta `MAX_PDF_PAGES` páginas no monopolice el proceso de un tirón. */
+const YIELD_EVERY_N_PAGES = 20;
 
 function looksLikePdf(buffer: Buffer): boolean {
   return buffer.subarray(0, 5).toString('latin1') === '%PDF-';
@@ -147,7 +171,11 @@ function resolveStandardFontDataUrl(): string {
   return cachedStandardFontDataUrl;
 }
 
-async function extractPdfPages(buffer: Buffer): Promise<{ pages: ExtractedPageText[]; pageCount: number }> {
+type PdfExtractionResult =
+  | { ok: true; pages: ExtractedPageText[]; pageCount: number }
+  | { ok: false; limit: PdfBombLimit; pageCount: number };
+
+async function extractPdfPages(buffer: Buffer): Promise<PdfExtractionResult> {
   // Import perezoso: `pdfjs-dist` es pesado y solo hace falta en la rama PDF.
   const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
   const data = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
@@ -167,15 +195,46 @@ async function extractPdfPages(buffer: Buffer): Promise<{ pages: ExtractedPageTe
   });
   const pdf = await loadingTask.promise;
   try {
+    // R6-11: `pdf.numPages` sale de la tabla /Pages ya parseada por
+    // `getDocument` -- comprobarlo aquí es O(1) frente al documento y NO
+    // requiere invocar `getPage`/`getTextContent` en NINGUNA página. Antes
+    // de este cambio el límite se comprobaba DESPUÉS de recorrer las
+    // `pdf.numPages` páginas: un PDF de 263 KB que declaraba 20.000 páginas
+    // (todas vacías) tardaba 42 s de CPU síncrona en llegar hasta aquí, y
+    // como el texto concatenado quedaba vacío, ni siquiera se rechazaba por
+    // este límite -- ganaba antes la rama `requires_ocr`.
+    if (pdf.numPages > MAX_PDF_PAGES) {
+      return { ok: false, limit: 'paginas', pageCount: pdf.numPages };
+    }
     const pages: ExtractedPageText[] = [];
+    let totalLength = 0;
+    const deadline = Date.now() + MAX_EXTRACTION_MS;
     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
       const page = await pdf.getPage(pageNumber);
       const content = await page.getTextContent();
       const text = content.items.map((item: unknown) => (typeof (item as { str?: unknown }).str === 'string' ? (item as { str: string }).str : '')).join(' ');
-      pages.push({ page: pageNumber, text });
       page.cleanup();
+      pages.push({ page: pageNumber, text });
+      totalLength += text.length;
+      // R6-11: abortar EN CUANTO se cruza el límite de caracteres, sin
+      // esperar a terminar de recorrer el resto de páginas -- antes se
+      // sumaba el total DESPUÉS del bucle completo.
+      if (totalLength > MAX_EXTRACTED_TEXT_LENGTH) {
+        return { ok: false, limit: 'caracteres', pageCount: pdf.numPages };
+      }
+      if (Date.now() > deadline) {
+        return { ok: false, limit: 'tiempo', pageCount: pdf.numPages };
+      }
+      if (pageNumber % YIELD_EVERY_N_PAGES === 0) {
+        // Ceder el event loop periódicamente: con el tope de
+        // `MAX_PDF_PAGES` ya comprobado arriba, un `worker_thread` aparte no
+        // se justificó (medido en docs/logs/fix-api-r6b.log); sin este punto
+        // de cesión, un documento con muchas páginas legítimas seguiría
+        // bloqueando el proceso de un tirón.
+        await new Promise<void>((resolve) => setImmediate(resolve));
+      }
     }
-    return { pages, pageCount: pdf.numPages };
+    return { ok: true, pages, pageCount: pdf.numPages };
   } finally {
     await pdf.destroy();
   }
@@ -187,7 +246,30 @@ export async function extractDocumentText(buffer: Buffer, opts: { mimeType?: str
 
   if (isPdfByHint) {
     try {
-      const { pages: rawPages, pageCount } = await extractPdfPages(buffer);
+      const extraction = await extractPdfPages(buffer);
+      // R6-11: los límites anti "PDF bomb" (AE-05) ya se comprobaron DENTRO
+      // de `extractPdfPages` -- antes del bucle (páginas) y página a página
+      // (caracteres/tiempo) -- así que si `ok` es `false` aquí nunca se hizo
+      // el trabajo de extraer texto de más páginas de las estrictamente
+      // necesarias para detectar el límite. Estado explícito
+      // ("rechazado_por_limite" en `detail`, `limitExceeded` para consumo
+      // programático), nunca se fabrica texto.
+      if (!extraction.ok) {
+        const detailByLimit: Record<PdfBombLimit, string> = {
+          paginas: `PDF rechazado_por_limite: ${extraction.pageCount} páginas > límite de ${MAX_PDF_PAGES} de esta ronda -- comprobado ANTES de extraer texto de ninguna página, medida anti "PDF bomb" (AE-05/R6-11).`,
+          caracteres: `PDF rechazado_por_limite: el texto extraído superó ${MAX_EXTRACTED_TEXT_LENGTH} caracteres antes de terminar de recorrer sus páginas -- extracción abortada temprano, medida anti "PDF bomb" (AE-05/R6-11).`,
+          tiempo: `PDF rechazado_por_limite: la extracción superó el presupuesto de tiempo de esta ronda (${MAX_EXTRACTION_MS} ms) -- abortada temprano, medida anti "PDF bomb" (AE-05/R6-11).`,
+        };
+        return {
+          status: 'failed',
+          text: null,
+          pages: null,
+          pageCount: extraction.pageCount,
+          detail: detailByLimit[extraction.limit],
+          limitExceeded: extraction.limit,
+        };
+      }
+      const { pages: rawPages, pageCount } = extraction;
       const joined = rawPages.map((p) => p.text).join('').trim();
       if (joined.length === 0) {
         return {
@@ -196,27 +278,6 @@ export async function extractDocumentText(buffer: Buffer, opts: { mimeType?: str
           pages: null,
           pageCount,
           detail: 'PDF sin capa de texto extraíble (probablemente escaneado). Requiere OCR, no soportado en esta ronda.',
-        };
-      }
-      // AE-05 (anti "PDF bomb"): rechazar ANTES de persistir un texto
-      // desproporcionadamente grande o un PDF con demasiadas páginas.
-      if (pageCount > MAX_PDF_PAGES) {
-        return {
-          status: 'failed',
-          text: null,
-          pages: null,
-          pageCount,
-          detail: `PDF con demasiadas páginas (${pageCount} > límite de ${MAX_PDF_PAGES} de esta ronda) -- rechazado como medida anti "PDF bomb".`,
-        };
-      }
-      const totalLength = rawPages.reduce((acc, p) => acc + p.text.length, 0);
-      if (totalLength > MAX_EXTRACTED_TEXT_LENGTH) {
-        return {
-          status: 'failed',
-          text: null,
-          pages: null,
-          pageCount,
-          detail: `Texto extraído del PDF excede el límite de esta ronda (${totalLength} > ${MAX_EXTRACTED_TEXT_LENGTH} caracteres) -- rechazado como medida anti "PDF bomb".`,
         };
       }
       const sanitizedPages = rawPages.map((p) => ({ page: p.page, text: sanitizePlainText(p.text) }));
