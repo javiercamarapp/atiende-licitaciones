@@ -42,6 +42,11 @@ src/
     run-agent.ts             Ejecuta AgentRunner con las 8 herramientas de negocio + 5 agentes nombrados
                              (Ronda 6, ver sección dedicada abajo); FakeProvider/OpenAI
     send-agent-alert.ts      Ronda 6: handler del job `send_agent_alert` (log estructurado, sin canal real)
+    mail-retry.ts            REQ-188/S7: handler del job `mail_retry` (reintento diferido de correo transaccional,
+                             ver sección dedicada abajo)
+  mail/                      REQ-188: piezas de @atiende/mail reimplementadas para apps/worker (ver sección dedicada)
+    pg-mail-stores.ts         PgMailOutboxStore/PgMailSuppressionStore sobre mail_outbox/mail_suppressions reales
+    build-mail-service.ts     buildMailServiceForWorker: MailService equivalente al de apps/api, sin linkSigner
   agents/                    Ronda 6: agentes de negocio reales (ver sección dedicada abajo)
     business-tools.ts         Las 8 ToolDefinition reales (ToolRegistry pública de @atiende/agents)
     named-agents.ts            Los 5 planes fijos de tool_calls (analista_convocatorias, analista_bases,
@@ -78,6 +83,8 @@ test/
   deadline-reminders.test.ts Ronda 6: escaneo de vencimientos, dedupe por día
   agent-evals.test.ts       Ronda 6, tarea 3: evals deterministas por agente (≥5 casos c/u, FakeProvider)
   send-agent-alert.test.ts  Ronda 6: log estructurado del job de alerta
+  mail-retry-handler.test.ts REQ-188/S7: éxito tras fallo, tope->dead, ya enviado, suprimido, payload
+                             malformado, dos workers concurrentes, sin credenciales (sabotea fetch)
   worker-shutdown.test.ts    Cierre ordenado (SIGTERM), métricas, WK-02/WK-10/WK-14
   config.test.ts             loadConfig() con env vacío/completo/inválido
   schedule-config.test.ts    loadScheduleConfig() con WORKER_SCHEDULE_JSON válido/inválido/vacío
@@ -381,6 +388,96 @@ bloqueó porque `actorId` no tiene membresía de escritura activa en esa
 organización" — ambas son, desde la perspectiva de este job, la misma
 condición de fallo. Ver `test/run-agent-handler.test.ts` ("WK-08"/"WK-23")
 y `db-proposals/PROPOSAL-03-worker-role.test.ts`.
+
+## REQ-188 / S7: el handler `mail_retry` (`src/handlers/mail-retry.ts`)
+
+`docs/ACEPTACION.md` S7: "envío fallido reintenta vía job y queda
+registrado con su historial de intentos". `apps/api` (`src/lib/mail/
+send-transactional.ts`, fuera de este ámbito) encola `jobs.kind =
+'mail_retry'` cuando `MailService.send()` agota sus propios reintentos
+internos y queda `dead`; este handler es quien lo retoma.
+
+### Piezas reutilizadas de `@atiende/mail` (sin duplicar esquema)
+
+- `MailService` (outbox `reserve()` CAS, ML-01; lista de supresión
+  fail-closed; backoff exponencial interno) es EXACTAMENTE la misma clase
+  que usa `apps/api` — construida aquí por `src/mail/build-mail-service.ts`
+  (`buildMailServiceForWorker`), equivalente a `apps/api/src/lib/mail/
+  env.ts` pero SIN `linkSigner` (el worker nunca genera un enlace firmado
+  nuevo: `job.payload.variables` ya trae el enlace firmado que `apps/api`
+  calculó al primer intento).
+- `PgMailOutboxStore`/`PgMailSuppressionStore` (`src/mail/pg-mail-stores.ts`)
+  implementan `SendRecordStore`/`SuppressionStore` sobre las MISMAS tablas
+  y funciones `SECURITY DEFINER` que `apps/api` (`mail_outbox`,
+  `mail_suppressions`, 0080/0081) — DUPLICADAS a propósito en código (no
+  importadas de `apps/api`, fuera de este ámbito), nunca en esquema.
+- `CaptureProvider` sin credenciales (`createMailProviderFromEnv`, sin
+  `MAIL_PROVIDER`): igual que `apps/api`, un despliegue sin proveedor real
+  configurado nunca intenta salir a la red desde este reintento tampoco.
+
+### El hallazgo de esquema que hizo falta corregir: reservas `dead` quedaban atascadas para siempre
+
+Ninguna función de `mail_outbox_*` (0080) puede des-marcar una fila
+`status = 'dead'`: `mail_outbox_save()` solo acepta escribir un estado
+terminal (nunca `'pending'`), y `mail_outbox_reserve()`/
+`mail_outbox_release()` solo tocan filas `'pending'` en su
+`WHERE`/`ON CONFLICT ... WHERE`. Como un job `mail_retry` SIEMPRE apunta a
+una `messageKey` que ya está `dead` (es la única condición bajo la que
+`apps/api` lo encola), llamar `MailService.send()` otra vez con esa misma
+llave habría visto `reserve() = false` para siempre y devuelto `dead` de
+nuevo SIN volver a tocar el proveedor — el job habría sido, en la
+práctica, un no-op perpetuo. `packages/db/migrations/
+0087_req188_mail_retry_audit.sql` agrega `app.mail_outbox_reopen_for_retry`
+(SECURITY DEFINER, transición SOLO `dead -> pending`, nunca toca `sent`
+-- el correo ya se mandó -- ni `failed_permanent` -- WK-10, ya clasificado
+como no-reintentable), y el handler la invoca ANTES de cada llamada a
+`MailService.send()`. Ver el docstring extenso de esa función SQL para el
+detalle completo.
+
+### Auditoría (`audit_log`, sin organización posible)
+
+Un correo de verificación/restablecimiento de contraseña no tiene sesión
+NI organización — la política de `audit_log` exige `app.is_superadmin()`
+quien inserte con `org_id null`, y `worker_role`/`app_role` nunca lo son.
+`app.record_mail_retry_event` (mismo `0087`, mismo patrón que
+`app.record_auth_event`/`app.record_security_event`) es una función
+`SECURITY DEFINER` acotada a una lista fija de 7 acciones
+(`mail_retry.sent`/`already_sent`/`skipped_preferences`/`suppressed`/
+`dead_permanent`/`dead`/`malformed_payload`). El identificador de NEGOCIO
+(patrón WK6-02: `audit_log` no tiene columna dedicada para él) es la propia
+`messageKey`, guardada dentro de `after.correlationId` — nunca `job.id`
+(técnico, distinto en cada intento).
+
+### Clasificación de cada resultado de `MailService.send()`
+
+- `sent`/`already_sent`/`skipped_preferences`/`skipped_suppressed`:
+  estados FINALES exitosos — nunca se reenvía un correo ya `sent` ni se
+  envía a un destinatario suprimido/con la categoría apagada. Se audita y
+  el job se completa sin lanzar.
+- `not_configured`: sin proveedor real configurado (estado declarado, no
+  un fallo de red) — transitorio, reintenta con el backoff GENÉRICO de
+  `JobQueue`/`Worker` (no un backoff propio del handler).
+- `invalid_variables`/`unregistered_recipient`/`failed_permanent`:
+  permanentes (WK-10) — dead-letra inmediato, sin gastar el ciclo completo
+  de reintentos.
+- `dead`: `MailService` agotó sus reintentos internos en ESTE intento del
+  job — transitorio a nivel de job (backoff genérico); solo se audita como
+  `mail_retry.dead` en el ÚLTIMO intento permitido
+  (`job.attempts >= job.maxAttempts`), justo antes de que
+  `JobQueue.fail()` lo dead-letre de verdad.
+
+Payload malformado (zod, contrato documentado en `apps/api/src/lib/mail/
+send-transactional.ts`): se audita como `mail_retry.malformed_payload` y
+se rechaza como error PERMANENTE, sin crashear el proceso.
+
+Ver `test/mail-retry-handler.test.ts` para los 9 casos verificados contra
+Postgres real (PGlite + migraciones): éxito directo, éxito tras fallo (dos
+intentos del job), tope de intentos alcanzado (dead-letter auditado),
+mensaje ya enviado (no reenvía), destinatario suprimido (no envía),
+destinatario no registrado/suspendido (permanente), payload malformado (sin
+crash), dos invocaciones concurrentes de la misma `messageKey` (un solo
+envío real al proveedor), y sin credenciales configuradas (0 llamadas de
+red, `fetch` saboteado).
 
 ## Seguridad: conexión "de plataforma" para jobs/source_runs; worker_role real para agent_runs
 
@@ -742,12 +839,48 @@ Qué cambió:
   `correlationId` (o con cadena vacía / tipo equivocado) cae de vuelta a
   `job.id`, nunca queda sin correlación.
 
-**Límite honesto**: sin columna dedicada, la consulta va contra el JSONB
-(`output->>'correlationId'`) y **no hay índice** para ella; con volumen
-alto conviene una migración que añada `agent_runs.correlation_id` indexado
-(fuera del ámbito de `apps/worker`, requiere `packages/db`). Las corridas
-abiertas por un humano vía `apps/api` solo llevarán este identificador si
-ese sistema fija `correlationId` en el payload del job.
+**Límite honesto de esta ronda (cerrado por E20, ver abajo)**: sin columna
+dedicada, la consulta iba contra el JSONB (`output->>'correlationId'`) y no
+había índice para ella. Las corridas abiertas por un humano vía `apps/api`
+solo llevan este identificador si ese sistema fija `correlationId` en el
+payload del job.
+
+### E20: `agent_runs.correlation_id` (columna real) cierra el límite honesto de WK6-02
+
+`docs/BACKLOG.md` ("Índice de correlation_id en agent_runs (BAJA, tras
+WK6-02)"): resulta que `agent_runs.correlation_id` **ya existía** desde
+`packages/db/migrations/0017_ronda2_extensions.sql`, con su propio índice
+(`ix_agent_runs_correlation (org_id, correlation_id)`) — `apps/api/src/lib/
+agent-stores.pg.ts` ya la puebla al CREAR una corrida. El límite honesto de
+arriba describía bien el síntoma (la consulta de auditoría no tenía columna
+indexada disponible) pero no la causa exacta: la columna sí existía, lo que
+faltaba era que `updateAgentRunRow()` (`src/handlers/run-agent.ts`, el
+UPDATE que CIERRA una corrida disparada por un job) la escribiera — antes
+de esta ronda solo tocaba `status`/`output`/`finished_at`.
+
+Qué cambió:
+
+- **`src/handlers/run-agent.ts`**: el mismo `UPDATE` de `updateAgentRunRow()`
+  ahora también fija `correlation_id = $6` (`run.correlationId ?? null`,
+  idéntico al valor que ya iba dentro de `output`) — un solo viaje a la
+  base, no una escritura adicional. `output->>'correlationId'` se conserva
+  intacto (compatibilidad hacia atrás con cualquier lector que siga
+  consultando el JSONB).
+- **`packages/db/migrations/0088_e20_agent_runs_correlation_id.sql`**:
+  backfill (`update ... where correlation_id is null and
+  output->>'correlationId' is not null`) para filas preexistentes cerradas
+  por un job ANTES de esta ronda, que quedaron con `correlation_id` en NULL
+  a pesar de tenerlo en `output`. No repite el `alter table`/`create index`
+  de 0017 (son `if not exists`, documentados ahí como no-op intencional).
+- **`test/run-agent-handler.test.ts`** ("WK6-02/E20"): la consulta de
+  auditoría de REQ-171 pasa de `output->>'correlationId' = $1` a
+  `correlation_id = $1` (indexada); el test confirma que ambas coinciden.
+- **`packages/db/test/e20-agent-runs-correlation-id.test.ts`** (nuevo, en
+  `packages/db`): idempotencia del backfill sobre una base con filas
+  preexistentes (mismo patrón "migrar hasta el corte, sembrar datos, migrar
+  el resto" que `migration-0026b-duplicate-jobs-safety-net.test.ts`), y
+  confirma que la RLS existente de `agent_runs` (0008) sigue aislando por
+  organización una consulta por `correlation_id`.
 
 ### WK6-03: `PROPOSAL-06-...test.ts` deja de ser flaky bajo carga completa
 

@@ -12,6 +12,7 @@ import {
 } from './handlers/discover-tenders.js';
 import { createRunAgentHandler } from './handlers/run-agent.js';
 import { createSendAgentAlertHandler } from './handlers/send-agent-alert.js';
+import { createMailRetryHandler } from './handlers/mail-retry.js';
 import { TenderIngestClient } from './ingest/ingest-client.js';
 import { enqueueUpcomingDeadlineReminders } from './scheduler/deadline-reminders.js';
 
@@ -41,6 +42,10 @@ async function main(): Promise<void> {
     }),
     run_agent: createRunAgentHandler({ db, queue }),
     send_agent_alert: createSendAgentAlertHandler(),
+    // REQ-188 (S7): reintento diferido de un correo transaccional cuyo
+    // primer envío (desde apps/api) agotó los reintentos internos de
+    // MailService (ver src/handlers/mail-retry.ts).
+    mail_retry: createMailRetryHandler({ db }),
   };
 
   const worker = new Worker({

@@ -4,6 +4,14 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "lib": ["ES2022"],
+    // REQ-188: `@atiende/mail` se consume como FUENTE TypeScript
+    // (`"main": "./src/index.ts"`, igual que @atiende/db), y sus plantillas
+    // son `.tsx` (React Email) -- mismo motivo/mismo fix ya aplicado en
+    // apps/api/tsconfig.json. Sin estas dos opciones, `tsc` de apps/worker
+    // falla con TS6142 al resolverlas. No afecta a `apps/worker/src`, que no
+    // tiene ni un solo archivo `.tsx` propio.
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,

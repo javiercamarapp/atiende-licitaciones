@@ -15,6 +15,7 @@
   "dependencies": {
     "@atiende/agents": "*",
     "@atiende/db": "*",
+    "@atiende/mail": "*",
     "@atiende/sources": "*",
     "pino": "^10.1.0",
     "zod": "^3.24.1"

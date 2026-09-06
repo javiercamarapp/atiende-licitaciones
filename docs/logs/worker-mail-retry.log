@@ -1,0 +1,864 @@
+=== 2026-09-06T23:24:25Z — packages/db test ===
+
+> @atiende/db@0.1.0 test
+> vitest run
+
+
+ RUN  v2.1.9 /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/packages/db
+
+ ✓ test/security-definer-audit.test.ts (5 tests) 4793ms
+ ✓ test/rls-ronda6-post-award.test.ts (7 tests) 5051ms
+ ✓ test/ronda2-extensions.test.ts (8 tests) 5102ms
+ ✓ test/req172-google-oidc.test.ts (17 tests) 5178ms
+ ✓ test/backoffice-extension.test.ts (5 tests) 5265ms
+ ✓ test/req181-mail.test.ts (20 tests) 5654ms
+ ✓ test/e20-agent-runs-correlation-id.test.ts (3 tests) 8975ms
+   ✓ E20: agent_runs.correlation_id (columna ya existente desde 0017 + backfill de 0088) > una base con filas preexistentes (antes de 0088, columna de 0017 ya presente pero sin backfill) migra limpiamente y queda con correlation_id poblada desde output->>'correlationId' 5473ms
+ ✓ test/rls-ronda3-expediente.test.ts (3 tests) 3979ms
+ ✓ test/audit-db05-change-event-invalidation.test.ts (4 tests) 3869ms
+ ✓ test/rls-roles.test.ts (5 tests) 3700ms
+ ✓ test/security-db10-rate-validity-submission-deadline.test.ts (4 tests) 3849ms
+ ✓ test/security-db13-rate-validity-timezone.test.ts (3 tests) 3634ms
+ ✓ test/security-r509-step-up-mandatory-scope.test.ts (3 tests) 10683ms
+   ✓ R5-09: migraciones 0062/0063 invalidan sesiones genéricas y cierran el esquema de step_up_sessions > una base con sesiones de step-up "genéricas" preexistentes (org_id/purpose NULL, comportamiento R5-05) las pierde al migrar a 0062+, y las columnas quedan NOT NULL 4918ms
+   ✓ R5-09: migraciones 0062/0063 invalidan sesiones genéricas y cierran el esquema de step_up_sessions > purpose está restringido al enum cerrado (CHECK, migración 0063): un valor fuera de la lista es rechazado 3638ms
+   ✓ R5-09: migraciones 0062/0063 invalidan sesiones genéricas y cierran el esquema de step_up_sessions > una base ya migrada hasta el final se puede volver a migrar sin error (idempotente) y consumed_at/purpose_check quedan una sola vez 2127ms
+ ✓ test/worker-role-and-job-proposals.test.ts (11 tests) 10833ms
+ ✓ test/audit-db02-rate-validity.test.ts (3 tests) 3017ms
+ ✓ test/migration-0026b-duplicate-jobs-safety-net.test.ts (2 tests) 6638ms
+   ✓ 0026b: resuelve duplicados activos preexistentes antes del índice único de 0027 > una base con jobs activos duplicados por (kind, jobKey) migra limpiamente hasta el final 3883ms
+   ✓ 0026b: resuelve duplicados activos preexistentes antes del índice único de 0027 > app.resolve_duplicate_active_jobs() es idempotente: una segunda ejecución no toca nada más 2754ms
+ ✓ test/security-api14-auth-audit-actor-match.test.ts (6 tests) 3315ms
+ ✓ test/audit-db01-security-definer-scope.test.ts (4 tests) 3474ms
+ ✓ test/jobs-locking.test.ts (2 tests) 3339ms
+ ✓ test/audit-db06-audit-log-hash-chain.test.ts (3 tests) 3500ms
+ ✓ test/audit-db03-rate-reapproval.test.ts (3 tests) 3662ms
+ ✓ test/calendar-holidays-rls.test.ts (2 tests) 3774ms
+ ✓ test/idempotency-and-audit.test.ts (4 tests) 5878ms
+ ✓ test/org-bootstrap.test.ts (2 tests) 3442ms
+ ✓ test/security-db09-agent-run-context.test.ts (2 tests) 3156ms
+ ✓ test/org-members-function.test.ts (3 tests) 3055ms
+ ✓ test/rls-isolation.test.ts (70 tests) 3943ms
+ ✓ test/migrate.test.ts (4 tests) 5133ms
+   ✓ migraciones > aplican todas sin error y quedan registradas en schema_migrations 3160ms
+   ✓ migraciones > se pueden aplicar dos veces sin error (idempotente): la segunda vez no repite nada 852ms
+   ✓ migraciones > ensureMigrationsTable es idempotente 478ms
+   ✓ migraciones > crea todas las tablas de dominio esperadas 641ms
+
+ Test Files  28 passed (28)
+      Tests  208 passed (208)
+   Start at  17:24:26
+   Duration  18.72s (transform 361ms, setup 0ms, collect 1.17s, tests 135.89s, environment 3ms, prepare 1.61s)
+
+
+=== 2026-09-06T23:24:44Z — apps/worker RONDA 1: typecheck && lint && test && test:coverage ===
+
+> @atiende/worker@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @atiende/worker@0.1.0 lint
+> eslint src test
+
+
+> @atiende/worker@0.1.0 test
+> vitest run
+
+
+ RUN  v2.1.9 /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/worker
+
+ ✓ test/ingest-client.test.ts (225 tests) 988ms
+ ✓ test/discover-tenders-agent-events.test.ts (4 tests) 9288ms
+   ✓ discover_tenders + agentEventsQueue (Ronda 6, tarea 4) > convocatoria NUEVA (action: created) encola analista_convocatorias, deduplicado por (fuente, externalId, versión) 3219ms
+   ✓ discover_tenders + agentEventsQueue (Ronda 6, tarea 4) > convocatoria ACTUALIZADA (action: updated) encola vigilante_cambios 2083ms
+   ✓ discover_tenders + agentEventsQueue (Ronda 6, tarea 4) > convocatoria SIN CAMBIOS (action: unchanged) nunca encola ningún agente 2022ms
+   ✓ discover_tenders + agentEventsQueue (Ronda 6, tarea 4) > sin agentEventsQueue configurada (comportamiento por defecto), la ingesta no intenta encolar nada (compatibilidad hacia atrás) 1962ms
+ ✓ test/worker-shutdown.test.ts (6 tests) 14224ms
+   ✓ Worker: cierre ordenado (SIGTERM) > deja terminar el job en curso, libera el lock, y no reclama nuevos jobs tras stop() 3847ms
+   ✓ Worker: cierre ordenado (SIGTERM) > si el handler no respeta AbortSignal, stop() igual resuelve tras shutdownTimeoutMs (no cuelga para siempre) 2587ms
+   ✓ Worker: cierre ordenado (SIGTERM) > llamar stop() dos veces es seguro (idempotente) 1823ms
+   ✓ Worker: cierre ordenado (SIGTERM) > WK-02: si el heartbeat detecta que se perdió el lease (fencing), aborta el handler y NO persiste ningún resultado 1879ms
+   ✓ Worker: cierre ordenado (SIGTERM) > WK-10: un error permanente dead-letra en el primer intento, sin gastar el ciclo de backoff 1797ms
+   ✓ Worker: cierre ordenado (SIGTERM) > métricas: cuenta succeeded/retried/dead por tipo de job 2289ms
+ ✓ test/scheduler.test.ts (9 tests) 20053ms
+   ✓ Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150 > varios tick() dentro de la misma ventana encolan un solo job por fuente 3691ms
+   ✓ Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150 > avanzar a la siguiente ventana sí encola un nuevo job, sin duplicar el anterior 2218ms
+   ✓ Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150 > una fuente deshabilitada (enabled: false) nunca se encola 2034ms
+   ✓ Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150 > el job encolado ya trae sourceId en el payload para que discover_tenders sepa qué conector correr 1805ms
+   ✓ Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150 > dos Scheduler concurrentes (dos procesos) nunca duplican el job de la misma fuente+ventana — 20 iteraciones (lógica secuencial en PGlite, NO concurrencia de motor real — ver nota WK-15) 1866ms
+   ✓ JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable > la primera sentencia de la transacción es pg_advisory_xact_lock(hashtext($1)::bigint) con params=[`${kind}:${jobKey}`] 2270ms
+   ✓ JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable > la clave del advisory lock es estable entre llamadas (mismo kind+jobKey -> mismo string, sin importar el payload) 2194ms
+   ✓ JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable > un jobKey distinto produce una clave de lock distinta (sin colisión entre ventanas/fuentes) 2106ms
+   ✓ JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable > enqueue() SIN jobKey no abre transacción ni toma ningún advisory lock (solo el camino con jobKey lo necesita) 1867ms
+ ✓ test/mail-retry-handler.test.ts (9 tests) 20959ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > éxito: el proveedor acepta el envío -> outcome "sent", auditado, el job se completa sin lanzar 3972ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > éxito tras fallo: un primer intento del job agota los reintentos internos de MailService ("dead"), un SEGUNDO intento con el proveedor recuperado sí envía 1943ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > tope alcanzado: en el ÚLTIMO intento permitido (job.attempts = job.maxAttempts) el proveedor sigue fallando -> se audita "mail_retry.dead" con el motivo antes de lanzar 1941ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > mensaje ya enviado: no reenvía -- el proveedor NUNCA se llama, outcome "already_sent", auditado 1870ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > supresión: el destinatario está suprimido -> no envía, el proveedor NUNCA se llama, auditado 1849ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > payload malformado: rechazado sin crash (error permanente clasificado), auditado 2327ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > dos workers concurrentes: reserve() CAS garantiza un SOLO envío real al proveedor para la MISMA messageKey 2619ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > sin red sin credenciales: sin MAIL_PROVIDER, el proveedor activo es CaptureProvider -- 0 llamadas de red 2255ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > destinatario no registrado (p.ej. cuenta suspendida): fallo permanente -- dead-letra sin gastar reintentos, auditado 2182ms
+ ✓ test/run-agent-handler.test.ts (10 tests) 22125ms
+   ✓ run_agent handler (esqueleto) > ejecuta con FakeProvider por defecto (sin OPENAI_API_KEY) y refleja el resultado en agent_runs 3862ms
+   ✓ run_agent handler (esqueleto) > sin agentRunId en el payload, igual ejecuta el AgentRunner sin fallar (uso "fire and forget") 1971ms
+   ✓ run_agent handler (esqueleto) > WK-08: un job run_agent con organizationId de otro tenant nunca actualiza la fila real (falla explícito, no-op silencioso) 1943ms
+   ✓ run_agent handler (esqueleto) > WK-16: organizationId null con agentRunId presente falla permanente ("org requerida"), agent_runs NUNCA se toca 1779ms
+   ✓ run_agent handler (esqueleto) > WK-16: organizationId undefined con agentRunId presente falla permanente ("org requerida"), agent_runs NUNCA se toca 1845ms
+   ✓ run_agent handler (esqueleto) > WK-16: organizationId string vacío con agentRunId presente falla permanente ("org requerida"), agent_runs NUNCA se toca 2297ms
+   ✓ run_agent handler (esqueleto) > WK-23: organizationId correcto pero actorId sin membresía en esa organización — RLS bajo worker_role bloquea el update legítimo en apariencia 2160ms
+   ✓ run_agent handler (esqueleto) > WK-23: actorId con formato inválido (no UUID) falla permanente y explícito, agent_runs NUNCA se toca 2183ms
+   ✓ run_agent handler (esqueleto) > un rol sin permiso para el riesgo de la herramienta hace que la corrida termine "denied" -> el job falla explícitamente 1929ms
+   ✓ run_agent handler (esqueleto) > WK6-02/E20: correlationId de negocio persiste en agent_runs.correlation_id (columna) y en output (y en cada tool_call) — una sola consulta por columna reconstruye convocatoria -> matriz -> propuesta 2153ms
+ ✓ test/discover-tenders-handler.test.ts (10 tests) 22027ms
+   ✓ discover_tenders handler — A4: fuente inaccesible/no verificada nunca es "0 nuevas" silencioso > los 5 conectores reales de packages/sources hoy no tienen liveVerification.verified=true: se reporta not_configured explícito, nunca "ok" 3674ms
+   ✓ discover_tenders handler — A4: fuente inaccesible/no verificada nunca es "0 nuevas" silencioso > un conector que lanza error con "captcha" en el mensaje se clasifica como captcha_detected, no "ok" 2096ms
+   ✓ discover_tenders handler — A4: fuente inaccesible/no verificada nunca es "0 nuevas" silencioso > fuente sin conector registrado nunca produce "0 nuevas": falla explícito con not_configured 1934ms
+   ✓ discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay > convocatoria nueva de una fuente verificada: se ingiere vía HTTP y source_runs queda "ok" 1859ms
+   ✓ discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay > replay del mismo lote (misma corrida repetida) envía el mismo payload de ingesta — idempotente (A2) 1955ms
+   ✓ discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay > una corrida sin registros nuevos NO llama al endpoint de ingesta pero sí queda "ok" (no confundir con fuente caída) 2370ms
+   ✓ discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay > WK-06: coverage.expected viene de payload.expectedTotal si se da; source_runs "ok" lo persiste 1910ms
+   ✓ discover_tenders handler — WK-03/WK-05/WK-06: honestidad de coverage y registro SIEMPRE de source_runs > si discover() tiene éxito pero el POST de ingesta falla, source_runs SIEMPRE se registra (ingest_failed) 2164ms
+   ✓ discover_tenders handler — WK-03/WK-05/WK-06: honestidad de coverage y registro SIEMPRE de source_runs > si discover() falla a mitad de iteración, coverage.obtained es 0 (nunca cuenta lo descartado) 1949ms
+   ✓ discover_tenders handler — WK-03/WK-05/WK-06: honestidad de coverage y registro SIEMPRE de source_runs > sin payload.expectedTotal, coverage.expected es null CON un motivo explícito, en las 4 rutas 2114ms
+ ✓ test/named-agents.test.ts (13 tests) 8ms
+ ✓ db-proposals/PROPOSAL-06-agent-business-tools-grants.test.ts (5 tests) 11279ms
+   ✓ PROPOSAL-06: grants de solo-lectura de negocio + insert de agent_runs para worker_role > worker_role puede leer tenders/company_profiles de CUALQUIER organización tras aplicar la propuesta 2796ms
+   ✓ PROPOSAL-06: grants de solo-lectura de negocio + insert de agent_runs para worker_role > SIN la propuesta aplicada, un SELECT crudo de worker_role sobre tenders NO lanza error: devuelve 0 filas en silencio (RLS filtra, no bloquea la sentencia) 2434ms
+   ✓ PROPOSAL-06: grants de solo-lectura de negocio + insert de agent_runs para worker_role > SIN la propuesta aplicada, withWorkerBusinessReadContext SÍ falla explícito (SchemaGrantPendingError vía pg_policies, nunca una lista vacía fabricada) 2124ms
+   ✓ PROPOSAL-06: grants de solo-lectura de negocio + insert de agent_runs para worker_role > worker_role puede INSERTAR su propia fila en agent_runs (corrida disparada por evento de plataforma, sin agentRunId previo de apps/api) 1855ms
+   ✓ PROPOSAL-06: grants de solo-lectura de negocio + insert de agent_runs para worker_role > las políticas ADICIONALES no reemplazan las existentes: un miembro humano real de la organización sigue pudiendo leer sus propios tenders 2069ms
+ ✓ db-proposals/PROPOSAL-01-widen-source-run-status.test.ts (2 tests) 4122ms
+   ✓ PROPOSAL-01 (WK-07/WK-22): source_run_status ampliado a 8 estados finos > rate_limited y not_configured se persisten como su propio valor en status, no como failed 2517ms
+   ✓ PROPOSAL-01 (WK-07/WK-22): source_run_status ampliado a 8 estados finos > ingest_failed (WK-03) también se persiste con su propio valor, no como failed 1604ms
+ ✓ test/run-agent-kill-switch.test.ts (2 tests) 4745ms
+   ✓ run_agent + kill-switch (Ronda 6, tarea 4) > un agente deshabilitado por WORKER_DISABLED_AGENTS nunca ejecuta ningún tool_call (ni encola la alerta) 2869ms
+   ✓ run_agent + kill-switch (Ronda 6, tarea 4) > un agente NO listado en WORKER_DISABLED_AGENTS sigue ejecutando con normalidad 1876ms
+ ✓ test/config.test.ts (3 tests) 4ms
+ ✓ test/kill-switch.test.ts (4 tests) 4ms
+ ✓ test/send-agent-alert.test.ts (1 test) 3ms
+ ✓ test/schedule-config.test.ts (5 tests) 3ms
+ ✓ test/worker-log-correlation.test.ts (4 tests) 8243ms
+   ✓ Worker: correlation_id de NEGOCIO en el log estructurado (WK6-02) > cuando el payload trae correlationId de negocio, cada línea lleva ese valor en correlation_id y el id de cola SEPARADO en job_id 2471ms
+   ✓ Worker: correlation_id de NEGOCIO en el log estructurado (WK6-02) > dos jobs distintos del MISMO expediente comparten correlation_id (una sola búsqueda en los logs agrupa toda la cadena) con job_id distinto cada uno 2166ms
+   ✓ Worker: correlation_id de NEGOCIO en el log estructurado (WK6-02) > un job SIN correlationId de negocio (cualquier otro kind) conserva el comportamiento anterior: correlation_id = job.id, nunca queda vacío 1738ms
+   ✓ Worker: correlation_id de NEGOCIO en el log estructurado (WK6-02) > un correlationId presente pero no utilizable (cadena vacía o tipo equivocado) NO deja el log sin correlación: cae de vuelta a job.id 1866ms
+ ✓ db-proposals/PROPOSAL-03-worker-role.test.ts (7 tests) 14170ms
+   ✓ PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real > worker_role existe y está NOLOGIN (solo alcanzable vía SET ROLE desde una conexión con privilegios) 2835ms
+   ✓ PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real > worker_role tiene EXACTAMENTE grants sobre {jobs, source_runs, agent_runs}, ninguna otra tabla 2124ms
+   ✓ PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real > worker_role puede ver/crear jobs de PLATAFORMA (org_id NULL) 2066ms
+   ✓ PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real > worker_role puede leer/escribir source_runs sin ser superadmin 1943ms
+   ✓ PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real > WK-23: worker_role con org_id correcto pero SIN current_user_id fijado no puede actualizar agent_runs (ni siquiera su propio tenant) 1869ms
+   ✓ PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real > WK-23: worker_role con org_id y current_user_id (actor real) correctos SÍ actualiza agent_runs de su propio tenant 1688ms
+   ✓ PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real > worker_role con app.current_org_id de la org A no puede actualizar una fila agent_runs de la org B 1643ms
+ ✓ db-proposals/PROPOSAL-02-jobs-dedupe-and-cancelled.test.ts (3 tests) 6032ms
+   ✓ PROPOSAL-02 (WK-04/WK-15/WK-22): índice único (kind, jobKey) activo + cancelled > un segundo INSERT directo (sin pasar por el advisory lock) con la misma (kind, jobKey) activa viola el índice único 2616ms
+   ✓ PROPOSAL-02 (WK-04/WK-15/WK-22): índice único (kind, jobKey) activo + cancelled > cancel() usa el estado "cancelled" dedicado, distinguible de "dead" sin leer last_error 1609ms
+   ✓ PROPOSAL-02 (WK-04/WK-15/WK-22): índice único (kind, jobKey) activo + cancelled > PASO 0 (WK-15): la query de detección de duplicados activos devuelve 0 filas en una base recién migrada 1806ms
+ ✓ test/deadline-reminders.test.ts (3 tests) 7520ms
+   ✓ enqueueUpcomingDeadlineReminders (Ronda 6, tarea 4: run_agent por evento de vencimiento) > encola recordatorios SOLO para convocatorias con vencimiento dentro de la ventana, de CUALQUIER organización 2732ms
+   ✓ enqueueUpcomingDeadlineReminders (Ronda 6, tarea 4: run_agent por evento de vencimiento) > deduplicado por (tenderId, fecha calendario del vencimiento): llamarlo dos veces el mismo día no duplica 1745ms
+   ✓ enqueueUpcomingDeadlineReminders (Ronda 6, tarea 4: run_agent por evento de vencimiento) > sin PROPOSAL-06 aplicada, falla explícito (SchemaGrantPendingError) en vez de reportar "0 vencimientos" fabricado 3042ms
+ ✓ test/enqueue-agent-run.test.ts (3 tests) 3642ms
+   ✓ enqueueAgentRun (Ronda 6, tarea 4) > con PROPOSAL-06 aplicada: abre su propia fila agent_runs (started_by null) y encola el job con agentRunId 1955ms
+   ✓ enqueueAgentRun (Ronda 6, tarea 4) > SIN PROPOSAL-06 aplicada: falla al abrir agent_runs (fail-open) pero el job IGUAL se encola, sin agentRunId 861ms
+   ✓ enqueueAgentRun (Ronda 6, tarea 4) > deduplicado por (agentName, eventKey): dos llamadas con el mismo evento no encolan dos jobs activos 826ms
+ ✓ test/job-queue.test.ts (19 tests) 32870ms
+   ✓ JobQueue: reclamo atómico sin doble procesamiento > N workers > M jobs: cada job se reclama como máximo una vez 3736ms
+   ✓ JobQueue: reclamo atómico sin doble procesamiento > un job ya en running no es reclamado dos veces por workers adicionales 2134ms
+   ✓ JobQueue: reclamo atómico sin doble procesamiento > un job claimeado incrementa attempts y queda en running con locked_by 1833ms
+   ✓ JobQueue: WK-01 — claim() respeta max_attempts también en recuperación de lease (crash real) > un job que crashea repetidamente (nunca completa/falla) termina en "dead", nunca "running" eterno 1835ms
+   ✓ JobQueue: reintentos con backoff exponencial + jitter > cada fallo reprograma next_run_at con backoff creciente hasta max_attempts, luego "dead" 1913ms
+   ✓ JobQueue: reintentos con backoff exponencial + jitter > el jitter mantiene el delay dentro del rango esperado (no determinista pero acotado) 2078ms
+   ✓ JobQueue: lease expirado se recupera > un job running cuyo lease expiró es reclamable por otro worker 2208ms
+   ✓ JobQueue: lease expirado se recupera > heartbeat extiende el lease y evita que otro worker lo recupere 2201ms
+   ✓ JobQueue: cancelación > cancelar un job queued lo deja fuera de circulación (cancelled, no dead) y no se reclama 1862ms
+   ✓ JobQueue: cancelación > cancelar un job running también lo detiene, con estado cancelled (WK-22) 2132ms
+   ✓ JobQueue: idempotencia por jobKey > encolar dos veces con el mismo jobKey mientras el primero sigue activo no duplica 1987ms
+   ✓ JobQueue: idempotencia por jobKey > una vez terminado (succeeded), un nuevo jobKey (otra ventana) sí encola 1705ms
+   ✓ JobQueue: WK-10 — deadLetterPermanent (errores permanentes, sin ciclo de backoff) > dead-letra inmediatamente en el primer intento, sin importar max_attempts 1583ms
+   ✓ JobQueue: complete > complete limpia el lock y marca succeeded 1645ms
+   ✓ JobQueue: complete > complete con un lockedBy equivocado lanza StaleLeaseError y no persiste nada (protege contra confirmaciones cruzadas) 943ms
+   ✓ JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent() > WORKER_ID reutilizado tras "reinicio" (mismo string, lease token distinto): complete() del zombie de la generación anterior es rechazado 748ms
+   ✓ JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent() > fail() del zombie con lockedBy viejo también es rechazado (no aplica backoff/dead-letter equivocado) 783ms
+   ✓ JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent() > deadLetterPermanent() del zombie con lockedBy viejo también es rechazado 799ms
+   ✓ JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent() > heartbeat() del zombie con lockedBy viejo retorna false (ya lo hacía por attempts en WK-02; ahora también por lease token) 740ms
+ ✓ test/business-tools.test.ts (19 tests) 33041ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > registra las 8 herramientas con actionKind/declaredEffects consistentes (nunca external_send/sign/portal_action/contact_third_party) 3761ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > ninguna de las 8 herramientas acepta organizationId/orgId/tenantId del modelo: el esquema los descarta silenciosamente, nunca llegan al handler 2077ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > listar_convocatorias: lee SOLO las convocatorias de la organización del contexto, nunca de otra 1893ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > leer_bases: expone documentos/requisitos ya extraídos, con sourcePage/sourceExcerpt reales (no fabricados) 1827ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > leer_perfil_empresa: lee perfil/capacidades/experiencia reales de la organización 1883ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > proponer_matching: score y palabras coincidentes derivados de datos reales, nunca inventados; sin capacidades -> missingProfileFields 2250ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > proponer_requisitos_matriz: extrae candidatos REALES del texto ya extraído, sin inventar número de página 2125ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > proponer_seccion_propuesta: bloquea explícitamente si no hay evidencia aprobada (nunca inventa el dato) 2253ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > proponer_seccion_propuesta: redacta un borrador citando experiencia REAL con evidencia 1956ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > resumir_cambios_convocatoria: resume eventos reales y cuenta invalidaciones reales 2048ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > programar_alerta: encola un job real (send_agent_alert) en la tabla jobs, deduplicado por (tenderId, kind, scheduledFor) 2136ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > aislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok" > listar_convocatorias: desde el contexto de orgB nunca aparece ninguna convocatoria real de orgA (contenido distinguible, no solo el conteo) 1545ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > aislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok" > proponer_matching: tenderId real de orgA desde el contexto de orgB -> "no evaluable" explícito, sin score ni texto de orgA 1514ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > aislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok" > leer_bases: tenderId real de orgA desde el contexto de orgB -> documentos/requisitos vacíos, nunca los de orgA 1694ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > aislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok" > leer_perfil_empresa: nunca expone el perfil/capacidades de otra organización 834ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > aislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok" > proponer_requisitos_matriz: tenderId real de orgA desde el contexto de orgB -> sin candidatos, nunca el texto de orgA 803ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > aislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok" > proponer_seccion_propuesta: nunca redacta citando experiencia real de otra organización 900ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > aislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok" > resumir_cambios_convocatoria: tenderId real de orgA desde el contexto de orgB -> sin eventos, nunca el resumen de orgA 777ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > aislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok" > programar_alerta: el job encolado siempre queda scoped a la organización REAL del contexto (ctx.organizationId), nunca a un tenderId ajeno pasado como input 760ms
+ ✓ test/agent-evals.test.ts (26 tests) 38576ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_convocatorias > camino feliz: bases + perfil + matching, corrida completa y persistida en agent_runs.output.toolCalls 3674ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_convocatorias > aislamiento por org: un tenderId de otra organización nunca se lee ni se usa para matching (contenido, no solo status) 2253ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_convocatorias > rol sin permiso de riesgo (consultor_externo, techo "read") deniega el primer paso "write" -> corrida denied, job falla permanente 2029ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_convocatorias > idempotencia por clave: dos corridas del mismo tenderId+org reutilizan el resultado cacheado del paso "proponer_matching" (el LLM no se vuelve a invocar) 1839ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_convocatorias > presupuesto excedido: con un límite por organización menor al costo del primer paso, la corrida se detiene "failed" (nunca fabrica un resultado) 1781ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_bases > camino feliz: propone candidatos de matriz reales a partir del texto extraído 2646ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_bases > aislamiento por org: tenderId de otra organización -> leer_bases no expone documentos ajenos 2472ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_bases > rol sin permiso: consultor_externo denegado en el paso "write" (proponer_requisitos_matriz) 2144ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_bases > idempotencia por clave: dos corridas con el mismo tenderId no duplican la propuesta de matriz (mismo idempotencyKey) 1975ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_bases > presupuesto excedido detiene la corrida en el primer paso 2167ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > redactor_borrador > no fabricación: sin evidence_ref, la sección queda bloqueada explícitamente (needs_data), nunca redacta un dato inventado 2166ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > redactor_borrador > con evidencia real, redacta la sección y completa (no queda pendiente) 1706ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > redactor_borrador > guardrail anticorrupción bloquea una sectionKey con lenguaje de soborno, ANTES de tocar la herramienta 1813ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > redactor_borrador > rol sin permiso: consultor_externo denegado en "proponer_seccion_propuesta" (write) 1003ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > redactor_borrador > presupuesto excedido detiene la corrida antes de redactar 793ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > vigilante_cambios > camino feliz: resume cambios reales de la convocatoria 1031ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > vigilante_cambios > aislamiento por org: nunca resume eventos de cambio de otra organización 785ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > vigilante_cambios > consultor_externo (techo "read") SÍ puede ejecutar este agente: es de solo lectura, dentro de su techo de riesgo 753ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > vigilante_cambios > idempotencia por clave: dos corridas del mismo tenderId no fallan por reejecución (idempotencyKey estable) 657ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > vigilante_cambios > presupuesto excedido detiene la corrida 721ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > recordatorios > camino feliz: programa una alerta real (job send_agent_alert encolado) 704ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > recordatorios > idempotencia por clave: dos alertas con el mismo (tenderId, kind, scheduledFor) encolan un único job de plataforma 698ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > recordatorios > guardrail anticorrupción bloquea un mensaje de alerta con lenguaje de soborno 673ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > recordatorios > rol sin permiso: consultor_externo denegado (programar_alerta es "write") 869ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > recordatorios > presupuesto excedido: no encola la alerta si el presupuesto de la organización ya se agotó 642ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > prohibiciones duras (runtime compartido por los 5 agentes) > un tool_call con actionKind "portal_action" se deniega SIEMPRE, incluso para "superadmin", sin llegar a needs_approval 576ms
+
+ Test Files  23 passed (23)
+      Tests  392 passed (392)
+   Start at  17:24:47
+   Duration  39.10s (transform 1.20s, setup 0ms, collect 3.36s, tests 273.93s, environment 3ms, prepare 1.35s)
+
+
+> @atiende/worker@0.1.0 test:coverage
+> vitest run --coverage
+
+
+ RUN  v2.1.9 /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/worker
+      Coverage enabled with v8
+
+ ✓ test/ingest-client.test.ts (225 tests) 1167ms
+ ✓ test/discover-tenders-agent-events.test.ts (4 tests) 12460ms
+   ✓ discover_tenders + agentEventsQueue (Ronda 6, tarea 4) > convocatoria NUEVA (action: created) encola analista_convocatorias, deduplicado por (fuente, externalId, versión) 3846ms
+   ✓ discover_tenders + agentEventsQueue (Ronda 6, tarea 4) > convocatoria ACTUALIZADA (action: updated) encola vigilante_cambios 2899ms
+   ✓ discover_tenders + agentEventsQueue (Ronda 6, tarea 4) > convocatoria SIN CAMBIOS (action: unchanged) nunca encola ningún agente 2504ms
+   ✓ discover_tenders + agentEventsQueue (Ronda 6, tarea 4) > sin agentEventsQueue configurada (comportamiento por defecto), la ingesta no intenta encolar nada (compatibilidad hacia atrás) 3209ms
+ ✓ test/worker-shutdown.test.ts (6 tests) 17974ms
+   ✓ Worker: cierre ordenado (SIGTERM) > deja terminar el job en curso, libera el lock, y no reclama nuevos jobs tras stop() 4247ms
+   ✓ Worker: cierre ordenado (SIGTERM) > si el handler no respeta AbortSignal, stop() igual resuelve tras shutdownTimeoutMs (no cuelga para siempre) 3066ms
+   ✓ Worker: cierre ordenado (SIGTERM) > llamar stop() dos veces es seguro (idempotente) 2983ms
+   ✓ Worker: cierre ordenado (SIGTERM) > WK-02: si el heartbeat detecta que se perdió el lease (fencing), aborta el handler y NO persiste ningún resultado 2835ms
+   ✓ Worker: cierre ordenado (SIGTERM) > WK-10: un error permanente dead-letra en el primer intento, sin gastar el ciclo de backoff 2699ms
+   ✓ Worker: cierre ordenado (SIGTERM) > métricas: cuenta succeeded/retried/dead por tipo de job 2143ms
+ ✓ test/scheduler.test.ts (9 tests) 24061ms
+   ✓ Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150 > varios tick() dentro de la misma ventana encolan un solo job por fuente 4035ms
+   ✓ Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150 > avanzar a la siguiente ventana sí encola un nuevo job, sin duplicar el anterior 2843ms
+   ✓ Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150 > una fuente deshabilitada (enabled: false) nunca se encola 2815ms
+   ✓ Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150 > el job encolado ya trae sourceId en el payload para que discover_tenders sepa qué conector correr 2928ms
+   ✓ Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150 > dos Scheduler concurrentes (dos procesos) nunca duplican el job de la misma fuente+ventana — 20 iteraciones (lógica secuencial en PGlite, NO concurrencia de motor real — ver nota WK-15) 2748ms
+   ✓ JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable > la primera sentencia de la transacción es pg_advisory_xact_lock(hashtext($1)::bigint) con params=[`${kind}:${jobKey}`] 2257ms
+   ✓ JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable > la clave del advisory lock es estable entre llamadas (mismo kind+jobKey -> mismo string, sin importar el payload) 2201ms
+   ✓ JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable > un jobKey distinto produce una clave de lock distinta (sin colisión entre ventanas/fuentes) 2355ms
+   ✓ JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable > enqueue() SIN jobKey no abre transacción ni toma ningún advisory lock (solo el camino con jobKey lo necesita) 1877ms
+ ✓ test/mail-retry-handler.test.ts (9 tests) 23427ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > éxito: el proveedor acepta el envío -> outcome "sent", auditado, el job se completa sin lanzar 4167ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > éxito tras fallo: un primer intento del job agota los reintentos internos de MailService ("dead"), un SEGUNDO intento con el proveedor recuperado sí envía 2528ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > tope alcanzado: en el ÚLTIMO intento permitido (job.attempts = job.maxAttempts) el proveedor sigue fallando -> se audita "mail_retry.dead" con el motivo antes de lanzar 2975ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > mensaje ya enviado: no reenvía -- el proveedor NUNCA se llama, outcome "already_sent", auditado 3085ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > supresión: el destinatario está suprimido -> no envía, el proveedor NUNCA se llama, auditado 2494ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > payload malformado: rechazado sin crash (error permanente clasificado), auditado 2082ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > dos workers concurrentes: reserve() CAS garantiza un SOLO envío real al proveedor para la MISMA messageKey 2421ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > sin red sin credenciales: sin MAIL_PROVIDER, el proveedor activo es CaptureProvider -- 0 llamadas de red 1901ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > destinatario no registrado (p.ej. cuenta suspendida): fallo permanente -- dead-letra sin gastar reintentos, auditado 1774ms
+ ✓ test/discover-tenders-handler.test.ts (10 tests) 25668ms
+   ✓ discover_tenders handler — A4: fuente inaccesible/no verificada nunca es "0 nuevas" silencioso > los 5 conectores reales de packages/sources hoy no tienen liveVerification.verified=true: se reporta not_configured explícito, nunca "ok" 4104ms
+   ✓ discover_tenders handler — A4: fuente inaccesible/no verificada nunca es "0 nuevas" silencioso > un conector que lanza error con "captcha" en el mensaje se clasifica como captcha_detected, no "ok" 2484ms
+   ✓ discover_tenders handler — A4: fuente inaccesible/no verificada nunca es "0 nuevas" silencioso > fuente sin conector registrado nunca produce "0 nuevas": falla explícito con not_configured 3060ms
+   ✓ discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay > convocatoria nueva de una fuente verificada: se ingiere vía HTTP y source_runs queda "ok" 2768ms
+   ✓ discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay > replay del mismo lote (misma corrida repetida) envía el mismo payload de ingesta — idempotente (A2) 2716ms
+   ✓ discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay > una corrida sin registros nuevos NO llama al endpoint de ingesta pero sí queda "ok" (no confundir con fuente caída) 1995ms
+   ✓ discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay > WK-06: coverage.expected viene de payload.expectedTotal si se da; source_runs "ok" lo persiste 2326ms
+   ✓ discover_tenders handler — WK-03/WK-05/WK-06: honestidad de coverage y registro SIEMPRE de source_runs > si discover() tiene éxito pero el POST de ingesta falla, source_runs SIEMPRE se registra (ingest_failed) 2223ms
+   ✓ discover_tenders handler — WK-03/WK-05/WK-06: honestidad de coverage y registro SIEMPRE de source_runs > si discover() falla a mitad de iteración, coverage.obtained es 0 (nunca cuenta lo descartado) 2025ms
+   ✓ discover_tenders handler — WK-03/WK-05/WK-06: honestidad de coverage y registro SIEMPRE de source_runs > sin payload.expectedTotal, coverage.expected es null CON un motivo explícito, en las 4 rutas 1965ms
+ ✓ test/run-agent-handler.test.ts (10 tests) 26056ms
+   ✓ run_agent handler (esqueleto) > ejecuta con FakeProvider por defecto (sin OPENAI_API_KEY) y refleja el resultado en agent_runs 4122ms
+   ✓ run_agent handler (esqueleto) > sin agentRunId en el payload, igual ejecuta el AgentRunner sin fallar (uso "fire and forget") 2528ms
+   ✓ run_agent handler (esqueleto) > WK-08: un job run_agent con organizationId de otro tenant nunca actualiza la fila real (falla explícito, no-op silencioso) 2878ms
+   ✓ run_agent handler (esqueleto) > WK-16: organizationId null con agentRunId presente falla permanente ("org requerida"), agent_runs NUNCA se toca 2820ms
+   ✓ run_agent handler (esqueleto) > WK-16: organizationId undefined con agentRunId presente falla permanente ("org requerida"), agent_runs NUNCA se toca 2979ms
+   ✓ run_agent handler (esqueleto) > WK-16: organizationId string vacío con agentRunId presente falla permanente ("org requerida"), agent_runs NUNCA se toca 2318ms
+   ✓ run_agent handler (esqueleto) > WK-23: organizationId correcto pero actorId sin membresía en esa organización — RLS bajo worker_role bloquea el update legítimo en apariencia 2222ms
+   ✓ run_agent handler (esqueleto) > WK-23: actorId con formato inválido (no UUID) falla permanente y explícito, agent_runs NUNCA se toca 2161ms
+   ✓ run_agent handler (esqueleto) > un rol sin permiso para el riesgo de la herramienta hace que la corrida termine "denied" -> el job falla explícitamente 1967ms
+   ✓ run_agent handler (esqueleto) > WK6-02/E20: correlationId de negocio persiste en agent_runs.correlation_id (columna) y en output (y en cada tool_call) — una sola consulta por columna reconstruye convocatoria -> matriz -> propuesta 2061ms
+ ✓ test/named-agents.test.ts (13 tests) 10ms
+ ✓ db-proposals/PROPOSAL-06-agent-business-tools-grants.test.ts (5 tests) 12173ms
+   ✓ PROPOSAL-06: grants de solo-lectura de negocio + insert de agent_runs para worker_role > worker_role puede leer tenders/company_profiles de CUALQUIER organización tras aplicar la propuesta 2861ms
+   ✓ PROPOSAL-06: grants de solo-lectura de negocio + insert de agent_runs para worker_role > SIN la propuesta aplicada, un SELECT crudo de worker_role sobre tenders NO lanza error: devuelve 0 filas en silencio (RLS filtra, no bloquea la sentencia) 2541ms
+   ✓ PROPOSAL-06: grants de solo-lectura de negocio + insert de agent_runs para worker_role > SIN la propuesta aplicada, withWorkerBusinessReadContext SÍ falla explícito (SchemaGrantPendingError vía pg_policies, nunca una lista vacía fabricada) 2148ms
+   ✓ PROPOSAL-06: grants de solo-lectura de negocio + insert de agent_runs para worker_role > worker_role puede INSERTAR su propia fila en agent_runs (corrida disparada por evento de plataforma, sin agentRunId previo de apps/api) 2107ms
+   ✓ PROPOSAL-06: grants de solo-lectura de negocio + insert de agent_runs para worker_role > las políticas ADICIONALES no reemplazan las existentes: un miembro humano real de la organización sigue pudiendo leer sus propios tenders 2516ms
+ ✓ test/run-agent-kill-switch.test.ts (2 tests) 4777ms
+   ✓ run_agent + kill-switch (Ronda 6, tarea 4) > un agente deshabilitado por WORKER_DISABLED_AGENTS nunca ejecuta ningún tool_call (ni encola la alerta) 2872ms
+   ✓ run_agent + kill-switch (Ronda 6, tarea 4) > un agente NO listado en WORKER_DISABLED_AGENTS sigue ejecutando con normalidad 1903ms
+ ✓ db-proposals/PROPOSAL-01-widen-source-run-status.test.ts (2 tests) 4808ms
+   ✓ PROPOSAL-01 (WK-07/WK-22): source_run_status ampliado a 8 estados finos > rate_limited y not_configured se persisten como su propio valor en status, no como failed 2916ms
+   ✓ PROPOSAL-01 (WK-07/WK-22): source_run_status ampliado a 8 estados finos > ingest_failed (WK-03) también se persiste con su propio valor, no como failed 1891ms
+ ✓ test/config.test.ts (3 tests) 4ms
+ ✓ test/kill-switch.test.ts (4 tests) 4ms
+ ✓ test/send-agent-alert.test.ts (1 test) 6ms
+ ✓ test/schedule-config.test.ts (5 tests) 5ms
+ ✓ test/worker-log-correlation.test.ts (4 tests) 9238ms
+   ✓ Worker: correlation_id de NEGOCIO en el log estructurado (WK6-02) > cuando el payload trae correlationId de negocio, cada línea lleva ese valor en correlation_id y el id de cola SEPARADO en job_id 2870ms
+   ✓ Worker: correlation_id de NEGOCIO en el log estructurado (WK6-02) > dos jobs distintos del MISMO expediente comparten correlation_id (una sola búsqueda en los logs agrupa toda la cadena) con job_id distinto cada uno 2201ms
+   ✓ Worker: correlation_id de NEGOCIO en el log estructurado (WK6-02) > un job SIN correlationId de negocio (cualquier otro kind) conserva el comportamiento anterior: correlation_id = job.id, nunca queda vacío 2182ms
+   ✓ Worker: correlation_id de NEGOCIO en el log estructurado (WK6-02) > un correlationId presente pero no utilizable (cadena vacía o tipo equivocado) NO deja el log sin correlación: cae de vuelta a job.id 1983ms
+ ✓ db-proposals/PROPOSAL-02-jobs-dedupe-and-cancelled.test.ts (3 tests) 6933ms
+   ✓ PROPOSAL-02 (WK-04/WK-15/WK-22): índice único (kind, jobKey) activo + cancelled > un segundo INSERT directo (sin pasar por el advisory lock) con la misma (kind, jobKey) activa viola el índice único 2948ms
+   ✓ PROPOSAL-02 (WK-04/WK-15/WK-22): índice único (kind, jobKey) activo + cancelled > cancel() usa el estado "cancelled" dedicado, distinguible de "dead" sin leer last_error 1934ms
+   ✓ PROPOSAL-02 (WK-04/WK-15/WK-22): índice único (kind, jobKey) activo + cancelled > PASO 0 (WK-15): la query de detección de duplicados activos devuelve 0 filas en una base recién migrada 2050ms
+ ✓ db-proposals/PROPOSAL-03-worker-role.test.ts (7 tests) 15759ms
+   ✓ PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real > worker_role existe y está NOLOGIN (solo alcanzable vía SET ROLE desde una conexión con privilegios) 2903ms
+   ✓ PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real > worker_role tiene EXACTAMENTE grants sobre {jobs, source_runs, agent_runs}, ninguna otra tabla 2167ms
+   ✓ PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real > worker_role puede ver/crear jobs de PLATAFORMA (org_id NULL) 1939ms
+   ✓ PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real > worker_role puede leer/escribir source_runs sin ser superadmin 2634ms
+   ✓ PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real > WK-23: worker_role con org_id correcto pero SIN current_user_id fijado no puede actualizar agent_runs (ni siquiera su propio tenant) 2260ms
+   ✓ PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real > WK-23: worker_role con org_id y current_user_id (actor real) correctos SÍ actualiza agent_runs de su propio tenant 1877ms
+   ✓ PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real > worker_role con app.current_org_id de la org A no puede actualizar una fila agent_runs de la org B 1978ms
+ ✓ test/deadline-reminders.test.ts (3 tests) 9291ms
+   ✓ enqueueUpcomingDeadlineReminders (Ronda 6, tarea 4: run_agent por evento de vencimiento) > encola recordatorios SOLO para convocatorias con vencimiento dentro de la ventana, de CUALQUIER organización 3260ms
+   ✓ enqueueUpcomingDeadlineReminders (Ronda 6, tarea 4: run_agent por evento de vencimiento) > deduplicado por (tenderId, fecha calendario del vencimiento): llamarlo dos veces el mismo día no duplica 2277ms
+   ✓ enqueueUpcomingDeadlineReminders (Ronda 6, tarea 4: run_agent por evento de vencimiento) > sin PROPOSAL-06 aplicada, falla explícito (SchemaGrantPendingError) en vez de reportar "0 vencimientos" fabricado 3752ms
+ ✓ test/enqueue-agent-run.test.ts (3 tests) 4288ms
+   ✓ enqueueAgentRun (Ronda 6, tarea 4) > con PROPOSAL-06 aplicada: abre su propia fila agent_runs (started_by null) y encola el job con agentRunId 2456ms
+   ✓ enqueueAgentRun (Ronda 6, tarea 4) > SIN PROPOSAL-06 aplicada: falla al abrir agent_runs (fail-open) pero el job IGUAL se encola, sin agentRunId 967ms
+   ✓ enqueueAgentRun (Ronda 6, tarea 4) > deduplicado por (agentName, eventKey): dos llamadas con el mismo evento no encolan dos jobs activos 863ms
+ ✓ test/job-queue.test.ts (19 tests) 38115ms
+   ✓ JobQueue: reclamo atómico sin doble procesamiento > N workers > M jobs: cada job se reclama como máximo una vez 3961ms
+   ✓ JobQueue: reclamo atómico sin doble procesamiento > un job ya en running no es reclamado dos veces por workers adicionales 2522ms
+   ✓ JobQueue: reclamo atómico sin doble procesamiento > un job claimeado incrementa attempts y queda en running con locked_by 2836ms
+   ✓ JobQueue: WK-01 — claim() respeta max_attempts también en recuperación de lease (crash real) > un job que crashea repetidamente (nunca completa/falla) termina en "dead", nunca "running" eterno 3006ms
+   ✓ JobQueue: reintentos con backoff exponencial + jitter > cada fallo reprograma next_run_at con backoff creciente hasta max_attempts, luego "dead" 2756ms
+   ✓ JobQueue: reintentos con backoff exponencial + jitter > el jitter mantiene el delay dentro del rango esperado (no determinista pero acotado) 2299ms
+   ✓ JobQueue: lease expirado se recupera > un job running cuyo lease expiró es reclamable por otro worker 1869ms
+   ✓ JobQueue: lease expirado se recupera > heartbeat extiende el lease y evita que otro worker lo recupere 2213ms
+   ✓ JobQueue: cancelación > cancelar un job queued lo deja fuera de circulación (cancelled, no dead) y no se reclama 1990ms
+   ✓ JobQueue: cancelación > cancelar un job running también lo detiene, con estado cancelled (WK-22) 1752ms
+   ✓ JobQueue: idempotencia por jobKey > encolar dos veces con el mismo jobKey mientras el primero sigue activo no duplica 2542ms
+   ✓ JobQueue: idempotencia por jobKey > una vez terminado (succeeded), un nuevo jobKey (otra ventana) sí encola 2341ms
+   ✓ JobQueue: WK-10 — deadLetterPermanent (errores permanentes, sin ciclo de backoff) > dead-letra inmediatamente en el primer intento, sin importar max_attempts 2011ms
+   ✓ JobQueue: complete > complete limpia el lock y marca succeeded 1941ms
+   ✓ JobQueue: complete > complete con un lockedBy equivocado lanza StaleLeaseError y no persiste nada (protege contra confirmaciones cruzadas) 899ms
+   ✓ JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent() > WORKER_ID reutilizado tras "reinicio" (mismo string, lease token distinto): complete() del zombie de la generación anterior es rechazado 828ms
+   ✓ JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent() > fail() del zombie con lockedBy viejo también es rechazado (no aplica backoff/dead-letter equivocado) 805ms
+   ✓ JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent() > deadLetterPermanent() del zombie con lockedBy viejo también es rechazado 786ms
+   ✓ JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent() > heartbeat() del zombie con lockedBy viejo retorna false (ya lo hacía por attempts en WK-02; ahora también por lease token) 758ms
+ ✓ test/business-tools.test.ts (19 tests) 38136ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > registra las 8 herramientas con actionKind/declaredEffects consistentes (nunca external_send/sign/portal_action/contact_third_party) 3877ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > ninguna de las 8 herramientas acepta organizationId/orgId/tenantId del modelo: el esquema los descarta silenciosamente, nunca llegan al handler 2435ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > listar_convocatorias: lee SOLO las convocatorias de la organización del contexto, nunca de otra 2809ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > leer_bases: expone documentos/requisitos ya extraídos, con sourcePage/sourceExcerpt reales (no fabricados) 2769ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > leer_perfil_empresa: lee perfil/capacidades/experiencia reales de la organización 2755ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > proponer_matching: score y palabras coincidentes derivados de datos reales, nunca inventados; sin capacidades -> missingProfileFields 2414ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > proponer_requisitos_matriz: extrae candidatos REALES del texto ya extraído, sin inventar número de página 1937ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > proponer_seccion_propuesta: bloquea explícitamente si no hay evidencia aprobada (nunca inventa el dato) 2266ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > proponer_seccion_propuesta: redacta un borrador citando experiencia REAL con evidencia 1996ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > resumir_cambios_convocatoria: resume eventos reales y cuenta invalidaciones reales 1880ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > programar_alerta: encola un job real (send_agent_alert) en la tabla jobs, deduplicado por (tenderId, kind, scheduledFor) 2672ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > aislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok" > listar_convocatorias: desde el contexto de orgB nunca aparece ninguna convocatoria real de orgA (contenido distinguible, no solo el conteo) 2341ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > aislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok" > proponer_matching: tenderId real de orgA desde el contexto de orgB -> "no evaluable" explícito, sin score ni texto de orgA 1910ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > aislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok" > leer_bases: tenderId real de orgA desde el contexto de orgB -> documentos/requisitos vacíos, nunca los de orgA 1885ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > aislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok" > leer_perfil_empresa: nunca expone el perfil/capacidades de otra organización 990ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > aislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok" > proponer_requisitos_matriz: tenderId real de orgA desde el contexto de orgB -> sin candidatos, nunca el texto de orgA 842ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > aislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok" > proponer_seccion_propuesta: nunca redacta citando experiencia real de otra organización 787ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > aislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok" > resumir_cambios_convocatoria: tenderId real de orgA desde el contexto de orgB -> sin eventos, nunca el resumen de orgA 798ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > aislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok" > programar_alerta: el job encolado siempre queda scoped a la organización REAL del contexto (ctx.organizationId), nunca a un tenderId ajeno pasado como input 770ms
+ ✓ test/agent-evals.test.ts (26 tests) 43204ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_convocatorias > camino feliz: bases + perfil + matching, corrida completa y persistida en agent_runs.output.toolCalls 3980ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_convocatorias > aislamiento por org: un tenderId de otra organización nunca se lee ni se usa para matching (contenido, no solo status) 2547ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_convocatorias > rol sin permiso de riesgo (consultor_externo, techo "read") deniega el primer paso "write" -> corrida denied, job falla permanente 2924ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_convocatorias > idempotencia por clave: dos corridas del mismo tenderId+org reutilizan el resultado cacheado del paso "proponer_matching" (el LLM no se vuelve a invocar) 2909ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_convocatorias > presupuesto excedido: con un límite por organización menor al costo del primer paso, la corrida se detiene "failed" (nunca fabrica un resultado) 2813ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_bases > camino feliz: propone candidatos de matriz reales a partir del texto extraído 2287ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_bases > aislamiento por org: tenderId de otra organización -> leer_bases no expone documentos ajenos 2206ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_bases > rol sin permiso: consultor_externo denegado en el paso "write" (proponer_requisitos_matriz) 2198ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_bases > idempotencia por clave: dos corridas con el mismo tenderId no duplican la propuesta de matriz (mismo idempotencyKey) 1958ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_bases > presupuesto excedido detiene la corrida en el primer paso 1558ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > redactor_borrador > no fabricación: sin evidence_ref, la sección queda bloqueada explícitamente (needs_data), nunca redacta un dato inventado 2682ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > redactor_borrador > con evidencia real, redacta la sección y completa (no queda pendiente) 2108ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > redactor_borrador > guardrail anticorrupción bloquea una sectionKey con lenguaje de soborno, ANTES de tocar la herramienta 1987ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > redactor_borrador > rol sin permiso: consultor_externo denegado en "proponer_seccion_propuesta" (write) 1942ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > redactor_borrador > presupuesto excedido detiene la corrida antes de redactar 881ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > vigilante_cambios > camino feliz: resume cambios reales de la convocatoria 866ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > vigilante_cambios > aislamiento por org: nunca resume eventos de cambio de otra organización 794ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > vigilante_cambios > consultor_externo (techo "read") SÍ puede ejecutar este agente: es de solo lectura, dentro de su techo de riesgo 801ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > vigilante_cambios > idempotencia por clave: dos corridas del mismo tenderId no fallan por reejecución (idempotencyKey estable) 763ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > vigilante_cambios > presupuesto excedido detiene la corrida 702ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > recordatorios > camino feliz: programa una alerta real (job send_agent_alert encolado) 720ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > recordatorios > idempotencia por clave: dos alertas con el mismo (tenderId, kind, scheduledFor) encolan un único job de plataforma 702ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > recordatorios > guardrail anticorrupción bloquea un mensaje de alerta con lenguaje de soborno 712ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > recordatorios > rol sin permiso: consultor_externo denegado (programar_alerta es "write") 700ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > recordatorios > presupuesto excedido: no encola la alerta si el presupuesto de la organización ya se agotó 731ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > prohibiciones duras (runtime compartido por los 5 agentes) > un tool_call con actionKind "portal_action" se deniega SIEMPRE, incluso para "superadmin", sin llegar a needs_approval 730ms
+
+ Test Files  23 passed (23)
+      Tests  392 passed (392)
+   Start at  17:25:26
+   Duration  43.91s (transform 1.24s, setup 0ms, collect 3.96s, tests 317.56s, environment 14ms, prepare 1.41s)
+
+ % Coverage report from v8
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-------------------|---------|----------|---------|---------|-------------------
+All files          |   91.41 |    83.26 |    87.5 |   91.41 |                   
+ src               |     100 |    85.71 |     100 |     100 |                   
+  config.ts        |     100 |      100 |     100 |     100 |                   
+  logger.ts        |     100 |    33.33 |     100 |     100 | 17                
+ src/agents        |    94.8 |    86.76 |   97.43 |    94.8 |                   
+  ...ness-tools.ts |   97.36 |    87.65 |     100 |   97.36 | ...22-229,609-610 
+  db-context.ts    |   77.41 |     82.6 |    87.5 |   77.41 | ...47-151,180-184 
+  ...-agent-run.ts |     100 |       80 |     100 |     100 | 57                
+  kill-switch.ts   |     100 |      100 |     100 |     100 |                   
+  named-agents.ts  |   95.19 |    84.21 |     100 |   95.19 | 75-76,143-145     
+  system-actor.ts  |     100 |      100 |     100 |     100 |                   
+ src/handlers      |   91.98 |    78.26 |   83.87 |   91.98 |                   
+  ...er-tenders.ts |    95.8 |    84.44 |   63.63 |    95.8 | 122-126,159-160   
+  mail-retry.ts    |    83.9 |    63.63 |     100 |    83.9 | ...79-286,303-305 
+  run-agent.ts     |    95.4 |    81.03 |   92.85 |    95.4 | ...31,133,281-284 
+  ...gent-alert.ts |     100 |      100 |     100 |     100 |                   
+ src/ingest        |   99.16 |    79.16 |      90 |   99.16 |                   
+  ingest-client.ts |   99.01 |    82.35 |   88.88 |   99.01 | 100               
+  ingest-mapper.ts |     100 |       25 |     100 |     100 | 32-37             
+ src/mail          |   76.36 |     87.5 |   66.66 |   76.36 |                   
+  ...il-service.ts |     100 |      100 |     100 |     100 |                   
+  ...ail-stores.ts |   73.19 |    85.71 |   63.63 |   73.19 | ...40-144,147-157 
+ src/queue         |   84.96 |    84.61 |   87.09 |   84.96 |                   
+  backoff.ts       |     100 |      100 |     100 |     100 |                   
+  errors.ts        |     100 |       75 |     100 |     100 | 23                
+  job-queue.ts     |   89.13 |     90.9 |   83.33 |   89.13 | ...52-356,364-372 
+  metrics.ts       |   78.94 |    83.33 |   66.66 |   78.94 | 26-27,30-31       
+  types.ts         |     100 |       75 |     100 |     100 | 66                
+  worker.ts        |   78.53 |       80 |     100 |   78.53 | ...22-228,245-255 
+ src/scheduler     |   90.09 |    88.46 |   83.33 |   90.09 |                   
+  ...-reminders.ts |   89.79 |    88.88 |     100 |   89.79 | 81-85             
+  ...ule-config.ts |     100 |      100 |     100 |     100 |                   
+  scheduler.ts     |   85.29 |    81.81 |      75 |   85.29 | 63-67             
+ src/source-runs   |   95.23 |      100 |      75 |   95.23 |                   
+  ...run-status.ts |    87.5 |      100 |      50 |    87.5 | 75-76             
+  ...repository.ts |     100 |      100 |     100 |     100 |                   
+-------------------|---------|----------|---------|---------|-------------------
+
+=== 2026-09-06T23:26:24Z — apps/worker RONDA 2: typecheck && lint && test && test:coverage ===
+
+> @atiende/worker@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @atiende/worker@0.1.0 lint
+> eslint src test
+
+
+> @atiende/worker@0.1.0 test
+> vitest run
+
+
+ RUN  v2.1.9 /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/worker
+
+ ✓ test/ingest-client.test.ts (225 tests) 1116ms
+ ✓ test/discover-tenders-agent-events.test.ts (4 tests) 14151ms
+   ✓ discover_tenders + agentEventsQueue (Ronda 6, tarea 4) > convocatoria NUEVA (action: created) encola analista_convocatorias, deduplicado por (fuente, externalId, versión) 3893ms
+   ✓ discover_tenders + agentEventsQueue (Ronda 6, tarea 4) > convocatoria ACTUALIZADA (action: updated) encola vigilante_cambios 2354ms
+   ✓ discover_tenders + agentEventsQueue (Ronda 6, tarea 4) > convocatoria SIN CAMBIOS (action: unchanged) nunca encola ningún agente 4251ms
+   ✓ discover_tenders + agentEventsQueue (Ronda 6, tarea 4) > sin agentEventsQueue configurada (comportamiento por defecto), la ingesta no intenta encolar nada (compatibilidad hacia atrás) 3653ms
+ ✓ test/worker-shutdown.test.ts (6 tests) 19770ms
+   ✓ Worker: cierre ordenado (SIGTERM) > deja terminar el job en curso, libera el lock, y no reclama nuevos jobs tras stop() 3573ms
+   ✓ Worker: cierre ordenado (SIGTERM) > si el handler no respeta AbortSignal, stop() igual resuelve tras shutdownTimeoutMs (no cuelga para siempre) 2798ms
+   ✓ Worker: cierre ordenado (SIGTERM) > llamar stop() dos veces es seguro (idempotente) 3313ms
+   ✓ Worker: cierre ordenado (SIGTERM) > WK-02: si el heartbeat detecta que se perdió el lease (fencing), aborta el handler y NO persiste ningún resultado 3751ms
+   ✓ Worker: cierre ordenado (SIGTERM) > WK-10: un error permanente dead-letra en el primer intento, sin gastar el ciclo de backoff 3568ms
+   ✓ Worker: cierre ordenado (SIGTERM) > métricas: cuenta succeeded/retried/dead por tipo de job 2766ms
+ ✓ test/scheduler.test.ts (9 tests) 26367ms
+   ✓ Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150 > varios tick() dentro de la misma ventana encolan un solo job por fuente 3763ms
+   ✓ Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150 > avanzar a la siguiente ventana sí encola un nuevo job, sin duplicar el anterior 2159ms
+   ✓ Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150 > una fuente deshabilitada (enabled: false) nunca se encola 2427ms
+   ✓ Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150 > el job encolado ya trae sourceId en el payload para que discover_tenders sepa qué conector correr 4314ms
+   ✓ Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150 > dos Scheduler concurrentes (dos procesos) nunca duplican el job de la misma fuente+ventana — 20 iteraciones (lógica secuencial en PGlite, NO concurrencia de motor real — ver nota WK-15) 3855ms
+   ✓ JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable > la primera sentencia de la transacción es pg_advisory_xact_lock(hashtext($1)::bigint) con params=[`${kind}:${jobKey}`] 3009ms
+   ✓ JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable > la clave del advisory lock es estable entre llamadas (mismo kind+jobKey -> mismo string, sin importar el payload) 1646ms
+   ✓ JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable > un jobKey distinto produce una clave de lock distinta (sin colisión entre ventanas/fuentes) 2672ms
+   ✓ JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable > enqueue() SIN jobKey no abre transacción ni toma ningún advisory lock (solo el camino con jobKey lo necesita) 2520ms
+ ✓ test/mail-retry-handler.test.ts (9 tests) 28110ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > éxito: el proveedor acepta el envío -> outcome "sent", auditado, el job se completa sin lanzar 4084ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > éxito tras fallo: un primer intento del job agota los reintentos internos de MailService ("dead"), un SEGUNDO intento con el proveedor recuperado sí envía 2171ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > tope alcanzado: en el ÚLTIMO intento permitido (job.attempts = job.maxAttempts) el proveedor sigue fallando -> se audita "mail_retry.dead" con el motivo antes de lanzar 4352ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > mensaje ya enviado: no reenvía -- el proveedor NUNCA se llama, outcome "already_sent", auditado 3634ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > supresión: el destinatario está suprimido -> no envía, el proveedor NUNCA se llama, auditado 3379ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > payload malformado: rechazado sin crash (error permanente clasificado), auditado 1860ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > dos workers concurrentes: reserve() CAS garantiza un SOLO envío real al proveedor para la MISMA messageKey 2394ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > sin red sin credenciales: sin MAIL_PROVIDER, el proveedor activo es CaptureProvider -- 0 llamadas de red 2856ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > destinatario no registrado (p.ej. cuenta suspendida): fallo permanente -- dead-letra sin gastar reintentos, auditado 3378ms
+ ✓ test/run-agent-handler.test.ts (10 tests) 30857ms
+   ✓ run_agent handler (esqueleto) > ejecuta con FakeProvider por defecto (sin OPENAI_API_KEY) y refleja el resultado en agent_runs 4267ms
+   ✓ run_agent handler (esqueleto) > sin agentRunId en el payload, igual ejecuta el AgentRunner sin fallar (uso "fire and forget") 1861ms
+   ✓ run_agent handler (esqueleto) > WK-08: un job run_agent con organizationId de otro tenant nunca actualiza la fila real (falla explícito, no-op silencioso) 2667ms
+   ✓ run_agent handler (esqueleto) > WK-16: organizationId null con agentRunId presente falla permanente ("org requerida"), agent_runs NUNCA se toca 4367ms
+   ✓ run_agent handler (esqueleto) > WK-16: organizationId undefined con agentRunId presente falla permanente ("org requerida"), agent_runs NUNCA se toca 3509ms
+   ✓ run_agent handler (esqueleto) > WK-16: organizationId string vacío con agentRunId presente falla permanente ("org requerida"), agent_runs NUNCA se toca 2788ms
+   ✓ run_agent handler (esqueleto) > WK-23: organizationId correcto pero actorId sin membresía en esa organización — RLS bajo worker_role bloquea el update legítimo en apariencia 2120ms
+   ✓ run_agent handler (esqueleto) > WK-23: actorId con formato inválido (no UUID) falla permanente y explícito, agent_runs NUNCA se toca 3006ms
+   ✓ run_agent handler (esqueleto) > un rol sin permiso para el riesgo de la herramienta hace que la corrida termine "denied" -> el job falla explícitamente 2481ms
+   ✓ run_agent handler (esqueleto) > WK6-02/E20: correlationId de negocio persiste en agent_runs.correlation_id (columna) y en output (y en cada tool_call) — una sola consulta por columna reconstruye convocatoria -> matriz -> propuesta 3786ms
+ ✓ db-proposals/PROPOSAL-06-agent-business-tools-grants.test.ts (5 tests) 15308ms
+   ✓ PROPOSAL-06: grants de solo-lectura de negocio + insert de agent_runs para worker_role > worker_role puede leer tenders/company_profiles de CUALQUIER organización tras aplicar la propuesta 3679ms
+   ✓ PROPOSAL-06: grants de solo-lectura de negocio + insert de agent_runs para worker_role > SIN la propuesta aplicada, un SELECT crudo de worker_role sobre tenders NO lanza error: devuelve 0 filas en silencio (RLS filtra, no bloquea la sentencia) 2543ms
+   ✓ PROPOSAL-06: grants de solo-lectura de negocio + insert de agent_runs para worker_role > SIN la propuesta aplicada, withWorkerBusinessReadContext SÍ falla explícito (SchemaGrantPendingError vía pg_policies, nunca una lista vacía fabricada) 2761ms
+   ✓ PROPOSAL-06: grants de solo-lectura de negocio + insert de agent_runs para worker_role > worker_role puede INSERTAR su propia fila en agent_runs (corrida disparada por evento de plataforma, sin agentRunId previo de apps/api) 2928ms
+   ✓ PROPOSAL-06: grants de solo-lectura de negocio + insert de agent_runs para worker_role > las políticas ADICIONALES no reemplazan las existentes: un miembro humano real de la organización sigue pudiendo leer sus propios tenders 3392ms
+ ✓ test/discover-tenders-handler.test.ts (10 tests) 31141ms
+   ✓ discover_tenders handler — A4: fuente inaccesible/no verificada nunca es "0 nuevas" silencioso > los 5 conectores reales de packages/sources hoy no tienen liveVerification.verified=true: se reporta not_configured explícito, nunca "ok" 4187ms
+   ✓ discover_tenders handler — A4: fuente inaccesible/no verificada nunca es "0 nuevas" silencioso > un conector que lanza error con "captcha" en el mensaje se clasifica como captcha_detected, no "ok" 2091ms
+   ✓ discover_tenders handler — A4: fuente inaccesible/no verificada nunca es "0 nuevas" silencioso > fuente sin conector registrado nunca produce "0 nuevas": falla explícito con not_configured 3773ms
+   ✓ discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay > convocatoria nueva de una fuente verificada: se ingiere vía HTTP y source_runs queda "ok" 3989ms
+   ✓ discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay > replay del mismo lote (misma corrida repetida) envía el mismo payload de ingesta — idempotente (A2) 3947ms
+   ✓ discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay > una corrida sin registros nuevos NO llama al endpoint de ingesta pero sí queda "ok" (no confundir con fuente caída) 2011ms
+   ✓ discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay > WK-06: coverage.expected viene de payload.expectedTotal si se da; source_runs "ok" lo persiste 2348ms
+   ✓ discover_tenders handler — WK-03/WK-05/WK-06: honestidad de coverage y registro SIEMPRE de source_runs > si discover() tiene éxito pero el POST de ingesta falla, source_runs SIEMPRE se registra (ingest_failed) 2721ms
+   ✓ discover_tenders handler — WK-03/WK-05/WK-06: honestidad de coverage y registro SIEMPRE de source_runs > si discover() falla a mitad de iteración, coverage.obtained es 0 (nunca cuenta lo descartado) 3224ms
+   ✓ discover_tenders handler — WK-03/WK-05/WK-06: honestidad de coverage y registro SIEMPRE de source_runs > sin payload.expectedTotal, coverage.expected es null CON un motivo explícito, en las 4 rutas 2848ms
+ ✓ test/named-agents.test.ts (13 tests) 15ms
+ ✓ test/run-agent-kill-switch.test.ts (2 tests) 4906ms
+   ✓ run_agent + kill-switch (Ronda 6, tarea 4) > un agente deshabilitado por WORKER_DISABLED_AGENTS nunca ejecuta ningún tool_call (ni encola la alerta) 2918ms
+   ✓ run_agent + kill-switch (Ronda 6, tarea 4) > un agente NO listado en WORKER_DISABLED_AGENTS sigue ejecutando con normalidad 1987ms
+ ✓ db-proposals/PROPOSAL-01-widen-source-run-status.test.ts (2 tests) 5156ms
+   ✓ PROPOSAL-01 (WK-07/WK-22): source_run_status ampliado a 8 estados finos > rate_limited y not_configured se persisten como su propio valor en status, no como failed 3051ms
+   ✓ PROPOSAL-01 (WK-07/WK-22): source_run_status ampliado a 8 estados finos > ingest_failed (WK-03) también se persiste con su propio valor, no como failed 2103ms
+ ✓ test/config.test.ts (3 tests) 4ms
+ ✓ test/worker-log-correlation.test.ts (4 tests) 10842ms
+   ✓ Worker: correlation_id de NEGOCIO en el log estructurado (WK6-02) > cuando el payload trae correlationId de negocio, cada línea lleva ese valor en correlation_id y el id de cola SEPARADO en job_id 4424ms
+   ✓ Worker: correlation_id de NEGOCIO en el log estructurado (WK6-02) > dos jobs distintos del MISMO expediente comparten correlation_id (una sola búsqueda en los logs agrupa toda la cadena) con job_id distinto cada uno 2413ms
+   ✓ Worker: correlation_id de NEGOCIO en el log estructurado (WK6-02) > un job SIN correlationId de negocio (cualquier otro kind) conserva el comportamiento anterior: correlation_id = job.id, nunca queda vacío 2067ms
+   ✓ Worker: correlation_id de NEGOCIO en el log estructurado (WK6-02) > un correlationId presente pero no utilizable (cadena vacía o tipo equivocado) NO deja el log sin correlación: cae de vuelta a job.id 1935ms
+ ✓ test/kill-switch.test.ts (4 tests) 2ms
+ ✓ test/send-agent-alert.test.ts (1 test) 5ms
+ ✓ test/schedule-config.test.ts (5 tests) 3ms
+ ✓ db-proposals/PROPOSAL-03-worker-role.test.ts (7 tests) 18422ms
+   ✓ PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real > worker_role existe y está NOLOGIN (solo alcanzable vía SET ROLE desde una conexión con privilegios) 3541ms
+   ✓ PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real > worker_role tiene EXACTAMENTE grants sobre {jobs, source_runs, agent_runs}, ninguna otra tabla 2722ms
+   ✓ PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real > worker_role puede ver/crear jobs de PLATAFORMA (org_id NULL) 3581ms
+   ✓ PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real > worker_role puede leer/escribir source_runs sin ser superadmin 2244ms
+   ✓ PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real > WK-23: worker_role con org_id correcto pero SIN current_user_id fijado no puede actualizar agent_runs (ni siquiera su propio tenant) 2492ms
+   ✓ PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real > WK-23: worker_role con org_id y current_user_id (actor real) correctos SÍ actualiza agent_runs de su propio tenant 1921ms
+   ✓ PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real > worker_role con app.current_org_id de la org A no puede actualizar una fila agent_runs de la org B 1920ms
+ ✓ db-proposals/PROPOSAL-02-jobs-dedupe-and-cancelled.test.ts (3 tests) 6663ms
+   ✓ PROPOSAL-02 (WK-04/WK-15/WK-22): índice único (kind, jobKey) activo + cancelled > un segundo INSERT directo (sin pasar por el advisory lock) con la misma (kind, jobKey) activa viola el índice único 2940ms
+   ✓ PROPOSAL-02 (WK-04/WK-15/WK-22): índice único (kind, jobKey) activo + cancelled > cancel() usa el estado "cancelled" dedicado, distinguible de "dead" sin leer last_error 1836ms
+   ✓ PROPOSAL-02 (WK-04/WK-15/WK-22): índice único (kind, jobKey) activo + cancelled > PASO 0 (WK-15): la query de detección de duplicados activos devuelve 0 filas en una base recién migrada 1887ms
+ ✓ test/deadline-reminders.test.ts (3 tests) 9483ms
+   ✓ enqueueUpcomingDeadlineReminders (Ronda 6, tarea 4: run_agent por evento de vencimiento) > encola recordatorios SOLO para convocatorias con vencimiento dentro de la ventana, de CUALQUIER organización 3528ms
+   ✓ enqueueUpcomingDeadlineReminders (Ronda 6, tarea 4: run_agent por evento de vencimiento) > deduplicado por (tenderId, fecha calendario del vencimiento): llamarlo dos veces el mismo día no duplica 2264ms
+   ✓ enqueueUpcomingDeadlineReminders (Ronda 6, tarea 4: run_agent por evento de vencimiento) > sin PROPOSAL-06 aplicada, falla explícito (SchemaGrantPendingError) en vez de reportar "0 vencimientos" fabricado 3686ms
+ ✓ test/enqueue-agent-run.test.ts (3 tests) 6122ms
+   ✓ enqueueAgentRun (Ronda 6, tarea 4) > con PROPOSAL-06 aplicada: abre su propia fila agent_runs (started_by null) y encola el job con agentRunId 2519ms
+   ✓ enqueueAgentRun (Ronda 6, tarea 4) > SIN PROPOSAL-06 aplicada: falla al abrir agent_runs (fail-open) pero el job IGUAL se encola, sin agentRunId 1888ms
+   ✓ enqueueAgentRun (Ronda 6, tarea 4) > deduplicado por (agentName, eventKey): dos llamadas con el mismo evento no encolan dos jobs activos 1714ms
+ ✓ test/job-queue.test.ts (19 tests) 45545ms
+   ✓ JobQueue: reclamo atómico sin doble procesamiento > N workers > M jobs: cada job se reclama como máximo una vez 3628ms
+   ✓ JobQueue: reclamo atómico sin doble procesamiento > un job ya en running no es reclamado dos veces por workers adicionales 2297ms
+   ✓ JobQueue: reclamo atómico sin doble procesamiento > un job claimeado incrementa attempts y queda en running con locked_by 2255ms
+   ✓ JobQueue: WK-01 — claim() respeta max_attempts también en recuperación de lease (crash real) > un job que crashea repetidamente (nunca completa/falla) termina en "dead", nunca "running" eterno 4211ms
+   ✓ JobQueue: reintentos con backoff exponencial + jitter > cada fallo reprograma next_run_at con backoff creciente hasta max_attempts, luego "dead" 3806ms
+   ✓ JobQueue: reintentos con backoff exponencial + jitter > el jitter mantiene el delay dentro del rango esperado (no determinista pero acotado) 3170ms
+   ✓ JobQueue: lease expirado se recupera > un job running cuyo lease expiró es reclamable por otro worker 1861ms
+   ✓ JobQueue: lease expirado se recupera > heartbeat extiende el lease y evita que otro worker lo recupere 2682ms
+   ✓ JobQueue: cancelación > cancelar un job queued lo deja fuera de circulación (cancelled, no dead) y no se reclama 2264ms
+   ✓ JobQueue: cancelación > cancelar un job running también lo detiene, con estado cancelled (WK-22) 3318ms
+   ✓ JobQueue: idempotencia por jobKey > encolar dos veces con el mismo jobKey mientras el primero sigue activo no duplica 2439ms
+   ✓ JobQueue: idempotencia por jobKey > una vez terminado (succeeded), un nuevo jobKey (otra ventana) sí encola 2396ms
+   ✓ JobQueue: WK-10 — deadLetterPermanent (errores permanentes, sin ciclo de backoff) > dead-letra inmediatamente en el primer intento, sin importar max_attempts 1866ms
+   ✓ JobQueue: complete > complete limpia el lock y marca succeeded 1949ms
+   ✓ JobQueue: complete > complete con un lockedBy equivocado lanza StaleLeaseError y no persiste nada (protege contra confirmaciones cruzadas) 1367ms
+   ✓ JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent() > WORKER_ID reutilizado tras "reinicio" (mismo string, lease token distinto): complete() del zombie de la generación anterior es rechazado 1838ms
+   ✓ JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent() > fail() del zombie con lockedBy viejo también es rechazado (no aplica backoff/dead-letter equivocado) 1661ms
+   ✓ JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent() > deadLetterPermanent() del zombie con lockedBy viejo también es rechazado 1406ms
+   ✓ JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent() > heartbeat() del zombie con lockedBy viejo retorna false (ya lo hacía por attempts en WK-02; ahora también por lease token) 1130ms
+ ✓ test/business-tools.test.ts (19 tests) 46373ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > registra las 8 herramientas con actionKind/declaredEffects consistentes (nunca external_send/sign/portal_action/contact_third_party) 4187ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > ninguna de las 8 herramientas acepta organizationId/orgId/tenantId del modelo: el esquema los descarta silenciosamente, nunca llegan al handler 2113ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > listar_convocatorias: lee SOLO las convocatorias de la organización del contexto, nunca de otra 3688ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > leer_bases: expone documentos/requisitos ya extraídos, con sourcePage/sourceExcerpt reales (no fabricados) 3763ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > leer_perfil_empresa: lee perfil/capacidades/experiencia reales de la organización 3420ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > proponer_matching: score y palabras coincidentes derivados de datos reales, nunca inventados; sin capacidades -> missingProfileFields 2617ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > proponer_requisitos_matriz: extrae candidatos REALES del texto ya extraído, sin inventar número de página 2254ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > proponer_seccion_propuesta: bloquea explícitamente si no hay evidencia aprobada (nunca inventa el dato) 2859ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > proponer_seccion_propuesta: redacta un borrador citando experiencia REAL con evidencia 2703ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > resumir_cambios_convocatoria: resume eventos reales y cuenta invalidaciones reales 3479ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > programar_alerta: encola un job real (send_agent_alert) en la tabla jobs, deduplicado por (tenderId, kind, scheduledFor) 2055ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > aislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok" > listar_convocatorias: desde el contexto de orgB nunca aparece ninguna convocatoria real de orgA (contenido distinguible, no solo el conteo) 2092ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > aislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok" > proponer_matching: tenderId real de orgA desde el contexto de orgB -> "no evaluable" explícito, sin score ni texto de orgA 1955ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > aislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok" > leer_bases: tenderId real de orgA desde el contexto de orgB -> documentos/requisitos vacíos, nunca los de orgA 1780ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > aislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok" > leer_perfil_empresa: nunca expone el perfil/capacidades de otra organización 1912ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > aislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok" > proponer_requisitos_matriz: tenderId real de orgA desde el contexto de orgB -> sin candidatos, nunca el texto de orgA 1633ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > aislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok" > proponer_seccion_propuesta: nunca redacta citando experiencia real de otra organización 1495ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > aislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok" > resumir_cambios_convocatoria: tenderId real de orgA desde el contexto de orgB -> sin eventos, nunca el resumen de orgA 1242ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > aislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok" > programar_alerta: el job encolado siempre queda scoped a la organización REAL del contexto (ctx.organizationId), nunca a un tenderId ajeno pasado como input 1123ms
+ ✓ test/agent-evals.test.ts (26 tests) 51930ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_convocatorias > camino feliz: bases + perfil + matching, corrida completa y persistida en agent_runs.output.toolCalls 4293ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_convocatorias > aislamiento por org: un tenderId de otra organización nunca se lee ni se usa para matching (contenido, no solo status) 2218ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_convocatorias > rol sin permiso de riesgo (consultor_externo, techo "read") deniega el primer paso "write" -> corrida denied, job falla permanente 3609ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_convocatorias > idempotencia por clave: dos corridas del mismo tenderId+org reutilizan el resultado cacheado del paso "proponer_matching" (el LLM no se vuelve a invocar) 3685ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_convocatorias > presupuesto excedido: con un límite por organización menor al costo del primer paso, la corrida se detiene "failed" (nunca fabrica un resultado) 3524ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_bases > camino feliz: propone candidatos de matriz reales a partir del texto extraído 2494ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_bases > aislamiento por org: tenderId de otra organización -> leer_bases no expone documentos ajenos 2445ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_bases > rol sin permiso: consultor_externo denegado en el paso "write" (proponer_requisitos_matriz) 2899ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_bases > idempotencia por clave: dos corridas con el mismo tenderId no duplican la propuesta de matriz (mismo idempotencyKey) 3167ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_bases > presupuesto excedido detiene la corrida en el primer paso 2972ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > redactor_borrador > no fabricación: sin evidence_ref, la sección queda bloqueada explícitamente (needs_data), nunca redacta un dato inventado 2286ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > redactor_borrador > con evidencia real, redacta la sección y completa (no queda pendiente) 2040ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > redactor_borrador > guardrail anticorrupción bloquea una sectionKey con lenguaje de soborno, ANTES de tocar la herramienta 1997ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > redactor_borrador > rol sin permiso: consultor_externo denegado en "proponer_seccion_propuesta" (write) 1761ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > redactor_borrador > presupuesto excedido detiene la corrida antes de redactar 1846ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > vigilante_cambios > camino feliz: resume cambios reales de la convocatoria 1712ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > vigilante_cambios > aislamiento por org: nunca resume eventos de cambio de otra organización 1444ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > vigilante_cambios > consultor_externo (techo "read") SÍ puede ejecutar este agente: es de solo lectura, dentro de su techo de riesgo 1207ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > vigilante_cambios > idempotencia por clave: dos corridas del mismo tenderId no fallan por reejecución (idempotencyKey estable) 975ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > vigilante_cambios > presupuesto excedido detiene la corrida 667ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > recordatorios > camino feliz: programa una alerta real (job send_agent_alert encolado) 656ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > recordatorios > idempotencia por clave: dos alertas con el mismo (tenderId, kind, scheduledFor) encolan un único job de plataforma 840ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > recordatorios > guardrail anticorrupción bloquea un mensaje de alerta con lenguaje de soborno 942ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > recordatorios > rol sin permiso: consultor_externo denegado (programar_alerta es "write") 881ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > recordatorios > presupuesto excedido: no encola la alerta si el presupuesto de la organización ya se agotó 766ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > prohibiciones duras (runtime compartido por los 5 agentes) > un tool_call con actionKind "portal_action" se deniega SIEMPRE, incluso para "superadmin", sin llegar a needs_approval 600ms
+
+ Test Files  23 passed (23)
+      Tests  392 passed (392)
+   Start at  17:26:27
+   Duration  52.48s (transform 1.35s, setup 0ms, collect 3.91s, tests 372.29s, environment 3ms, prepare 1.39s)
+
+
+> @atiende/worker@0.1.0 test:coverage
+> vitest run --coverage
+
+
+ RUN  v2.1.9 /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/worker
+      Coverage enabled with v8
+
+ ✓ test/ingest-client.test.ts (225 tests) 1235ms
+ ✓ test/discover-tenders-agent-events.test.ts (4 tests) 11202ms
+   ✓ discover_tenders + agentEventsQueue (Ronda 6, tarea 4) > convocatoria NUEVA (action: created) encola analista_convocatorias, deduplicado por (fuente, externalId, versión) 3894ms
+   ✓ discover_tenders + agentEventsQueue (Ronda 6, tarea 4) > convocatoria ACTUALIZADA (action: updated) encola vigilante_cambios 2600ms
+   ✓ discover_tenders + agentEventsQueue (Ronda 6, tarea 4) > convocatoria SIN CAMBIOS (action: unchanged) nunca encola ningún agente 2379ms
+   ✓ discover_tenders + agentEventsQueue (Ronda 6, tarea 4) > sin agentEventsQueue configurada (comportamiento por defecto), la ingesta no intenta encolar nada (compatibilidad hacia atrás) 2328ms
+ ✓ test/worker-shutdown.test.ts (6 tests) 17260ms
+   ✓ Worker: cierre ordenado (SIGTERM) > deja terminar el job en curso, libera el lock, y no reclama nuevos jobs tras stop() 4841ms
+   ✓ Worker: cierre ordenado (SIGTERM) > si el handler no respeta AbortSignal, stop() igual resuelve tras shutdownTimeoutMs (no cuelga para siempre) 2800ms
+   ✓ Worker: cierre ordenado (SIGTERM) > llamar stop() dos veces es seguro (idempotente) 2375ms
+   ✓ Worker: cierre ordenado (SIGTERM) > WK-02: si el heartbeat detecta que se perdió el lease (fencing), aborta el handler y NO persiste ningún resultado 2132ms
+   ✓ Worker: cierre ordenado (SIGTERM) > WK-10: un error permanente dead-letra en el primer intento, sin gastar el ciclo de backoff 2658ms
+   ✓ Worker: cierre ordenado (SIGTERM) > métricas: cuenta succeeded/retried/dead por tipo de job 2453ms
+ ✓ test/scheduler.test.ts (9 tests) 24923ms
+   ✓ Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150 > varios tick() dentro de la misma ventana encolan un solo job por fuente 4669ms
+   ✓ Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150 > avanzar a la siguiente ventana sí encola un nuevo job, sin duplicar el anterior 2350ms
+   ✓ Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150 > una fuente deshabilitada (enabled: false) nunca se encola 2326ms
+   ✓ Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150 > el job encolado ya trae sourceId en el payload para que discover_tenders sepa qué conector correr 2256ms
+   ✓ Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150 > dos Scheduler concurrentes (dos procesos) nunca duplican el job de la misma fuente+ventana — 20 iteraciones (lógica secuencial en PGlite, NO concurrencia de motor real — ver nota WK-15) 2475ms
+   ✓ JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable > la primera sentencia de la transacción es pg_advisory_xact_lock(hashtext($1)::bigint) con params=[`${kind}:${jobKey}`] 2675ms
+   ✓ JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable > la clave del advisory lock es estable entre llamadas (mismo kind+jobKey -> mismo string, sin importar el payload) 2571ms
+   ✓ JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable > un jobKey distinto produce una clave de lock distinta (sin colisión entre ventanas/fuentes) 3076ms
+   ✓ JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable > enqueue() SIN jobKey no abre transacción ni toma ningún advisory lock (solo el camino con jobKey lo necesita) 2525ms
+ ✓ test/mail-retry-handler.test.ts (9 tests) 24769ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > éxito: el proveedor acepta el envío -> outcome "sent", auditado, el job se completa sin lanzar 4647ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > éxito tras fallo: un primer intento del job agota los reintentos internos de MailService ("dead"), un SEGUNDO intento con el proveedor recuperado sí envía 2407ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > tope alcanzado: en el ÚLTIMO intento permitido (job.attempts = job.maxAttempts) el proveedor sigue fallando -> se audita "mail_retry.dead" con el motivo antes de lanzar 2302ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > mensaje ya enviado: no reenvía -- el proveedor NUNCA se llama, outcome "already_sent", auditado 2140ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > supresión: el destinatario está suprimido -> no envía, el proveedor NUNCA se llama, auditado 2398ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > payload malformado: rechazado sin crash (error permanente clasificado), auditado 2444ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > dos workers concurrentes: reserve() CAS garantiza un SOLO envío real al proveedor para la MISMA messageKey 3120ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > sin red sin credenciales: sin MAIL_PROVIDER, el proveedor activo es CaptureProvider -- 0 llamadas de red 2778ms
+   ✓ mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional > destinatario no registrado (p.ej. cuenta suspendida): fallo permanente -- dead-letra sin gastar reintentos, auditado 2531ms
+ ✓ test/discover-tenders-handler.test.ts (10 tests) 27159ms
+   ✓ discover_tenders handler — A4: fuente inaccesible/no verificada nunca es "0 nuevas" silencioso > los 5 conectores reales de packages/sources hoy no tienen liveVerification.verified=true: se reporta not_configured explícito, nunca "ok" 4647ms
+   ✓ discover_tenders handler — A4: fuente inaccesible/no verificada nunca es "0 nuevas" silencioso > un conector que lanza error con "captcha" en el mensaje se clasifica como captcha_detected, no "ok" 2311ms
+   ✓ discover_tenders handler — A4: fuente inaccesible/no verificada nunca es "0 nuevas" silencioso > fuente sin conector registrado nunca produce "0 nuevas": falla explícito con not_configured 2229ms
+   ✓ discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay > convocatoria nueva de una fuente verificada: se ingiere vía HTTP y source_runs queda "ok" 2304ms
+   ✓ discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay > replay del mismo lote (misma corrida repetida) envía el mismo payload de ingesta — idempotente (A2) 2327ms
+   ✓ discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay > una corrida sin registros nuevos NO llama al endpoint de ingesta pero sí queda "ok" (no confundir con fuente caída) 2510ms
+   ✓ discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay > WK-06: coverage.expected viene de payload.expectedTotal si se da; source_runs "ok" lo persiste 2618ms
+   ✓ discover_tenders handler — WK-03/WK-05/WK-06: honestidad de coverage y registro SIEMPRE de source_runs > si discover() tiene éxito pero el POST de ingesta falla, source_runs SIEMPRE se registra (ingest_failed) 3025ms
+   ✓ discover_tenders handler — WK-03/WK-05/WK-06: honestidad de coverage y registro SIEMPRE de source_runs > si discover() falla a mitad de iteración, coverage.obtained es 0 (nunca cuenta lo descartado) 2594ms
+   ✓ discover_tenders handler — WK-03/WK-05/WK-06: honestidad de coverage y registro SIEMPRE de source_runs > sin payload.expectedTotal, coverage.expected es null CON un motivo explícito, en las 4 rutas 2594ms
+ ✓ db-proposals/PROPOSAL-06-agent-business-tools-grants.test.ts (5 tests) 13733ms
+   ✓ PROPOSAL-06: grants de solo-lectura de negocio + insert de agent_runs para worker_role > worker_role puede leer tenders/company_profiles de CUALQUIER organización tras aplicar la propuesta 3273ms
+   ✓ PROPOSAL-06: grants de solo-lectura de negocio + insert de agent_runs para worker_role > SIN la propuesta aplicada, un SELECT crudo de worker_role sobre tenders NO lanza error: devuelve 0 filas en silencio (RLS filtra, no bloquea la sentencia) 2774ms
+   ✓ PROPOSAL-06: grants de solo-lectura de negocio + insert de agent_runs para worker_role > SIN la propuesta aplicada, withWorkerBusinessReadContext SÍ falla explícito (SchemaGrantPendingError vía pg_policies, nunca una lista vacía fabricada) 2847ms
+   ✓ PROPOSAL-06: grants de solo-lectura de negocio + insert de agent_runs para worker_role > worker_role puede INSERTAR su propia fila en agent_runs (corrida disparada por evento de plataforma, sin agentRunId previo de apps/api) 2238ms
+   ✓ PROPOSAL-06: grants de solo-lectura de negocio + insert de agent_runs para worker_role > las políticas ADICIONALES no reemplazan las existentes: un miembro humano real de la organización sigue pudiendo leer sus propios tenders 2601ms
+ ✓ test/run-agent-handler.test.ts (10 tests) 27729ms
+   ✓ run_agent handler (esqueleto) > ejecuta con FakeProvider por defecto (sin OPENAI_API_KEY) y refleja el resultado en agent_runs 4665ms
+   ✓ run_agent handler (esqueleto) > sin agentRunId en el payload, igual ejecuta el AgentRunner sin fallar (uso "fire and forget") 2433ms
+   ✓ run_agent handler (esqueleto) > WK-08: un job run_agent con organizationId de otro tenant nunca actualiza la fila real (falla explícito, no-op silencioso) 2290ms
+   ✓ run_agent handler (esqueleto) > WK-16: organizationId null con agentRunId presente falla permanente ("org requerida"), agent_runs NUNCA se toca 2236ms
+   ✓ run_agent handler (esqueleto) > WK-16: organizationId undefined con agentRunId presente falla permanente ("org requerida"), agent_runs NUNCA se toca 2283ms
+   ✓ run_agent handler (esqueleto) > WK-16: organizationId string vacío con agentRunId presente falla permanente ("org requerida"), agent_runs NUNCA se toca 2647ms
+   ✓ run_agent handler (esqueleto) > WK-23: organizationId correcto pero actorId sin membresía en esa organización — RLS bajo worker_role bloquea el update legítimo en apariencia 2730ms
+   ✓ run_agent handler (esqueleto) > WK-23: actorId con formato inválido (no UUID) falla permanente y explícito, agent_runs NUNCA se toca 3076ms
+   ✓ run_agent handler (esqueleto) > un rol sin permiso para el riesgo de la herramienta hace que la corrida termine "denied" -> el job falla explícitamente 2415ms
+   ✓ run_agent handler (esqueleto) > WK6-02/E20: correlationId de negocio persiste en agent_runs.correlation_id (columna) y en output (y en cada tool_call) — una sola consulta por columna reconstruye convocatoria -> matriz -> propuesta 2953ms
+ ✓ test/named-agents.test.ts (13 tests) 6ms
+ ✓ test/run-agent-kill-switch.test.ts (2 tests) 5861ms
+   ✓ run_agent + kill-switch (Ronda 6, tarea 4) > un agente deshabilitado por WORKER_DISABLED_AGENTS nunca ejecuta ningún tool_call (ni encola la alerta) 3319ms
+   ✓ run_agent + kill-switch (Ronda 6, tarea 4) > un agente NO listado en WORKER_DISABLED_AGENTS sigue ejecutando con normalidad 2541ms
+ ✓ db-proposals/PROPOSAL-01-widen-source-run-status.test.ts (2 tests) 5676ms
+   ✓ PROPOSAL-01 (WK-07/WK-22): source_run_status ampliado a 8 estados finos > rate_limited y not_configured se persisten como su propio valor en status, no como failed 3436ms
+   ✓ PROPOSAL-01 (WK-07/WK-22): source_run_status ampliado a 8 estados finos > ingest_failed (WK-03) también se persiste con su propio valor, no como failed 2237ms
+ ✓ test/config.test.ts (3 tests) 3ms
+ ✓ test/kill-switch.test.ts (4 tests) 3ms
+ ✓ test/send-agent-alert.test.ts (1 test) 6ms
+ ✓ test/schedule-config.test.ts (5 tests) 4ms
+ ✓ db-proposals/PROPOSAL-02-jobs-dedupe-and-cancelled.test.ts (3 tests) 7595ms
+   ✓ PROPOSAL-02 (WK-04/WK-15/WK-22): índice único (kind, jobKey) activo + cancelled > un segundo INSERT directo (sin pasar por el advisory lock) con la misma (kind, jobKey) activa viola el índice único 3127ms
+   ✓ PROPOSAL-02 (WK-04/WK-15/WK-22): índice único (kind, jobKey) activo + cancelled > cancel() usa el estado "cancelled" dedicado, distinguible de "dead" sin leer last_error 2326ms
+   ✓ PROPOSAL-02 (WK-04/WK-15/WK-22): índice único (kind, jobKey) activo + cancelled > PASO 0 (WK-15): la query de detección de duplicados activos devuelve 0 filas en una base recién migrada 2140ms
+ ✓ test/worker-log-correlation.test.ts (4 tests) 10610ms
+   ✓ Worker: correlation_id de NEGOCIO en el log estructurado (WK6-02) > cuando el payload trae correlationId de negocio, cada línea lleva ese valor en correlation_id y el id de cola SEPARADO en job_id 3353ms
+   ✓ Worker: correlation_id de NEGOCIO en el log estructurado (WK6-02) > dos jobs distintos del MISMO expediente comparten correlation_id (una sola búsqueda en los logs agrupa toda la cadena) con job_id distinto cada uno 2939ms
+   ✓ Worker: correlation_id de NEGOCIO en el log estructurado (WK6-02) > un job SIN correlationId de negocio (cualquier otro kind) conserva el comportamiento anterior: correlation_id = job.id, nunca queda vacío 2312ms
+   ✓ Worker: correlation_id de NEGOCIO en el log estructurado (WK6-02) > un correlationId presente pero no utilizable (cadena vacía o tipo equivocado) NO deja el log sin correlación: cae de vuelta a job.id 2005ms
+ ✓ db-proposals/PROPOSAL-03-worker-role.test.ts (7 tests) 18377ms
+   ✓ PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real > worker_role existe y está NOLOGIN (solo alcanzable vía SET ROLE desde una conexión con privilegios) 3827ms
+   ✓ PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real > worker_role tiene EXACTAMENTE grants sobre {jobs, source_runs, agent_runs}, ninguna otra tabla 2771ms
+   ✓ PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real > worker_role puede ver/crear jobs de PLATAFORMA (org_id NULL) 2430ms
+   ✓ PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real > worker_role puede leer/escribir source_runs sin ser superadmin 2673ms
+   ✓ PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real > WK-23: worker_role con org_id correcto pero SIN current_user_id fijado no puede actualizar agent_runs (ni siquiera su propio tenant) 2549ms
+   ✓ PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real > WK-23: worker_role con org_id y current_user_id (actor real) correctos SÍ actualiza agent_runs de su propio tenant 2227ms
+   ✓ PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real > worker_role con app.current_org_id de la org A no puede actualizar una fila agent_runs de la org B 1898ms
+ ✓ test/deadline-reminders.test.ts (3 tests) 10070ms
+   ✓ enqueueUpcomingDeadlineReminders (Ronda 6, tarea 4: run_agent por evento de vencimiento) > encola recordatorios SOLO para convocatorias con vencimiento dentro de la ventana, de CUALQUIER organización 3545ms
+   ✓ enqueueUpcomingDeadlineReminders (Ronda 6, tarea 4: run_agent por evento de vencimiento) > deduplicado por (tenderId, fecha calendario del vencimiento): llamarlo dos veces el mismo día no duplica 2481ms
+   ✓ enqueueUpcomingDeadlineReminders (Ronda 6, tarea 4: run_agent por evento de vencimiento) > sin PROPOSAL-06 aplicada, falla explícito (SchemaGrantPendingError) en vez de reportar "0 vencimientos" fabricado 4043ms
+ ✓ test/enqueue-agent-run.test.ts (3 tests) 4004ms
+   ✓ enqueueAgentRun (Ronda 6, tarea 4) > con PROPOSAL-06 aplicada: abre su propia fila agent_runs (started_by null) y encola el job con agentRunId 2183ms
+   ✓ enqueueAgentRun (Ronda 6, tarea 4) > SIN PROPOSAL-06 aplicada: falla al abrir agent_runs (fail-open) pero el job IGUAL se encola, sin agentRunId 916ms
+   ✓ enqueueAgentRun (Ronda 6, tarea 4) > deduplicado por (agentName, eventKey): dos llamadas con el mismo evento no encolan dos jobs activos 904ms
+ ✓ test/job-queue.test.ts (19 tests) 40404ms
+   ✓ JobQueue: reclamo atómico sin doble procesamiento > N workers > M jobs: cada job se reclama como máximo una vez 4695ms
+   ✓ JobQueue: reclamo atómico sin doble procesamiento > un job ya en running no es reclamado dos veces por workers adicionales 2470ms
+   ✓ JobQueue: reclamo atómico sin doble procesamiento > un job claimeado incrementa attempts y queda en running con locked_by 2299ms
+   ✓ JobQueue: WK-01 — claim() respeta max_attempts también en recuperación de lease (crash real) > un job que crashea repetidamente (nunca completa/falla) termina en "dead", nunca "running" eterno 2241ms
+   ✓ JobQueue: reintentos con backoff exponencial + jitter > cada fallo reprograma next_run_at con backoff creciente hasta max_attempts, luego "dead" 2599ms
+   ✓ JobQueue: reintentos con backoff exponencial + jitter > el jitter mantiene el delay dentro del rango esperado (no determinista pero acotado) 2514ms
+   ✓ JobQueue: lease expirado se recupera > un job running cuyo lease expiró es reclamable por otro worker 2497ms
+   ✓ JobQueue: lease expirado se recupera > heartbeat extiende el lease y evita que otro worker lo recupere 2889ms
+   ✓ JobQueue: cancelación > cancelar un job queued lo deja fuera de circulación (cancelled, no dead) y no se reclama 2474ms
+   ✓ JobQueue: cancelación > cancelar un job running también lo detiene, con estado cancelled (WK-22) 2706ms
+   ✓ JobQueue: idempotencia por jobKey > encolar dos veces con el mismo jobKey mientras el primero sigue activo no duplica 2465ms
+   ✓ JobQueue: idempotencia por jobKey > una vez terminado (succeeded), un nuevo jobKey (otra ventana) sí encola 2311ms
+   ✓ JobQueue: WK-10 — deadLetterPermanent (errores permanentes, sin ciclo de backoff) > dead-letra inmediatamente en el primer intento, sin importar max_attempts 2259ms
+   ✓ JobQueue: complete > complete limpia el lock y marca succeeded 1865ms
+   ✓ JobQueue: complete > complete con un lockedBy equivocado lanza StaleLeaseError y no persiste nada (protege contra confirmaciones cruzadas) 873ms
+   ✓ JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent() > WORKER_ID reutilizado tras "reinicio" (mismo string, lease token distinto): complete() del zombie de la generación anterior es rechazado 835ms
+   ✓ JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent() > fail() del zombie con lockedBy viejo también es rechazado (no aplica backoff/dead-letter equivocado) 804ms
+   ✓ JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent() > deadLetterPermanent() del zombie con lockedBy viejo también es rechazado 799ms
+   ✓ JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent() > heartbeat() del zombie con lockedBy viejo retorna false (ya lo hacía por attempts en WK-02; ahora también por lease token) 809ms
+ ✓ test/business-tools.test.ts (19 tests) 40326ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > registra las 8 herramientas con actionKind/declaredEffects consistentes (nunca external_send/sign/portal_action/contact_third_party) 4611ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > ninguna de las 8 herramientas acepta organizationId/orgId/tenantId del modelo: el esquema los descarta silenciosamente, nunca llegan al handler 2402ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > listar_convocatorias: lee SOLO las convocatorias de la organización del contexto, nunca de otra 2328ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > leer_bases: expone documentos/requisitos ya extraídos, con sourcePage/sourceExcerpt reales (no fabricados) 2141ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > leer_perfil_empresa: lee perfil/capacidades/experiencia reales de la organización 2427ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > proponer_matching: score y palabras coincidentes derivados de datos reales, nunca inventados; sin capacidades -> missingProfileFields 2701ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > proponer_requisitos_matriz: extrae candidatos REALES del texto ya extraído, sin inventar número de página 2595ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > proponer_seccion_propuesta: bloquea explícitamente si no hay evidencia aprobada (nunca inventa el dato) 3045ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > proponer_seccion_propuesta: redacta un borrador citando experiencia REAL con evidencia 2387ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > resumir_cambios_convocatoria: resume eventos reales y cuenta invalidaciones reales 2639ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > programar_alerta: encola un job real (send_agent_alert) en la tabla jobs, deduplicado por (tenderId, kind, scheduledFor) 2300ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > aislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok" > listar_convocatorias: desde el contexto de orgB nunca aparece ninguna convocatoria real de orgA (contenido distinguible, no solo el conteo) 2220ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > aislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok" > proponer_matching: tenderId real de orgA desde el contexto de orgB -> "no evaluable" explícito, sin score ni texto de orgA 2296ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > aislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok" > leer_bases: tenderId real de orgA desde el contexto de orgB -> documentos/requisitos vacíos, nunca los de orgA 1959ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > aislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok" > leer_perfil_empresa: nunca expone el perfil/capacidades de otra organización 938ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > aislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok" > proponer_requisitos_matriz: tenderId real de orgA desde el contexto de orgB -> sin candidatos, nunca el texto de orgA 858ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > aislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok" > proponer_seccion_propuesta: nunca redacta citando experiencia real de otra organización 830ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > aislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok" > resumir_cambios_convocatoria: tenderId real de orgA desde el contexto de orgB -> sin eventos, nunca el resumen de orgA 802ms
+   ✓ business-tools.ts (Ronda 6): herramientas de negocio reales del worker > aislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok" > programar_alerta: el job encolado siempre queda scoped a la organización REAL del contexto (ctx.organizationId), nunca a un tenderId ajeno pasado como input 847ms
+ ✓ test/agent-evals.test.ts (26 tests) 45251ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_convocatorias > camino feliz: bases + perfil + matching, corrida completa y persistida en agent_runs.output.toolCalls 4689ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_convocatorias > aislamiento por org: un tenderId de otra organización nunca se lee ni se usa para matching (contenido, no solo status) 2507ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_convocatorias > rol sin permiso de riesgo (consultor_externo, techo "read") deniega el primer paso "write" -> corrida denied, job falla permanente 2262ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_convocatorias > idempotencia por clave: dos corridas del mismo tenderId+org reutilizan el resultado cacheado del paso "proponer_matching" (el LLM no se vuelve a invocar) 2352ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_convocatorias > presupuesto excedido: con un límite por organización menor al costo del primer paso, la corrida se detiene "failed" (nunca fabrica un resultado) 2354ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_bases > camino feliz: propone candidatos de matriz reales a partir del texto extraído 2511ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_bases > aislamiento por org: tenderId de otra organización -> leer_bases no expone documentos ajenos 2374ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_bases > rol sin permiso: consultor_externo denegado en el paso "write" (proponer_requisitos_matriz) 2905ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_bases > idempotencia por clave: dos corridas con el mismo tenderId no duplican la propuesta de matriz (mismo idempotencyKey) 2520ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > analista_bases > presupuesto excedido detiene la corrida en el primer paso 2612ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > redactor_borrador > no fabricación: sin evidence_ref, la sección queda bloqueada explícitamente (needs_data), nunca redacta un dato inventado 2248ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > redactor_borrador > con evidencia real, redacta la sección y completa (no queda pendiente) 2551ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > redactor_borrador > guardrail anticorrupción bloquea una sectionKey con lenguaje de soborno, ANTES de tocar la herramienta 2167ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > redactor_borrador > rol sin permiso: consultor_externo denegado en "proponer_seccion_propuesta" (write) 1984ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > redactor_borrador > presupuesto excedido detiene la corrida antes de redactar 929ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > vigilante_cambios > camino feliz: resume cambios reales de la convocatoria 871ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > vigilante_cambios > aislamiento por org: nunca resume eventos de cambio de otra organización 813ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > vigilante_cambios > consultor_externo (techo "read") SÍ puede ejecutar este agente: es de solo lectura, dentro de su techo de riesgo 799ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > vigilante_cambios > idempotencia por clave: dos corridas del mismo tenderId no fallan por reejecución (idempotencyKey estable) 840ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > vigilante_cambios > presupuesto excedido detiene la corrida 723ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > recordatorios > camino feliz: programa una alerta real (job send_agent_alert encolado) 702ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > recordatorios > idempotencia por clave: dos alertas con el mismo (tenderId, kind, scheduledFor) encolan un único job de plataforma 704ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > recordatorios > guardrail anticorrupción bloquea un mensaje de alerta con lenguaje de soborno 705ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > recordatorios > rol sin permiso: consultor_externo denegado (programar_alerta es "write") 721ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > recordatorios > presupuesto excedido: no encola la alerta si el presupuesto de la organización ya se agotó 699ms
+   ✓ Ronda 6: evals deterministas por agente nombrado > prohibiciones duras (runtime compartido por los 5 agentes) > un tool_call con actionKind "portal_action" se deniega SIEMPRE, incluso para "superadmin", sin llegar a needs_approval 702ms
+
+ Test Files  23 passed (23)
+      Tests  392 passed (392)
+   Start at  17:27:20
+   Duration  45.91s (transform 1.13s, setup 0ms, collect 4.07s, tests 336.20s, environment 3ms, prepare 1.81s)
+
+ % Coverage report from v8
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-------------------|---------|----------|---------|---------|-------------------
+All files          |   91.41 |    83.33 |    87.5 |   91.41 |                   
+ src               |     100 |    85.71 |     100 |     100 |                   
+  config.ts        |     100 |      100 |     100 |     100 |                   
+  logger.ts        |     100 |    33.33 |     100 |     100 | 17                
+ src/agents        |    94.8 |    86.76 |   97.43 |    94.8 |                   
+  ...ness-tools.ts |   97.36 |    87.65 |     100 |   97.36 | ...22-229,609-610 
+  db-context.ts    |   77.41 |     82.6 |    87.5 |   77.41 | ...47-151,180-184 
+  ...-agent-run.ts |     100 |       80 |     100 |     100 | 57                
+  kill-switch.ts   |     100 |      100 |     100 |     100 |                   
+  named-agents.ts  |   95.19 |    84.21 |     100 |   95.19 | 75-76,143-145     
+  system-actor.ts  |     100 |      100 |     100 |     100 |                   
+ src/handlers      |   91.98 |    78.26 |   83.87 |   91.98 |                   
+  ...er-tenders.ts |    95.8 |    84.44 |   63.63 |    95.8 | 122-126,159-160   
+  mail-retry.ts    |    83.9 |    63.63 |     100 |    83.9 | ...79-286,303-305 
+  run-agent.ts     |    95.4 |    81.03 |   92.85 |    95.4 | ...31,133,281-284 
+  ...gent-alert.ts |     100 |      100 |     100 |     100 |                   
+ src/ingest        |   99.16 |    79.16 |      90 |   99.16 |                   
+  ingest-client.ts |   99.01 |    82.35 |   88.88 |   99.01 | 100               
+  ingest-mapper.ts |     100 |       25 |     100 |     100 | 32-37             
+ src/mail          |   76.36 |     87.5 |   66.66 |   76.36 |                   
+  ...il-service.ts |     100 |      100 |     100 |     100 |                   
+  ...ail-stores.ts |   73.19 |    85.71 |   63.63 |   73.19 | ...40-144,147-157 
+ src/queue         |   84.96 |     84.9 |   87.09 |   84.96 |                   
+  backoff.ts       |     100 |      100 |     100 |     100 |                   
+  errors.ts        |     100 |       75 |     100 |     100 | 23                
+  job-queue.ts     |   89.13 |    91.11 |   83.33 |   89.13 | ...52-356,364-372 
+  metrics.ts       |   78.94 |    83.33 |   66.66 |   78.94 | 26-27,30-31       
+  types.ts         |     100 |       75 |     100 |     100 | 66                
+  worker.ts        |   78.53 |    80.43 |     100 |   78.53 | ...22-228,245-255 
+ src/scheduler     |   90.09 |    88.46 |   83.33 |   90.09 |                   
+  ...-reminders.ts |   89.79 |    88.88 |     100 |   89.79 | 81-85             
+  ...ule-config.ts |     100 |      100 |     100 |     100 |                   
+  scheduler.ts     |   85.29 |    81.81 |      75 |   85.29 | 63-67             
+ src/source-runs   |   95.23 |      100 |      75 |   95.23 |                   
+  ...run-status.ts |    87.5 |      100 |      50 |    87.5 | 75-76             
+  ...repository.ts |     100 |      100 |     100 |     100 |                   
+-------------------|---------|----------|---------|---------|-------------------
