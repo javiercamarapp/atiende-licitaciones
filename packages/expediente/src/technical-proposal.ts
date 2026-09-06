@@ -67,12 +67,33 @@ export class TechnicalProposalBuilder {
 
     for (const requirement of requirements) {
       if (!relevantTypes.has(requirement.type)) continue;
-      // Requisitos puramente procedimentales (p. ej. anuncio de un plazo) no
-      // piden ninguna evidencia de la empresa: no generan sección de
-      // propuesta ni bloqueo por "mapeo no declarado" — se gestionan solo
-      // como fila de la matriz/checklist de plazos, no como afirmación a
-      // redactar.
-      if (requirement.requiredEvidence.length === 0) continue;
+
+      if (requirement.requiredEvidence.length === 0) {
+        if (requirement.obligatoriedad !== "obligatorio") {
+          // Requisito verdaderamente procedimental (opcional/condicional sin
+          // evidencia pedida, p. ej. un anuncio de plazo): no genera sección
+          // de propuesta ni bloqueo — se gestiona solo como fila de la
+          // matriz/checklist de plazos, no como afirmación a redactar.
+          continue;
+        }
+        // REQ-158/EX-EXP-03: un requisito OBLIGATORIO sin evidencia que el
+        // extractor sepa mapear (p. ej. la manifestación de no estar en los
+        // supuestos de los arts. 50/60 LAASSP, o una declaración de
+        // integridad) NUNCA se omite en silencio. Queda como sección
+        // explícita "PENDIENTE" con un bloqueo que exige mapeo manual antes
+        // de poder redactarse — el requisito nunca desaparece del pipeline.
+        const blocker: SectionBlocker = {
+          requirementId: requirement.id,
+          field: "evidencia_no_mapeable",
+          status: "missing",
+          detail:
+            "Requisito obligatorio sin evidencia requerida reconocida por el extractor de reglas; requiere mapeo manual (o ampliar el extractor) antes de poder redactarse.",
+        };
+        sections.push({ id: `sec-${requirement.id}`, requirementId: requirement.id, title: `PENDIENTE: ${requirement.text}`, statements: [], blockers: [blocker] });
+        globalBlockers.push(blocker);
+        continue;
+      }
+
       if (requirement.status === "bloqueado") {
         // Requisito con conflicto sin resolver (p. ej. plazo contradictorio): la sección
         // completa queda bloqueada, nunca se redacta sobre un requisito en disputa.
