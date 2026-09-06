@@ -1,0 +1,199 @@
+================================================================
+AUDITORÍA WEB INTEGRADO — RONDA 3 — LOG DE EJECUCIÓN
+Fecha: Sun Sep  6 03:07:20 CST 2026
+Worktree: /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-web3 (HEAD 51044ab)
+================================================================
+
+### npm run -w apps/web test (unitarias) ###
+
+> @atiende/web@0.1.0 test
+> NODE_OPTIONS=--no-experimental-webstorage vitest run
+
+
+ RUN  v4.1.11 /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-web3/apps/web
+
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-web3/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-web3/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-web3/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-web3/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-web3/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-web3/node_modules/axe-core/axe.js:17087:41)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-web3/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-web3/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-web3/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-web3/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-web3/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-web3/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-web3/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-web3/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-web3/node_modules/axe-core/axe.js:17087:41)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-web3/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-web3/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-web3/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+
+ Test Files  13 passed (13)
+      Tests  63 passed (63)
+   Start at  03:07:20
+   Duration  1.75s (transform 625ms, setup 2.65s, import 2.22s, tests 1.41s, environment 4.06s)
+
+unit tests exit code: 0
+
+### npm audit --workspace apps/web ###
+# npm audit report
+
+esbuild  <=0.24.2
+Severity: moderate
+esbuild enables any website to send any requests to the development server and read the response - https://github.com/advisories/GHSA-67mh-4wv8-2f99
+fix available via `npm audit fix --force`
+Will install vitest@4.1.11, which is a breaking change
+node_modules/vite-node/node_modules/esbuild
+node_modules/vitest/node_modules/esbuild
+  vite  <=6.4.2
+  Depends on vulnerable versions of esbuild
+  node_modules/vite-node/node_modules/vite
+  node_modules/vitest/node_modules/vite
+    @vitest/mocker  <=3.0.0-beta.4
+    Depends on vulnerable versions of vite
+    node_modules/vitest/node_modules/@vitest/mocker
+      vitest  <=3.2.5
+      Depends on vulnerable versions of @vitest/mocker
+      Depends on vulnerable versions of vite
+      Depends on vulnerable versions of vite-node
+      node_modules/vitest
+    vite-node  <=2.2.0-beta.2
+    Depends on vulnerable versions of vite
+    node_modules/vite-node
+
+
+
+5 vulnerabilities (3 moderate, 1 high, 1 critical)
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+### npm ls vitest ###
+atiende-licitaciones@0.1.0 /private/tmp/claude-501/-Users-javiercamaraportepetit/***/scratchpad/audit-web3
+├─┬ @atiende/agents@0.1.0 -> ./packages/agents
+│ ├─┬ @vitest/coverage-v8@2.1.9
+│ │ └── vitest@2.1.9 deduped
+│ └── vitest@2.1.9
+├─┬ @atiende/api@0.1.0 -> ./apps/api
+│ └── vitest@2.1.9 deduped
+├─┬ @atiende/db@0.1.0 -> ./packages/db
+│ └── vitest@2.1.9 deduped
+├─┬ @atiende/expediente@0.1.0 -> ./packages/expediente
+│ └── vitest@2.1.9 deduped
+├─┬ @atiende/sources@0.1.0 -> ./packages/sources
+│ └── vitest@2.1.9 deduped
+├─┬ @atiende/web@0.1.0 -> ./apps/web
+│ ├─┬ @vitest/coverage-v8@4.1.11
+│ │ └── vitest@4.1.11 deduped
+│ ├─┬ vitest-axe@0.1.0
+│ │ └── vitest@2.1.9 deduped
+│ └── vitest@4.1.11
+└─┬ @atiende/worker@0.1.0 -> ./apps/worker
+  └── vitest@2.1.9 deduped
+
+
+### grep RATE_LIMIT_PROFILE (no debería haber resultados) ###
+(sin resultados)
+
+### grep de endpoints GET /organizations/memberships y audit-log (deberían faltar) ###
+-- organizations/memberships --
+32:    `select count(*)::text as count from memberships
+65:          await tx.query("insert into memberships (org_id, user_id, role) values ($1, $2, 'owner')", [
+136:      // `PATCH /organizations/memberships/:userId` (más abajo): solo un
+204:    '/memberships/:userId',
+233:        const before = await tx.query('select role from memberships where org_id = $1 and user_id = $2', [
+245:          'update memberships set role = $1 where org_id = $2 and user_id = $3',
+273:    '/memberships/:userId',
+292:        const before = await tx.query<{ role: string }>('select role from memberships where org_id = $1 and user_id = $2', [
+300:        const res = await tx.query('delete from memberships where org_id = $1 and user_id = $2', [orgId, targetUserId]);
+-- audit-log (rutas HTTP) --
+(sin rutas HTTP audit-log)
+
+### npm run build (bundle de producción) ###
+[2mdist/[22m[2massets/[22m[36mform-CzDu--jm.js                        [39m[1m[2m 38.30 kB[22m[1m[22m[2m │ gzip: 13.75 kB[22m
+[2mdist/[22m[2massets/[22m[36mquery-DGCaXYAZ.js                       [39m[1m[2m 49.11 kB[22m[1m[22m[2m │ gzip: 15.06 kB[22m
+[2mdist/[22m[2massets/[22m[36mindex-Bk0Pvk6M.js                       [39m[1m[2m205.66 kB[22m[1m[22m[2m │ gzip: 59.26 kB[22m
+[2mdist/[22m[2massets/[22m[36mapp-platform-DmIlMrGl.js                [39m[1m[2m256.45 kB[22m[1m[22m[2m │ gzip: 82.61 kB[22m
+[32m✓ built in 1.33s[39m
+
+### grep de secretos/llaves en dist/assets/*.js (debería no haber resultados) ###
+(sin resultados)
+
+### Cabeceras HTTP reales — apps/api (helmet, sin CSP: contentSecurityPolicy:false) ###
+HTTP/1.1 200 OK
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Origin-Agent-Cluster: ?1
+Referrer-Policy: no-referrer
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+X-Content-Type-Options: nosniff
+X-DNS-Prefetch-Control: off
+X-Download-Options: noopen
+X-Frame-Options: SAMEORIGIN
+X-Permitted-Cross-Domain-Policies: none
+X-XSS-Protection: 0
+vary: Origin
+access-control-allow-credentials: true
+x-ratelimit-limit: 100
+x-ratelimit-remaining: 97
+x-ratelimit-reset: 51
+content-type: application/json; charset=utf-8
+content-length: 15
+Date: Sun, 06 Sep 2026 09:08:08 GMT
+Connection: keep-alive
+Keep-Alive: timeout=72
+
+
+### Cabeceras HTTP reales — apps/web servido (vite preview, build de producción) — sin NINGUNA cabecera de seguridad propia ###
+HTTP/1.1 200 OK
+Vary: Origin
+Content-Type: text/html
+Cache-Control: no-cache
+Etag: W/"42f-OJiUYKeEBo0BGOb+c05BfBL+Euw"
+Date: Sun, 06 Sep 2026 09:08:08 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+Content-Length: 1071
+
+
+### test:e2e:full — corrida real de esta auditoría (E2E_API_PORT=3482, PLAYWRIGHT_PORT=4721) — resumen final ###
+
+[31m  3 failed[39m
+[31m    [chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Expediente (/preparacion/expediente), el foco en #main-content es visible (outline/box-shadow reales) [39m
+[31m    [chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Aprobaciones (/preparacion/aprobaciones), el foco en #main-content es visible (outline/box-shadow reales) [39m
+[31m    [chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Entregas (/entrega/entregas), el foco en #main-content es visible (outline/box-shadow reales) [39m
+[33m  2 flaky[39m
+[33m    [chromium] › e2e/ronda3-flujo-real.spec.ts:46:3 › Ronda 3 — recorrido real contra apps/api › login con credenciales reales del seed redirige a /panel [39m
+[33m    [chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Paquete descargable (/entrega/paquete-descargable), el foco en #main-content es visible (outline/box-shadow reales) [39m
+[32m  89 passed[39m[2m (3.8m)[22m
+npm error Lifecycle script `test:e2e` failed with error:
+npm error code 1
+npm error path /private/tmp/claude-501/-Users-javiercamaraportepetit/***/scratchpad/audit-web3/apps/web
+npm error workspace @atiende/web@0.1.0
+npm error location /private/tmp/claude-501/-Users-javiercamaraportepetit/***/scratchpad/audit-web3/apps/web
+npm error command failed
+npm error command sh -c npm run build && playwright test
+[test:e2e:full] apagando apps/api…
+[test:e2e:full] test:e2e:full FALLÓ (exit 1).
+npm error Lifecycle script `test:e2e:full` failed with error:
+npm error code 1
+npm error path /private/tmp/claude-501/-Users-javiercamaraportepetit/***/scratchpad/audit-web3/apps/web
+npm error workspace @atiende/web@0.1.0
+npm error location /private/tmp/claude-501/-Users-javiercamaraportepetit/***/scratchpad/audit-web3/apps/web
+npm error command failed
+npm error command sh -c node scripts/e2e-full.mjs
+
+### Verificación 320px con datos reales (prueba ad-hoc de esta auditoría, no comprometida al repo) ###
+Ruta del script (temporal, eliminado tras esta corrida):
+apps/web/e2e/adhoc-320.spec.ts — login real, propone tarifa real (SRV-AUDIT-001, descripción larga)
+y sube documento PDF real, luego barre las 29 rutas de ALL_NAV_ITEMS a 320x640 midiendo
+document.documentElement.scrollWidth vs clientWidth, y captura pantallas de tablas pobladas.
+Resultado: OVERFLOWING_320: [] (0 rutas con scroll horizontal de página) — 1 passed (27.0s)
+Capturas guardadas en docs/auditoria-2/capturas-web/320px-*.png
