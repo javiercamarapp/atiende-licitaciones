@@ -34,3 +34,4 @@
 2026-09-05 20:28  DESPERTAR  corrector agents vuelta 2 (#27) 215/215; reverificador 2 (#33) despachado; en curso #14,#24,#28,#30,#31,#32.
 2026-09-05 20:30  DESPERTAR  corrector worker (#24) 13/13, 55/55; propuestas SQL asignadas a #14; reverificador #34 despachado; en curso #14,#28,#30,#31,#32,#33.
 2026-09-05 20:31  DESPERTAR  reverificación web (#30): 14/16 CERRADO + 4 nuevos; corrector #35 despachado; en curso #14,#28,#31,#32,#33,#34.
+2026-09-05 20:34  DESPERTAR  tablero (#28) d8e6d29: 92P/82E/7C/4NA/1B; lockfile raíz commiteado (W-03); en curso #14,#31,#32,#33,#34,#35.
