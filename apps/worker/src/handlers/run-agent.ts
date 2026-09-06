@@ -69,16 +69,10 @@ function buildDemoToolRegistry(provider: LLMProvider): ToolRegistry {
     outputSchema: z.object({ content: z.string() }),
     riskLevel: 'read',
     actionKind: 'read',
-    // WK-13 (docs/auditoria-1/worker.md, hallazgo de re-verificación):
-    // `packages/agents` (commit 480d183, AG-05) volvió `declaredEffects`
-    // obligatorio y exige que sea consistente con `riskLevel`/`actionKind`
-    // — un registro sin este campo ahora rompe `typecheck` (falta
-    // `declaredEffects` en `ToolDefinition`) y por tanto `build`/`test` de
-    // este worker. "llm_complete" solo lee (pasa un prompt al proveedor y
-    // regresa texto): no escribe nada ni produce ningún efecto externo real
-    // (no envía nada a un portal, no firma, no persiste), así que el único
-    // efecto declarado coherente con `riskLevel: 'read'`/`actionKind: 'read'`
-    // es `'read_only'`.
+    // AG-05 (packages/agents, commit 480d183): declaredEffects es obligatorio
+    // y debe ser consistente con riskLevel/actionKind — "llm_complete" solo
+    // lee (pasa un prompt al proveedor y regresa texto), sin escritura ni
+    // efecto externo real.
     declaredEffects: ['read_only'],
     idempotent: true,
     tenantScoped: false,
@@ -108,18 +102,62 @@ function toDbAgentRunStatus(status: AgentRun['status']): 'running' | 'succeeded'
   }
 }
 
-async function updateAgentRunRow(db: DbClient, agentRunId: string, run: AgentRun): Promise<void> {
-  await db.query(
-    `update agent_runs
-     set status = $2, output = $3::jsonb, finished_at = $4
-     where id = $1`,
-    [
-      agentRunId,
-      toDbAgentRunStatus(run.status),
-      JSON.stringify({ richStatus: run.status, error: run.error ?? null, completedSteps: run.completedSteps, totalSteps: run.totalSteps }),
-      run.finishedAt ?? new Date().toISOString(),
-    ],
-  );
+/**
+ * WK-08 (docs/auditoria-1/worker.md): antes de esta ronda este UPDATE solo
+ * filtraba por `id`. Con la conexión "propietaria" del worker (sin RLS
+ * forzada — ver README §Seguridad) eso significa que un job `run_agent` con
+ * `agentRunId`/`organizationId` inconsistentes (bug/dato corrupto en quien
+ * encola el job, fuera del control de este worker) podía sobrescribir en
+ * silencio el resultado de la corrida de OTRO tenant, sin que ninguna capa
+ * lo impidiera. Ahora, como defensa en profundidad MIENTRAS no exista un
+ * `worker_role` dedicado con RLS real (propuesta en
+ * `apps/worker/db-proposals/0026-worker-role.sql`, PENDIENTE esquema):
+ *  1. Se fija `app.current_org_id` (vía `set_config`, alcance de
+ *     transacción) incluso bajo la conexión propietaria — no lo hace
+ *     cumplir RLS hoy (esa conexión no corre como `app_role`), pero deja el
+ *     contexto correcto listo para cuando el `worker_role` propuesto sí lo
+ *     haga, y sirve de traza/auditoría de qué org se creía estar tocando.
+ *  2. El propio UPDATE filtra explícitamente `org_id = $organizationId`
+ *     además de `id`: si la fila real pertenece a otra organización, el
+ *     `UPDATE` no toca NINGUNA fila (`rowCount = 0`) en vez de sobrescribir
+ *     la corrida de otro tenant. Se lanza un error explícito en ese caso
+ *     (nunca un no-op silencioso) para que el job falle de forma visible.
+ */
+class AgentRunOrgMismatchError extends Error {
+  /** Reintentar no arregla un `agentRunId`/`organizationId` inconsistente: es un error permanente (ver WK-10, queue/errors.ts). */
+  readonly permanent = true as const;
+  constructor(message: string) {
+    super(message);
+    this.name = 'AgentRunOrgMismatchError';
+  }
+}
+
+async function updateAgentRunRow(db: DbClient, agentRunId: string, organizationId: string | null, run: AgentRun): Promise<void> {
+  const output = JSON.stringify({
+    richStatus: run.status,
+    error: run.error ?? null,
+    completedSteps: run.completedSteps,
+    totalSteps: run.totalSteps,
+  });
+  const status = toDbAgentRunStatus(run.status);
+  const finishedAt = run.finishedAt ?? new Date().toISOString();
+
+  await db.transaction(async (tx) => {
+    await tx.query("select set_config('app.current_org_id', $1, true)", [organizationId ?? '']);
+
+    const { rowCount } = await tx.query(
+      `update agent_runs
+       set status = $2, output = $3::jsonb, finished_at = $4
+       where id = $1 and ($5::uuid is null or org_id = $5::uuid)`,
+      [agentRunId, status, output, finishedAt, organizationId],
+    );
+
+    if (rowCount === 0) {
+      throw new AgentRunOrgMismatchError(
+        `run_agent: no se actualizó agent_runs id=${agentRunId} — la fila no existe o su org_id real no coincide con organizationId=${organizationId} del payload del job (WK-08: defensa en profundidad, ninguna corrida de otro tenant fue tocada).`,
+      );
+    }
+  });
 }
 
 /**
@@ -161,7 +199,7 @@ export function createRunAgentHandler(deps: RunAgentHandlerDeps): JobHandler<Run
     const run = await runner.run(request);
 
     if (job.payload.agentRunId) {
-      await updateAgentRunRow(deps.db, job.payload.agentRunId, run);
+      await updateAgentRunRow(deps.db, job.payload.agentRunId, job.payload.organizationId, run);
     }
 
     if (run.status !== 'completed') {
