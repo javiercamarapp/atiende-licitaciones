@@ -146,3 +146,31 @@ Suite completa DESPUÉS de la corrección (packages/expediente):
 npm run -w packages/expediente typecheck -> exit 0
 npm run -w packages/expediente lint -> exit 0
 
+================================================================================
+## EX-EXP-02 (residual) / EX-EXP-14 — scope 'expediente' exige scopeRef == 'expediente'
+================================================================================
+
+Reproducción (worktree separado, HEAD=300670d, tests nuevos copiados,
+`src/approval-workflow.ts`/`src/package-assembler.ts` en su versión previa):
+
+  Test Files  2 failed | 14 passed (16)
+       Tests  2 failed | 358 passed (360)
+
+Fallo más grave: una `Approval` con `scope: "expediente"` pero
+`scopeRef: "expediente-OTRO-EXPEDIENTE"` producía `manifest.status ===
+"ready"` (se esperaba "draft").
+
+Corrección aplicada: `ApprovalWorkflow.approve()` rechaza
+`scope === "expediente"` con `scopeRef !== "expediente"`
+(`scope_scopeRef_inconsistente`); `PackageAssembler.buildManifest` filtra
+además por `a.scopeRef === "expediente"` como defensa en profundidad
+independiente.
+
+Suite completa DESPUÉS de la corrección (packages/expediente):
+
+ Test Files  16 passed (16)
+      Tests  360 passed (360)
+
+npm run -w packages/expediente typecheck -> exit 0
+npm run -w packages/expediente lint -> exit 0
+

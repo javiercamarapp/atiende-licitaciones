@@ -54,6 +54,41 @@ describe("ApprovalWorkflow — A12 rol indebido (REQ-062/REQ-165)", () => {
   });
 });
 
+/**
+ * EX-EXP-02 (residual) / EX-EXP-14 (reverificación ronda 1, severidad
+ * MEDIA): ni `approve()` ni `PackageAssembler.buildManifest` validaban que
+ * `scope === "expediente" ⟹ scopeRef === "expediente"`. Una aprobación mal
+ * construida con `scope: "expediente"` pero `scopeRef` arbitrario
+ * ("expediente-OTRO-EXPEDIENTE") contaba igual como aprobación TOTAL válida
+ * del expediente correcto.
+ */
+describe("ApprovalWorkflow — EX-EXP-02/EX-EXP-14: scope 'expediente' exige scopeRef EXACTAMENTE 'expediente'", () => {
+  beforeEach(() => resetApprovalCounters());
+
+  it("rechaza approve() con scope 'expediente' y un scopeRef arbitrario distinto de la cadena 'expediente'", () => {
+    const wf = new ApprovalWorkflow();
+    wf.requestReview({ scopeRef: "expediente", actorId: "user-writer", actorRole: "writer" });
+    const result = wf.approve({
+      scope: "expediente",
+      scopeRef: "expediente-OTRO-EXPEDIENTE", // scopeRef arbitrario/inconsistente — el ataque reproducido por EX-EXP-14
+      actorId: "user-reviewer",
+      actorRole: "reviewer",
+      inputsHash: "hash-1",
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toContain("scope_scopeRef_inconsistente");
+    expect(wf.isFullyApproved()).toBe(false);
+    expect(wf.listApprovals()).toHaveLength(0);
+  });
+
+  it("scope/scopeRef distintos de 'expediente' (documento/sección) NO se ven afectados por esta validación", () => {
+    const wf = new ApprovalWorkflow();
+    wf.requestReview({ scopeRef: "documento:tecnica", actorId: "user-a", actorRole: "writer" });
+    const result = wf.approve({ scope: "documento", scopeRef: "documento:tecnica", actorId: "user-b", actorRole: "reviewer", inputsHash: "h" });
+    expect(result.ok).toBe(true);
+  });
+});
+
 describe("ApprovalWorkflow — A11 edición invalida aprobación (REQ-155/REQ-162)", () => {
   beforeEach(() => resetApprovalCounters());
 

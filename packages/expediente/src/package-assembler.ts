@@ -113,8 +113,14 @@ export class PackageAssembler {
     // el hash ACTUAL de los insumos que el llamador acaba de recalcular; si
     // alguien cambió una tarifa después de aprobar y olvidó invalidar la
     // aprobación, el hash ya no calza y el assembler lo detecta aquí.
+    // EX-EXP-14 (reverificación ronda 1): además de `scope === "expediente"`,
+    // se exige que `scopeRef === "expediente"` — defensa en profundidad
+    // independiente de la validación de `ApprovalWorkflow.approve()`: si
+    // una `Approval` llegara aquí (p. ej. reconstruida desde `apps/api`) con
+    // `scope: "expediente"` pero un `scopeRef` arbitrario, el assembler por
+    // sí solo la rechaza igual, sin depender de que nadie más la validara.
     const hashValidExpedienteApproval = input.approvals.find(
-      (a) => a.scope === "expediente" && a.status === "vigente" && a.inputsHash === input.currentInputsHash,
+      (a) => a.scope === "expediente" && a.scopeRef === "expediente" && a.status === "vigente" && a.inputsHash === input.currentInputsHash,
     );
     const approvedOk = hashValidExpedienteApproval !== undefined;
 
@@ -128,7 +134,7 @@ export class PackageAssembler {
       if (!checklistOk) draftReasons.push(`checklist_no_verde:${input.checklist.overallStatus}`);
       if (!noMissing) draftReasons.push(`documentos_faltantes:${missing.join(",")}`);
       if (!approvedOk) {
-        const vigentesExpediente = input.approvals.filter((a) => a.scope === "expediente" && a.status === "vigente");
+        const vigentesExpediente = input.approvals.filter((a) => a.scope === "expediente" && a.scopeRef === "expediente" && a.status === "vigente");
         if (vigentesExpediente.length === 0) {
           draftReasons.push("sin_aprobacion_vigente_de_alcance_expediente");
         } else {

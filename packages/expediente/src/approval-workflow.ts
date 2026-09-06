@@ -124,6 +124,18 @@ export class ApprovalWorkflow {
     if (!APPROVER_ROLES.has(input.actorRole)) {
       return { ok: false, reason: `rol_no_autorizado_para_aprobar:${input.actorRole}` };
     }
+    // EX-EXP-02/EX-EXP-14 (reverificación ronda 1): `scope === "expediente"`
+    // es la raíz jerárquica que cubre TODO el expediente — su `scopeRef`
+    // DEBE ser exactamente la cadena `"expediente"`. Sin esta validación,
+    // una aprobación mal construida (p. ej. un formulario de `apps/api` que
+    // fija `scope` desde un desplegable independiente de un `scopeRef`
+    // calculado dinámicamente) con `scope: "expediente"` pero
+    // `scopeRef: "expediente-OTRO-EXPEDIENTE"` contaría igual como
+    // aprobación TOTAL de un expediente distinto al que en realidad se
+    // aprobó.
+    if (input.scope === "expediente" && input.scopeRef !== "expediente") {
+      return { ok: false, reason: `scope_scopeRef_inconsistente:scope="expediente"_exige_scopeRef="expediente",_recibido="${input.scopeRef}"` };
+    }
     const submitter = this.submitters.get(input.scopeRef);
     if (submitter !== undefined && submitter === input.actorId) {
       return { ok: false, reason: "autoaprobacion_prohibida:mismo_actor_que_envio_a_revision" };

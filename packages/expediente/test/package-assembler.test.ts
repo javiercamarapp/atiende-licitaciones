@@ -164,4 +164,29 @@ describe("PackageAssembler — EX-EXP-02: 'ready' exige aprobación vigente de a
     expect(manifest.watermark).toBe("BORRADOR");
     expect(manifest.draftReasons.length).toBeGreaterThan(0);
   });
+
+  /**
+   * EX-EXP-14 (reverificación ronda 1, MEDIA): defensa en profundidad
+   * INDEPENDIENTE de `ApprovalWorkflow.approve()` (que ya rechaza este caso
+   * en origen desde EX-EXP-02). Si una `Approval` con `scope: "expediente"`
+   * pero `scopeRef` arbitrario llegara al assembler por cualquier otra vía
+   * (reconstrucción manual, datos legados, un bug futuro en `apps/api`),
+   * `buildManifest` por sí solo debe rechazarla igual — nunca confiar en
+   * que una sola capa la haya validado.
+   */
+  it("una aprobación con scope 'expediente' pero scopeRef arbitrario (construida a mano, sin pasar por approve()) NUNCA produce 'ready'", async () => {
+    const assembler = new PackageAssembler();
+    const approvalConScopeRefInconsistente: Approval = {
+      ...approvalVigente("expediente"),
+      scopeRef: "expediente-OTRO-EXPEDIENTE",
+    };
+
+    const { manifest } = await assembler.assemble(
+      baseInput({ approvals: [approvalConScopeRefInconsistente], currentInputsHash: approvalConScopeRefInconsistente.inputsHash }),
+    );
+
+    expect(manifest.status).toBe("draft");
+    expect(manifest.watermark).toBe("BORRADOR");
+    expect(manifest.draftReasons.some((r) => r.includes("sin_aprobacion_vigente_de_alcance_expediente"))).toBe(true);
+  });
 });
