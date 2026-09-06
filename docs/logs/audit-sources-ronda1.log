@@ -1,0 +1,291 @@
+===== AUDITORIA ADVERSARIAL packages/sources — commit 3dc9ce7 =====
+Fecha: 2026-09-06T01:21:36Z
+Worktree: /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-src
+git rev-parse HEAD: 3dc9ce72357e0f85eb938c55d01f1b1576ef8993
+
+===== npm run typecheck =====
+
+> @atiende/sources@0.1.0 typecheck
+> tsc --noEmit
+
+
+===== npm run lint =====
+
+> @atiende/sources@0.1.0 lint
+> eslint src test --ext .ts
+
+
+===== npm run test =====
+
+> @atiende/sources@0.1.0 test
+> vitest run
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-src/packages/sources[39m
+
+ [32m✓[39m test/matching.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/http-client.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 13[2mms[22m[39m
+ [32m✓[39m test/connectors/state-portal.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+ [32m✓[39m test/connectors/dof.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+ [32m✓[39m test/dedupe.test.ts [2m([22m[2m13 tests[22m[2m)[22m[90m 11[2mms[22m[39m
+ [32m✓[39m test/connectors/compras-mx.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 11[2mms[22m[39m
+ [32m✓[39m test/connectors/ocds.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 10[2mms[22m[39m
+ [32m✓[39m test/connectors/registry.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 12[2mms[22m[39m
+ [32m✓[39m test/pipeline/discovery-pipeline.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 48[2mms[22m[39m
+ [32m✓[39m test/host-throttle.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/hash.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m11 passed[39m[22m[90m (11)[39m
+[2m      Tests [22m [1m[32m64 passed[39m[22m[90m (64)[39m
+[2m   Start at [22m 19:21:39
+[2m   Duration [22m 666ms[2m (transform 327ms, setup 0ms, collect 760ms, tests 127ms, environment 1ms, prepare 795ms)[22m
+
+
+===== npm run build =====
+
+> @atiende/sources@0.1.0 build
+> tsc -p tsconfig.build.json
+
+
+===== PRUEBAS ADVERSARIALES PROPIAS DEL AUDITOR (test/_audit-adversarial.test.ts, NO forma parte del repo, solo del worktree de auditoría) =====
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-src/packages/sources[39m
+
+[90mstdout[2m | test/_audit-adversarial.test.ts[2m > [22m[2mSR-adversarial: reordenación de arrays produce FALSA versión[2m > [22m[2mcomputeVersionHash cambia si classifiers[] solo cambia de ORDEN (mismo contenido, mismo conjunto)
+[22m[39mAUDIT classifiers reorder: hashA= e4bc23788f7b480fadd7b6fe3a553bacdd0b1a0166ac220dff648799279f8714 hashB= 93586deb51db91b2670b83736e86d8f456753a6d387db5cf3d46262966612b82 equal= [33mfalse[39m
+
+[90mstdout[2m | test/_audit-adversarial.test.ts[2m > [22m[2mSR-adversarial: reordenación de arrays produce FALSA versión[2m > [22m[2mInMemoryTenderVersionStore dispara ChangeDetected('bases') ante un simple reordenamiento de clasificadores sin cambio real
+[22m[39mAUDIT reorder ChangeDetected isNew= [33mtrue[39m event= {"type":"ChangeDetected","key":"ocds-shcp:LA-000-2026","changes":["bases"],"deadlineMovedEarlier":false,"previousVersionHash":"e4bc23788f7b480fadd7b6fe3a553bacdd0b1a0166ac220dff648799279f8714","newVersionHash":"93586deb51db91b2670b83736e86d8f456753a6d387db5cf3d46262966612b82","at":"2026-08-02T00:00:00.000Z"}
+
+[90mstdout[2m | test/_audit-adversarial.test.ts[2m > [22m[2mSR-adversarial: fechas naive de ComprasMX (esquema inferido) sin fromMexicoCityNaive[2m > [22m[2mz.coerce.date() interpreta 'YYYY-MM-DD HH:mm:ss' SIN offset como hora LOCAL del proceso, no como America/Mexico_City
+[22m[39mAUDIT naive date parse: native= 2026-09-10T20:00:00.000Z esperado-Mexico_City= 2026-09-10T20:00:00.000Z coinciden= [33mtrue[39m
+
+[90mstdout[2m | test/_audit-adversarial.test.ts[2m > [22m[2mSR-adversarial: fechas naive de ComprasMX (esquema inferido) sin fromMexicoCityNaive[2m > [22m[2mel mismo dato de ComprasMX produce un INSTANTE DISTINTO según el TZ del proceso (bug de producción real, no solo teórico)
+[22m[39mAUDIT ComprasMX naive datetime, mismo dato de entrada ('2026-09-10T14:00:00' = 14:00 hora CDMX): TZ=UTC -> 2026-09-10T14:00:00.000Z | TZ=America/Mexico_City -> 2026-09-10T20:00:00.000Z — el instante almacenado (submissionDeadline) DIFIERE 6 horas según el TZ del proceso que corrió el conector, porque comprasmx-mapper.ts nunca llama a fromMexicoCityNaive() (a diferencia de dof-mapper.ts). El plazo real de las 14:00 CDMX se registraría como las 08:00 CDMX si el servidor de producción corre en UTC (default común de contenedores/CI), adelantando el plazo percibido 6 horas.
+
+[90mstdout[2m | test/_audit-adversarial.test.ts[2m > [22m[2mSR-adversarial: DOF connector sin noteCodes configurados reporta 'ok' / 0 nuevos sin haber consultado nada[2m > [22m[2mdiscover() con noteCodes=[] (default) no llama a ctx.http.request ni una sola vez, y aun así termina sin error
+[22m[39mAUDIT DOF sin noteCodes: httpCalls= [33m0[39m records= [33m0[39m
+
+[90mstdout[2m | test/_audit-adversarial.test.ts[2m > [22m[2mSR-adversarial: DOF connector sin noteCodes configurados reporta 'ok' / 0 nuevos sin haber consultado nada[2m > [22m[2mDiscoveryPipeline reporta health.state='ok' para un DofConnector sin noteCodes, indistinguible de una corrida real sin novedades
+[22m[39mAUDIT DOF sin noteCodes vía pipeline: health= {"source":"dof","state":"ok","lastAttemptAt":"2026-09-06T01:28:26.669Z","lastSuccessAt":"2026-09-06T01:28:26.669Z","attempts":1,"consecutiveFailures":0,"evidence":{"message":"Corrida exitosa sin registros nuevos de la fuente."},"staleForMs":0} nuevos= [33m0[39m
+
+[90mstdout[2m | test/_audit-adversarial.test.ts[2m > [22m[2mSR-adversarial: HttpClient y redirecciones cross-host[2m > [22m[2muna redirección 302 a OTRO host/puerto no pasa por el throttle/pausa del host de destino
+[22m[39mAUDIT redirect cross-host: peticiones a B recibidas= [33m5[39m — el HostThrottle de HttpClient solo vio/limitó el host A (puerto [33m56610[39m ); el host B (puerto [33m56609[39m ) nunca pasó por concurrencyPerHost/minIntervalMsPerHost/pausa-403 porque el redirect ocurre DENTRO de una sola llamada a fetch().
+
+[90mstdout[2m | test/_audit-adversarial.test.ts[2m > [22m[2mSR-adversarial: límite de concurrencia por host bajo carga real (50 peticiones)[2m > [22m[2mconcurrencyPerHost se respeta con 50 peticiones concurrentes reales (no fake timers)
+[22m[39mAUDIT 50-req concurrency test: maxInFlight= [33m3[39m totalCalls= [33m50[39m
+
+[90mstdout[2m | test/_audit-adversarial.test.ts[2m > [22m[2mSR-adversarial: aislamiento entre conectores en el mismo run()[2m > [22m[2mun conector que lanza a mitad de la iteración NO afecta a otro conector sano en el mismo pipeline.run(), y conserva los registros ya emitidos
+[22m[39mAUDIT aislamiento: dof= {"source":"dof","nuevos":1,"actualizados":0,"sinCambios":0,"errores":[{"message":"fallo simulado a mitad de la iteración"}],"health":{"source":"dof","state":"down","lastAttemptAt":"2026-09-06T01:28:26.859Z","attempts":1,"consecutiveFailures":1,"evidence":{"message":"fallo simulado a mitad de la iteración"}}} ocds-shcp= {"source":"ocds-shcp","nuevos":2,"actualizados":0,"sinCambios":0,"errores":[],"health":{"source":"ocds-shcp","state":"ok","lastAttemptAt":"2026-09-06T01:28:26.859Z","lastSuccessAt":"2026-09-06T01:28:26.859Z","attempts":1,"consecutiveFailures":0,"evidence":{"message":"Corrida exitosa con registros procesados."},"staleForMs":1}}
+
+ [32m✓[39m test/_audit-adversarial.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 310[2mms[22m[39m
+[90mstdout[2m | test/_audit-adversarial.test.ts[2m > [22m[2mSR-adversarial: fingerprint cruzado entre fuentes — mismo título genérico, misma entidad, mismo día, procedimientos DISTINTOS[2m > [22m[2mdos convocatorias REALES y distintas de la misma entidad con título genérico y misma fecha de publicación colisionan en la misma huella (falso positivo potencial)
+[22m[39mAUDIT fingerprint colisión potencial: fpA= f5528d5d3266bfbff907fcc1498e2089d46e9fdc1f4b5286583541e038e76786 fpB= f5528d5d3266bfbff907fcc1498e2089d46e9fdc1f4b5286583541e038e76786 colisionan= [33mtrue[39m
+
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m11 passed[39m[22m[90m (11)[39m
+[2m   Start at [22m 19:28:26
+[2m   Duration [22m 614ms[2m (transform 55ms, setup 0ms, collect 67ms, tests 310ms, environment 0ms, prepare 42ms)[22m
+
+
+===== MUTACION 1/5: classifySourceFailure(401/403) -> 'down' en vez de 'permission_missing' =====
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-src/packages/sources[39m
+
+ [32m✓[39m test/pipeline/discovery-pipeline.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 39[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m10 passed[39m[22m[90m (10)[39m
+[2m   Start at [22m 19:28:41
+[2m   Duration [22m 333ms[2m (transform 63ms, setup 0ms, collect 70ms, tests 39ms, environment 0ms, prepare 41ms)[22m
+
+
+HALLAZGO MUTACION 1: NO detectado por ningun test (0 fallos) -> falta cobertura de HttpError 401/403 -> permission_missing
+
+===== MUTACION 2/5: detectChanges ya no detecta 'plazos' por submissionDeadline =====
+[31m[1mAssertionError[22m: expected [] to include 'plazos'[39m
+[36m [2m❯[22m test/dedupe.test.ts:[2m54:43[22m[39m
+    [90m 52| [39m    [35mconst[39m previous [33m=[39m [34mbaseRecord[39m()[33m;[39m
+    [90m 53| [39m    [35mconst[39m next [33m=[39m [34mbaseRecord[39m({ dates[33m:[39m { published[33m:[39m [32m"2026-08-01T00:00:00[39m…
+    [90m 54| [39m    [34mexpect[39m([34mdetectChanges[39m(previous[33m,[39m next))[33m.[39m[34mtoContain[39m([32m"plazos"[39m)[33m;[39m
+    [90m   | [39m                                          [31m^[39m
+    [90m 55| [39m    [34mexpect[39m([34misDeadlineMovedEarlier[39m(previous[33m,[39m next))[33m.[39m[34mtoBe[39m([35mtrue[39m)[33m;[39m
+    [90m 56| [39m  })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m test/dedupe.test.ts[2m > [22mInMemoryTenderVersionStore (ampliación §3: nueva publicación, replay idempotente, modificación con plazo adelantado)[2m > [22mcaso 'modificación con plazo adelantado': dispara ChangeDetected con changes=['plazos'] y deadlineMovedEarlier=true
+[31m[1mAssertionError[22m: expected [] to include 'plazos'[39m
+[36m [2m❯[22m test/dedupe.test.ts:[2m114:28[22m[39m
+    [90m112| [39m    [34mexpect[39m(isNew)[33m.[39m[34mtoBe[39m([35mtrue[39m)[33m;[39m
+    [90m113| [39m    [34mexpect[39m(event)[33m.[39m[34mtoBeDefined[39m()[33m;[39m
+    [90m114| [39m    [34mexpect[39m(event[33m?.[39mchanges)[33m.[39m[34mtoContain[39m([32m"plazos"[39m)[33m;[39m
+    [90m   | [39m                           [31m^[39m
+    [90m115| [39m    [34mexpect[39m(event[33m?.[39mdeadlineMovedEarlier)[33m.[39m[34mtoBe[39m([35mtrue[39m)[33m;[39m
+    [90m116| [39m    [34mexpect[39m(store[33m.[39m[34mhistory[39m([34msourceKey[39m(record)))[33m.[39m[34mtoHaveLength[39m([34m2[39m)[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m test/pipeline/discovery-pipeline.test.ts[2m > [22mDiscoveryPipeline: eventos de trazabilidad y ChangeDetected[2m > [22memite record-processed y ChangeDetected cuando una convocatoria cambia entre corridas
+[31m[1mAssertionError[22m: expected [ 'otros' ] to include 'plazos'[39m
+[36m [2m❯[22m test/pipeline/discovery-pipeline.test.ts:[2m304:64[22m[39m
+    [90m302| [39m    [35mawait[39m pipeline2[33m.[39m[34mrun[39m()[33m;[39m
+    [90m303| [39m    [34mexpect[39m(changeEvents)[33m.[39m[34mtoHaveLength[39m([34m1[39m)[33m;[39m
+    [90m304| [39m    [34mexpect[39m((changeEvents[[34m0[39m] [35mas[39m { changes[33m:[39m string[] })[33m.[39mchanges)[33m.[39m[34mtoConta[39m…
+    [90m   | [39m                                                               [31m^[39m
+    [90m305| [39m  })[33m;[39m
+    [90m306| [39m})[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯[22m[39m
+
+[2m Test Files [22m [1m[31m2 failed[39m[22m[90m (2)[39m
+[2m      Tests [22m [1m[31m3 failed[39m[22m[2m | [22m[1m[32m20 passed[39m[22m[90m (23)[39m
+[2m   Start at [22m 19:28:54
+[2m   Duration [22m 307ms[2m (transform 81ms, setup 0ms, collect 98ms, tests 48ms, environment 1ms, prepare 90ms)[22m
+
+
+HALLAZGO MUTACION 2: detectado (3 tests fallan) -> cobertura real de 'plazos' por submissionDeadline
+
+===== MUTACION 3/5: InMemoryTenderRepository.upsert -> wasNew siempre true (rompe dedupe) =====
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-src/packages/sources[39m
+
+ [31m❯[39m test/pipeline/discovery-pipeline.test.ts [2m([22m[2m10 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[90m 40[2mms[22m[39m
+[31m   [31m×[31m DiscoveryPipeline: idempotencia[2m > [22mcorrer dos veces sobre la misma fuente sin cambios produce el mismo estado final (0 nuevos, 0 actualizados en la 2a corrida)[90m 5[2mms[22m[31m[39m
+[31m     → expected 2 to be +0 // Object.is equality[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[1m[7m Failed Tests 1 [27m[22m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[31m[1m[7m FAIL [27m[22m[39m test/pipeline/discovery-pipeline.test.ts[2m > [22mDiscoveryPipeline: idempotencia[2m > [22mcorrer dos veces sobre la misma fuente sin cambios produce el mismo estado final (0 nuevos, 0 actualizados en la 2a corrida)
+[31m[1mAssertionError[22m: expected 2 to be +0 // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 0[39m
+[31m+ 2[39m
+
+[36m [2m❯[22m test/pipeline/discovery-pipeline.test.ts:[2m80:40[22m[39m
+    [90m 78| [39m
+    [90m 79| [39m    [35mconst[39m second [33m=[39m [35mawait[39m pipeline[33m.[39m[34mrun[39m()[33m;[39m
+    [90m 80| [39m    [34mexpect[39m(second[33m.[39mbySource[33m.[39mdof[33m.[39mnuevos)[33m.[39m[34mtoBe[39m([34m0[39m)[33m;[39m
+    [90m   | [39m                                       [31m^[39m
+    [90m 81| [39m    [34mexpect[39m(second[33m.[39mbySource[33m.[39mdof[33m.[39mactualizados)[33m.[39m[34mtoBe[39m([34m0[39m)[33m;[39m
+    [90m 82| [39m    [34mexpect[39m(second[33m.[39mbySource[33m.[39mdof[33m.[39msinCambios)[33m.[39m[34mtoBe[39m([34m2[39m)[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m9 passed[39m[22m[90m (10)[39m
+[2m   Start at [22m 19:29:05
+[2m   Duration [22m 344ms[2m (transform 44ms, setup 0ms, collect 54ms, tests 40ms, environment 0ms, prepare 35ms)[22m
+
+
+HALLAZGO MUTACION 3: detectado (1 test falla) -> cobertura real de idempotencia/dedupe
+
+===== MUTACION 4/5: parseRetryAfterMs siempre retorna undefined (ignora Retry-After) =====
+[32m-   7000,[90m
+[31m+   0,[90m
+[2m  ][22m
+[31m[90m
+
+Number of calls: [1m1[22m
+[31m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[1m[7m Failed Tests 1 [27m[22m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[31m[1m[7m FAIL [27m[22m[39m test/http-client.test.ts[2m > [22mHttpClient[2m > [22mrespeta Retry-After en vez del backoff exponencial
+[31m[1mAssertionError[22m: expected "sleep" to be called with arguments: [ 7000 ][90m
+
+Received: 
+
+[1m  1st sleep call:
+
+[22m[2m  Array [[22m
+[32m-   7000,[90m
+[31m+   0,[90m
+[2m  ][22m
+[31m[90m
+
+Number of calls: [1m1[22m
+[31m[39m
+[36m [2m❯[22m test/http-client.test.ts:[2m88:22[22m[39m
+    [90m 86| [39m    [35mawait[39m promise[33m;[39m
+    [90m 87| [39m
+    [90m 88| [39m    [34mexpect[39m(sleepSpy)[33m.[39m[34mtoHaveBeenCalledWith[39m([34m7000[39m)[33m;[39m
+    [90m   | [39m                     [31m^[39m
+    [90m 89| [39m  })[33m;[39m
+    [90m 90| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m5 passed[39m[22m[90m (6)[39m
+[2m   Start at [22m 19:29:16
+[2m   Duration [22m 336ms[2m (transform 32ms, setup 0ms, collect 36ms, tests 12ms, environment 0ms, prepare 34ms)[22m
+
+
+HALLAZGO MUTACION 4: detectado (1 test falla) -> cobertura real de Retry-After
+
+===== MUTACION 5/5: DiscoveryPipeline nunca lee el checkpoint guardado (siempre arranca desde cursor=undefined) =====
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-src/packages/sources[39m
+
+ [31m❯[39m test/pipeline/discovery-pipeline.test.ts [2m([22m[2m10 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[90m 43[2mms[22m[39m
+[31m   [31m×[31m DiscoveryPipeline: checkpoint / reanudación[2m > [22mreanuda desde el cursor guardado en vez de reprocesar desde el inicio[90m 4[2mms[22m[31m[39m
+[31m     → expected [ undefined, undefined ] to deeply equal [ undefined, 'cursor-1' ][39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[1m[7m Failed Tests 1 [27m[22m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[31m[1m[7m FAIL [27m[22m[39m test/pipeline/discovery-pipeline.test.ts[2m > [22mDiscoveryPipeline: checkpoint / reanudación[2m > [22mreanuda desde el cursor guardado en vez de reprocesar desde el inicio
+[31m[1mAssertionError[22m: expected [ undefined, undefined ] to deeply equal [ undefined, 'cursor-1' ][39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[2m  Array [[22m
+[2m    undefined,[22m
+[32m-   "cursor-1",[39m
+[31m+   undefined,[39m
+[2m  ][22m
+
+[36m [2m❯[22m test/pipeline/discovery-pipeline.test.ts:[2m122:32[22m[39m
+    [90m120| [39m    [35mawait[39m checkpoints[33m.[39m[35mset[39m([32m"ocds-shcp"[39m[33m,[39m { cursor[33m:[39m [32m"cursor-1"[39m[33m,[39m lastRunAt…
+    [90m121| [39m    [35mawait[39m pipeline[33m.[39m[34mrun[39m()[33m;[39m
+    [90m122| [39m    [34mexpect[39m(seenCursorsPerCall)[33m.[39m[34mtoEqual[39m([undefined[33m,[39m [32m"cursor-1"[39m])[33m;[39m
+    [90m   | [39m                               [31m^[39m
+    [90m123| [39m  })[33m;[39m
+    [90m124| [39m})[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m9 passed[39m[22m[90m (10)[39m
+[2m   Start at [22m 19:29:27
+[2m   Duration [22m 353ms[2m (transform 47ms, setup 0ms, collect 61ms, tests 43ms, environment 0ms, prepare 44ms)[22m
+
+
+HALLAZGO MUTACION 5: detectado (1 test falla) -> cobertura real de reanudacion por checkpoint
+
+RESUMEN MUTATION TESTING: 4/5 reglas detectadas por la suite existente; 1/5 (clasificacion de HttpError 401/403 -> permission_missing en classifySourceFailure) NO tiene test que la ejercite directamente (solo se prueba HostPausedError->permission_missing, HttpError 429->rate_limited, captcha, ZodError->interface_changed y error generico->down).
+[22m[39mAUDIT redirect cross-host: peticiones a B recibidas= [33m5[39m — el HostThrottle de HttpClient solo vio/limitó el host A (puerto [33m56684[39m ); el host B (puerto [33m56683[39m ) nunca pasó por concurrencyPerHost/minIntervalMsPerHost/pausa-403 porque el redirect ocurre DENTRO de una sola llamada a fetch().
+
+ [32m✓[39m test/connectors/state-portal.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/hash.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+[90mstdout[2m | test/_audit-adversarial.test.ts[2m > [22m[2mSR-adversarial: límite de concurrencia por host bajo carga real (50 peticiones)[2m > [22m[2mconcurrencyPerHost se respeta con 50 peticiones concurrentes reales (no fake timers)
+[22m[39mAUDIT 50-req concurrency test: maxInFlight= [33m3[39m totalCalls= [33m50[39m
+
+[90mstdout[2m | test/_audit-adversarial.test.ts[2m > [22m[2mSR-adversarial: aislamiento entre conectores en el mismo run()[2m > [22m[2mun conector que lanza a mitad de la iteración NO afecta a otro conector sano en el mismo pipeline.run(), y conserva los registros ya emitidos
+[22m[39mAUDIT aislamiento: dof= {"source":"dof","nuevos":1,"actualizados":0,"sinCambios":0,"errores":[{"message":"fallo simulado a mitad de la iteración"}],"health":{"source":"dof","state":"down","lastAttemptAt":"2026-09-06T01:29:39.327Z","attempts":1,"consecutiveFailures":1,"evidence":{"message":"fallo simulado a mitad de la iteración"}}} ocds-shcp= {"source":"ocds-shcp","nuevos":2,"actualizados":0,"sinCambios":0,"errores":[],"health":{"source":"ocds-shcp","state":"ok","lastAttemptAt":"2026-09-06T01:29:39.327Z","lastSuccessAt":"2026-09-06T01:29:39.327Z","attempts":1,"consecutiveFailures":0,"evidence":{"message":"Corrida exitosa con registros procesados."},"staleForMs":0}}
+
+[90mstdout[2m | test/_audit-adversarial.test.ts[2m > [22m[2mSR-adversarial: fingerprint cruzado entre fuentes — mismo título genérico, misma entidad, mismo día, procedimientos DISTINTOS[2m > [22m[2mdos convocatorias REALES y distintas de la misma entidad con título genérico y misma fecha de publicación colisionan en la misma huella (falso positivo potencial)
+[22m[39mAUDIT fingerprint colisión potencial: fpA= f5528d5d3266bfbff907fcc1498e2089d46e9fdc1f4b5286583541e038e76786 fpB= f5528d5d3266bfbff907fcc1498e2089d46e9fdc1f4b5286583541e038e76786 colisionan= [33mtrue[39m
+
+ [32m✓[39m test/_audit-adversarial.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 393[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m12 passed[39m[22m[90m (12)[39m
+[2m      Tests [22m [1m[32m75 passed[39m[22m[90m (75)[39m
+[2m   Start at [22m 19:29:38
+[2m   Duration [22m 783ms[2m (transform 387ms, setup 0ms, collect 860ms, tests 514ms, environment 2ms, prepare 744ms)[22m
+
