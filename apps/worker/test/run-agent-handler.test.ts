@@ -20,6 +20,15 @@ describe('run_agent handler (esqueleto)', () => {
     await db.close();
   });
 
+  /**
+   * WK-23 (docs/auditoria-1/worker-cierre.md, ALTA): este es también el
+   * caso "update legítimo OK" del contrato de identidad de worker_role —
+   * `userId` (owner de `orgId`, rol de escritura) se usa como `actorId`,
+   * así que `updateAgentRunRow` corre de verdad como `worker_role` con
+   * `app.current_org_id`/`app.current_user_id` correctos y la política RLS
+   * de `agent_runs` (packages/db/migrations/0008) lo permite — no solo
+   * porque la conexión ignore RLS, como antes de esta ronda.
+   */
   it('ejecuta con FakeProvider por defecto (sin OPENAI_API_KEY) y refleja el resultado en agent_runs', async () => {
     const { orgId, userId } = await seedOrgAndUser(db, 'org-run-agent');
     const { rows } = await db.query<{ id: string }>(
@@ -117,7 +126,12 @@ describe('run_agent handler (esqueleto)', () => {
       payload: {
         agentRunId,
         organizationId: orgB, // inconsistente: agentRunId real pertenece a orgA
-        actorId: 'attacker-or-bug',
+        // WK-23: actorId debe ser un UUID real (usado como app.current_user_id
+        // bajo worker_role) — se usa userA (miembro legítimo de orgA, NO de
+        // orgB) para mantener el foco de este test en el mismatch de
+        // organización, no en la validez de actorId (ver test dedicado WK-23
+        // más abajo para actorId inválido/sin membresía).
+        actorId: userA,
         actorRole: 'licitador' as const,
         agentName: 'demo-agent',
         prompt: 'intento de leer/sobrescribir la corrida de otro tenant',
@@ -206,6 +220,132 @@ describe('run_agent handler (esqueleto)', () => {
     expect((caught as { permanent?: boolean }).permanent).toBe(true);
 
     // La fila real de orgA NUNCA se tocó: ni siquiera se llegó a intentar el UPDATE.
+    const { rows: after } = await db.query<{ status: string; output: unknown }>(
+      `select status, output from agent_runs where id = $1`,
+      [agentRunId],
+    );
+    expect(after[0].status).toBe('running');
+    expect(after[0].output).toBeNull();
+  });
+
+  /**
+   * WK-23 (docs/auditoria-1/worker-cierre.md, ALTA): a diferencia del test
+   * WK-08 de arriba (organizationId NO coincide con el org_id real de la
+   * fila — bloqueado por el propio filtro `WHERE org_id = $5` de la
+   * query), este caso tiene `organizationId` CORRECTO (coincide con el
+   * org_id real de la fila), pero `actorId` es un usuario real que NO
+   * tiene membresía en esa organización. Antes de esta ronda esto habría
+   * actualizado la fila sin problema (la conexión propietaria del worker
+   * ignoraba RLS por completo). Ahora que `updateAgentRunRow` adopta
+   * `worker_role` de verdad (`set local role worker_role`), la política
+   * RLS de `agent_runs` (`org_id = current_org_id() AND has_role(org_id,
+   * write_roles)`, packages/db/migrations/0008) bloquea el UPDATE porque
+   * `has_role()` no encuentra ninguna membresía de `actorId` en
+   * `organizationId` — el bloqueo viene de RLS, no del filtro explícito de
+   * la query (que aquí SÍ coincide).
+   */
+  it('WK-23: organizationId correcto pero actorId sin membresía en esa organización — RLS bajo worker_role bloquea el update legítimo en apariencia', async () => {
+    const { userId: userA } = await seedOrgAndUser(db, 'org-a-wk23-noaccess');
+    const { orgId: orgB } = await seedOrgAndUser(db, 'org-b-wk23-noaccess');
+
+    const { rows } = await db.query<{ id: string }>(
+      `insert into agent_runs (org_id, agent_name, input, status) values ($1, 'demo-agent', '{}'::jsonb, 'running') returning id`,
+      [orgB],
+    );
+    const agentRunId = rows[0].id;
+
+    const handler = createRunAgentHandler({ db, buildProvider: () => new FakeProvider() });
+    const job = {
+      id: 'job-run-agent-wk23-noaccess',
+      orgId: orgB,
+      kind: 'run_agent',
+      payload: {
+        agentRunId,
+        organizationId: orgB, // CORRECTO: coincide con el org_id real de la fila
+        actorId: userA, // UUID real, pero SIN membresía en orgB (solo en orgA)
+        actorRole: 'licitador' as const,
+        agentName: 'demo-agent',
+        prompt: 'organizationId correcto, actor sin membresía real en esa org',
+      },
+      status: 'running' as const,
+      attempts: 1,
+      maxAttempts: 5,
+      nextRunAt: new Date(),
+      lockedAt: new Date(),
+      lockedBy: 'worker-test',
+      lastError: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    let caught: unknown;
+    try {
+      await handler(job, makeCtx());
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).name).toBe('AgentRunOrgMismatchError');
+    expect((caught as { permanent?: boolean }).permanent).toBe(true);
+
+    const { rows: after } = await db.query<{ status: string; output: unknown }>(
+      `select status, output from agent_runs where id = $1`,
+      [agentRunId],
+    );
+    expect(after[0].status).toBe('running');
+    expect(after[0].output).toBeNull();
+  });
+
+  /**
+   * WK-23: `actorId` se usa como `app.current_user_id` bajo `worker_role`
+   * (identidad de servicio); un valor que no sea un UUID real debe fallar
+   * cerrado con un mensaje explícito ANTES de tocar la base de datos, en
+   * vez de dejar que Postgres lance un error críptico de cast o que RLS lo
+   * trate silenciosamente como "sin membresía" indistinguible de un
+   * mismatch de organización real.
+   */
+  it('WK-23: actorId con formato inválido (no UUID) falla permanente y explícito, agent_runs NUNCA se toca', async () => {
+    const { orgId: orgA, userId: userA } = await seedOrgAndUser(db, 'org-a-wk23-badactor');
+    const { rows } = await db.query<{ id: string }>(
+      `insert into agent_runs (org_id, agent_name, input, status, started_by) values ($1, 'demo-agent', '{}'::jsonb, 'running', $2) returning id`,
+      [orgA, userA],
+    );
+    const agentRunId = rows[0].id;
+
+    const handler = createRunAgentHandler({ db, buildProvider: () => new FakeProvider() });
+    const job = {
+      id: 'job-run-agent-wk23-badactor',
+      orgId: orgA,
+      kind: 'run_agent',
+      payload: {
+        agentRunId,
+        organizationId: orgA,
+        actorId: 'no-soy-un-uuid',
+        actorRole: 'licitador' as const,
+        agentName: 'demo-agent',
+        prompt: 'actorId con formato inválido',
+      },
+      status: 'running' as const,
+      attempts: 1,
+      maxAttempts: 5,
+      nextRunAt: new Date(),
+      lockedAt: new Date(),
+      lockedBy: 'worker-test',
+      lastError: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    let caught: unknown;
+    try {
+      await handler(job, makeCtx());
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).name).toBe('RunAgentInvalidActorError');
+    expect((caught as { permanent?: boolean }).permanent).toBe(true);
+
     const { rows: after } = await db.query<{ status: string; output: unknown }>(
       `select status, output from agent_runs where id = $1`,
       [agentRunId],

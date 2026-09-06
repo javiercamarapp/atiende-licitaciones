@@ -24,6 +24,16 @@ export interface RunAgentPayload {
   /** Si se da, el resultado se refleja en la fila `agent_runs` correspondiente (packages/db/migrations/0004_agents.sql). */
   agentRunId?: string;
   organizationId: string | null;
+  /**
+   * WK-23 (docs/auditoria-1/worker-cierre.md, ALTA): cuando el job trae
+   * `agentRunId`, este mismo valor se usa también como identidad de
+   * `app.current_user_id` al actualizar `agent_runs` bajo `worker_role`
+   * (ver `updateAgentRunRow` abajo) — debe ser el UUID real del actor que
+   * originó la corrida (el mismo que `apps/api` ya conoce al encolar el
+   * job), con membresía activa y rol de escritura en `organizationId`, o
+   * la política RLS de `agent_runs` (packages/db/migrations/0008) rechazará
+   * el UPDATE aun siendo legítimo.
+   */
   actorId: string;
   actorRole: Role;
   agentName: string;
@@ -103,25 +113,46 @@ function toDbAgentRunStatus(status: AgentRun['status']): 'running' | 'succeeded'
 }
 
 /**
- * WK-08 (docs/auditoria-1/worker.md): antes de esta ronda este UPDATE solo
- * filtraba por `id`. Con la conexión "propietaria" del worker (sin RLS
- * forzada — ver README §Seguridad) eso significa que un job `run_agent` con
- * `agentRunId`/`organizationId` inconsistentes (bug/dato corrupto en quien
- * encola el job, fuera del control de este worker) podía sobrescribir en
- * silencio el resultado de la corrida de OTRO tenant, sin que ninguna capa
- * lo impidiera. Ahora, como defensa en profundidad MIENTRAS no exista un
- * `worker_role` dedicado con RLS real (propuesta en
- * `apps/worker/db-proposals/0026-worker-role.sql`, PENDIENTE esquema):
- *  1. Se fija `app.current_org_id` (vía `set_config`, alcance de
- *     transacción) incluso bajo la conexión propietaria — no lo hace
- *     cumplir RLS hoy (esa conexión no corre como `app_role`), pero deja el
- *     contexto correcto listo para cuando el `worker_role` propuesto sí lo
- *     haga, y sirve de traza/auditoría de qué org se creía estar tocando.
- *  2. El propio UPDATE filtra explícitamente `org_id = $organizationId`
- *     además de `id`: si la fila real pertenece a otra organización, el
- *     `UPDATE` no toca NINGUNA fila (`rowCount = 0`) en vez de sobrescribir
- *     la corrida de otro tenant. Se lanza un error explícito en ese caso
- *     (nunca un no-op silencioso) para que el job falle de forma visible.
+ * WK-08 (docs/auditoria-1/worker.md) + WK-23 (docs/auditoria-1/worker-cierre.md,
+ * ALTA): antes de esta ronda este UPDATE solo filtraba por `id`, y corría
+ * con la conexión "propietaria" del worker (sin RLS forzada — ver README
+ * §Seguridad), así que un job `run_agent` con `agentRunId`/`organizationId`
+ * inconsistentes (bug/dato corrupto en quien encola el job) podía
+ * sobrescribir en silencio el resultado de la corrida de OTRO tenant.
+ * `packages/db/migrations/0028_worker_role.sql` ya aplicó el `worker_role`
+ * dedicado (WK-08 esquema, antes PENDIENTE); su propio comentario documenta
+ * el contrato exacto: `agent_runs` NO necesita ninguna política RLS nueva
+ * porque la política de organización YA EXISTENTE (`org_id =
+ * current_org_id() and has_role(org_id, write_roles)`, 0008) se satisface
+ * fijando `app.current_org_id` Y `app.current_user_id` = el actor REAL de
+ * la corrida (con membresía activa y rol de escritura en esa org) — no un
+ * usuario de servicio genérico, la migración no crea ninguno.
+ * `packages/db/test/worker-role-and-job-proposals.test.ts` (packages/db,
+ * fuera de este ámbito) ya confirma este contrato contra las políticas
+ * reales con `SET LOCAL ROLE worker_role`.
+ *
+ * Antes de esta ronda, `updateAgentRunRow` fijaba `app.current_org_id` pero
+ * **nunca** `app.current_user_id` y seguía corriendo con la conexión
+ * propietaria (sin `SET ROLE worker_role`) — el día que esa conexión se
+ * hubiera migrado a `worker_role` tal cual estaba el código, RLS habría
+ * bloqueado hasta el UPDATE legítimo (falso positivo de "otro tenant").
+ * Ahora esta función:
+ *  1. Valida `organizationId` y `actorId` como UUID (zod) — fail-closed con
+ *     mensaje explícito si alguno no lo es, ANTES de tocar la base de
+ *     datos, en vez de dejar que un `set_config`/cast de Postgres falle con
+ *     un error críptico o, peor, que `has_role()` evalúe silenciosamente
+ *     `current_user_id() = null`.
+ *  2. Adopta `worker_role` de verdad (`set local role worker_role`, ámbito
+ *     de transacción) y fija `app.current_org_id`/`app.current_user_id` =
+ *     `actorId` (el actor real que originó la corrida, ya conocido por
+ *     `apps/api` al encolar el job — ver `RunAgentPayload.actorId`).
+ *  3. El propio UPDATE sigue filtrando explícitamente `org_id =
+ *     $organizationId` además de `id` (defensa en profundidad adicional,
+ *     redundante con RLS pero sin costo): si la fila real pertenece a otra
+ *     organización, o RLS bloquea porque `actorId` no tiene membresía de
+ *     escritura activa en esa org, el `UPDATE` no toca ninguna fila
+ *     (`rowCount = 0`) y se lanza un error explícito (nunca un no-op
+ *     silencioso).
  */
 class AgentRunOrgMismatchError extends Error {
   /** Reintentar no arregla un `agentRunId`/`organizationId` inconsistente: es un error permanente (ver WK-10, queue/errors.ts). */
@@ -134,20 +165,23 @@ class AgentRunOrgMismatchError extends Error {
 
 /**
  * WK-16 (docs/auditoria-1/worker-reverificacion.md, cierre de WK-08
- * PARCIAL): `organizationId: null` — un valor EXPLÍCITAMENTE válido según
- * el tipo `RunAgentPayload.organizationId: string | null` — desactivaba por
- * completo el `WHERE` de `updateAgentRunRow` (`$5::uuid is null or org_id =
- * $5::uuid`), permitiendo que CUALQUIER job con `agentRunId` real de
- * CUALQUIER tenant y `organizationId: null` sobrescribiera esa fila sin
- * ningún error — exactamente el comportamiento PRE-WK-08 que esa corrección
- * decía haber eliminado. Fail-closed: si el job trae `agentRunId` (indica
- * que SÍ se debe reflejar el resultado en `agent_runs`), `organizationId`
- * debe ser no nulo Y no vacío; si no, el job falla como error PERMANENTE
- * ANTES de tocar la base de datos (nunca se llama `updateAgentRunRow`, ni
- * siquiera se corre el `AgentRunner`), documentando explícitamente que "org
- * requerida" para poder persistir. El único caso legítimo de
- * `organizationId: null` ("fire and forget" sin persistencia, ver test
- * oficial "sin agentRunId en el payload...") nunca pasa por aquí porque no
+ * PARCIAL) + WK-19 (docs/auditoria-1/worker-cierre.md): `organizationId:
+ * null` — un valor EXPLÍCITAMENTE válido según el tipo
+ * `RunAgentPayload.organizationId: string | null` — desactivaba por
+ * completo el `WHERE` de `updateAgentRunRow`, permitiendo que CUALQUIER job
+ * con `agentRunId` real de CUALQUIER tenant y `organizationId: null`
+ * sobrescribiera esa fila sin ningún error. El guard original
+ * (`!organizationId`, WK-16) cerró `null`/`undefined`/`''`, pero un valor
+ * TRUTHY-pero-inválido (`'  '` solo espacios, un objeto) lo seguía
+ * bypaseando — confirmado por la reverificación (WK-19): esos casos no
+ * corrompían datos (Postgres rechaza el cast a `uuid`), pero clasificaban
+ * como error transitorio genérico en vez de fallar rápido y explícito.
+ * Ahora el guard valida con `z.string().uuid()` (fail-closed PERMANENTE,
+ * mensaje claro) en vez de un truthy-check: cualquier valor que no sea un
+ * UUID de organización real — nulo, vacío, solo espacios, un objeto, un
+ * número — hace fallar el job ANTES de tocar la base de datos, ni siquiera
+ * se corre el `AgentRunner`. El único caso legítimo de `organizationId:
+ * null` ("fire and forget" sin persistencia) nunca pasa por aquí porque no
  * trae `agentRunId`.
  */
 class RunAgentMissingOrganizationError extends Error {
@@ -158,7 +192,43 @@ class RunAgentMissingOrganizationError extends Error {
   }
 }
 
-async function updateAgentRunRow(db: DbClient, agentRunId: string, organizationId: string, run: AgentRun): Promise<void> {
+/**
+ * WK-23 (docs/auditoria-1/worker-cierre.md, ALTA): `actorId` se usa como
+ * `app.current_user_id` bajo `worker_role` (ver comentario de
+ * `updateAgentRunRow`); un valor que no sea un UUID real haría que
+ * Postgres fallara el `set_config`/cast con un error críptico, o que
+ * `has_role()` lo tratara silenciosamente como "sin membresía" — en ambos
+ * casos indistinguible de un mismatch de organización real. Fail-closed
+ * explícito en vez de eso.
+ */
+class RunAgentInvalidActorError extends Error {
+  readonly permanent = true as const;
+  constructor(message: string) {
+    super(message);
+    this.name = 'RunAgentInvalidActorError';
+  }
+}
+
+const uuidSchema = z.string().uuid();
+
+async function updateAgentRunRow(
+  db: DbClient,
+  agentRunId: string,
+  organizationId: string,
+  actorId: string,
+  run: AgentRun,
+): Promise<void> {
+  if (!uuidSchema.safeParse(organizationId).success) {
+    throw new AgentRunOrgMismatchError(
+      `run_agent: organizationId=${JSON.stringify(organizationId)} no es un UUID válido — no se puede actualizar agent_runs id=${agentRunId} de forma segura. Ninguna escritura se realizó.`,
+    );
+  }
+  if (!uuidSchema.safeParse(actorId).success) {
+    throw new RunAgentInvalidActorError(
+      `run_agent: actorId=${JSON.stringify(actorId)} no es un UUID válido — no se puede establecer la identidad de servicio (app.current_user_id) requerida por la RLS de agent_runs bajo worker_role (WK-23). Ninguna escritura se realizó.`,
+    );
+  }
+
   const output = JSON.stringify({
     richStatus: run.status,
     error: run.error ?? null,
@@ -169,13 +239,27 @@ async function updateAgentRunRow(db: DbClient, agentRunId: string, organizationI
   const finishedAt = run.finishedAt ?? new Date().toISOString();
 
   await db.transaction(async (tx) => {
+    // WK-23: adopta worker_role real (packages/db/migrations/0028_worker_role.sql)
+    // para esta escritura sensible a RLS — no solo se "prepara el contexto
+    // para cuando exista worker_role", como decía la nota WK-08 anterior:
+    // el rol ya existe y ya está aplicado, así que esta operación concreta
+    // lo usa de verdad.
+    await tx.query('set local role worker_role');
     await tx.query("select set_config('app.current_org_id', $1, true)", [organizationId]);
+    // WK-23: identidad de servicio = el actor REAL que originó la corrida
+    // (ver RunAgentPayload.actorId), nunca un usuario de sistema genérico —
+    // 0028 no crea ninguno; su propio comentario documenta que la política
+    // de organización existente ya cubre este caso combinada con el actor
+    // real, que debe tener membresía activa y rol de escritura en
+    // `organizationId` para que RLS permita el UPDATE.
+    await tx.query("select set_config('app.current_user_id', $1, true)", [actorId]);
 
-    // WK-16: el guard SIEMPRE compara contra la fila real — sin el
-    // escape `$5::uuid is null or ...` de antes, porque a este punto
-    // `organizationId` ya se validó no nulo/no vacío en el handler (ver
-    // `RunAgentMissingOrganizationError` arriba). `agentRunId` presente
-    // implica, ahora sí siempre, `organizationId` no nulo.
+    // El filtro explícito `org_id = $organizationId` sigue aquí como
+    // defensa en profundidad adicional (WK-08 original), redundante con
+    // RLS pero sin costo: cubre tanto "la fila es de otro tenant" como
+    // "RLS bloqueó el UPDATE" (actorId sin membresía de escritura activa
+    // en esa org) — ambos casos son, desde la perspectiva de este job, la
+    // misma condición de fallo: "no se pudo actualizar de forma segura".
     const { rowCount } = await tx.query(
       `update agent_runs
        set status = $2, output = $3::jsonb, finished_at = $4
@@ -185,7 +269,7 @@ async function updateAgentRunRow(db: DbClient, agentRunId: string, organizationI
 
     if (rowCount === 0) {
       throw new AgentRunOrgMismatchError(
-        `run_agent: no se actualizó agent_runs id=${agentRunId} — la fila no existe o su org_id real no coincide con organizationId=${organizationId} del payload del job (WK-08: defensa en profundidad, ninguna corrida de otro tenant fue tocada).`,
+        `run_agent: no se actualizó agent_runs id=${agentRunId} — la fila no existe, su org_id real no coincide con organizationId=${organizationId} del payload del job, o la RLS de worker_role bloqueó el UPDATE porque actorId=${actorId} no tiene membresía de escritura activa en esa organización (WK-08/WK-23: ninguna corrida de otro tenant fue tocada).`,
       );
     }
   });
@@ -204,15 +288,19 @@ async function updateAgentRunRow(db: DbClient, agentRunId: string, organizationI
  */
 export function createRunAgentHandler(deps: RunAgentHandlerDeps): JobHandler<RunAgentPayload> {
   return async (job) => {
-    // WK-16 (docs/auditoria-1/worker-reverificacion.md): fail-closed ANTES
-    // de correr nada. `!organizationId` cubre `null`, `undefined` Y `''`
-    // (los 3 valores "sin org" que un payload mal construido podría traer).
-    // Nunca se llega a `updateAgentRunRow` ni se escribe una sola fila en
-    // `agent_runs` en este caso — el job muere permanente en el primer
-    // intento (WK-10: reintentar no arregla un payload inconsistente).
-    if (job.payload.agentRunId && !job.payload.organizationId) {
+    // WK-16 (docs/auditoria-1/worker-reverificacion.md) + WK-19
+    // (docs/auditoria-1/worker-cierre.md): fail-closed ANTES de correr
+    // nada. El guard original (`!organizationId`) cubría `null`,
+    // `undefined` y `''`, pero un valor TRUTHY-pero-inválido (`'  '`, un
+    // objeto) lo bypaseaba — validar con `z.string().uuid()` en vez de un
+    // truthy-check cierra ese borde: cualquier cosa que no sea un UUID de
+    // organización real hace fallar el job aquí. Nunca se llega a
+    // `updateAgentRunRow` ni se escribe una sola fila en `agent_runs` en
+    // este caso — el job muere permanente en el primer intento (WK-10:
+    // reintentar no arregla un payload inconsistente).
+    if (job.payload.agentRunId && !uuidSchema.safeParse(job.payload.organizationId).success) {
       throw new RunAgentMissingOrganizationError(
-        `run_agent: agentRunId=${job.payload.agentRunId} viene con organizationId=${JSON.stringify(job.payload.organizationId)} — org requerida para persistir en agent_runs. Fail-closed (WK-16): ninguna escritura se realizó.`,
+        `run_agent: agentRunId=${job.payload.agentRunId} viene con organizationId=${JSON.stringify(job.payload.organizationId)} inválido (se requiere un UUID de organización, no solo un valor no-vacío) — org requerida para persistir en agent_runs. Fail-closed (WK-16/WK-19): ninguna escritura se realizó.`,
       );
     }
 
@@ -242,9 +330,10 @@ export function createRunAgentHandler(deps: RunAgentHandlerDeps): JobHandler<Run
     const run = await runner.run(request);
 
     if (job.payload.agentRunId) {
-      // El guard fail-closed de arriba (WK-16) ya garantiza que, si llegamos
-      // aquí con `agentRunId`, `organizationId` es no nulo/no vacío.
-      await updateAgentRunRow(deps.db, job.payload.agentRunId, job.payload.organizationId as string, run);
+      // El guard fail-closed de arriba (WK-16/WK-19) ya garantiza que, si
+      // llegamos aquí con `agentRunId`, `organizationId` es un UUID válido.
+      // `actorId` (WK-23) se valida dentro de `updateAgentRunRow`.
+      await updateAgentRunRow(deps.db, job.payload.agentRunId, job.payload.organizationId as string, job.payload.actorId, run);
     }
 
     if (run.status !== 'completed') {
