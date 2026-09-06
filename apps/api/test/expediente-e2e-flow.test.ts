@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import JSZip from 'jszip';
 import type { FastifyInstance } from 'fastify';
 import type { DbClient } from '@atiende/db';
-import { createTestApp, registerAndLogin, createOrgFor, TEST_PLATFORM_API_KEY } from './helpers.js';
+import { createTestApp, registerAndLogin, createOrgFor, enrollTwoFactor, TEST_PLATFORM_API_KEY } from './helpers.js';
 
 /**
  * E2E completo del expediente de participación, de punta a punta a través
@@ -35,8 +35,10 @@ describe('expediente — flujo E2E completo (E6-E11)', () => {
     const org = await createOrgFor(app, owner, 'E2E Org', 'e2e-org');
     const reviewer = await registerAndLogin(app, 'e2e-reviewer@example.com');
     await db.query("insert into memberships (org_id, user_id, role) values ($1, $2, 'reviewer')", [org.id, reviewer.id]);
-    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
-    const reviewerHeaders = { authorization: `Bearer ${reviewer.accessToken}`, 'x-org-id': org.id };
+    const { stepUpToken: ownerStepUp } = await enrollTwoFactor(app, owner.accessToken);
+    const { stepUpToken: reviewerStepUp } = await enrollTwoFactor(app, reviewer.accessToken);
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': ownerStepUp };
+    const reviewerHeaders = { authorization: `Bearer ${reviewer.accessToken}`, 'x-org-id': org.id, 'x-step-up': reviewerStepUp };
 
     // 1) Convocatoria (ingesta interna, ronda 1/2).
     const ingest = await app.inject({

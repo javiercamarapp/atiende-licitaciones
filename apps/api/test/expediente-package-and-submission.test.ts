@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import JSZip from 'jszip';
 import type { FastifyInstance } from 'fastify';
 import type { DbClient } from '@atiende/db';
-import { createTestApp, registerAndLogin, createOrgFor, TEST_PLATFORM_API_KEY } from './helpers.js';
+import { createTestApp, registerAndLogin, createOrgFor, enrollTwoFactor, TEST_PLATFORM_API_KEY } from './helpers.js';
 
 /**
  * E8/E9 — `PackageAssembler` real (ZIP en disco + manifiesto) y
@@ -67,7 +67,8 @@ describe('expediente — paquete final y presentación declarada (E8/E9)', () =>
     const owner = await registerAndLogin(app, 'pkg-owner-2@example.com');
     const org = await createOrgFor(app, owner, 'Pkg Org 2', 'pkg-org-2');
     const tenderId = await createTender(app, org.id, 'pkg-002');
-    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken);
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': stepUpToken };
 
     // Datos de empresa reales + tarifa aprobada, para que el cálculo
     // económico resuelva realmente (dimensión "calculos_economicos" verde).

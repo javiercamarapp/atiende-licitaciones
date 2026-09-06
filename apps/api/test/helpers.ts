@@ -6,9 +6,11 @@ import type { DbClient } from '@atiende/db';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app.js';
 import { loadConfig, type AppConfig } from '../src/config.js';
+import { generateTotpCodeForTesting } from '../src/lib/step-up.js';
 
 export const TEST_JWT_SECRET = 'test-secret-do-not-use-in-production-01234567890';
 export const TEST_PLATFORM_API_KEY = 'test-platform-api-key-01234567890';
+export const TEST_TOTP_ENCRYPTION_KEY = 'test-totp-encryption-key-do-not-use-01234567890';
 
 export async function createTestApp(overrides: Partial<AppConfig> = {}): Promise<{ app: FastifyInstance; db: DbClient }> {
   const db = await createPgliteClient();
@@ -18,6 +20,7 @@ export async function createTestApp(overrides: Partial<AppConfig> = {}): Promise
       NODE_ENV: 'test',
       STORAGE_DIR: mkdtempSync(join(tmpdir(), 'atiende-api-test-storage-')),
       PLATFORM_API_KEY: TEST_PLATFORM_API_KEY,
+      TOTP_ENCRYPTION_KEY: TEST_TOTP_ENCRYPTION_KEY,
     }),
     port: 0,
     databaseUrl: undefined,
@@ -54,6 +57,27 @@ export async function registerAndLogin(
   }
   const { accessToken, refreshToken } = login.json();
   return { email, password, accessToken, refreshToken, id };
+}
+
+/**
+ * REQ-044/064: enrola 2FA (TOTP) para `accessToken` y devuelve un
+ * `stepUpToken` VIGENTE (emitido por `verify-enrollment`, ver
+ * `modules/twofa/routes.ts`) listo para usarse como encabezado
+ * `X-Step-Up` en `POST .../approval/approve` o `POST .../rates/:id/approve`.
+ */
+export async function enrollTwoFactor(app: FastifyInstance, accessToken: string): Promise<{ secretBase32: string; stepUpToken: string }> {
+  const headers = { authorization: `Bearer ${accessToken}` };
+  const enroll = await app.inject({ method: 'POST', url: '/auth/2fa/enroll', headers });
+  if (enroll.statusCode !== 201) {
+    throw new Error(`2fa enroll failed: ${enroll.statusCode} ${enroll.body}`);
+  }
+  const { secretBase32 } = enroll.json();
+  const code = await generateTotpCodeForTesting(secretBase32);
+  const verify = await app.inject({ method: 'POST', url: '/auth/2fa/verify-enrollment', headers, payload: { code } });
+  if (verify.statusCode !== 200) {
+    throw new Error(`2fa verify-enrollment failed: ${verify.statusCode} ${verify.body}`);
+  }
+  return { secretBase32, stepUpToken: verify.json().stepUpToken };
 }
 
 export async function createOrgFor(

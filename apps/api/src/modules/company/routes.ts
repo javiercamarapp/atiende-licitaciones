@@ -7,6 +7,7 @@ import { NotFoundError, ConflictError } from '../../lib/errors.js';
 import { recordAudit } from '../../lib/audit.js';
 import { requireOrgRole } from '../../lib/authorize.js';
 import { recordFieldProvenance, getFieldProvenance } from '../../lib/provenance.js';
+import { requireStepUp } from '../../lib/step-up.js';
 import { registerSimpleCrud } from '../../lib/company-crud.js';
 import { decodeBase64Content, storeFile, computeDocumentStatus } from '../../lib/storage.js';
 import { withOptionalEmptyJsonBody } from '../../lib/optional-empty-body.js';
@@ -608,6 +609,11 @@ export async function companyRoutes(app: FastifyInstance): Promise<void> {
           await tx.query('set local role app_role');
           await tx.query("select set_config('app.current_org_id', $1, true)", [orgId]);
           await tx.query("select set_config('app.current_user_id', $1, true)", [userId]);
+          // REQ-044/064: aprobación económica exige verificación en dos
+          // pasos (TOTP) reciente, distinta del rol que aprueba -- ver
+          // lib/step-up.ts. Sin 2FA enrolado o sin X-Step-Up vigente, esto
+          // lanza un 403 explícito con instrucción, antes de tocar la fila.
+          await requireStepUp(tx, { userId, stepUpHeader: request.headers['x-step-up'] });
           // WI-04 (docs/auditoria-2/web-integrado.md): el check ('draft') y la
           // mutación deben ser LA MISMA sentencia atómica -- mismo patrón que
           // API-09 ya aplica a tool_calls -- para que una tarifa ya

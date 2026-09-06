@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { DbClient } from '@atiende/db';
-import { createTestApp, registerAndLogin, createOrgFor, TEST_PLATFORM_API_KEY } from './helpers.js';
+import { createTestApp, registerAndLogin, createOrgFor, enrollTwoFactor, TEST_PLATFORM_API_KEY } from './helpers.js';
 
 /**
  * AE-01 (docs/auditoria-2/api-expediente.md, ALTA): la vigencia de una
@@ -86,7 +86,8 @@ describe('AE-01: asOfIso NUNCA lo decide el cliente -- se deriva de tenders.subm
     // Presentación en 60 días.
     const submissionDeadline = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString();
     const tenderId = await createTender(app, org.id, 'ae01-002', submissionDeadline);
-    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken);
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': stepUpToken };
 
     // Tarifa vigente HOY (venció en 5 días desde ahora), pero para la fecha
     // de presentación (+60 días) ya estará vencida.
@@ -121,7 +122,8 @@ describe('AE-01: asOfIso NUNCA lo decide el cliente -- se deriva de tenders.subm
     const org = await createOrgFor(app, owner, 'AE01 Org 3', 'ae01-org-3');
     const submissionDeadline = new Date(Date.now() + 20 * 24 * 60 * 60 * 1000).toISOString();
     const tenderId = await createTender(app, org.id, 'ae01-003', submissionDeadline);
-    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken);
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': stepUpToken };
 
     const validFrom = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const validUntil = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);

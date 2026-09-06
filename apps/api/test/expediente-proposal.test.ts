@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import type { DbClient } from '@atiende/db';
-import { createTestApp, registerAndLogin, createOrgFor, TEST_PLATFORM_API_KEY } from './helpers.js';
+import { createTestApp, registerAndLogin, createOrgFor, enrollTwoFactor, TEST_PLATFORM_API_KEY } from './helpers.js';
 
 /**
  * E7 — propuesta técnica/económica real sobre `CompanyDataResolver` real
@@ -103,7 +103,8 @@ describe('expediente — propuesta técnica/económica (E7)', () => {
     const owner = await registerAndLogin(app, 'prop-owner-2@example.com');
     const org = await createOrgFor(app, owner, 'Prop Org 2', 'prop-org-2');
     const tenderId = await createTender(app, org.id, 'prop-002');
-    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken);
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': stepUpToken };
 
     const rateRes = await app.inject({
       method: 'POST',
@@ -189,7 +190,8 @@ describe('expediente — propuesta técnica/económica (E7)', () => {
     const owner = await registerAndLogin(app, 'prop-owner-4@example.com');
     const org = await createOrgFor(app, owner, 'Prop Org 4', 'prop-org-4');
     const tenderId = await createTender(app, org.id, 'prop-004');
-    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken);
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': stepUpToken };
 
     const reqId = await insertRequirement(db, org.id, tenderId, {
       description: 'En caso de que aplique, el licitante debe presentar manifestación adicional.',

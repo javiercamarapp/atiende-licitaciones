@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import type { DbClient } from '@atiende/db';
-import { createTestApp, registerAndLogin, createOrgFor, TEST_PLATFORM_API_KEY } from './helpers.js';
+import { createTestApp, registerAndLogin, createOrgFor, enrollTwoFactor, TEST_PLATFORM_API_KEY } from './helpers.js';
 
 /**
  * AE-02 (docs/auditoria-2/api-expediente.md, ALTA): `PATCH
@@ -62,7 +62,8 @@ describe('AE-02: editar el contenido de una sección tras una aprobación vigent
     const owner = await registerAndLogin(app, 'ae02-owner-1@example.com');
     const org = await createOrgFor(app, owner, 'AE02 Org 1', 'ae02-org-1');
     const tenderId = await createTender(app, org.id);
-    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken);
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': stepUpToken };
 
     const reqId = await insertRequirement(db, org.id, tenderId);
     const generate = await app.inject({
@@ -108,7 +109,8 @@ describe('AE-02: editar el contenido de una sección tras una aprobación vigent
     const owner = await registerAndLogin(app, 'ae02-owner-2@example.com');
     const org = await createOrgFor(app, owner, 'AE02 Org 2', 'ae02-org-2');
     const tenderId = await createTender(app, org.id, 'ae02-002');
-    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken);
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': stepUpToken };
 
     const reqId = await insertRequirement(db, org.id, tenderId);
     await app.inject({ method: 'POST', url: `/expediente/tenders/${tenderId}/proposal/technical/generate`, headers, payload: { mappings: [] } });

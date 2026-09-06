@@ -14,6 +14,7 @@ import { MEMBERSHIP_ADMIN_ROLES, WRITE_ROLES, type OrgRole } from '@atiende/db';
 import { sealInputs } from '@atiende/expediente';
 import { ForbiddenError } from '../../lib/errors.js';
 import { recordAudit } from '../../lib/audit.js';
+import { requireStepUp } from '../../lib/step-up.js';
 import { withTx, requireTender, requireProposal, collectUsedInputs } from '../../lib/expediente/context.js';
 import { loadApprovalEvents, replayWorkflow, appendApprovalEvent, persistApprovalSnapshot, orgRoleToWorkflowRole } from '../../lib/expediente/approval-store.pg.js';
 import { getCurrentSealedInputs, getCurrentInputsHashForDisplay, buildExpedienteInputs } from '../../lib/expediente/inputs.js';
@@ -97,6 +98,11 @@ export async function expedienteApprovalRoutes(app: FastifyInstance): Promise<vo
       const orgRole = request.orgRole;
 
       return withTx(app.db, orgId, userId, async (tx) => {
+        // REQ-044/064: aprobar un expediente exige verificación en dos
+        // pasos (TOTP) reciente, distinta del rol que aprueba -- ver
+        // lib/step-up.ts. Sin 2FA enrolado o sin X-Step-Up vigente, 403
+        // explícito con instrucción, antes de tocar ningún dato.
+        await requireStepUp(tx, { userId, stepUpHeader: request.headers['x-step-up'] });
         await requireTender(tx, orgId, request.params.tenderId);
         const proposal = await requireProposal(tx, orgId, request.params.tenderId);
         const events = await loadApprovalEvents(tx, orgId, proposal.id as string);

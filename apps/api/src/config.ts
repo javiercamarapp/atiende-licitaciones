@@ -24,6 +24,17 @@ export interface AppConfig {
    * `docs/logs/web-ronda3.log`).
    */
   rateLimitProfile: 'default' | 'e2e';
+  /**
+   * REQ-044/064 (2FA/step-up en aprobaciones económicas): clave usada para
+   * cifrar en reposo el secreto TOTP de cada usuario (`user_totp_secrets.secret_ciphertext`,
+   * AES-256-GCM, ver `lib/step-up.ts`). Se deriva con SHA-256 de este valor
+   * (acepta cualquier longitud de entrada) para obtener siempre 32 bytes --
+   * limitación documentada: en producción real debería venir de un KMS, no
+   * de una variable de entorno plana; fuera de alcance de esta ronda.
+   */
+  totpEncryptionKey: string;
+  /** REQ-044/064: minutos de vigencia de una sesión de verificación en dos pasos (`step_up_sessions`) tras validar el TOTP. */
+  stepUpWindowMinutes: number;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -36,6 +47,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const corsOriginsRaw = env.CORS_ORIGINS?.trim();
   const corsOrigins = corsOriginsRaw ? corsOriginsRaw.split(',').map((o) => o.trim()).filter(Boolean) : [];
 
+  const totpEncryptionKey = env.TOTP_ENCRYPTION_KEY;
+  if (!totpEncryptionKey || totpEncryptionKey.length < 16) {
+    throw new Error(
+      'TOTP_ENCRYPTION_KEY no definido o demasiado corto (mínimo 16 caracteres). Ver apps/api/.env.example.'
+    );
+  }
+
   return {
     port: Number(env.PORT ?? 3000),
     jwtSecret,
@@ -47,5 +65,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     platformApiKey: env.PLATFORM_API_KEY,
     // Comparación estricta: solo el literal 'e2e' activa el perfil elevado.
     rateLimitProfile: env.RATE_LIMIT_PROFILE === 'e2e' ? 'e2e' : 'default',
+    totpEncryptionKey,
+    stepUpWindowMinutes: Number(env.STEP_UP_WINDOW_MINUTES ?? 5),
   };
 }

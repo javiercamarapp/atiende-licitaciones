@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { DbClient } from '@atiende/db';
-import { createTestApp, registerAndLogin, createOrgFor, TEST_PLATFORM_API_KEY } from './helpers.js';
+import { createTestApp, registerAndLogin, createOrgFor, enrollTwoFactor, TEST_PLATFORM_API_KEY } from './helpers.js';
 
 /**
  * E8 — `IntegrityChecklist` persistida y `ApprovalWorkflow` real (roles
@@ -69,7 +69,8 @@ describe('expediente — checklist de integridad y flujo de aprobación (E8)', (
     const owner = await registerAndLogin(app, 'chk-owner-2@example.com');
     const org = await createOrgFor(app, owner, 'Chk Org 2', 'chk-org-2');
     const tenderId = await createTender(app, org.id, 'chk-002');
-    const ownerHeaders = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+    const { stepUpToken: ownerStepUp } = await enrollTwoFactor(app, owner.accessToken);
+    const ownerHeaders = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': ownerStepUp };
 
     const writer = await registerAndLogin(app, 'chk-writer-2@example.com');
     await db.query("insert into memberships (org_id, user_id, role) values ($1, $2, 'writer')", [org.id, writer.id]);
@@ -77,7 +78,8 @@ describe('expediente — checklist de integridad y flujo de aprobación (E8)', (
 
     const reviewer = await registerAndLogin(app, 'chk-reviewer-2@example.com');
     await db.query("insert into memberships (org_id, user_id, role) values ($1, $2, 'reviewer')", [org.id, reviewer.id]);
-    const reviewerHeaders = { authorization: `Bearer ${reviewer.accessToken}`, 'x-org-id': org.id };
+    const { stepUpToken: reviewerStepUp } = await enrollTwoFactor(app, reviewer.accessToken);
+    const reviewerHeaders = { authorization: `Bearer ${reviewer.accessToken}`, 'x-org-id': org.id, 'x-step-up': reviewerStepUp };
 
     await app.inject({ method: 'GET', url: `/expediente/tenders/${tenderId}/proposal`, headers: ownerHeaders });
 
@@ -139,7 +141,8 @@ describe('expediente — checklist de integridad y flujo de aprobación (E8)', (
     const owner = await registerAndLogin(app, 'chk-owner-3@example.com');
     const org = await createOrgFor(app, owner, 'Chk Org 3', 'chk-org-3');
     const tenderId = await createTender(app, org.id, 'chk-003');
-    const ownerHeaders = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+    const { stepUpToken: ownerStepUp } = await enrollTwoFactor(app, owner.accessToken);
+    const ownerHeaders = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': ownerStepUp };
 
     await app.inject({ method: 'PUT', url: '/company/profile', headers: ownerHeaders, payload: { legalName: 'Original SA de CV' } });
     await app.inject({ method: 'GET', url: `/expediente/tenders/${tenderId}/proposal`, headers: ownerHeaders });

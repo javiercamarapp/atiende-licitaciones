@@ -85,3 +85,33 @@ export async function recordAuthAudit(tx: DbExecutor, entry: AuthAuditEntry): Pr
     entry.requestId ?? null,
   ]);
 }
+
+export type SecurityAuditAction = 'twofa.enroll' | 'twofa.verify_enrollment' | 'twofa.step_up_verified';
+
+export interface SecurityAuditEntry {
+  action: SecurityAuditAction;
+  actorId: string;
+  entity: 'user_totp_secrets' | 'step_up_sessions';
+  entityId: string;
+  after?: unknown;
+  requestId?: string | null;
+  correlationId?: string | null;
+}
+
+/**
+ * REQ-044/064: eventos de 2FA (enrolar/verificar/step-up) ocurren sin
+ * organización activa (credenciales de USUARIO) -- mismo patrón que
+ * `recordAuthAudit` (API-13/0051), vía `app.record_security_event`
+ * (SECURITY DEFINER, 0057), restringida a una lista fija de acciones.
+ */
+export async function recordSecurityAudit(tx: DbExecutor, entry: SecurityAuditEntry): Promise<void> {
+  await tx.query('select app.record_security_event($1, $2, $3, $4, $5::jsonb, $6, $7)', [
+    entry.action,
+    entry.actorId,
+    entry.entity,
+    entry.entityId,
+    entry.after !== undefined ? JSON.stringify(entry.after) : null,
+    entry.requestId ?? null,
+    entry.correlationId ?? null,
+  ]);
+}

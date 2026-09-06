@@ -14,6 +14,7 @@ import { correlationIdPlugin } from './plugins/correlation-id.plugin.js';
 import { metricsPlugin } from './plugins/metrics.plugin.js';
 import { healthRoutes } from './modules/health/routes.js';
 import { authRoutes } from './modules/auth/routes.js';
+import { twofaRoutes } from './modules/twofa/routes.js';
 import { organizationRoutes } from './modules/organizations/routes.js';
 import { meRoutes } from './modules/me/routes.js';
 import { companyRoutes } from './modules/company/routes.js';
@@ -160,8 +161,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       info: {
         title: 'Atiende Licitaciones API',
         description:
-          'API de la plataforma Atiende Licitaciones (ronda 2: auth, organizaciones, perfil de empresa, convocatorias, matching, agentes, back office).',
-        version: '0.2.0',
+          'API de la plataforma Atiende Licitaciones (ronda 5: post-adjudicación estructurado + calendario oficial, procedencia vinculante, correlation_id de extremo a extremo, 2FA/step-up en aprobaciones económicas, aviso de privacidad).',
+        version: '0.5.0',
       },
     },
     // Imprescindible con fastify-type-provider-zod: sin este `transform`,
@@ -205,6 +206,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
 
   await app.register(healthRoutes);
   await app.register(authRoutes, { prefix: '/auth' });
+  await app.register(twofaRoutes, { prefix: '/auth' });
   await app.register(organizationRoutes, { prefix: '/organizations' });
   await app.register(meRoutes);
   await app.register(companyRoutes, { prefix: '/company' });

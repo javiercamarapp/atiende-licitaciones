@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { DbClient } from '@atiende/db';
-import { createTestApp, registerAndLogin, createOrgFor } from './helpers.js';
+import { createTestApp, registerAndLogin, createOrgFor, enrollTwoFactor } from './helpers.js';
 
 async function makeSuperadmin(db: DbClient, userId: string): Promise<void> {
   await db.query('insert into platform_admins (user_id) values ($1)', [userId]);
@@ -152,11 +152,12 @@ describe('POST sin cuerpo con Content-Type: application/json (ronda 4)', () => {
     const owner = await registerAndLogin(app, 'eb-owner-8@example.com');
     const org = await createOrgFor(app, owner, 'EB Org 8', 'eb-org-8');
     const rateId = await seedDraftRate(db, org.id, 'eb-item-8');
+    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken);
 
     const res = await app.inject({
       method: 'POST',
       url: `/company/rates/${rateId}/approve`,
-      headers: { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'content-type': 'application/json' },
+      headers: { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'content-type': 'application/json', 'x-step-up': stepUpToken },
       payload: '',
     });
     expect(res.statusCode).toBe(200);
@@ -185,11 +186,12 @@ describe('POST sin cuerpo con Content-Type: application/json (ronda 4)', () => {
     const owner = await registerAndLogin(app, 'eb-owner-10@example.com');
     const org = await createOrgFor(app, owner, 'EB Org 10', 'eb-org-10');
     const rateId = await seedDraftRate(db, org.id, 'eb-item-10');
+    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken);
 
     const res = await app.inject({
       method: 'POST',
       url: `/company/rates/${rateId}/approve`,
-      headers: { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id },
+      headers: { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': stepUpToken },
     });
     expect(res.statusCode).toBe(200);
   });

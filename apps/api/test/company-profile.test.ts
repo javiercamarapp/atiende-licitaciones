@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { DbClient } from '@atiende/db';
-import { createTestApp, registerAndLogin, createOrgFor } from './helpers.js';
+import { createTestApp, registerAndLogin, createOrgFor, enrollTwoFactor } from './helpers.js';
 
 // Una app/DB por caso (ver nota en tenders-and-ingest.test.ts sobre el
 // rate limit de /auth/login compartido dentro de una misma app).
@@ -184,10 +184,11 @@ describe('perfil de empresa (E2)', () => {
       )
     ).rejects.toThrow(/no está aprobada/);
 
+    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken);
     const approved = await app.inject({
       method: 'POST',
       url: `/company/rates/${rateId}/approve`,
-      headers: { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id },
+      headers: { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': stepUpToken },
     });
     expect(approved.statusCode).toBe(200);
     expect(approved.json().status).toBe('approved');

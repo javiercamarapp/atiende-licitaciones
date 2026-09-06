@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { DbClient } from '@atiende/db';
-import { createTestApp, registerAndLogin, createOrgFor, TEST_PLATFORM_API_KEY } from './helpers.js';
+import { createTestApp, registerAndLogin, createOrgFor, enrollTwoFactor, TEST_PLATFORM_API_KEY } from './helpers.js';
 
 /**
  * AE-14 (docs/auditoria-2/api-expediente-reverificacion.md, MEDIA):
@@ -38,7 +38,8 @@ describe('AE-14: GET /package/latest y /package/download re-derivan el estado re
     const owner = await registerAndLogin(app, 'ae14-owner-1@example.com');
     const org = await createOrgFor(app, owner, 'AE14 Org 1', 'ae14-org-1');
     const tenderId = await createTender(app, org.id, 'ae14-001');
-    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken);
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': stepUpToken };
 
     const proposalRes = await app.inject({ method: 'GET', url: `/expediente/tenders/${tenderId}/proposal`, headers });
     const proposalId = proposalRes.json().id;

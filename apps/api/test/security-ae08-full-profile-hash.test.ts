@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { DbClient } from '@atiende/db';
-import { createTestApp, registerAndLogin, createOrgFor, TEST_PLATFORM_API_KEY } from './helpers.js';
+import { createTestApp, registerAndLogin, createOrgFor, enrollTwoFactor, TEST_PLATFORM_API_KEY } from './helpers.js';
 
 /**
  * AE-08 (docs/auditoria-2/api-expediente.md, MEDIA): `ExpedienteInputs.
@@ -41,7 +41,8 @@ describe('AE-08: companyProfileHash cubre capabilities/experience/signatories/..
     const owner = await registerAndLogin(app, 'ae08-owner-1@example.com');
     const org = await createOrgFor(app, owner, 'AE08 Org 1', 'ae08-org-1');
     const tenderId = await createTender(app, org.id, 'ae08-001');
-    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken);
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': stepUpToken };
 
     const signatory = await app.inject({
       method: 'POST',
@@ -81,7 +82,8 @@ describe('AE-08: companyProfileHash cubre capabilities/experience/signatories/..
     const owner = await registerAndLogin(app, 'ae08-owner-2@example.com');
     const org = await createOrgFor(app, owner, 'AE08 Org 2', 'ae08-org-2');
     const tenderId = await createTender(app, org.id, 'ae08-002');
-    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken);
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': stepUpToken };
 
     const capability = await app.inject({ method: 'POST', url: '/company/capabilities', headers, payload: { name: 'Limpieza industrial' } });
     expect(capability.statusCode).toBe(201);

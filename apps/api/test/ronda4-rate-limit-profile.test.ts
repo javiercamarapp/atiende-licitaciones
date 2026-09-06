@@ -3,7 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import type { DbClient } from '@atiende/db';
 import { loadConfig } from '../src/config.js';
 import { getRateLimitSettings } from '../src/lib/rate-limit-settings.js';
-import { createTestApp, TEST_JWT_SECRET } from './helpers.js';
+import { createTestApp, TEST_JWT_SECRET, TEST_TOTP_ENCRYPTION_KEY } from './helpers.js';
 
 /**
  * Ronda 4, item 4 (docs/logs/api-ronda4.log): `RATE_LIMIT_PROFILE=e2e` debe
@@ -27,6 +27,7 @@ describe('RATE_LIMIT_PROFILE (ronda 4)', () => {
     for (const nodeEnv of ['test', 'development', 'production', undefined]) {
       const cfg = loadConfig({
         JWT_SECRET: TEST_JWT_SECRET,
+        TOTP_ENCRYPTION_KEY: TEST_TOTP_ENCRYPTION_KEY,
         ...(nodeEnv ? { NODE_ENV: nodeEnv } : {}),
       } as NodeJS.ProcessEnv);
       expect(cfg.rateLimitProfile).toBe('default');
@@ -34,13 +35,13 @@ describe('RATE_LIMIT_PROFILE (ronda 4)', () => {
   });
 
   it('loadConfig() con RATE_LIMIT_PROFILE=e2e (exacto) resuelve "e2e"', () => {
-    const cfg = loadConfig({ JWT_SECRET: TEST_JWT_SECRET, RATE_LIMIT_PROFILE: 'e2e' } as NodeJS.ProcessEnv);
+    const cfg = loadConfig({ JWT_SECRET: TEST_JWT_SECRET, TOTP_ENCRYPTION_KEY: TEST_TOTP_ENCRYPTION_KEY, RATE_LIMIT_PROFILE: 'e2e' } as NodeJS.ProcessEnv);
     expect(cfg.rateLimitProfile).toBe('e2e');
   });
 
   it('loadConfig() con un valor distinto de "e2e" (mayúsculas, typo, "E2E", "true") NUNCA activa el perfil elevado', () => {
     for (const value of ['E2E', 'E2e', 'true', '1', 'staging', ' e2e ', '']) {
-      const cfg = loadConfig({ JWT_SECRET: TEST_JWT_SECRET, RATE_LIMIT_PROFILE: value } as NodeJS.ProcessEnv);
+      const cfg = loadConfig({ JWT_SECRET: TEST_JWT_SECRET, TOTP_ENCRYPTION_KEY: TEST_TOTP_ENCRYPTION_KEY, RATE_LIMIT_PROFILE: value } as NodeJS.ProcessEnv);
       expect(cfg.rateLimitProfile).toBe('default');
     }
   });

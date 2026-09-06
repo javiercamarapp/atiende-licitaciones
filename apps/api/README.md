@@ -38,6 +38,8 @@ npm run -w apps/api test                 # integración con fastify.inject + PGl
 | `CORS_ORIGINS` | No (vacío) | Orígenes permitidos para CORS, separados por coma. Vacío = ningún origen cross-site permitido (falla cerrado). |
 | `PLATFORM_API_KEY` | No (sin valor = ingesta interna deshabilitada) | Clave de plataforma para `X-Platform-Api-Key` en `POST /internal/tenders/ingest` (autentica a apps/worker, no a un tenant). |
 | `RATE_LIMIT_PROFILE` | No (`default`) | `default` (100-300 req/min según ruta) salvo que sea EXACTAMENTE `e2e` (nunca por `NODE_ENV`) — ver "Límites de tasa" más abajo. |
+| `TOTP_ENCRYPTION_KEY` | Sí | Clave para cifrar en reposo (AES-256-GCM) el secreto TOTP de cada usuario (REQ-044/064, mín. 16 caracteres). **Limitación documentada**: en producción real debería salir de un KMS, no de una variable de entorno plana. |
+| `STEP_UP_WINDOW_MINUTES` | No (5) | Minutos de vigencia de una sesión de verificación en dos pasos (`step_up_sessions`) tras validar el TOTP, antes de exigir verificar de nuevo para aprobar una tarifa/expediente. |
 
 ## Cómo se conecta a un Postgres real en producción
 
@@ -58,6 +60,20 @@ requieren `Authorization: Bearer <access token>`. Las que operan sobre una
 organización además requieren `X-Org-Id: <uuid>` (validado contra la
 membresía real, nunca solo el header).
 
+Dos encabezados adicionales, transversales a toda la API:
+- `X-Correlation-Id` (REQ-171): id de correlación de negocio, opcional --
+  si se manda un UUID válido se HEREDA (permite a un cliente/orquestador
+  correlacionar varias requests de un mismo flujo: convocatoria -> matriz
+  -> propuesta -> paquete -> archivo); si no, se genera uno nuevo. Siempre
+  se refleja en la respuesta (`X-Correlation-Id`) y se propaga a
+  `audit_log`/`jobs`/`proposals`/`package_manifests` (ver `GET
+  /audit-log?correlationId=`).
+- `X-Step-Up` (REQ-044/064): exigido por `POST .../rates/:id/approve` y
+  `POST .../approval/approve` -- debe ser un `stepUpToken` vigente emitido
+  por `POST /auth/2fa/step-up` (o por `POST /auth/2fa/verify-enrollment`,
+  ver módulo `2fa` abajo). Sin 2FA enrolado, o sin el encabezado, o con un
+  token vencido/ajeno, la API responde 403 con una instrucción explícita.
+
 ### health
 - `GET /healthz` — liveness, no toca DB.
 - `GET /readyz` — verifica DB con `select 1`, 503 si falla.
@@ -71,6 +87,28 @@ membresía real, nunca solo el header).
 - `POST /auth/refresh` — rotación real: revoca el refresh token usado al
   emitir uno nuevo; reusar un token ya rotado responde 401.
 - `POST /auth/logout` — revoca el refresh token dado (idempotente).
+
+### 2fa (REQ-044/064 — step-up con TOTP)
+Endpoints de USUARIO (no de organización): el enrolamiento es de la
+cuenta, válido para cualquier organización de la que sea miembro.
+- `GET /auth/2fa/status` — `{enrolled, enrolledAt}`.
+- `POST /auth/2fa/enroll` — genera un secreto TOTP (`otplib`, cifrado en
+  reposo con AES-256-GCM, ver `lib/step-up.ts`) + 10 códigos de respaldo de
+  un solo uso (`XXXX-XXXX`, hasheados con SHA-256). El secreto en claro y
+  los códigos de respaldo se devuelven **una única vez**, en esta
+  respuesta. 409 si ya hay un enrolamiento verificado (desenrolar está
+  fuera de alcance de esta ronda).
+- `POST /auth/2fa/verify-enrollment` — body `{code}` (TOTP de 6 dígitos):
+  confirma el enrolamiento (`verified_at`) y devuelve de una vez un
+  `stepUpToken` vigente (confirmar el enrolamiento ya prueba posesión del
+  TOTP).
+- `POST /auth/2fa/step-up` — body `{code}` (TOTP de 6 dígitos, o un código
+  de respaldo `XXXX-XXXX`): emite un `stepUpToken` (id de una fila de
+  `step_up_sessions`, vigente `STEP_UP_WINDOW_MINUTES`), a usar como
+  `X-Step-Up` en una aprobación económica sensible. Replay rechazado: un
+  código de un "time step" TOTP igual o anterior al último aceptado para
+  ese usuario se rechaza siempre, aunque siga siendo válido dentro de su
+  ventana de tolerancia; un código de respaldo ya usado también se rechaza.
 
 ### organizations
 - `POST /organizations`, `GET /organizations`.
@@ -199,6 +237,14 @@ organizaciones.
   back office de solo lectura para un superadmin externo). Transición
   atómica igual que la ruta por-org (API-09); `audit_log` con el actor
   superadmin real y la organización afectada.
+- `GET /admin/calendar-holidays` (REQ-050/056, ronda 5, `?jurisdiction=`/
+  `?year=`) — calendario oficial de días inhábiles; lectura abierta a
+  cualquier usuario autenticado (no solo superadmin: cualquier
+  organización lo consume para su propio cómputo de plazos), tabla de
+  PLATAFORMA (sin `org_id`, mismo patrón que `source_runs`). `POST
+  /admin/calendar-holidays` (solo superadmin) exige `sourceUrl`+
+  `sourceConsultedOn` (nunca una fecha "de memoria" — la tabla se
+  despliega VACÍA, ver `apps/api/docs/e11-cobertura.md`).
 
 ### expediente (E6-E9/E11 — expediente de participación real)
 Integra `@atiende/expediente` (paquete puro, sin DB) sobre `packages/db`
@@ -307,6 +353,18 @@ mutar, `viewer` solo lee), salvo aprobar (ver más abajo).
   Los recordatorios se ENCOLAN en `jobs` (`kind:
   "post_award_followup_reminder"`) sin ningún envío externo — esta ronda
   entrega la fila encolada, no un canal de notificación real.
+  **Ronda 5** (ver `apps/api/docs/e11-cobertura.md`, reconciliación
+  honesta contra REQ-050..056): `kind` ampliado con `penalizacion`/
+  `convenio_modificatorio`; `kind='hito'` exige `responsibleParty`;
+  `kind='garantia'` exige `guaranteeType`; `kind='facturacion'` exige
+  `cfdiReference`+`acceptanceDate` y calcula el plazo de pago con el mismo
+  motor que `kind='pago'`; `kind='penalizacion'|'convenio_modificatorio'`
+  exige `modificationReference`. Cada seguimiento expone `alertLevel`
+  (`'vencido'|'proximo'|null`); `GET /expediente/post-award-alerts` agrega
+  todos los vencidos/próximos de la organización. El cómputo de días
+  hábiles combina el calendario OFICIAL cargado en `calendar_holidays`
+  (ver `GET/POST /admin/calendar-holidays` abajo) con los `holidays` que el
+  llamador declare a mano.
 
 Todas las rutas devuelven errores en `application/problem+json` (RFC 7807):
 `{ type, title, status, detail?, requestId }`. En producción, un error 500
@@ -476,10 +534,12 @@ solo, pasa establemente en <2s por caso).
   Postgres real (no disponible en este entorno, ver `packages/db/README.md`).
 - Idempotencia y rate limit por organización/usuario con alcance completo
   (ver Decisiones de diseño).
-- Re-autenticación (passkey/OTP) específica para aprobaciones económicas
-  (REQ-044/REQ-064): la aprobación de tarifas/tool_calls registra
-  aprobador y queda en `audit_log`, pero no exige un segundo factor
-  adicional en esta ronda.
+- **Ronda 5**: implementado 2FA/step-up con TOTP (`otplib`) para `POST
+  .../rates/:id/approve` y `POST .../approval/approve` (REQ-044/064, ver
+  módulo `2fa` arriba). **Sigue pendiente**: passkey/WebAuthn (el
+  requisito menciona "passkey/OTP" — esta ronda solo implementó OTP/TOTP,
+  no passkey); `tool_calls` (aprobación de agentes) sigue sin exigir un
+  segundo factor.
 - Cableado completo de `AgentRunner` (packages/agents) con proveedores LLM
   reales, `ToolRegistry` de negocio y guardrails activos desde `apps/api`:
   esta ronda entrega la capa de persistencia (`RunStore`/`ToolCallStore`) y
@@ -521,12 +581,17 @@ solo, pasa establemente en <2s por caso).
     pide "sin envío externo", no un canal de notificación).
   - **Calendario oficial de días inhábiles incompleto**: `addBusinessDays`
     (17 días hábiles, LAASSP Art. 73) solo excluye sábados/domingos por
-    defecto; el llamador puede pasar `holidays` explícitos, pero no hay una
-    lista oficial de feriados mexicanos cableada en esta ronda.
-  - **`2FA`/re-autenticación en la aprobación del expediente**: igual que
-    el resto de la API (ver punto de aprobaciones económicas arriba), la
-    aprobación queda en `audit_log` con el aprobador real, pero no exige un
-    segundo factor adicional.
+    defecto; **ronda 5** agregó la tabla `calendar_holidays` + `GET/POST
+    /admin/calendar-holidays` para cargar el calendario oficial, pero se
+    despliega VACÍA (sin verificación en línea confiable del lineamiento
+    SABG vigente en esta ronda, ver `docs/legal/verificacion-legal.md`) --
+    cargarla con fechas reales sigue siendo tarea de un administrador.
+  - **`2FA` en la aprobación del expediente**: implementado en ronda 5
+    (`POST .../approval/approve` exige `X-Step-Up`, ver módulo `2fa`).
+  - **E11 (REQ-051..055)**: máquina de estados del contrato, extracción
+    estructurada del contrato firmado, redactor de inconformidades,
+    autopsia del fallo y radar de renovaciones NO están construidos --
+    fuera de alcance de la ronda 5 (ver `apps/api/docs/e11-cobertura.md`).
 
 ## Reparaciones — auditoría 2 (`docs/auditoria-2/api-expediente.md`)
 

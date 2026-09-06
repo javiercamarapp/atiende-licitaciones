@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { DbClient } from '@atiende/db';
-import { createTestApp, registerAndLogin, createOrgFor } from './helpers.js';
+import { createTestApp, registerAndLogin, createOrgFor, enrollTwoFactor } from './helpers.js';
 
 /**
  * WI-04 (docs/auditoria-2/web-integrado.md): `POST /company/rates/:id/approve|reject`
@@ -39,7 +39,8 @@ describe('WI-04: POST /company/rates/:id/approve|reject son transiciones de esta
     const owner = await registerAndLogin(app, 'wi04-owner-1@example.com');
     const org = await createOrgFor(app, owner, 'WI04 Org 1', 'wi04-org-1');
     const rateId = await seedDraftRate(db, org.id, 'wi04-item-1');
-    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken);
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': stepUpToken };
 
     const [first, second] = await Promise.all([
       app.inject({ method: 'POST', url: `/company/rates/${rateId}/approve`, headers }),
@@ -63,7 +64,8 @@ describe('WI-04: POST /company/rates/:id/approve|reject son transiciones de esta
     const owner = await registerAndLogin(app, 'wi04-owner-2@example.com');
     const org = await createOrgFor(app, owner, 'WI04 Org 2', 'wi04-org-2');
     const rateId = await seedDraftRate(db, org.id, 'wi04-item-2');
-    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken);
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': stepUpToken };
 
     const first = await app.inject({ method: 'POST', url: `/company/rates/${rateId}/approve`, headers });
     expect(first.statusCode).toBe(200);
@@ -76,7 +78,8 @@ describe('WI-04: POST /company/rates/:id/approve|reject son transiciones de esta
     const owner = await registerAndLogin(app, 'wi04-owner-3@example.com');
     const org = await createOrgFor(app, owner, 'WI04 Org 3', 'wi04-org-3');
     const rateId = await seedDraftRate(db, org.id, 'wi04-item-3');
-    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken);
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': stepUpToken };
 
     const approve = await app.inject({ method: 'POST', url: `/company/rates/${rateId}/approve`, headers });
     expect(approve.statusCode).toBe(200);
@@ -89,7 +92,8 @@ describe('WI-04: POST /company/rates/:id/approve|reject son transiciones de esta
     const owner = await registerAndLogin(app, 'wi04-owner-4@example.com');
     const org = await createOrgFor(app, owner, 'WI04 Org 4', 'wi04-org-4');
     const rateId = await seedDraftRate(db, org.id, 'wi04-item-4');
-    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken);
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': stepUpToken };
 
     const [approve, reject] = await Promise.all([
       app.inject({ method: 'POST', url: `/company/rates/${rateId}/approve`, headers }),
