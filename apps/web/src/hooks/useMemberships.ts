@@ -7,7 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useAuth } from "@/hooks/useAuth";
 import * as api from "@/lib/api/organizations";
-import type { OrgRole } from "@/lib/api/schemas";
+import type { Invitation, OrgRole } from "@/lib/api/schemas";
 
 export function useMemberships() {
   const { currentOrgId } = useAuth();
@@ -33,5 +33,18 @@ export function useRemoveMembership() {
   return useMutation({
     mutationFn: (userId: string) => api.removeMembership(currentOrgId!, userId),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["organizations", "memberships", currentOrgId] }),
+  });
+}
+
+/**
+ * `POST /organizations/invitations`: el token en claro solo se devuelve UNA
+ * vez en la respuesta (ver apps/api/README.md) -- no se persiste en ningún
+ * lado, por lo que la propia mutación es el único momento en que la UI
+ * puede mostrarlo (ver UsuariosRolesPage.tsx).
+ */
+export function useInviteMember() {
+  const { currentOrgId } = useAuth();
+  return useMutation<Invitation, unknown, { email: string; role: OrgRole }>({
+    mutationFn: (input) => api.inviteMember(currentOrgId!, input),
   });
 }
