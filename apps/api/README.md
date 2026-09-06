@@ -40,6 +40,10 @@ npm run -w apps/api test                 # integración con fastify.inject + PGl
 | `RATE_LIMIT_PROFILE` | No (`default`) | `default` (100-300 req/min según ruta) salvo que sea EXACTAMENTE `e2e` (nunca por `NODE_ENV`) — ver "Límites de tasa" más abajo. |
 | `TOTP_ENCRYPTION_KEY` | Sí | Clave para cifrar en reposo (AES-256-GCM) el secreto TOTP de cada usuario (REQ-044/064, mín. 16 caracteres). **Limitación documentada**: en producción real debería salir de un KMS, no de una variable de entorno plana. |
 | `STEP_UP_WINDOW_MINUTES` | No (5) | Minutos de vigencia de una sesión de verificación en dos pasos (`step_up_sessions`) tras validar el TOTP, antes de exigir verificar de nuevo para aprobar una tarifa/expediente. |
+| `GOOGLE_CLIENT_ID` | Solo para login con Google real | Client ID de OAuth 2.0 de Google Cloud Console (REQ-178). Sin esta variable (junto a `GOOGLE_CLIENT_SECRET`/`GOOGLE_REDIRECT_URI`), `GET /auth/google/start`/`GET /auth/google/callback` responden 503 explícito — **BLOQUEADO_EXTERNO** hasta que el usuario aporte credenciales reales. Nunca en el repositorio. |
+| `GOOGLE_CLIENT_SECRET` | Solo para login con Google real | Client secret correspondiente. Nunca en el repositorio, nunca logueado (ver "auth/google" abajo). |
+| `GOOGLE_REDIRECT_URI` | Solo para login con Google real | URI de callback EXACTA registrada en Google Cloud Console (ver "Configurar Google Cloud Console" abajo), p. ej. `https://api.atiende.mx/auth/google/callback`. |
+| `OIDC_ISSUER_URL` | No (`https://accounts.google.com`) | Issuer OIDC configurable (REQ-172): permite apuntar TODO el flujo (discovery, JWKS, token endpoint) a un proveedor OIDC distinto — usado por las pruebas automatizadas para apuntar a un proveedor OIDC FALSO local (`test/helpers/fake-oidc.ts`), nunca a la red real. |
 
 ## Cómo se conecta a un Postgres real en producción
 
@@ -55,8 +59,10 @@ excepción deliberada es `POST /internal/tenders/ingest` (ver más abajo).
 ## Módulos y rutas
 
 Todas las rutas (salvo `/healthz`, `/readyz`, `/auth/register`,
-`/auth/login`, `/auth/refresh`, `/auth/logout` e `/internal/tenders/ingest`)
-requieren `Authorization: Bearer <access token>`. Las que operan sobre una
+`/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/google/start`,
+`/auth/google/callback`, `/auth/google/verify-2fa` e
+`/internal/tenders/ingest`) requieren `Authorization: Bearer <access
+token>`. Las que operan sobre una
 organización además requieren `X-Org-Id: <uuid>` (validado contra la
 membresía real, nunca solo el header).
 
@@ -104,6 +110,94 @@ Dos encabezados adicionales, transversales a toda la API:
 - `POST /auth/refresh` — rotación real: revoca el refresh token usado al
   emitir uno nuevo; reusar un token ya rotado responde 401.
 - `POST /auth/logout` — revoca el refresh token dado (idempotente).
+
+### auth/google (REQ-172..180 — login con Google, OIDC)
+
+Botón "Continuar con Google" **junto al** login por email+contraseña
+existente, nunca reemplazándolo (REQ-172). Flujo OIDC estándar
+(Authorization Code + PKCE S256 + `state` firmado + `nonce`):
+
+- `GET /auth/google/start` (rate limit 5/min, tier `auth`) — genera
+  `code_verifier`/`code_challenge` (PKCE) y `nonce`, los persiste en
+  `oauth_states` (TTL 10 minutos) y devuelve
+  `{ authorizationUrl }` (la URL de autorización del proveedor, con
+  `state` firmado embebiendo solo el id de esa fila — nunca el
+  `code_verifier` en claro viaja al cliente).
+- `GET /auth/google/callback?code&state` (rate limit 5/min) — consume
+  `oauth_states` de forma **atómica y de un solo uso** (anti-CSRF,
+  anti-replay de `state`/`nonce`: un `state` reutilizado, inválido o
+  expirado responde `400`), intercambia el `code` por un `id_token` en el
+  `token_endpoint` real del proveedor, y lo verifica contra el JWKS real
+  (`jose`, `aud`/`iss`/`exp`/`nonce`) — `aud` ajeno a `GOOGLE_CLIENT_ID`
+  responde `401`. `email_verified=false` (o ausente) se **rechaza
+  explícitamente** (REQ-179): nunca crea cuenta, nunca vincula, nunca
+  inicia sesión (`403`).
+  - **Vinculación** (REQ-173): email verificado coincide con una cuenta
+    `email+contraseña` ya existente → se vincula (`user_identities`) y se
+    audita `auth.google_linked`, respetando 2FA si está enrolado
+    (abajo). REQ-180: si esa cuenta ya tiene una identidad de Google
+    vinculada a un `subject` **distinto**, se rechaza como conflicto
+    (`403`) en vez de sobrescribir el vínculo en silencio.
+  - **Cuenta nueva** (REQ-174): ningún usuario con ese email → se crea
+    sin contraseña (`password_hash` NULL). Si había invitación(es)
+    pendiente(s) para ese email, se aceptan automáticamente (entra
+    directo a esa(s) organización(es)); si no, la cuenta queda sin
+    ninguna organización — **nunca se crea una organización
+    automáticamente** — y la respuesta trae `status: "sin_acceso"` (mismo
+    patrón `SIN_ROL`/`/sin-acceso` documentado en
+    `docs/investigacion/salida-promocion-referencias.md` §1: esto NO es
+    una concesión de acceso nueva, cualquier endpoint de organización
+    sigue exigiendo membresía real).
+  - **2FA existente** (REQ-176): si la cuenta ya tiene 2FA
+    enrolado+verificado, la sesión NO se completa aquí — la respuesta es
+    `{ status: "requires_2fa", pendingToken }` (un JWT de 5 minutos que
+    NUNCA autoriza ningún endpoint, solo sirve para el siguiente paso).
+  - Éxito sin 2FA pendiente: `{ status: "ok" | "sin_acceso", accessToken,
+    refreshToken }` — **mismo esquema y mecanismo de rotación** que
+    `POST /auth/login` (REQ-175: reutiliza literalmente `issueTokenPair`
+    de `modules/auth/routes.ts`).
+- `POST /auth/google/verify-2fa` — body `{ pendingToken, code }` (TOTP de
+  6 dígitos, o código de respaldo `XXXX-XXXX`); comparte el bloqueo
+  progresivo por usuario (`twofa_lockouts`) con `/auth/2fa/*`. Éxito →
+  mismo `{ status, accessToken, refreshToken }` que arriba, con
+  `auth.google_login` en `audit_log`.
+
+**Auditoría** (REQ-177): todo intento queda en `audit_log` —
+`auth.google_login` (sesión completada), `auth.google_linked`
+(vinculación nueva) y `auth.google_rejected` (email no verificado,
+`state`/`nonce` inválido, `id_token` inválido, cuenta inactiva, conflicto
+de identidad) — con IP/user-agent/`request_id`, nunca tokens ni secretos.
+
+**Issuer configurable** (REQ-172): `OIDC_ISSUER_URL` apunta TODO el flujo
+(discovery `.well-known/openid-configuration`, JWKS, token endpoint) a un
+proveedor distinto de Google — usado por
+`apps/api/test/helpers/fake-oidc.ts` (servidor HTTP local real, firma
+RS256 con clave de prueba) en las pruebas de integración
+(`apps/api/test/google-oidc-login.test.ts`, escenarios S1-S3 +
+adversariales de `docs/ACEPTACION.md`), nunca contra Google real.
+
+**BLOQUEADO_EXTERNO (REQ-178)**: sin `GOOGLE_CLIENT_ID`/
+`GOOGLE_CLIENT_SECRET`/`GOOGLE_REDIRECT_URI` reales, `GET
+/auth/google/start` y `GET /auth/google/callback` responden `503`
+explícito — el flujo contra Google real permanece bloqueado hasta que el
+usuario aporte esas credenciales; esto NUNCA impide el desarrollo ni las
+pruebas (usan el proveedor OIDC falso de arriba). Configurar Google Cloud
+Console (pasos, sin credenciales reales en este repositorio):
+1. Crear un proyecto en https://console.cloud.google.com/ (o usar uno
+   existente) y habilitar la pantalla de consentimiento OAuth (tipo
+   "Externo", con el dominio de producción).
+2. **APIs y servicios → Credenciales → Crear credenciales → ID de cliente
+   de OAuth**, tipo "Aplicación web".
+3. **Orígenes de JavaScript autorizados**: el/los origen(es) público(s)
+   de `apps/web` (p. ej. `https://app.atiende.mx`).
+4. **URIs de redireccionamiento autorizados**: la URL EXACTA de
+   `GET /auth/google/callback` de esta API en cada entorno (p. ej.
+   `https://api.atiende.mx/auth/google/callback` en producción,
+   `http://localhost:3000/auth/google/callback` en desarrollo local) —
+   debe coincidir carácter por carácter con `GOOGLE_REDIRECT_URI`.
+5. Copiar `Client ID`/`Client secret` a las variables de entorno del
+   proceso (nunca al repositorio, nunca a un archivo versionado) y
+   definir `GOOGLE_REDIRECT_URI` con la URI del paso 4.
 
 ### 2fa (REQ-044/064 — step-up con TOTP)
 Endpoints de USUARIO (no de organización): el enrolamiento es de la
@@ -721,6 +815,17 @@ solo, pasa establemente en <2s por caso).
   draft → ready → descarga → cambio de bases → invalidación → draft de
   nuevo) sobre la API real, cerrando A6/A8/A10/A11/A13/A14/A15 en un solo
   recorrido.
+- `google-oidc-login.test.ts` — REQ-172..180/REQ-206: login con Google
+  contra un proveedor OIDC FALSO real (`test/helpers/fake-oidc.ts`,
+  servidor HTTP local con discovery/JWKS/token endpoint, firma RS256 con
+  clave de prueba). Escenarios S1 (crea usuario + entra por invitación
+  pendiente), S2 (vincula cuenta existente sin duplicar, login repetido no
+  crea una segunda identidad), S3 (email no verificado rechazado, 0
+  cuentas creadas), más adversariales: `state` inválido/expirado/
+  reutilizado (`400`), `id_token` con `aud` ajeno (`401`), 2FA existente
+  exige segundo factor antes de completar la sesión, usuario nuevo sin
+  invitación → `sin_acceso`, y conflicto de identidad (REQ-180) al
+  intentar vincular un segundo `subject` de Google al mismo email.
 
 ## Pendiente / fuera de alcance de esta ronda
 
@@ -789,6 +894,30 @@ solo, pasa establemente en <2s por caso).
     detalle línea por línea, incluyendo límites documentados que quedan
     pendientes: taxonomía cerrada de motivo de pérdida en REQ-054, y
     predicción de renovación sin contrato propio previo en REQ-055).
+- **REQ-172..180 (login con Google) — pendientes honestos**:
+  - **Sin verificación contra Google real**: sin `GOOGLE_CLIENT_ID`/
+    `GOOGLE_CLIENT_SECRET`/`GOOGLE_REDIRECT_URI` reales el flujo completo
+    solo se ha ejercido contra el proveedor OIDC falso de pruebas
+    (BLOQUEADO_EXTERNO, REQ-178) — el código de descubrimiento/JWKS/
+    intercambio de código es genérico (estándar OIDC, sin nada específico
+    de Google hardcodeado salvo el issuer por defecto), pero no hay forma
+    de confirmar el comportamiento EXACTO de Google real (p. ej. claims
+    adicionales, particularidades de su JWKS) sin esas credenciales.
+  - **`/auth/login` (email+contraseña) sigue sin exigir 2FA en el login
+    mismo**: REQ-176 se cumplió para el login con Google (`requires_2fa`
+    antes de emitir sesión), pero el login por email+contraseña
+    existente nunca tuvo ese gate (2FA en este código base es step-up
+    para acciones sensibles puntuales, ver módulo `2fa`) — no se tocó esa
+    ruta para no alterar comportamiento ya auditado fuera del alcance de
+    esta tarea; queda como asimetría documentada, no como hallazgo nuevo.
+  - **Una invitación pendiente, o varias, se aceptan automáticamente al
+    crear la cuenta por Google** — pero solo si NO existía ya un usuario
+    con ese email (si existía, REQ-173 prevalece: se vincula esa cuenta,
+    las invitaciones pendientes de ese email para vincular a una cuenta
+    YA existente se aceptan por el flujo normal de
+    `POST /organizations/invitations/accept`, no por este).
+  - **Sin passkey/WebAuthn** (mismo límite ya documentado arriba para el
+    resto de la plataforma).
 
 ## Reparaciones — auditoría 2 (`docs/auditoria-2/api-expediente.md`)
 
