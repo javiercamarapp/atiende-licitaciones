@@ -9,6 +9,7 @@ import { requireOrgRole } from '../../lib/authorize.js';
 import { recordFieldProvenance, getFieldProvenance } from '../../lib/provenance.js';
 import { registerSimpleCrud } from '../../lib/company-crud.js';
 import { decodeBase64Content, storeFile, computeDocumentStatus } from '../../lib/storage.js';
+import { withOptionalEmptyJsonBody } from '../../lib/optional-empty-body.js';
 import {
   companyProfileUpsertSchema,
   companyProfileSchema,
@@ -575,111 +576,122 @@ export async function companyRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
-  server.post(
-    '/rates/:id/approve',
-    {
-      preHandler: [app.authenticate, app.requireOrg],
-      schema: {
-        description: 'Sin cuerpo. Solo owner/admin; transición atómica (solo desde draft), 409 si ya fue decidida.',
-        params: z.object({ id: z.string().uuid() }),
-        response: { 200: rateSchema },
+  // API-15 (docs/auditoria-2/reverificacion-final-integrada.md): igual que
+  // agents/routes.ts y admin/routes.ts en ronda 4, approve/reject de tarifas
+  // NUNCA esperan cuerpo -- se registran dentro de un scope que tolera
+  // `Content-Type: application/json` con cuerpo vacío (ver
+  // `lib/optional-empty-body.ts`) para que un cliente que fije ese header
+  // por costumbre (sin cuerpo real) no reciba un 400 espurio en vez de
+  // ejecutar la acción.
+  await withOptionalEmptyJsonBody(server, (scoped) => {
+    const s = scoped.withTypeProvider<ZodTypeProvider>();
+
+    s.post(
+      '/rates/:id/approve',
+      {
+        preHandler: [app.authenticate, app.requireOrg],
+        schema: {
+          description: 'Sin cuerpo (acepta Content-Type: application/json con cuerpo vacío). Solo owner/admin; transición atómica (solo desde draft), 409 si ya fue decidida.',
+          params: z.object({ id: z.string().uuid() }),
+          response: { 200: rateSchema },
+        },
       },
-    },
-    async (request) => {
-      const orgId = request.orgId!;
-      const userId = request.userId!;
-      // Aprobar es MÁS estricto que la DB (decision_roles incluye analyst):
-      // la aplicación restringe la acción de aprobar específicamente a
-      // owner/admin, tal como pide la ronda 2 ("aprobación por rol admin/owner").
-      requireOrgRole(request, MEMBERSHIP_ADMIN_ROLES, 'Solo owner/admin pueden aprobar una tarifa');
+      async (request) => {
+        const orgId = request.orgId!;
+        const userId = request.userId!;
+        // Aprobar es MÁS estricto que la DB (decision_roles incluye analyst):
+        // la aplicación restringe la acción de aprobar específicamente a
+        // owner/admin, tal como pide la ronda 2 ("aprobación por rol admin/owner").
+        requireOrgRole(request, MEMBERSHIP_ADMIN_ROLES, 'Solo owner/admin pueden aprobar una tarifa');
 
-      const result = await app.db.transaction(async (tx) => {
-        await tx.query('set local role app_role');
-        await tx.query("select set_config('app.current_org_id', $1, true)", [orgId]);
-        await tx.query("select set_config('app.current_user_id', $1, true)", [userId]);
-        // WI-04 (docs/auditoria-2/web-integrado.md): el check ('draft') y la
-        // mutación deben ser LA MISMA sentencia atómica -- mismo patrón que
-        // API-09 ya aplica a tool_calls -- para que una tarifa ya
-        // aprobada/archivada nunca pueda "re-aprobarse" silenciosamente
-        // (dos POST /approve concurrentes sobre la misma tarifa: exactamente
-        // uno debe tener éxito, el otro 409, nunca ambos 200 con un
-        // approved_by/approved_at pisándose el uno al otro).
-        const updated = await tx.query(
-          `update approved_rates set status = 'approved', approved_by = $1, approved_at = now()
-           where id = $2 and org_id = $3 and status = 'draft' returning *`,
-          [userId, request.params.id, orgId]
-        );
-        if (updated.rows.length === 0) {
-          const existing = await tx.query<{ id: string }>('select id from approved_rates where id = $1 and org_id = $2', [request.params.id, orgId]);
-          return existing.rows.length === 0 ? { kind: 'not_found' as const } : { kind: 'not_pending' as const };
-        }
-        await recordAudit(tx, {
-          orgId,
-          actorId: userId,
-          action: 'approved_rate.approve',
-          entity: 'approved_rates',
-          entityId: request.params.id,
-          before: { status: 'draft' },
-          after: { status: 'approved' },
-          requestId: request.id,
+        const result = await app.db.transaction(async (tx) => {
+          await tx.query('set local role app_role');
+          await tx.query("select set_config('app.current_org_id', $1, true)", [orgId]);
+          await tx.query("select set_config('app.current_user_id', $1, true)", [userId]);
+          // WI-04 (docs/auditoria-2/web-integrado.md): el check ('draft') y la
+          // mutación deben ser LA MISMA sentencia atómica -- mismo patrón que
+          // API-09 ya aplica a tool_calls -- para que una tarifa ya
+          // aprobada/archivada nunca pueda "re-aprobarse" silenciosamente
+          // (dos POST /approve concurrentes sobre la misma tarifa: exactamente
+          // uno debe tener éxito, el otro 409, nunca ambos 200 con un
+          // approved_by/approved_at pisándose el uno al otro).
+          const updated = await tx.query(
+            `update approved_rates set status = 'approved', approved_by = $1, approved_at = now()
+             where id = $2 and org_id = $3 and status = 'draft' returning *`,
+            [userId, request.params.id, orgId]
+          );
+          if (updated.rows.length === 0) {
+            const existing = await tx.query<{ id: string }>('select id from approved_rates where id = $1 and org_id = $2', [request.params.id, orgId]);
+            return existing.rows.length === 0 ? { kind: 'not_found' as const } : { kind: 'not_pending' as const };
+          }
+          await recordAudit(tx, {
+            orgId,
+            actorId: userId,
+            action: 'approved_rate.approve',
+            entity: 'approved_rates',
+            entityId: request.params.id,
+            before: { status: 'draft' },
+            after: { status: 'approved' },
+            requestId: request.id,
+          });
+          return { kind: 'ok' as const, row: updated.rows[0] };
         });
-        return { kind: 'ok' as const, row: updated.rows[0] };
-      });
-      if (result.kind === 'not_found') throw new NotFoundError('Tarifa no encontrada');
-      if (result.kind === 'not_pending') throw new ConflictError('La tarifa ya fue decidida (no está en draft)');
-      return mapRateRow(result.row as Record<string, unknown>);
-    }
-  );
+        if (result.kind === 'not_found') throw new NotFoundError('Tarifa no encontrada');
+        if (result.kind === 'not_pending') throw new ConflictError('La tarifa ya fue decidida (no está en draft)');
+        return mapRateRow(result.row as Record<string, unknown>);
+      }
+    );
 
-  server.post(
-    '/rates/:id/reject',
-    {
-      preHandler: [app.authenticate, app.requireOrg],
-      schema: {
-        description: 'Sin cuerpo. Solo owner/admin; transición atómica (solo desde draft), 409 si ya fue decidida.',
-        params: z.object({ id: z.string().uuid() }),
-        response: { 200: rateSchema },
+    s.post(
+      '/rates/:id/reject',
+      {
+        preHandler: [app.authenticate, app.requireOrg],
+        schema: {
+          description: 'Sin cuerpo (acepta Content-Type: application/json con cuerpo vacío). Solo owner/admin; transición atómica (solo desde draft), 409 si ya fue decidida.',
+          params: z.object({ id: z.string().uuid() }),
+          response: { 200: rateSchema },
+        },
       },
-    },
-    async (request) => {
-      const orgId = request.orgId!;
-      const userId = request.userId!;
-      requireOrgRole(request, MEMBERSHIP_ADMIN_ROLES, 'Solo owner/admin pueden rechazar/archivar una tarifa');
+      async (request) => {
+        const orgId = request.orgId!;
+        const userId = request.userId!;
+        requireOrgRole(request, MEMBERSHIP_ADMIN_ROLES, 'Solo owner/admin pueden rechazar/archivar una tarifa');
 
-      const result = await app.db.transaction(async (tx) => {
-        await tx.query('set local role app_role');
-        await tx.query("select set_config('app.current_org_id', $1, true)", [orgId]);
-        await tx.query("select set_config('app.current_user_id', $1, true)", [userId]);
-        // WI-04: mismo cierre atómico que approve() arriba -- rechazar solo
-        // tiene sentido sobre una tarifa todavía en 'draft' (una decisión,
-        // una sola vez); una ya aprobada o ya archivada responde 409, nunca
-        // se re-decide en silencio.
-        const updated = await tx.query(
-          `update approved_rates set status = 'archived' where id = $1 and org_id = $2 and status = 'draft' returning *`,
-          [request.params.id, orgId]
-        );
-        if (updated.rows.length === 0) {
-          const existing = await tx.query<{ id: string }>('select id from approved_rates where id = $1 and org_id = $2', [request.params.id, orgId]);
-          return existing.rows.length === 0 ? { kind: 'not_found' as const } : { kind: 'not_pending' as const };
-        }
-        await recordAudit(tx, {
-          orgId,
-          actorId: userId,
-          action: 'approved_rate.reject',
-          entity: 'approved_rates',
-          entityId: request.params.id,
-          before: { status: 'draft' },
-          after: { status: 'archived' },
-          requestId: request.id,
+        const result = await app.db.transaction(async (tx) => {
+          await tx.query('set local role app_role');
+          await tx.query("select set_config('app.current_org_id', $1, true)", [orgId]);
+          await tx.query("select set_config('app.current_user_id', $1, true)", [userId]);
+          // WI-04: mismo cierre atómico que approve() arriba -- rechazar solo
+          // tiene sentido sobre una tarifa todavía en 'draft' (una decisión,
+          // una sola vez); una ya aprobada o ya archivada responde 409, nunca
+          // se re-decide en silencio.
+          const updated = await tx.query(
+            `update approved_rates set status = 'archived' where id = $1 and org_id = $2 and status = 'draft' returning *`,
+            [request.params.id, orgId]
+          );
+          if (updated.rows.length === 0) {
+            const existing = await tx.query<{ id: string }>('select id from approved_rates where id = $1 and org_id = $2', [request.params.id, orgId]);
+            return existing.rows.length === 0 ? { kind: 'not_found' as const } : { kind: 'not_pending' as const };
+          }
+          await recordAudit(tx, {
+            orgId,
+            actorId: userId,
+            action: 'approved_rate.reject',
+            entity: 'approved_rates',
+            entityId: request.params.id,
+            before: { status: 'draft' },
+            after: { status: 'archived' },
+            requestId: request.id,
+          });
+          return { kind: 'ok' as const, row: updated.rows[0] };
         });
-        return { kind: 'ok' as const, row: updated.rows[0] };
-      });
-      if (result.kind === 'not_found') throw new NotFoundError('Tarifa no encontrada');
-      if (result.kind === 'not_pending') throw new ConflictError('La tarifa ya fue decidida (no está en draft)');
-      const row = result.row;
-      return mapRateRow(row as Record<string, unknown>);
-    }
-  );
+        if (result.kind === 'not_found') throw new NotFoundError('Tarifa no encontrada');
+        if (result.kind === 'not_pending') throw new ConflictError('La tarifa ya fue decidida (no está en draft)');
+        const row = result.row;
+        return mapRateRow(row as Record<string, unknown>);
+      }
+    );
+  });
 }
 
 function mapProfileRow(r: Record<string, unknown>): any {

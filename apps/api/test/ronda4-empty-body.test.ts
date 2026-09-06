@@ -16,6 +16,14 @@ async function seedPendingToolCall(db: DbClient, orgId: string): Promise<string>
   return tc.rows[0].id;
 }
 
+async function seedDraftRate(db: DbClient, orgId: string, itemCode: string): Promise<string> {
+  const { rows } = await db.query<{ id: string }>(
+    "insert into approved_rates (org_id, item_code, description, unit_price, status) values ($1, $2, 'desc', 100, 'draft') returning id",
+    [orgId, itemCode]
+  );
+  return rows[0].id;
+}
+
 /**
  * Ronda 4, item 5 (docs/logs/api-ronda4.log): un POST sin cuerpo con
  * `Content-Type: application/json` sigue respondiendo 400 en general
@@ -131,6 +139,57 @@ describe('POST sin cuerpo con Content-Type: application/json (ronda 4)', () => {
       url: `/admin/tool-calls/${toolCallId}/approve`,
       headers: { authorization: `Bearer ${superadminUser.accessToken}`, 'content-type': 'application/json' },
       payload: '',
+    });
+    expect(res.statusCode).toBe(200);
+  });
+
+  // API-15 (docs/auditoria-2/reverificacion-final-integrada.md): mismo bug de
+  // clase que el resto de este archivo -- `POST /company/rates/:id/approve|reject`
+  // no estaban registradas dentro de `withOptionalEmptyJsonBody` y respondían
+  // 400 ante un cuerpo vacío con `Content-Type: application/json`, aun siendo
+  // rutas de acción documentadas como "Sin cuerpo".
+  it('POST /company/rates/:id/approve acepta Content-Type: application/json con cuerpo vacío (200, no 400)', async () => {
+    const owner = await registerAndLogin(app, 'eb-owner-8@example.com');
+    const org = await createOrgFor(app, owner, 'EB Org 8', 'eb-org-8');
+    const rateId = await seedDraftRate(db, org.id, 'eb-item-8');
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/company/rates/${rateId}/approve`,
+      headers: { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'content-type': 'application/json' },
+      payload: '',
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().status).toBe('approved');
+  });
+
+  it('POST /company/rates/:id/reject acepta Content-Type: application/json con cuerpo vacío (200, no 400)', async () => {
+    const owner = await registerAndLogin(app, 'eb-owner-9@example.com');
+    const org = await createOrgFor(app, owner, 'EB Org 9', 'eb-org-9');
+    const rateId = await seedDraftRate(db, org.id, 'eb-item-9');
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/company/rates/${rateId}/reject`,
+      headers: { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'content-type': 'application/json' },
+      payload: '',
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().status).toBe('archived');
+  });
+
+  // No cuerpo Y sin `Content-Type` alguno tampoco debe romperse (el parser
+  // scoped solo intercepta `application/json`; sin ese header Fastify ni
+  // siquiera invoca un content-type parser JSON).
+  it('POST /company/rates/:id/approve sin ningún cuerpo y sin Content-Type también responde 200', async () => {
+    const owner = await registerAndLogin(app, 'eb-owner-10@example.com');
+    const org = await createOrgFor(app, owner, 'EB Org 10', 'eb-org-10');
+    const rateId = await seedDraftRate(db, org.id, 'eb-item-10');
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/company/rates/${rateId}/approve`,
+      headers: { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id },
     });
     expect(res.statusCode).toBe(200);
   });

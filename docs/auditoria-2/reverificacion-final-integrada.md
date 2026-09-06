@@ -236,22 +236,22 @@ evidencia HTTP/E2E real que `ACEPTACION.md` sigue marcando PENDIENTE).
 
 ## 6. Veredicto por hallazgo
 
-| ID | Severidad | Veredicto | Nota |
-|---|---|---|---|
-| AE-08 | MEDIA (original) | **CERRADO** | Confirmado dinámicamente con signatories/capabilities y también con products-services/locations/registrations/restrictions |
-| AE-11 | BAJA (original) | **CERRADO** | Writer que edita y luego aprueba (promovido) → 403 real; tercero sin relación sí aprueba |
-| AE-14 | MEDIA (original) | **CERRADO** | `/latest` re-deriva a draft, `/download` 409 explícito, nunca sirve el ZIP viejo |
-| API-14 | BAJA/MEDIA (original) | **CERRADO** | Sin vector HTTP de forja; mecanismo SQL confirmado, `login_failed` sin regresión |
-| AE-15 | BAJA (original) | **CERRADO** | 413/422 confirmados con body real de ~23MB y 33MB |
-| WI-01 (API) | MEDIA (original) | **CERRADO** | CSP/Permissions-Policy/Referrer-Policy en 2xx/4xx/5xx reales |
-| WI-01 (web) | MEDIA (original) | **CERRADO** | Script inline bloqueado con violación real de consola; `connect-src` bloquea origen externo; eval bloqueado (confirmado con metodología corregida) |
-| WI-02 | MEDIA (original) | **CERRADO** | `.key`/`.exe`/≥50MB rechazados en cliente Y servidor, con defensa en profundidad confirmada |
-| WI-03 | BAJA/MEDIA (original) | **CERRADO** | Logout limpia caché sin residuo visible de sesión anterior; `switchOrg` sin fuga |
-| WI-04 (API) | BAJA (original) | **CERRADO** | 1×200+1×409 en 5 repeticiones concurrentes reales, 1 sola fila de `audit_log` |
-| WI-04 (web) | BAJA (original) | **PARCIAL** | Guard visual funciona para clic humano normal; NO cierra la ventana ante doble clic físico verdaderamente simultáneo (ver WI-06 nuevo). Sin impacto de seguridad real (servidor idempotente lo cubre) |
-| WI-05 | BAJA (original) | **CERRADO** | `test:e2e:full` determinista en 2/2 corridas reales, 98 passed cada vez |
-| **API-15** (nuevo) | BAJA | **NO CERRADO** (nunca reparado) | `POST /company/rates/:id/approve\|reject` rechazan cuerpo vacío con 400 en vez de ejecutar (documentadas como "sin cuerpo"); no explotable, regresión de robustez no propagada desde el patrón de ronda 4 |
-| **WI-06** (nuevo) | BAJA | **NO CERRADO** (nunca reparado) | Doble clic físico real en "Aprobar" dispara 2 peticiones (el guard cliente no gana la carrera); servidor sigue siendo la barrera real, sin duplicar efecto ni auditoría |
+| ID | Severidad | Veredicto | Nota | Estado reparación |
+|---|---|---|---|---|
+| AE-08 | MEDIA (original) | **CERRADO** | Confirmado dinámicamente con signatories/capabilities y también con products-services/locations/registrations/restrictions | |
+| AE-11 | BAJA (original) | **CERRADO** | Writer que edita y luego aprueba (promovido) → 403 real; tercero sin relación sí aprueba | |
+| AE-14 | MEDIA (original) | **CERRADO** | `/latest` re-deriva a draft, `/download` 409 explícito, nunca sirve el ZIP viejo | |
+| API-14 | BAJA/MEDIA (original) | **CERRADO** | Sin vector HTTP de forja; mecanismo SQL confirmado, `login_failed` sin regresión | |
+| AE-15 | BAJA (original) | **CERRADO** | 413/422 confirmados con body real de ~23MB y 33MB | |
+| WI-01 (API) | MEDIA (original) | **CERRADO** | CSP/Permissions-Policy/Referrer-Policy en 2xx/4xx/5xx reales | |
+| WI-01 (web) | MEDIA (original) | **CERRADO** | Script inline bloqueado con violación real de consola; `connect-src` bloquea origen externo; eval bloqueado (confirmado con metodología corregida) | |
+| WI-02 | MEDIA (original) | **CERRADO** | `.key`/`.exe`/≥50MB rechazados en cliente Y servidor, con defensa en profundidad confirmada | |
+| WI-03 | BAJA/MEDIA (original) | **CERRADO** | Logout limpia caché sin residuo visible de sesión anterior; `switchOrg` sin fuga | |
+| WI-04 (API) | BAJA (original) | **CERRADO** | 1×200+1×409 en 5 repeticiones concurrentes reales, 1 sola fila de `audit_log` | |
+| WI-04 (web) | BAJA (original) | **PARCIAL** | Guard visual funciona para clic humano normal; NO cierra la ventana ante doble clic físico verdaderamente simultáneo (ver WI-06 nuevo). Sin impacto de seguridad real (servidor idempotente lo cubre) | |
+| WI-05 | BAJA (original) | **CERRADO** | `test:e2e:full` determinista en 2/2 corridas reales, 98 passed cada vez | |
+| **API-15** (nuevo) | BAJA | **NO CERRADO** (nunca reparado) | `POST /company/rates/:id/approve\|reject` rechazan cuerpo vacío con 400 en vez de ejecutar (documentadas como "sin cuerpo"); no explotable, regresión de robustez no propagada desde el patrón de ronda 4 | **REPARADO** — `withOptionalEmptyJsonBody` aplicado a ambas rutas (`apps/api/src/modules/company/routes.ts`); `fastify.inject` con `Content-Type: application/json` vacío y sin cuerpo → 200, nunca 400 (`apps/api/test/ronda4-empty-body.test.ts`). Ver `docs/logs/fix-api15-wi06.log` |
+| **WI-06** (nuevo) | BAJA | **NO CERRADO** (nunca reparado) | Doble clic físico real en "Aprobar" dispara 2 peticiones (el guard cliente no gana la carrera); servidor sigue siendo la barrera real, sin duplicar efecto ni auditoría | |
 
 **Ningún hallazgo CRÍTICO ni ALTA. Ninguna fuga cross-tenant nueva. Ningún
 hallazgo de ronda 4 declarado "RESUELTO" resultó, en esta reverificación,
