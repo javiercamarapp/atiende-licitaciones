@@ -82,6 +82,46 @@ const SECURITY_DEFINER_WHITELIST: Record<string, string> = {
     'DB-01-style (mismo patrón que find_user_by_email, 0019): rechaza ejecutarse (raise exception) si app.current_user_id() ya está fijado -- solo utilizable en el contexto pre-sesión del login con Google para el que fue diseñada.',
   'app.accept_pending_invitations_for_user(uuid)':
     'Mismo endurecimiento anti-forjado que 0054 aplicó a record_auth_event tras API-14: exige que app.current_user_id() ya esté fijado e IGUAL a p_user_id (si no, lanza excepción) -- el llamador (modules/auth/google/routes.ts) lo fija al id ya verificado (encontrado por email/subject, o recién creado en la misma transacción) ANTES de invocarla. Nunca acepta un email como parámetro externo: siempre lo deriva de users.email del propio p_user_id ya verificado, jamás de una entrada de cliente sin verificar.',
+  // --- REQ-181..195 (correos transaccionales, 0080-0084): outbox/supresión/
+  // webhook/preferencias/verificación de correo/restablecimiento de
+  // contraseña. Todas operan sobre tablas de SISTEMA (RLS habilitada SIN
+  // políticas, mismo patrón que refresh_tokens/oauth_states, 0017/0071) --
+  // ninguna acepta un identificador de organización; las que aceptan un
+  // p_user_id/p_dedupe_key/p_email lo hacen por POSESIÓN de un secreto
+  // opaco (token_hash/dedupe_key generado por el propio backend) o porque
+  // el `userId` ya viene verificado por la firma HMAC de un enlace firmado
+  // (`MailService.verifySignedLink`, packages/mail) -- nunca de un valor de
+  // entrada de cliente sin verificar.
+  'app.mail_outbox_reserve(text,text,integer,uuid,uuid,text)':
+    'Reserva atómica (INSERT ... ON CONFLICT, ML-01 de packages/mail) del outbox de correo; p_org_id/p_user_id son solo metadatos informativos para diagnóstico (no deciden nada de RLS -- la tabla completa es de sistema), y p_dedupe_key es una llave de idempotencia de NEGOCIO generada por apps/api (p.ej. "verificacion:<userId>"), nunca un secreto ajeno.',
+  'app.mail_outbox_get(text)':
+    'Lectura por p_dedupe_key (llave de idempotencia propia del llamador, ver arriba); solo devuelve estados finales (status <> pending).',
+  'app.mail_outbox_save(text,text,text,integer,integer,text)':
+    'Escritura del resultado final por p_dedupe_key; p_status restringido en SQL a la lista cerrada de SendStatus (sent/failed_permanent/dead).',
+  'app.mail_outbox_release(text)':
+    'Libera una reserva pendiente por p_dedupe_key (retrocede updated_at) para permitir un reintento posterior no concurrente -- no expone ni muta ningún dato de otro dedupe_key.',
+  'app.mail_outbox_peek(text)':
+    'Lectura de diagnóstico SIN filtrar por estado (incluye pending); exige explícitamente app.is_superadmin() dentro de la función -- lanza excepción si quien invoca no lo es.',
+  'app.mail_suppression_check(text)':
+    'Consulta booleana de supresión por email (normalizado a minúsculas); no expone ningún otro dato de la fila.',
+  'app.mail_suppression_add(text,text,text)':
+    'Upsert de supresión por email; p_reason/p_source son metadatos de auditoría de texto libre, sin identificador de usuario/organización.',
+  'app.mail_suppression_remove(text)':
+    'Elimina la supresión de un email -- acción administrativa deliberada, sin identificador de usuario/organización.',
+  'app.mail_suppression_get(text)':
+    'Lectura completa de la entrada de supresión de un email -- mismo criterio que mail_suppression_check.',
+  'app.mail_webhook_claim(text,integer)':
+    'Anti-replay (ML-05, packages/mail) por p_svix_id -- un identificador opaco emitido por el proveedor del webhook (Resend/Svix), nunca un identificador de usuario/organización; compare-and-set atómico (INSERT ... ON CONFLICT DO NOTHING).',
+  'app.set_notification_preference_unsigned(uuid,text,boolean)':
+    'p_user_id llega YA verificado por la firma HMAC de un enlace de baja de un clic (MailService.verifySignedLink, imposible de forjar sin el secreto MAIL_LINK_SECRET) -- nunca de un valor de entrada de cliente sin verificar; p_category restringido en SQL a la lista cerrada de columnas de notification_preferences.',
+  'app.create_email_verification_token(uuid,uuid,text,timestamp with time zone)':
+    'Mismo patrón que app.create_oauth_state (0071): contexto ANÓNIMO (registro recién hecho, sin sesión todavía) -- p_id/p_token_hash son generados por el propio backend (uuid v4 / sha256 de un secreto aleatorio), nunca de entrada de cliente.',
+  'app.consume_email_verification_token(text)':
+    'Consumo ATÓMICO de un solo uso (mismo patrón check-y-mutación que app.consume_oauth_state, 0071) por posesión de p_token_hash (sha256 de un secreto de 256 bits enviado fuera de banda por correo) -- equivalente a autenticarse con el propio token; el UPDATE de users.email_verified_at que hace dentro es SIEMPRE sobre el user_id que la propia fila de token ya tenía asociado, nunca un parámetro externo.',
+  'app.create_password_reset_token(uuid,uuid,text,timestamp with time zone)':
+    'Idéntico a app.create_email_verification_token, para password_reset_tokens.',
+  'app.reset_password_with_token(text,text)':
+    'Consumo ATÓMICO de un solo uso por posesión de p_token_hash (mismo criterio que consume_email_verification_token); el UPDATE de users.password_hash y la revocación de refresh tokens (revoke_all_refresh_tokens) operan SIEMPRE sobre el user_id resuelto de la propia fila de token consumida, nunca de un parámetro externo.',
 };
 
 async function fetchSecurityDefinerFunctions(db: DbClient): Promise<SecdefRow[]> {
