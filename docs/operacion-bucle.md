@@ -19,6 +19,7 @@ Este bucle es NUEVO y separado del de Atiende Hoteles (cron `f24bfd35`, que no s
 ## Modelos efectivos
 - Orquestador: Fable (`claude-fable-5-1`) SOLO en esta sesión. Default global de `~/.claude/settings.json` = `sonnet` (no modificado).
 - Ejecutores: `Agent(subagent_type=general-purpose, model="sonnet")` en cada despacho; se exige a descendientes pasar `model="sonnet"`. Registro en `docs/AGENTES.md`.
+- Respaldo (D-10, autorizado por el usuario 2026-09-06): si Sonnet está limitado (429 repetido), se despacha con `model="opus"` explícito y se anota el modelo efectivo en `docs/AGENTES.md`.
 
 ## Estado persistente de reanudación (leer SIEMPRE al despertar o tras compactar)
 1. `docs/AMPLIACION-BACKOFFICE.md` y `docs/AMPLIACION-2-SALIDA.md` — ampliaciones prioritarias del usuario (back office completo; salida a promoción con Google, correos, onboarding, landing, despliegue) (ciclo completo back office; reglas duras: nunca inventar datos/precios/firmas, nunca enviar/firmar/actuar en portales). Es parte del alcance obligatorio.

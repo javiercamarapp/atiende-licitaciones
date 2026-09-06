@@ -109,3 +109,8 @@ Nota: la herramienta Agent de esta versión no expone el ID de modelo del subage
 | 102 | 2026-09-06 | reverify-mail → docs/auditoria-2/mail-reverificacion.md (ML-01..06 con variantes: concurrencia 50, reserva tras fallo, cabeceras por categoría, safeUrl, contraste, replay) — solo verifica | model="sonnet" | commit 1722a50; docs/auditoria-2/mail-reverificacion.md + docs/logs/reverify-mail.log; ML-01..ML-06 reproducidos y confirmados con ataques nuevos (50 envíos concurrentes → 1; 12 vectores SSRF 0 bypass; 6 replays Svix 0 bypass); ML-07 (ACEPTACION.md) sigue pendiente; nuevos ML-08/ML-09 BAJA | COMPLETADO |
 | 103 | 2026-09-06 | fix-worker-k → WK6-01 (evals de aislamiento por contenido + prueba de mutación), WK6-02 (correlationId persistido y en logs), WK6-03 | model="sonnet" | pendiente | en curso |
 | 104 | 2026-09-06 | fix-api-google → GO-07 (23505 en alta Google, test de carrera) y GO-03 (issuer https salvo proveedor falso) | model="sonnet" | pendiente | en curso |
+| 105 | 2026-09-06 | Continuación de #94 web ronda 7 (cierre: build, log E2E, commits) — Sonnet caído (INC-12/13) | model="opus" (D-10) | pendiente | en curso |
+| 106 | 2026-09-06 | Continuación de #103 fix worker WK6-01/02/03 — Sonnet caído | model="opus" (D-10) | pendiente | en curso |
+| 107 | 2026-09-06 | Continuación de #104 fix Google GO-07/GO-03 — Sonnet caído | model="opus" (D-10) | pendiente | en curso |
+| 108 | 2026-09-06 | Continuación de #98 fix api ronda 6 R6-01..08 — Sonnet caído | model="opus" (D-10) | pendiente | en curso |
+| 109 | 2026-09-06 | Continuación de #100 integración de correos en la API (S4–S7/S12) — Sonnet caído | model="opus" (D-10) | pendiente | en curso |
