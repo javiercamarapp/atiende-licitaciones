@@ -7,6 +7,7 @@ import { SkipLink } from "@/components/SkipLink";
 import { ThemeSelector } from "@/components/ThemeSelector";
 import { SidebarNav } from "@/components/layout/SidebarNav";
 import { OrganizationSwitcher } from "@/components/layout/OrganizationSwitcher";
+import { UserMenu } from "@/components/layout/UserMenu";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
@@ -34,23 +35,37 @@ export function AppShell() {
       </aside>
 
       <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-        <SheetContent side="left" className="w-72 p-0">
+        <SheetContent side="left" className="flex w-72 flex-col p-0">
           <SheetHeader className="px-4 pb-2 pt-5">
             <SheetTitle>
               <AtiendeWordmark markClassName="h-6 w-auto" />
               <span className="sr-only">Menú de navegación</span>
             </SheetTitle>
           </SheetHeader>
-          <SidebarNav onNavigate={() => setMobileNavOpen(false)} className="pb-4" />
+          <SidebarNav onNavigate={() => setMobileNavOpen(false)} className="flex-1 pb-2" />
+          {/*
+           * W-21 (docs/auditoria-1/web-reverificacion-2.md): en el header,
+           * `ThemeSelector` quedaba fuera del viewport e intocable en todo
+           * ancho <466px porque `OrganizationSwitcher` no se encogía. En vez
+           * de competir por el mismo espacio angosto del header en TODO el
+           * rango <768px (md, el mismo rango en que este drawer reemplaza a
+           * la sidebar), el selector de tema vive aquí, en el drawer —
+           * siempre visible y con espacio de sobra, sin depender de que el
+           * resto de controles del header se encojan lo suficiente.
+           */}
+          <div className="flex items-center justify-between gap-2 border-t border-border px-4 py-3">
+            <span className="text-xs font-medium text-muted-foreground">Tema de la interfaz</span>
+            <ThemeSelector />
+          </div>
         </SheetContent>
       </Sheet>
 
       <div className="flex min-w-0 flex-1 flex-col gap-3">
         <header
           role="banner"
-          className="flex h-14 shrink-0 items-center justify-between gap-2 rounded-2xl border border-border bg-card px-4 shadow-card md:h-12"
+          className="flex h-14 shrink-0 items-center justify-between gap-2 rounded-2xl border border-border bg-card px-3 shadow-card sm:px-4 md:h-12"
         >
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 shrink-0 items-center gap-2">
             <Button
               type="button"
               variant="ghost"
@@ -59,18 +74,28 @@ export function AppShell() {
               aria-haspopup="dialog"
               // El tamaño "icon" por defecto es 40×40px, por debajo del
               // objetivo de ≥44×44px para targets táctiles (W-10).
-              className="h-11 w-11 md:hidden"
+              className="h-11 w-11 shrink-0 md:hidden"
               onClick={() => setMobileNavOpen(true)}
             >
               <Menu className="h-5 w-5" aria-hidden="true" />
             </Button>
-            <span className="md:hidden">
+            <span className="min-w-0 md:hidden">
               <AtiendeWordmark markClassName="h-6 w-auto" />
             </span>
           </div>
-          <div className="flex items-center gap-3">
+          {/* W-21: `min-w-0` es lo que permite que `OrganizationSwitcher`
+              (ahora `flex-1` con `truncate` interno) pueda encogerse por
+              debajo de su ancho de contenido en vez de forzar overflow del
+              header — sin esto, el mínimo implícito de un hijo flex es el
+              de su contenido, que es exactamente el bug que causó W-21. */}
+          <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5 sm:gap-2">
             <OrganizationSwitcher />
-            <ThemeSelector />
+            {/* ThemeSelector vive en el drawer para <md (ver arriba);
+                aquí solo se muestra desde md en adelante, donde sí hay
+                espacio real (sidebar fija, header sin hamburguesa/wordmark
+                móvil compitiendo por el mismo ancho). */}
+            <ThemeSelector className="hidden md:inline-flex" />
+            <UserMenu />
           </div>
         </header>
 

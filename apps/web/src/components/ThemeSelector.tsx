@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Sun, Monitor, Moon } from "lucide-react";
 
+import { cn } from "@/lib/utils";
+
 // Mismo patrón que atiende-restaurantes (ver informe §2.3): estado en
 // localStorage, "sistema" solo se resuelve a oscuro/claro mientras el
 // usuario lo tenga elegido explícitamente.
@@ -23,7 +25,11 @@ const OPCIONES: Array<{ valor: Tema; Icono: typeof Sun; rotulo: string }> = [
   { valor: "oscuro", Icono: Moon, rotulo: "Tema oscuro" },
 ];
 
-export function ThemeSelector() {
+export interface ThemeSelectorProps {
+  className?: string;
+}
+
+export function ThemeSelector({ className }: ThemeSelectorProps = {}) {
   const [tema, setTema] = useState<Tema>("claro");
 
   useEffect(() => {
@@ -48,7 +54,7 @@ export function ThemeSelector() {
     <div
       role="radiogroup"
       aria-label="Tema de la interfaz"
-      className="inline-flex items-center gap-0.5 rounded-full bg-muted p-0.5"
+      className={cn("inline-flex items-center gap-0.5 rounded-full bg-muted p-0.5", className)}
     >
       {OPCIONES.map(({ valor, Icono, rotulo }) => {
         const activo = tema === valor;
