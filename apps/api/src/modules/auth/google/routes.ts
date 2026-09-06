@@ -30,7 +30,7 @@ import { recordAuthAudit } from '../../../lib/audit.js';
 import { decryptSecret, verifyTotpCode, hashBackupCode, assertSixDigitCode } from '../../../lib/step-up.js';
 import { checkTwofaLockout, recordTwofaFailure, resetTwofaFailures } from '../../../lib/twofa-lockout.js';
 import { auditContext, issueTokenPair } from '../routes.js';
-import { loadGoogleOidcEnv, GoogleOidcNotConfiguredError } from './env.js';
+import { loadGoogleOidcEnv, assertConfiguredIssuerUrlIsSecure, GoogleOidcConfigError } from './env.js';
 import { fetchDiscoveryDocument } from './discovery.js';
 import { generateCodeVerifier, computeCodeChallengeS256, generateNonce } from './pkce.js';
 import { signOauthState, verifyOauthState } from './state.js';
@@ -335,6 +335,15 @@ async function resolveGoogleIdentity(
 }
 
 export async function googleAuthRoutes(app: FastifyInstance): Promise<void> {
+  // GO-03 (docs/auditoria-2/api-google.md): FALLA EN ARRANQUE si el operador
+  // fijó un `OIDC_ISSUER_URL` inseguro. Se comprueba aquí, al registrar las
+  // rutas (es decir, dentro de `buildApp`), y no de forma perezosa en la
+  // primera petición: un issuer mal configurado es un error del despliegue,
+  // y un despliegue que arranca "sano" y solo falla cuando alguien intenta
+  // entrar con Google es peor que uno que se niega a arrancar. No exige que
+  // las credenciales de Google existan (REQ-178: la API arranca sin ellas).
+  assertConfiguredIssuerUrlIsSecure();
+
   const server = app.withTypeProvider<ZodTypeProvider>();
   const authRateLimit = { max: app.rateLimitSettings.auth.max, timeWindow: app.rateLimitSettings.auth.timeWindow };
 
@@ -349,7 +358,9 @@ export async function googleAuthRoutes(app: FastifyInstance): Promise<void> {
       try {
         env = loadGoogleOidcEnv();
       } catch (err) {
-        if (err instanceof GoogleOidcNotConfiguredError) throw serviceUnavailable(err.message);
+        // GO-03: cualquier error de CONFIGURACIÓN (credenciales ausentes o
+        // issuer inseguro) responde el mismo 503 explícito, nunca un 500.
+        if (err instanceof GoogleOidcConfigError) throw serviceUnavailable(err.message);
         throw err;
       }
       const discovery = await fetchDiscoveryDocument(env.issuerUrl);
@@ -432,7 +443,9 @@ export async function googleAuthRoutes(app: FastifyInstance): Promise<void> {
       try {
         env = loadGoogleOidcEnv();
       } catch (err) {
-        if (err instanceof GoogleOidcNotConfiguredError) throw serviceUnavailable(err.message);
+        // GO-03: cualquier error de CONFIGURACIÓN (credenciales ausentes o
+        // issuer inseguro) responde el mismo 503 explícito, nunca un 500.
+        if (err instanceof GoogleOidcConfigError) throw serviceUnavailable(err.message);
         throw err;
       }
       const discovery = await fetchDiscoveryDocument(env.issuerUrl);
