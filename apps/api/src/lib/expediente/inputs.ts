@@ -72,9 +72,82 @@ async function buildTenderVersionHash(tx: DbExecutor, orgId: string, tenderId: s
   return sha256Hex({ fallback: 'tender_snapshot', row: tender.rows[0] ?? null });
 }
 
+/**
+ * AE-08 (docs/auditoria-2/api-expediente.md, MEDIA): esta función solo
+ * cubría `company_profiles` -- `capabilities`, `experience_records` y
+ * `authorized_signatories` alimentan el contenido real de la propuesta
+ * técnica generada (`CompanyDataService`/`TechnicalProposalBuilder`,
+ * `lib/expediente/company-data-resolver.pg.ts`) pero NUNCA formaban parte
+ * del insumo sellado: un cambio posterior a la aprobación en el estado de
+ * verificación/evidencia de una capacidad, experiencia o firmante ya usado
+ * no disparaba ninguna invalidación (ni por hash, ni por `recordChange`
+ * explícito). Se amplía a TODAS las categorías reales del perfil de
+ * empresa (capabilities, experience, products_services, locations,
+ * registrations, signatories, restrictions), no solo las tres señaladas
+ * por el hallazgo -- son datos declarados por el mismo actor y del mismo
+ * "conjunto cerrado" conceptual (packages/expediente exige un conjunto
+ * cerrado/obligatorio, EX-EXP-01/EX-EXP-11), así que dejarlas fuera
+ * repetiría el mismo defecto de fondo por una puerta distinta.
+ *
+ * `company_documents`/`approved_rates` NO se duplican aquí: ya tienen su
+ * propio campo dedicado en `ExpedienteInputs` (`companyDocuments`/`rates`,
+ * ver `buildExpedienteInputs` más abajo), con el patrón deliberado de
+ * "solo lo REALMENTE usado por esta propuesta" (`usedCompanyDocumentIds`/
+ * `usedRateConcepts`) -- incluir aquí TODOS los documentos/tarifas de la
+ * organización (usados o no) invalidaría la aprobación ante un cambio
+ * irrelevante para este expediente en particular.
+ *
+ * Cada lista se ordena por `id` en SQL: `sha256Hex`/`stableStringify`
+ * ordena claves de objeto de forma determinista pero NO reordena arreglos
+ * (ver packages/expediente/src/types.ts) -- sin este `order by`, el mismo
+ * conjunto de filas devuelto en otro orden produciría un hash distinto sin
+ * que nada haya cambiado realmente.
+ */
 async function buildCompanyProfileHash(tx: DbExecutor, orgId: string): Promise<string> {
-  const profile = await tx.query<RawRow>('select legal_name, trade_name, tax_id, description, sector, updated_at from company_profiles where org_id = $1', [orgId]);
-  return sha256Hex({ profile: profile.rows[0] ?? null });
+  const [profile, capabilities, experience, products, locations, registrations, signatories, restrictions] = await Promise.all([
+    tx.query<RawRow>(
+      'select legal_name, trade_name, tax_id, description, sector, founded_year, employee_count, annual_revenue, website, updated_at from company_profiles where org_id = $1',
+      [orgId]
+    ),
+    tx.query<RawRow>(
+      'select id, name, category, description, is_verified, evidence_ref, updated_at from capabilities where org_id = $1 order by id asc',
+      [orgId]
+    ),
+    tx.query<RawRow>(
+      'select id, title, client_name, description, contract_value, currency, start_date, end_date, is_verified, evidence_ref, updated_at from experience_records where org_id = $1 order by id asc',
+      [orgId]
+    ),
+    tx.query<RawRow>(
+      'select id, name, category, description, updated_at from products_services where org_id = $1 order by id asc',
+      [orgId]
+    ),
+    tx.query<RawRow>(
+      'select id, label, address_line, city, state, country, postal_code, is_primary, updated_at from locations where org_id = $1 order by id asc',
+      [orgId]
+    ),
+    tx.query<RawRow>(
+      'select id, kind, value, issuing_authority, valid_from, valid_until, updated_at from registrations where org_id = $1 order by id asc',
+      [orgId]
+    ),
+    tx.query<RawRow>(
+      'select id, full_name, role_title, id_document_ref, valid_from, valid_until, updated_at from authorized_signatories where org_id = $1 order by id asc',
+      [orgId]
+    ),
+    tx.query<RawRow>(
+      'select id, kind, description, valid_until, updated_at from restrictions where org_id = $1 order by id asc',
+      [orgId]
+    ),
+  ]);
+  return sha256Hex({
+    profile: profile.rows[0] ?? null,
+    capabilities: capabilities.rows,
+    experience: experience.rows,
+    productsServices: products.rows,
+    locations: locations.rows,
+    registrations: registrations.rows,
+    signatories: signatories.rows,
+    restrictions: restrictions.rows,
+  });
 }
 
 async function buildCompanyDocumentInputs(tx: DbExecutor, orgId: string, documentIds: string[]): Promise<ExpedienteInputCompanyDocument[]> {
