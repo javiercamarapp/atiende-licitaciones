@@ -43,8 +43,24 @@ export const ComprasMxApiRecordSchema = z.object({
 });
 export type ComprasMxApiRecord = z.infer<typeof ComprasMxApiRecordSchema>;
 
+/**
+ * SR-19 (residual de la ronda 2 de corrección): `data` YA NO usa
+ * `.default([])`. Un cuerpo 200 sintácticamente válido pero sin la llave
+ * `data` (p.ej. `{}`, o un soft-block de aplicación como
+ * `{"success":false,"error":"captcha"}`) pasaba esta validación zod SIN
+ * lanzar -- el `.default([])` absorbía la ausencia de la llave como "0
+ * expedientes", indistinguible de una corrida real sin novedades (la MISMA
+ * violación de REQ-148 que SR-14 debía cerrar, solo que vía un JSON válido
+ * en vez de HTML). Ahora, la ausencia de `data` (o un valor no-array, p.ej.
+ * `{"data":null}`) hace fallar `.parse()` con `ZodError` ->
+ * `classifySourceFailure` lo clasifica como `interface_changed`. Un
+ * `{"data":[]}` explícito (colección presente y vacía) sigue siendo válido
+ * y se interpreta como "0 expedientes nuevos" legítimo -- la distinción que
+ * importa es "la fuente respondió con la FORMA esperada" vs. "la fuente
+ * respondió con OTRA cosa", no "hubo 0 registros".
+ */
 export const ComprasMxApiResponseSchema = z.object({
-  data: z.array(z.object({ registros: z.array(ComprasMxApiRecordSchema).default([]) })).default([]),
+  data: z.array(z.object({ registros: z.array(ComprasMxApiRecordSchema).default([]) })),
   total: optionalNullish(z.number()),
 });
 export type ComprasMxApiResponse = z.infer<typeof ComprasMxApiResponseSchema>;

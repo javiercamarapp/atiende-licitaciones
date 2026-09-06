@@ -11,6 +11,21 @@ export interface DofConnectorConfig {
 
 const DEFAULT_BASE_URL = "https://dof.gob.mx";
 
+/**
+ * Marcadores estructurales mínimos de una nota REAL del DOF (SR-20, residual
+ * de la ronda 2): el título de la plantilla pública ("DOF - Diario Oficial
+ * de la Federación", ver `test/fixtures/dof/nota-avisos-licitaciones.html`)
+ * y el `id` del contenedor de la nota (`DivDetalleNota`). Se pasan a
+ * `assertLegitimateResponseBody` para que un login genérico o un vendor de
+ * bot-protection sin marcador de captcha reconocido (Akamai, Imperva) no
+ * pase silenciosamente solo por ser HTML -- un HTML que SÍ trae alguno de
+ * estos marcadores se sigue aceptando como nota legítima.
+ */
+const DOF_MINIMAL_CONTENT_MARKERS: ReadonlyArray<RegExp> = [
+  /diario oficial de la federaci[oó]n/i,
+  /DivDetalleNota/i,
+];
+
 function stripHtml(html: string): string {
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
@@ -88,7 +103,7 @@ export function createDofConnector(config: DofConnectorConfig = {}): SourceConne
         // SR-14: un 200 real puede traer un cuerpo de captcha/bot-challenge (el propio README lo documenta como
         // real para PDN-S6/Zenedge); sin esta validación, `extractDofNoticesFromText` simplemente no encontraría
         // avisos y la corrida se reportaría como "ok"/"0 nuevas" -- indistinguible de una corrida real sin novedades.
-        assertLegitimateResponseBody(html, { url, expected: "text" });
+        assertLegitimateResponseBody(html, { url, expected: "text", minimalContentMarkers: DOF_MINIMAL_CONTENT_MARKERS });
         const text = stripHtml(html);
         const fechaMatch = html.match(/fecha=(\d{2}\/\d{2}\/\d{4})/);
         const fecha = fechaMatch?.[1] ?? "";
@@ -109,7 +124,7 @@ export function createDofConnector(config: DofConnectorConfig = {}): SourceConne
       if (response.status === 404) return null;
       if (!response.ok) throw new Error(`DOF respondió ${response.status} en ${url}`);
       const html = await response.text();
-      assertLegitimateResponseBody(html, { url, expected: "text" });
+      assertLegitimateResponseBody(html, { url, expected: "text", minimalContentMarkers: DOF_MINIMAL_CONTENT_MARKERS });
       const text = stripHtml(html);
       const fechaMatch = html.match(/fecha=(\d{2}\/\d{2}\/\d{4})/);
       const fecha = fechaMatch?.[1] ?? "";

@@ -31,21 +31,41 @@ export type ExpectedResponseFormat = "json" | "csv" | "text";
  * Marcadores de contenido de páginas de captcha/bot-challenge conocidas.
  * Heurística por CONTENIDO (no por status HTTP): el vector real de SR-14 es
  * un 200 legítimo con este cuerpo. Incluye reCAPTCHA/hCaptcha (Google),
- * Cloudflare (challenge-platform/"checking your browser"), Zenedge
- * (documentado por el README como protección real de
- * `plataformadigitalnacional.org`) y los mensajes en español que un usuario
- * real vería en un formulario de verificación mexicano.
+ * Cloudflare (challenge-platform/"checking your browser"/Turnstile), Akamai
+ * Bot Manager, Imperva/Incapsula, Zenedge (documentado por el README como
+ * protección real de `plataformadigitalnacional.org`), los mensajes en
+ * español que un usuario real vería en un formulario de verificación
+ * mexicano, y un formulario de login genérico (SR-20: un login HTML sin
+ * ninguna palabra "captcha"/"challenge" es igual de real como soft-block que
+ * un captcha explícito -- p.ej. un endpoint que empezó a exigir sesión).
+ *
+ * SR-19/SR-20 (residuales de la ronda 2 de corrección): antes de esta ronda,
+ * la palabra suelta "captcha" (p.ej. `{"error":"captcha"}`, un JSON
+ * sintácticamente válido de un soft-block de aplicación) y vendors sin
+ * marcador explícito (Akamai "Pardon Our Interruption", Imperva/Incapsula,
+ * un login genérico) pasaban sin detectarse.
  */
 const CHALLENGE_MARKERS: ReadonlyArray<{ pattern: RegExp; label: string }> = [
   { pattern: /g-recaptcha/i, label: "g-recaptcha" },
   { pattern: /recaptcha/i, label: "recaptcha" },
   { pattern: /hcaptcha/i, label: "hcaptcha" },
-  { pattern: /cf-challenge|cf_chl_opt|challenge-platform|challenge-error-text/i, label: "cf-challenge" },
-  { pattern: /checking your browser before accessing/i, label: "cloudflare-checking-browser" },
+  // SR-19: la palabra suelta "captcha" (sin vendor específico) -- cubre soft-blocks de aplicación
+  // como `{"error":"captcha"}`, además de ser una red de seguridad genérica sobre los patrones de arriba.
+  { pattern: /captcha/i, label: "captcha-generic" },
+  { pattern: /cf-challenge|cf_chl_opt|challenge-platform|challenge-error-text|cf-turnstile/i, label: "cf-challenge" },
+  { pattern: /checking your browser before accessing|just a moment\.{3}|attention required.{0,20}\|.{0,5}cloudflare/i, label: "cloudflare-checking-browser" },
   { pattern: /zenedge/i, label: "zenedge" },
+  // SR-20: Akamai Bot Manager ("Pardon Our Interruption...", cookies `ak_bmsc`/`_abck`) -- vendor real no
+  // reconocido por ningún marcador anterior, confirmado por la reverificación adversarial de la ronda 2.
+  { pattern: /pardon our interruption|ak_bmsc|akamai bot manager|_abck=/i, label: "akamai-bot-manager" },
+  // SR-20: Imperva/Incapsula (otro vendor de bot-protection común en portales gubernamentales).
+  { pattern: /incapsula|imperva|_incapsula_resource/i, label: "imperva-incapsula" },
   { pattern: /verificar que no eres un robot|verifica que no eres un robot/i, label: "verificar-robot-es" },
   { pattern: /i'?m not a robot/i, label: "not-a-robot" },
   { pattern: /captcha-form|challenge-form/i, label: "challenge-form" },
+  // SR-20: formulario de login genérico (campo de contraseña dentro de un documento HTML) -- un endpoint que
+  // empezó a exigir sesión responde con una página de login real, sin ninguna palabra "captcha"/"challenge".
+  { pattern: /<input[^>]*type\s*=\s*["']?password["']?/i, label: "generic-login-form" },
 ];
 
 /** Devuelve la etiqueta del primer marcador de captcha/bot-challenge reconocido en `body`, o `undefined` si no hay ninguno. */
@@ -76,8 +96,24 @@ function looksLikeHtmlDocument(body: string): boolean {
  * `classifySourceFailure` (`pipeline/source-health.ts`) mapea ambos errores
  * a un `SourceHealthState` explícito (`captcha_detected`/`interface_changed`)
  * -- nunca `"ok"`.
+ *
+ * SR-20 (residual de la ronda 2): antes de esta ronda, un conector con
+ * `expected: "text"` (hoy solo DOF) NUNCA aplicaba `looksLikeHtmlDocument` --
+ * por diseño, ya que una nota real del DOF ES HTML legítimo -- así que un
+ * login genérico o un vendor de bot-protection sin marcador reconocido
+ * (Akamai, Imperva/Incapsula) pasaba sin lanzar. Ahora, cuando el llamador
+ * declara `minimalContentMarkers` (patrones que SÍ debe contener un cuerpo
+ * legítimo de esa fuente -- p.ej. `DOF_MINIMAL_CONTENT_MARKERS` en
+ * `dof-connector.ts`), un cuerpo con forma de documento HTML que NO matchea
+ * NINGUNO de esos marcadores se trata como `InterfaceChangedError` incluso
+ * con `expected: "text"`: sigue sin poder ser un HTML cualquiera (SÍ se
+ * acepta HTML legítimo de la fuente), pero deja de aceptar CUALQUIER HTML
+ * sin verificar que de verdad venga de la fuente esperada.
  */
-export function assertLegitimateResponseBody(body: string, context: { url: string; expected: ExpectedResponseFormat }): void {
+export function assertLegitimateResponseBody(
+  body: string,
+  context: { url: string; expected: ExpectedResponseFormat; minimalContentMarkers?: ReadonlyArray<RegExp> },
+): void {
   const marker = detectChallengeMarker(body);
   if (marker) {
     throw new CaptchaDetectedError(
@@ -85,10 +121,29 @@ export function assertLegitimateResponseBody(body: string, context: { url: strin
         "posible bloqueo por CAPTCHA/anti-bot. Por política (REQ-079) este proyecto nunca intenta resolverlo.",
     );
   }
-  if (context.expected !== "text" && looksLikeHtmlDocument(body)) {
-    throw new InterfaceChangedError(
-      `Respuesta de ${context.url}: se esperaba el formato "${context.expected}" pero el cuerpo tiene forma de ` +
-        "documento HTML (posible cambio de interfaz de la fuente, o una página de error/bloqueo no reconocida como captcha).",
-    );
+  if (context.expected !== "text") {
+    if (looksLikeHtmlDocument(body)) {
+      throw new InterfaceChangedError(
+        `Respuesta de ${context.url}: se esperaba el formato "${context.expected}" pero el cuerpo tiene forma de ` +
+          "documento HTML (posible cambio de interfaz de la fuente, o una página de error/bloqueo no reconocida como captcha).",
+      );
+    }
+    return;
+  }
+
+  // expected === "text": un cuerpo HTML/texto es POR DISEÑO el formato legítimo (p.ej. una nota real del DOF),
+  // así que no se rechaza solo por tener forma de documento HTML. Pero si el llamador declaró los marcadores
+  // estructurales mínimos que SÍ debe traer un cuerpo real de esta fuente (SR-20) y el cuerpo tiene forma de
+  // HTML sin ninguno de ellos, es una página distinta a la esperada (login/bloqueo genérico sin marcador de
+  // captcha reconocido) -- no se puede seguir aceptando en silencio.
+  if (context.minimalContentMarkers && context.minimalContentMarkers.length > 0 && looksLikeHtmlDocument(body)) {
+    const matchesExpectedShape = context.minimalContentMarkers.some((pattern) => pattern.test(body));
+    if (!matchesExpectedShape) {
+      throw new InterfaceChangedError(
+        `Respuesta de ${context.url}: se esperaba texto/HTML de la fuente pero el cuerpo (con forma de documento HTML) ` +
+          "no contiene ninguno de los marcadores estructurales mínimos esperados de esa fuente -- probable página de " +
+          "login/bloqueo genérica sin marcador de captcha reconocido, o cambio de interfaz de la fuente.",
+      );
+    }
   }
 }

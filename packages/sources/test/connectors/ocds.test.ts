@@ -3,8 +3,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { mapOcdsPackageToTenderRecords } from "../../src/connectors/ocds/ocds-mapper.js";
+import { OcdsReleasePackageSchema } from "../../src/connectors/ocds/ocds-types.js";
 import { createOcdsShcpConnector } from "../../src/connectors/ocds-shcp/ocds-shcp-connector.js";
 import { HttpClient } from "../../src/http/http-client.js";
+import { CaptchaDetectedError } from "../../src/http/response-classifier.js";
 import type { ConnectorContext } from "../../src/connectors/types.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -75,5 +77,45 @@ describe("createOcdsShcpConnector", () => {
     const connector = createOcdsShcpConnector();
     expect(connector.liveVerification.verified).toBe(false);
     expect(connector.liveVerification.note).toMatch(/api\.datos\.gob\.mx/);
+  });
+});
+
+describe("SR-19 (ALTA, residual de SR-14): OcdsReleasePackageSchema.releases sin '.default([])' (comparte esquema con PDN-S6/portales estatales)", () => {
+  it("'{}' (sin la llave 'releases') lanza ZodError -- ya no pasa silenciosamente como 0 releases", () => {
+    expect(() => OcdsReleasePackageSchema.parse({})).toThrow();
+  });
+
+  it("'{\"releases\":null}' lanza -- presente pero de tipo incorrecto no es lo mismo que una colección vacía", () => {
+    expect(() => OcdsReleasePackageSchema.parse({ releases: null })).toThrow();
+  });
+
+  it("'{\"releases\":[]}' (colección presente y EXPLÍCITAMENTE vacía) sigue siendo válido", () => {
+    expect(() => OcdsReleasePackageSchema.parse({ releases: [] })).not.toThrow();
+  });
+
+  it("createOcdsShcpConnector.discover() ante '{}' lanza (no produce 0 registros en silencio)", async () => {
+    const fetchImpl = async () => new Response("{}", { status: 200 });
+    const http = new HttpClient({ userAgent: "TestBot/1.0", fetchImpl: fetchImpl as unknown as typeof fetch, minIntervalMsPerHost: 0, maxRetries: 0 });
+    const connector = createOcdsShcpConnector();
+    const ctx: ConnectorContext = { http, now: () => new Date() };
+
+    await expect(async () => {
+      for await (const _r of connector.discover({}, ctx)) {
+        /* no-op */
+      }
+    }).rejects.toThrow();
+  });
+
+  it("createOcdsShcpConnector.discover() ante un soft-block JSON con la palabra 'captcha' lanza CaptchaDetectedError", async () => {
+    const fetchImpl = async () => new Response('{"error":"captcha"}', { status: 200 });
+    const http = new HttpClient({ userAgent: "TestBot/1.0", fetchImpl: fetchImpl as unknown as typeof fetch, minIntervalMsPerHost: 0, maxRetries: 0 });
+    const connector = createOcdsShcpConnector();
+    const ctx: ConnectorContext = { http, now: () => new Date() };
+
+    await expect(async () => {
+      for await (const _r of connector.discover({}, ctx)) {
+        /* no-op */
+      }
+    }).rejects.toThrow(CaptchaDetectedError);
   });
 });

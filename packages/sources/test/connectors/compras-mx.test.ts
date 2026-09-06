@@ -9,7 +9,8 @@ import {
   parseComprasMxHistoricoCsv,
 } from "../../src/connectors/compras-mx/comprasmx-mapper.js";
 import { HttpClient } from "../../src/http/http-client.js";
-import type { ConnectorContext } from "../../src/connectors/types.js";
+import { CaptchaDetectedError } from "../../src/http/response-classifier.js";
+import type { ConnectorContext, SourceConnector } from "../../src/connectors/types.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const fixturesDir = path.join(__dirname, "..", "fixtures", "compras-mx");
@@ -152,5 +153,59 @@ describe("createComprasMxConnector", () => {
         /* no-op */
       }
     }).rejects.toThrow(/401|reCAPTCHA/i);
+  });
+});
+
+describe("SR-19 (ALTA, residual de SR-14): un 200 con JSON válido pero sin la llave 'data' NUNCA se interpreta como 0 registros legítimos", () => {
+  async function discoverWith(body: string) {
+    const fetchImpl = async () => new Response(body, { status: 200 });
+    const http = new HttpClient({ userAgent: "TestBot/1.0", fetchImpl: fetchImpl as unknown as typeof fetch, minIntervalMsPerHost: 0, maxRetries: 0 });
+    const connector = createComprasMxConnector();
+    const ctx: ConnectorContext = { http, now: () => new Date("2026-09-05T00:00:00Z") };
+    const records = [];
+    for await (const record of connector.discover({}, ctx)) records.push(record);
+    return records;
+  }
+
+  it("'{}' (sin la llave 'data') lanza -- ya NO pasa silenciosamente como 0 registros (antes: .default([]) lo absorbía)", async () => {
+    await expect(discoverWith("{}")).rejects.toThrow();
+  });
+
+  it("'{\"success\":false,\"error\":\"captcha\"}' se clasifica como CaptchaDetectedError (marcador 'captcha' genérico), no como 0 registros", async () => {
+    await expect(discoverWith('{"success":false,"error":"captcha"}')).rejects.toThrow(CaptchaDetectedError);
+  });
+
+  it("'{\"data\":[]}' (colección presente y EXPLÍCITAMENTE vacía) sigue siendo un resultado ok legítimo con 0 registros", async () => {
+    const records = await discoverWith('{"data":[]}');
+    expect(records).toEqual([]);
+  });
+
+  it("'{\"data\":null}' lanza -- 'data' presente pero de tipo incorrecto no es lo mismo que una colección vacía", async () => {
+    await expect(discoverWith('{"data":null}')).rejects.toThrow();
+  });
+
+  it("DiscoveryPipeline: '{}' se clasifica interface_changed (nunca 'ok'), y '{\"data\":[]}' se clasifica ok con coverage.emptyResult=true", async () => {
+    const emptyBodyConnector = createComprasMxConnector();
+    const explicitEmptyConnector = createComprasMxConnector();
+
+    const runOnce = async (connector: SourceConnector, body: string) => {
+      const fetchImpl = async () => new Response(body, { status: 200 });
+      const http = new HttpClient({ userAgent: "TestBot/1.0", fetchImpl: fetchImpl as unknown as typeof fetch, minIntervalMsPerHost: 0, maxRetries: 0 });
+      const pipeline = new DiscoveryPipeline({
+        connectors: [connector],
+        repository: new InMemoryTenderRepository(),
+        checkpoints: new InMemoryCheckpointStore(),
+        http,
+      });
+      return pipeline.run();
+    };
+
+    const missingKeyResult = await runOnce(emptyBodyConnector, "{}");
+    expect(missingKeyResult.bySource["compras-mx"].health.state).toBe("interface_changed");
+    expect(missingKeyResult.bySource["compras-mx"].health.state).not.toBe("ok");
+
+    const explicitEmptyResult = await runOnce(explicitEmptyConnector, '{"data":[]}');
+    expect(explicitEmptyResult.bySource["compras-mx"].health.state).toBe("ok");
+    expect(explicitEmptyResult.bySource["compras-mx"].health.evidence.coverage).toEqual({ emptyResult: true });
   });
 });

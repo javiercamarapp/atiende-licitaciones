@@ -46,6 +46,76 @@ describe("assertLegitimateResponseBody (SR-14)", () => {
   });
 });
 
+describe("detectChallengeMarker: SR-19/SR-20 (residuales de la ronda 2 de corrección)", () => {
+  it("SR-19: reconoce la palabra suelta 'captcha' sin vendor específico (soft-block de aplicación, p.ej. JSON)", () => {
+    expect(detectChallengeMarker('{"success":false,"error":"captcha"}')).toBe("captcha-generic");
+  });
+
+  it("SR-20: reconoce Akamai Bot Manager ('Pardon Our Interruption', cookie ak_bmsc)", () => {
+    expect(detectChallengeMarker("Pardon Our Interruption! You've been momentarily blocked.")).toBe("akamai-bot-manager");
+    expect(detectChallengeMarker("document.cookie = 'ak_bmsc=abc123'")).toBe("akamai-bot-manager");
+  });
+
+  it("SR-20: reconoce Imperva/Incapsula", () => {
+    expect(detectChallengeMarker("Request unsuccessful. Incapsula incident ID: 123-456")).toBe("imperva-incapsula");
+  });
+
+  it("SR-20: reconoce Cloudflare Turnstile y 'Just a moment...'", () => {
+    expect(detectChallengeMarker('<div class="cf-turnstile"></div>')).toBe("cf-challenge");
+    expect(detectChallengeMarker("Just a moment...")).toBe("cloudflare-checking-browser");
+  });
+
+  it("SR-20: reconoce un formulario de login genérico (campo de contraseña dentro de HTML)", () => {
+    expect(detectChallengeMarker('<form><input type="password" name="pwd"></form>')).toBe("generic-login-form");
+  });
+});
+
+describe("assertLegitimateResponseBody: SR-19 (JSON válido pero soft-block) y SR-20 (expected:'text' con marcadores mínimos)", () => {
+  it("SR-19: un JSON con la palabra suelta 'captcha' lanza CaptchaDetectedError aunque sea sintácticamente válido", () => {
+    expect(() => assertLegitimateResponseBody('{"success":false,"error":"captcha"}', { url: "https://example.gob.mx", expected: "json" })).toThrow(
+      CaptchaDetectedError,
+    );
+  });
+
+  it("SR-20: expected:'text' con minimalContentMarkers -- un login genérico (HTML sin ninguno de los marcadores esperados) lanza InterfaceChangedError", () => {
+    const loginHtml = "<!doctype html><html><body><h1>Inicia sesión</h1><p>Sesión requerida para continuar</p></body></html>";
+    expect(() =>
+      assertLegitimateResponseBody(loginHtml, {
+        url: "https://dof.gob.mx/nota_detalle.php",
+        expected: "text",
+        minimalContentMarkers: [/diario oficial de la federaci[oó]n/i, /DivDetalleNota/i],
+      }),
+    ).toThrow(InterfaceChangedError);
+  });
+
+  it("SR-20: expected:'text' con minimalContentMarkers -- Akamai Bot Manager se clasifica como captcha, no como interface_changed", () => {
+    const akamaiHtml = "<!doctype html><html><body><h1>Pardon Our Interruption</h1></body></html>";
+    expect(() =>
+      assertLegitimateResponseBody(akamaiHtml, {
+        url: "https://dof.gob.mx/nota_detalle.php",
+        expected: "text",
+        minimalContentMarkers: [/diario oficial de la federaci[oó]n/i],
+      }),
+    ).toThrow(CaptchaDetectedError);
+  });
+
+  it("SR-20: expected:'text' con minimalContentMarkers -- un HTML que SÍ trae el marcador esperado NO lanza", () => {
+    const realNota = "<html><head><title>DOF - Diario Oficial de la Federación</title></head><body>Contenido real</body></html>";
+    expect(() =>
+      assertLegitimateResponseBody(realNota, {
+        url: "https://dof.gob.mx/nota_detalle.php",
+        expected: "text",
+        minimalContentMarkers: [/diario oficial de la federaci[oó]n/i, /DivDetalleNota/i],
+      }),
+    ).not.toThrow();
+  });
+
+  it("expected:'text' SIN minimalContentMarkers sigue sin lanzar por cualquier HTML legítimo (comportamiento previo preservado)", () => {
+    const html = "<html><body>DEPENDENCIA.-Convocatoria pública</body></html>";
+    expect(() => assertLegitimateResponseBody(html, { url: "https://dof.gob.mx", expected: "text" })).not.toThrow();
+  });
+});
+
 describe("classifySourceFailure integra CaptchaDetectedError/InterfaceChangedError (SR-14)", () => {
   it("clasifica CaptchaDetectedError como captcha_detected", () => {
     const error = new CaptchaDetectedError("cuerpo con g-recaptcha");

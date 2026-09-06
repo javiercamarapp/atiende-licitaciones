@@ -88,12 +88,21 @@ export const OcdsReleaseSchema = z.object({
 });
 export type OcdsRelease = z.infer<typeof OcdsReleaseSchema>;
 
+/**
+ * SR-19 (residual de la ronda 2 de corrección, ver `comprasmx-types.ts` para
+ * el detalle completo): `releases` YA NO usa `.default([])`. Un cuerpo 200
+ * sintácticamente válido pero sin la llave `releases` pasaba esta
+ * validación SIN lanzar, indistinguible de un release package real con 0
+ * releases. `{"releases": []}` explícito sigue siendo válido (colección
+ * presente y vacía); la ausencia de la llave (o un valor no-array) ahora
+ * lanza `ZodError` -> `interface_changed`.
+ */
 export const OcdsReleasePackageSchema = z.object({
   uri: optionalNullish(z.string()),
   version: optionalNullish(z.string()),
   publishedDate: optionalNullish(z.string()),
   publisher: optionalNullish(z.object({ name: optionalNullish(z.string()) })),
   license: optionalNullish(z.string()),
-  releases: z.array(OcdsReleaseSchema).default([]),
+  releases: z.array(OcdsReleaseSchema),
 });
 export type OcdsReleasePackage = z.infer<typeof OcdsReleasePackageSchema>;
