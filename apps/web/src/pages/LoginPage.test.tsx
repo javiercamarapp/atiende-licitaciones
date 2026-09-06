@@ -15,6 +15,12 @@ function panelActivo() {
 }
 
 describe("LoginPage", () => {
+  it("tiene un landmark <main> y un <h1> real (W-08)", () => {
+    renderWithProviders(<LoginPage />);
+    expect(screen.getByRole("main")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Accede a tu panel de licitaciones" })).toBeInTheDocument();
+  });
+
   it("valida el formulario de contraseña con zod antes de enviar", async () => {
     const user = userEvent.setup();
     renderWithProviders(<LoginPage />);

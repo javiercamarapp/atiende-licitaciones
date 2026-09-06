@@ -5,6 +5,7 @@ import { z } from "zod";
 import { Mail, Lock, Sparkles } from "lucide-react";
 
 import { AtiendeWordmark } from "@/components/AtiendeLogo";
+import { SkipLink } from "@/components/SkipLink";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -143,18 +144,23 @@ function MagicLinkForm() {
 
 export default function LoginPage() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <a href="#login-form" className="skip-link">
-        Saltar al formulario de acceso
-      </a>
+    // LoginPage es la única pantalla que no usa <AppShell/> (que ya aporta
+    // <main>/<h1> a todas las demás), así que necesita su propio landmark y
+    // encabezado real — sin esto axe reporta landmark-one-main,
+    // page-has-heading-one y region (W-08).
+    <main className="flex min-h-screen items-center justify-center bg-background p-4">
+      <SkipLink targetId="login-form">Saltar al formulario de acceso</SkipLink>
       <Card className="w-full max-w-md">
         <CardHeader className="items-center text-center">
           <AtiendeWordmark className="mb-2" />
-          <CardTitle>Accede a tu panel de licitaciones</CardTitle>
+          <CardTitle level={1}>Accede a tu panel de licitaciones</CardTitle>
           <CardDescription>Gestiona convocatorias, evaluaciones y entregas en un solo lugar.</CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="password" id="login-form">
+          {/* tabIndex={-1} (W-09): sin esto el skip-link no puede mover el
+              foco aquí porque un <div> sin tabindex no es un destino de foco
+              válido — verificado por teclado real, no solo por axe. */}
+          <Tabs defaultValue="password" id="login-form" tabIndex={-1} className="focus:outline-none">
             <TabsList className="mb-4 grid w-full grid-cols-2">
               <TabsTrigger value="password" className="gap-1.5">
                 <Lock className="h-3.5 w-3.5" aria-hidden="true" />
@@ -174,6 +180,6 @@ export default function LoginPage() {
           </Tabs>
         </CardContent>
       </Card>
-    </div>
+    </main>
   );
 }

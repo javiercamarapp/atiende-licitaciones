@@ -3,6 +3,7 @@ import { Outlet } from "react-router-dom";
 import { Menu } from "lucide-react";
 
 import { AtiendeWordmark } from "@/components/AtiendeLogo";
+import { SkipLink } from "@/components/SkipLink";
 import { ThemeSelector } from "@/components/ThemeSelector";
 import { SidebarNav } from "@/components/layout/SidebarNav";
 import { OrganizationSwitcher } from "@/components/layout/OrganizationSwitcher";
@@ -20,9 +21,7 @@ export function AppShell() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background md:flex-row md:gap-3 md:p-3">
-      <a href="#main-content" className="skip-link">
-        Saltar al contenido principal
-      </a>
+      <SkipLink targetId="main-content">Saltar al contenido principal</SkipLink>
 
       <aside
         aria-label="Barra lateral"

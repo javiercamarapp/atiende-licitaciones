@@ -1,0 +1,480 @@
+Nota: W-08 (landmark <main>/<h1> en LoginPage) y W-09 (skip-link que no
+movia el foco en LoginPage) se corrigen en un solo commit porque ambos
+hallazgos caen sobre las mismas lineas de LoginPage.tsx (el wrapper de la
+pagina para W-08, el elemento objetivo del skip-link para W-09) -
+separarlos en dos commits habria requerido tocar el mismo diff dos veces
+sin aportar trazabilidad real.
+
+=== W-08: reproduccion real del fallo (LoginPage sin <main>/<h1>), ANTES de la correccion ===
+
+[2mRunning [22m1[2m test using [22m1[2m worker[22m
+
+  [31m✘[39m  [2m1 [22m[31m[chromium] › e2e/login-landmarks.spec.ts:8:1 › /login tiene landmark <main>, un <h1> real y ningún contenido fuera de landmarks (W-08)[39m[2m (440ms)[22m
+
+
+[31m  1) [chromium] › e2e/login-landmarks.spec.ts:8:1 › /login tiene landmark <main>, un <h1> real y ningún contenido fuera de landmarks (W-08) [39m
+
+    Error: [
+      {
+        "id": "landmark-one-main",
+        "impact": "moderate",
+        "tags": [
+          "cat.semantics",
+          "best-practice"
+        ],
+        "description": "Ensure the document has a main landmark",
+        "help": "Document should have one main landmark",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/landmark-one-main?application=playwright",
+        "nodes": [
+          {
+            "any": [],
+            "all": [
+              {
+                "id": "page-has-main",
+                "data": null,
+                "relatedNodes": [],
+                "impact": "moderate",
+                "message": "Document does not have a main landmark"
+              }
+            ],
+            "none": [],
+            "impact": "moderate",
+            "html": "<html lang=\"es\">",
+            "target": [
+              "html"
+            ],
+            "failureSummary": "Fix all of the following:\n  Document does not have a main landmark"
+          }
+        ]
+      },
+      {
+        "id": "page-has-heading-one",
+        "impact": "moderate",
+        "tags": [
+          "cat.semantics",
+          "best-practice"
+        ],
+        "description": "Ensure that the page, or at least one of its frames contains a level-one heading",
+        "help": "Page should contain a level-one heading",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/page-has-heading-one?application=playwright",
+        "nodes": [
+          {
+            "any": [],
+            "all": [
+              {
+                "id": "page-has-heading-one",
+                "data": null,
+                "relatedNodes": [],
+                "impact": "moderate",
+                "message": "Page must have a level-one heading"
+              }
+            ],
+            "none": [],
+            "impact": "moderate",
+            "html": "<html lang=\"es\">",
+            "target": [
+              "html"
+            ],
+            "failureSummary": "Fix all of the following:\n  Page must have a level-one heading"
+          }
+        ]
+      },
+      {
+        "id": "region",
+        "impact": "moderate",
+        "tags": [
+          "cat.keyboard",
+          "best-practice",
+          "RGAAv4",
+          "RGAA-9.2.1"
+        ],
+        "description": "Ensure all page content is contained by landmarks",
+        "help": "All page content should be contained by landmarks",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/region?application=playwright",
+        "nodes": [
+          {
+            "any": [
+              {
+                "id": "region",
+                "data": {
+                  "isIframe": false
+                },
+                "relatedNodes": [],
+                "impact": "moderate",
+                "message": "Some page content is not contained by landmarks"
+              }
+            ],
+            "all": [],
+            "none": [],
+            "impact": "moderate",
+            "html": "<span class=\"font-display text-2xl font-bold tracking-tight text-primary\">atiende</span>",
+            "target": [
+              ".text-2xl"
+            ],
+            "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks"
+          },
+          {
+            "any": [
+              {
+                "id": "region",
+                "data": {
+                  "isIframe": false
+                },
+                "relatedNodes": [],
+                "impact": "moderate",
+                "message": "Some page content is not contained by landmarks"
+              }
+            ],
+            "all": [],
+            "none": [],
+            "impact": "moderate",
+            "html": "<h2 class=\"font-display text-xl font-semibold leading-none tracking-tight\">Accede a tu panel de licitaciones</h2>",
+            "target": [
+              "h2"
+            ],
+            "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks"
+          },
+          {
+            "any": [
+              {
+                "id": "region",
+                "data": {
+                  "isIframe": false
+                },
+                "relatedNodes": [],
+                "impact": "moderate",
+                "message": "Some page content is not contained by landmarks"
+              }
+            ],
+            "all": [],
+            "none": [],
+            "impact": "moderate",
+            "html": "<p class=\"text-sm text-muted-foreground\">Gestiona convocatorias, evaluaciones y entregas en un solo lugar.</p>",
+            "target": [
+              "p"
+            ],
+            "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks"
+          },
+          {
+            "any": [
+              {
+                "id": "region",
+                "data": {
+                  "isIframe": false
+                },
+                "relatedNodes": [],
+                "impact": "moderate",
+                "message": "Some page content is not contained by landmarks"
+              }
+            ],
+            "all": [],
+            "none": [],
+            "impact": "moderate",
+            "html": "<div role=\"tablist\" aria-orientation=\"horizontal\" class=\"h-10 items-center justify-center rounded-full bg-muted p-1 text-muted-foreground mb-4 grid w-full grid-cols-2\" tabindex=\"0\" data-orientation=\"horizontal\" style=\"outline: none;\">",
+            "target": [
+              ".bg-muted"
+            ],
+            "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks"
+          },
+          {
+            "any": [
+              {
+                "id": "region",
+                "data": {
+                  "isIframe": false
+                },
+                "relatedNodes": [],
+                "impact": "moderate",
+                "message": "Some page content is not contained by landmarks"
+              }
+            ],
+            "all": [],
+            "none": [],
+            "impact": "moderate",
+            "html": "<div data-state=\"active\" data-orientation=\"horizontal\" role=\"tabpanel\" aria-labelledby=\"radix-:r0:-trigger-p...\" id=\"radix-:r0:-content-p...\" tabindex=\"0\" class=\"mt-4 focus-visible:o...\" style=\"animation-duration: ...\">",
+            "target": [
+              "#radix-\\:r0\\:-content-password"
+            ],
+            "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks"
+          }
+        ]
+      }
+    ]
+
+    [2mexpect([22m[31mreceived[39m[2m).[22mtoEqual[2m([22m[32mexpected[39m[2m) // deep equality[22m
+
+    [32m- Expected  -   1[39m
+    [31m+ Received  + 193[39m
+
+    [32m- Array [][39m
+    [31m+ Array [[39m
+    [31m+   Object {[39m
+    [31m+     "description": "Ensure the document has a main landmark",[39m
+    [31m+     "help": "Document should have one main landmark",[39m
+    [31m+     "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/landmark-one-main?application=playwright",[39m
+    [31m+     "id": "landmark-one-main",[39m
+    [31m+     "impact": "moderate",[39m
+    [31m+     "nodes": Array [[39m
+    [31m+       Object {[39m
+    [31m+         "all": Array [[39m
+    [31m+           Object {[39m
+    [31m+             "data": null,[39m
+    [31m+             "id": "page-has-main",[39m
+    [31m+             "impact": "moderate",[39m
+    [31m+             "message": "Document does not have a main landmark",[39m
+    [31m+             "relatedNodes": Array [],[39m
+    [31m+           },[39m
+    [31m+         ],[39m
+    [31m+         "any": Array [],[39m
+    [31m+         "failureSummary": "Fix all of the following:[39m
+    [31m+   Document does not have a main landmark",[39m
+    [31m+         "html": "<html lang=\"es\">",[39m
+    [31m+         "impact": "moderate",[39m
+    [31m+         "none": Array [],[39m
+    [31m+         "target": Array [[39m
+    [31m+           "html",[39m
+    [31m+         ],[39m
+    [31m+       },[39m
+    [31m+     ],[39m
+    [31m+     "tags": Array [[39m
+    [31m+       "cat.semantics",[39m
+    [31m+       "best-practice",[39m
+    [31m+     ],[39m
+    [31m+   },[39m
+    [31m+   Object {[39m
+    [31m+     "description": "Ensure that the page, or at least one of its frames contains a level-one heading",[39m
+    [31m+     "help": "Page should contain a level-one heading",[39m
+    [31m+     "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/page-has-heading-one?application=playwright",[39m
+    [31m+     "id": "page-has-heading-one",[39m
+    [31m+     "impact": "moderate",[39m
+    [31m+     "nodes": Array [[39m
+    [31m+       Object {[39m
+    [31m+         "all": Array [[39m
+    [31m+           Object {[39m
+    [31m+             "data": null,[39m
+    [31m+             "id": "page-has-heading-one",[39m
+    [31m+             "impact": "moderate",[39m
+    [31m+             "message": "Page must have a level-one heading",[39m
+    [31m+             "relatedNodes": Array [],[39m
+    [31m+           },[39m
+    [31m+         ],[39m
+    [31m+         "any": Array [],[39m
+    [31m+         "failureSummary": "Fix all of the following:[39m
+    [31m+   Page must have a level-one heading",[39m
+    [31m+         "html": "<html lang=\"es\">",[39m
+    [31m+         "impact": "moderate",[39m
+    [31m+         "none": Array [],[39m
+    [31m+         "target": Array [[39m
+    [31m+           "html",[39m
+    [31m+         ],[39m
+    [31m+       },[39m
+    [31m+     ],[39m
+    [31m+     "tags": Array [[39m
+    [31m+       "cat.semantics",[39m
+    [31m+       "best-practice",[39m
+    [31m+     ],[39m
+    [31m+   },[39m
+    [31m+   Object {[39m
+    [31m+     "description": "Ensure all page content is contained by landmarks",[39m
+    [31m+     "help": "All page content should be contained by landmarks",[39m
+    [31m+     "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/region?application=playwright",[39m
+    [31m+     "id": "region",[39m
+    [31m+     "impact": "moderate",[39m
+    [31m+     "nodes": Array [[39m
+    [31m+       Object {[39m
+    [31m+         "all": Array [],[39m
+    [31m+         "any": Array [[39m
+    [31m+           Object {[39m
+    [31m+             "data": Object {[39m
+    [31m+               "isIframe": false,[39m
+    [31m+             },[39m
+    [31m+             "id": "region",[39m
+    [31m+             "impact": "moderate",[39m
+    [31m+             "message": "Some page content is not contained by landmarks",[39m
+    [31m+             "relatedNodes": Array [],[39m
+    [31m+           },[39m
+    [31m+         ],[39m
+    [31m+         "failureSummary": "Fix any of the following:[39m
+    [31m+   Some page content is not contained by landmarks",[39m
+    [31m+         "html": "<span class=\"font-display text-2xl font-bold tracking-tight text-primary\">atiende</span>",[39m
+    [31m+         "impact": "moderate",[39m
+    [31m+         "none": Array [],[39m
+    [31m+         "target": Array [[39m
+    [31m+           ".text-2xl",[39m
+    [31m+         ],[39m
+    [31m+       },[39m
+    [31m+       Object {[39m
+    [31m+         "all": Array [],[39m
+    [31m+         "any": Array [[39m
+    [31m+           Object {[39m
+    [31m+             "data": Object {[39m
+    [31m+               "isIframe": false,[39m
+    [31m+             },[39m
+    [31m+             "id": "region",[39m
+    [31m+             "impact": "moderate",[39m
+    [31m+             "message": "Some page content is not contained by landmarks",[39m
+    [31m+             "relatedNodes": Array [],[39m
+    [31m+           },[39m
+    [31m+         ],[39m
+    [31m+         "failureSummary": "Fix any of the following:[39m
+    [31m+   Some page content is not contained by landmarks",[39m
+    [31m+         "html": "<h2 class=\"font-display text-xl font-semibold leading-none tracking-tight\">Accede a tu panel de licitaciones</h2>",[39m
+    [31m+         "impact": "moderate",[39m
+    [31m+         "none": Array [],[39m
+    [31m+         "target": Array [[39m
+    [31m+           "h2",[39m
+    [31m+         ],[39m
+    [31m+       },[39m
+    [31m+       Object {[39m
+    [31m+         "all": Array [],[39m
+    [31m+         "any": Array [[39m
+    [31m+           Object {[39m
+    [31m+             "data": Object {[39m
+    [31m+               "isIframe": false,[39m
+    [31m+             },[39m
+    [31m+             "id": "region",[39m
+    [31m+             "impact": "moderate",[39m
+    [31m+             "message": "Some page content is not contained by landmarks",[39m
+    [31m+             "relatedNodes": Array [],[39m
+    [31m+           },[39m
+    [31m+         ],[39m
+    [31m+         "failureSummary": "Fix any of the following:[39m
+    [31m+   Some page content is not contained by landmarks",[39m
+    [31m+         "html": "<p class=\"text-sm text-muted-foreground\">Gestiona convocatorias, evaluaciones y entregas en un solo lugar.</p>",[39m
+    [31m+         "impact": "moderate",[39m
+    [31m+         "none": Array [],[39m
+    [31m+         "target": Array [[39m
+    [31m+           "p",[39m
+    [31m+         ],[39m
+    [31m+       },[39m
+    [31m+       Object {[39m
+    [31m+         "all": Array [],[39m
+    [31m+         "any": Array [[39m
+    [31m+           Object {[39m
+    [31m+             "data": Object {[39m
+    [31m+               "isIframe": false,[39m
+    [31m+             },[39m
+    [31m+             "id": "region",[39m
+    [31m+             "impact": "moderate",[39m
+    [31m+             "message": "Some page content is not contained by landmarks",[39m
+    [31m+             "relatedNodes": Array [],[39m
+    [31m+           },[39m
+    [31m+         ],[39m
+    [31m+         "failureSummary": "Fix any of the following:[39m
+    [31m+   Some page content is not contained by landmarks",[39m
+    [31m+         "html": "<div role=\"tablist\" aria-orientation=\"horizontal\" class=\"h-10 items-center justify-center rounded-full bg-muted p-1 text-muted-foreground mb-4 grid w-full grid-cols-2\" tabindex=\"0\" data-orientation=\"horizontal\" style=\"outline: none;\">",[39m
+    [31m+         "impact": "moderate",[39m
+    [31m+         "none": Array [],[39m
+    [31m+         "target": Array [[39m
+    [31m+           ".bg-muted",[39m
+    [31m+         ],[39m
+    [31m+       },[39m
+    [31m+       Object {[39m
+    [31m+         "all": Array [],[39m
+    [31m+         "any": Array [[39m
+    [31m+           Object {[39m
+    [31m+             "data": Object {[39m
+    [31m+               "isIframe": false,[39m
+    [31m+             },[39m
+    [31m+             "id": "region",[39m
+    [31m+             "impact": "moderate",[39m
+    [31m+             "message": "Some page content is not contained by landmarks",[39m
+    [31m+             "relatedNodes": Array [],[39m
+    [31m+           },[39m
+    [31m+         ],[39m
+    [31m+         "failureSummary": "Fix any of the following:[39m
+    [31m+   Some page content is not contained by landmarks",[39m
+    [31m+         "html": "<div data-state=\"active\" data-orientation=\"horizontal\" role=\"tabpanel\" aria-labelledby=\"radix-:r0:-trigger-p...\" id=\"radix-:r0:-content-p...\" tabindex=\"0\" class=\"mt-4 focus-visible:o...\" style=\"animation-duration: ...\">",[39m
+    [31m+         "impact": "moderate",[39m
+    [31m+         "none": Array [],[39m
+    [31m+         "target": Array [[39m
+    [31m+           "#radix-\\:r0\\:-content-password",[39m
+    [31m+         ],[39m
+    [31m+       },[39m
+    [31m+     ],[39m
+    [31m+     "tags": Array [[39m
+    [31m+       "cat.keyboard",[39m
+    [31m+       "best-practice",[39m
+    [31m+       "RGAAv4",[39m
+    [31m+       "RGAA-9.2.1",[39m
+    [31m+     ],[39m
+    [31m+   },[39m
+    [31m+ ][39m
+
+    [0m [90m 11 |[39m     [33m.[39mwithRules([[32m"landmark-one-main"[39m[33m,[39m [32m"page-has-heading-one"[39m[33m,[39m [32m"region"[39m])
+     [90m 12 |[39m     [33m.[39manalyze()[33m;[39m
+    [31m[1m>[22m[39m[90m 13 |[39m   expect(results[33m.[39mviolations[33m,[39m [33mJSON[39m[33m.[39mstringify(results[33m.[39mviolations[33m,[39m [36mnull[39m[33m,[39m [35m2[39m))[33m.[39mtoEqual([])[33m;[39m
+     [90m    |[39m                                                                           [31m[1m^[22m[39m
+     [90m 14 |[39m })[33m;[39m
+     [90m 15 |[39m[0m
+    [2m    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/e2e/login-landmarks.spec.ts:13:75[22m
+
+[2m    Error Context: test-results/login-landmarks--login-tie-ec8b4-do-fuera-de-landmarks-W-08--chromium/error-context.md[22m
+
+[2m    attachment #2: [1mtrace[2m (application/zip) [2m─────────────────────────────────────────────────────────[2m[22m
+[2m    test-results/login-landmarks--login-tie-ec8b4-do-fuera-de-landmarks-W-08--chromium/trace.zip[22m
+[2m    Usage:[22m
+
+[2m        npx playwright show-trace test-results/login-landmarks--login-tie-ec8b4-do-fuera-de-landmarks-W-08--chromium/trace.zip[22m
+
+[2m    [2m────────────────────────────────────────────────────────────────────────────────────────────────[2m[22m
+
+[31m  1 failed[39m
+[31m    [chromium] › e2e/login-landmarks.spec.ts:8:1 › /login tiene landmark <main>, un <h1> real y ningún contenido fuera de landmarks (W-08) [39m
+
+=== W-09: reproduccion real del fallo (skip-link no mueve el foco), ANTES de la correccion ===
+
+[2mRunning [22m2[2m tests using [22m1[2m worker[22m
+
+  [31m✘[39m  [2m1 [22m[31m[chromium] › e2e/skip-link.spec.ts:7:3 › Skip-link mueve el foco real (W-09) › en LoginPage, el skip-link mueve el foco al formulario (#login-form)[39m[2m (5.3s)[22m
+  [32m✓[39m  [2m2 [22m[chromium] › e2e/skip-link.spec.ts:23:3 › Skip-link mueve el foco real (W-09) › en AppShell, el skip-link mueve el foco al contenido principal (#main-content)[2m (250ms)[22m
+
+
+[31m  1) [chromium] › e2e/skip-link.spec.ts:7:3 › Skip-link mueve el foco real (W-09) › en LoginPage, el skip-link mueve el foco al formulario (#login-form) [39m
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeFocused[2m([22m[2m)[22m failed
+
+    Locator:  locator('#login-form')
+    Expected: focused
+    Received: inactive
+    Timeout:  5000ms
+
+    Call log:
+    [2m  - Expect "toBeFocused" locator('#login-form') with timeout 5000ms[22m
+    [2m  - waiting for locator('#login-form')[22m
+    [2m    14 × locator resolved to <div dir="ltr" id="login-form" data-orientation="horizontal">…</div>[22m
+    [2m       - unexpected value "inactive"[22m
+
+
+    [0m [90m 18 |[39m
+     [90m 19 |[39m     [36mconst[39m loginForm [33m=[39m page[33m.[39mlocator([32m"#login-form"[39m)[33m;[39m
+    [31m[1m>[22m[39m[90m 20 |[39m     [36mawait[39m expect(loginForm)[33m.[39mtoBeFocused()[33m;[39m
+     [90m    |[39m                             [31m[1m^[22m[39m
+     [90m 21 |[39m   })[33m;[39m
+     [90m 22 |[39m
+     [90m 23 |[39m   test([32m"en AppShell, el skip-link mueve el foco al contenido principal (#main-content)"[39m[33m,[39m [36masync[39m ({ page }) [33m=>[39m {[0m
+    [2m    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/e2e/skip-link.spec.ts:20:29[22m
+
+[2m    Error Context: test-results/skip-link-Skip-link-mueve--d2086-o-al-formulario-login-form--chromium/error-context.md[22m
+
+[2m    attachment #2: [1mtrace[2m (application/zip) [2m─────────────────────────────────────────────────────────[2m[22m
+[2m    test-results/skip-link-Skip-link-mueve--d2086-o-al-formulario-login-form--chromium/trace.zip[22m
+[2m    Usage:[22m
+
+[2m        npx playwright show-trace test-results/skip-link-Skip-link-mueve--d2086-o-al-formulario-login-form--chromium/trace.zip[22m
+
+[2m    [2m────────────────────────────────────────────────────────────────────────────────────────────────[2m[22m
+
+[31m  1 failed[39m
+[31m    [chromium] › e2e/skip-link.spec.ts:7:3 › Skip-link mueve el foco real (W-09) › en LoginPage, el skip-link mueve el foco al formulario (#login-form) [39m
+[32m  1 passed[39m[2m (6.2s)[22m
+
+=== W-08/W-09: tras la correccion (main + h1 + SkipLink con focus() + tabIndex={-1}) ===
+
+[2mRunning [22m3[2m tests using [22m1[2m worker[22m
+
+  [32m✓[39m  [2m1 [22m[chromium] › e2e/login-landmarks.spec.ts:8:1 › /login tiene landmark <main>, un <h1> real y ningún contenido fuera de landmarks (W-08)[2m (483ms)[22m
+  [32m✓[39m  [2m2 [22m[chromium] › e2e/skip-link.spec.ts:7:3 › Skip-link mueve el foco real (W-09) › en LoginPage, el skip-link mueve el foco al formulario (#login-form)[2m (223ms)[22m
+  [32m✓[39m  [2m3 [22m[chromium] › e2e/skip-link.spec.ts:23:3 › Skip-link mueve el foco real (W-09) › en AppShell, el skip-link mueve el foco al contenido principal (#main-content)[2m (211ms)[22m
+
+[32m  3 passed[39m[2m (1.4s)[22m
