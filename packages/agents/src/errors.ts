@@ -35,6 +35,18 @@ export class MissingActionKindError extends AgentsError {
   }
 }
 
+export class InvalidToolNameError extends AgentsError {
+  constructor(readonly toolName: string) {
+    super(
+      `Nombre de herramienta inválido: "${toolName}". Solo se permite ASCII snake_case ` +
+        "([a-z0-9_]+): esto evita que un homoglifo Unicode (p. ej. una letra cirílica que " +
+        "visualmente parece latina) o una variante de mayúsculas/separadores registre una " +
+        "herramienta que evada por nombre las prohibiciones duras (AG-02, REQ-165)",
+      false,
+    );
+  }
+}
+
 export class UnauthorizedToolInputError extends AgentsError {
   constructor(readonly toolName: string, readonly field: string) {
     super(

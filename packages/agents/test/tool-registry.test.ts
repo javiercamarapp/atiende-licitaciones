@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { ToolRegistry, type ToolDefinition } from "../src/tool-registry.js";
-import { MissingActionKindError, ToolNotFoundError, ToolValidationError, UnauthorizedToolInputError } from "../src/errors.js";
+import {
+  InvalidToolNameError,
+  MissingActionKindError,
+  ToolNotFoundError,
+  ToolValidationError,
+  UnauthorizedToolInputError,
+} from "../src/errors.js";
 import { ACTION_KINDS } from "../src/types.js";
 
 function makeTool(overrides: Partial<ToolDefinition<any, any>> = {}): ToolDefinition<any, any> {
@@ -108,6 +114,32 @@ describe("ToolRegistry", () => {
       for (const actionKind of ACTION_KINDS) {
         expect(() => registry.register(makeTool({ name: `tool_${actionKind}`, actionKind }))).not.toThrow();
       }
+    });
+  });
+
+  describe("AG-02 (ALTA): nombres de herramienta ASCII snake_case estrictos (anti-homoglifo)", () => {
+    it("rechaza un nombre con letra cirílica homógrafa de la 's' latina (U+0455)", () => {
+      const registry = new ToolRegistry();
+      // "ѕign_document": la primera letra es CYRILLIC SMALL LETTER DZE (U+0455), no la 's' latina.
+      expect(() => registry.register(makeTool({ name: "ѕign_document" }))).toThrow(InvalidToolNameError);
+    });
+
+    it("rechaza un nombre con mayúsculas", () => {
+      const registry = new ToolRegistry();
+      expect(() => registry.register(makeTool({ name: "Sign_Document" }))).toThrow(InvalidToolNameError);
+    });
+
+    it("rechaza nombres con espacios, guiones o puntos", () => {
+      const registry = new ToolRegistry();
+      expect(() => registry.register(makeTool({ name: "sign document" }))).toThrow(InvalidToolNameError);
+      expect(() => registry.register(makeTool({ name: "sign-document" }))).toThrow(InvalidToolNameError);
+      expect(() => registry.register(makeTool({ name: "sign.document" }))).toThrow(InvalidToolNameError);
+    });
+
+    it("acepta nombres ASCII snake_case válidos", () => {
+      const registry = new ToolRegistry();
+      expect(() => registry.register(makeTool({ name: "sign_document_v2" }))).not.toThrow();
+      expect(() => registry.register(makeTool({ name: "get_tender_123" }))).not.toThrow();
     });
   });
 });

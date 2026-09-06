@@ -1,7 +1,23 @@
 import type { z } from "zod";
 import { ACTION_KINDS, type ActionKind, type Role, type RiskLevel } from "./types.js";
-import { MissingActionKindError, ToolNotFoundError, ToolValidationError, UnauthorizedToolInputError } from "./errors.js";
+import {
+  InvalidToolNameError,
+  MissingActionKindError,
+  ToolNotFoundError,
+  ToolValidationError,
+  UnauthorizedToolInputError,
+} from "./errors.js";
 import type { SourcedValue } from "./no-fabrication.js";
+
+/**
+ * Nombres de herramienta ASCII snake_case estrictos (AG-02): rechaza en
+ * origen cualquier homoglifo Unicode (p. ej. una letra cirílica que
+ * visualmente parece latina), mayúsculas o separador no-`_`. Esto cierra la
+ * vía de evasión por nombre que la normalización NFKC de
+ * `AuthorizationPolicy` no puede resolver por sí sola (NFKC no unifica
+ * alfabetos distintos, solo formas de compatibilidad del MISMO carácter).
+ */
+const VALID_TOOL_NAME = /^[a-z0-9_]+$/;
 
 /**
  * Campos que jamás puede declarar el esquema de entrada de una herramienta.
@@ -76,9 +92,17 @@ export class ToolRegistry {
   private readonly tools = new Map<string, AnyToolDefinition>();
 
   register<Input, Output>(tool: ToolDefinition<Input, Output>): void {
+    this.assertValidToolName(tool);
     this.assertValidActionKind(tool);
     this.assertNoForbiddenFields(tool);
     this.tools.set(tool.name, tool as AnyToolDefinition);
+  }
+
+  /** AG-02: rechaza cualquier nombre fuera de ASCII snake_case ([a-z0-9_]+). */
+  private assertValidToolName(tool: AnyToolDefinition): void {
+    if (!VALID_TOOL_NAME.test(tool.name)) {
+      throw new InvalidToolNameError(tool.name);
+    }
   }
 
   /** AG-01: rechaza cualquier herramienta sin `actionKind` válido del enum cerrado (REQ-165). */

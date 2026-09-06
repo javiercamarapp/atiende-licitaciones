@@ -160,6 +160,15 @@ describe("AuthorizationPolicy", () => {
       }
     });
 
+    it("AG-02 (ALTA): la comparación de toolName normaliza mayúsculas/minúsculas y separadores antes de comparar contra la lista de prohibiciones duras", () => {
+      const policy = new AuthorizationPolicy();
+      const variants = ["Sign_Document", "SIGN_DOCUMENT", "sign-document", "sign document", "SIGN.DOCUMENT"];
+      for (const toolName of variants) {
+        const result = policy.decide({ toolName, riskLevel: "read", actorRole: "superadmin" });
+        expect(result.decision, `variante "${toolName}"`).toBe("denied");
+      }
+    });
+
     it("AG-01: actionKind read/write/payment con nombre inocuo NO se ve afectado por la prohibición dura por categoría", () => {
       const policy = new AuthorizationPolicy();
       for (const actionKind of ["read", "write"] as const) {

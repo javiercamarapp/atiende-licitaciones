@@ -43,6 +43,13 @@ semántica cerrada de lo que la herramienta REALMENTE hace —
 `read`/`write`/`external_send`/`sign`/`portal_action`/`contact_third_party`/
 `payment` — obligatoria; `register()` rechaza cualquier herramienta sin un
 `actionKind` válido de este enum), `idempotent` y `tenantScoped`.
+`register()` también **rechaza cualquier nombre de herramienta fuera de
+ASCII snake_case** (`[a-z0-9_]+`, AG-02): esto bloquea en origen tanto
+mayúsculas/separadores como homoglifos Unicode (p. ej. una letra cirílica
+que visualmente parece latina) que intenten registrar una herramienta cuyo
+nombre "parece" uno prohibido sin serlo textualmente. Como defensa adicional
+(no sustituta), `AuthorizationPolicy` normaliza (NFKC + minúsculas + sin
+separadores) antes de comparar contra las listas de prohibiciones.
 `register()` **rechaza** cualquier esquema de entrada que declare
 `organizationId`/`tenant_id`/`org_id` (o variantes): el tenant lo inyecta
 siempre el runtime en `ToolExecutionContext`, nunca el modelo — mismo patrón

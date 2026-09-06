@@ -64,6 +64,27 @@ const ROLE_RISK_CEILING: Record<Role, RiskLevel> = {
 };
 
 /**
+ * Normaliza un nombre de herramienta para comparación (AG-02): NFKC +
+ * minúsculas + elimina separadores comunes (`_ - . ` espacio). Esto hace
+ * que variantes de mayúsculas/separadores del MISMO nombre ASCII
+ * (`Sign_Document`, `SIGN-DOCUMENT`, `sign document`) coincidan con el
+ * nombre canónico en la lista de prohibiciones duras. No pretende resolver
+ * homoglifos entre alfabetos distintos (p. ej. cirílico/latino, que NFKC no
+ * unifica porque son códigos distintos, no formas de compatibilidad del
+ * mismo carácter) — esa vía se cierra en origen exigiendo nombres ASCII
+ * puros en `ToolRegistry.register()` (ver `InvalidToolNameError`).
+ */
+export function normalizeToolName(name: string): string {
+  return name.normalize("NFKC").toLowerCase().replace(/[\s_.-]+/g, "");
+}
+
+function normalizedSet(values: Iterable<string>): Set<string> {
+  const result = new Set<string>();
+  for (const value of values) result.add(normalizeToolName(value));
+  return result;
+}
+
+/**
  * Fusiona defaults congelados con adiciones del llamador SIN NUNCA reducir
  * el resultado por debajo del default (AG-03): siempre unión, nunca
  * reemplazo, sin importar qué iterable llegue en `additions` (incluida una
@@ -116,7 +137,9 @@ const HARD_PROHIBITED_ACTION_KINDS: ReadonlySet<ActionKind> = new Set<ActionKind
 
 export class AuthorizationPolicy {
   private readonly hardProhibitedActions: Set<string>;
+  private readonly normalizedHardProhibitedActions: Set<string>;
   private readonly prohibitedActions: Set<string>;
+  private readonly normalizedProhibitedActions: Set<string>;
   private readonly roleCeiling: Record<Role, RiskLevel>;
 
   constructor(options?: {
@@ -133,6 +156,11 @@ export class AuthorizationPolicy {
     // por debajo de los defaults: siempre es una UNIÓN, nunca una asignación.
     this.prohibitedActions = unionWithDefaults(DEFAULT_PROHIBITED_ACTIONS, options?.prohibitedActions);
     this.hardProhibitedActions = unionWithDefaults(DEFAULT_HARD_PROHIBITED_ACTIONS, options?.hardProhibitedActions);
+    // AG-02: además del Set exacto (compatibilidad/introspección), se
+    // guarda una versión normalizada (NFKC + minúsculas + sin separadores)
+    // para que decide() nunca compare nombres crudos sin normalizar.
+    this.normalizedProhibitedActions = normalizedSet(this.prohibitedActions);
+    this.normalizedHardProhibitedActions = normalizedSet(this.hardProhibitedActions);
     this.roleCeiling = { ...ROLE_RISK_CEILING, ...options?.roleCeiling };
   }
 
@@ -149,7 +177,11 @@ export class AuthorizationPolicy {
     // Prohibiciones duras por nombre, sin importar el rol: ni superadmin
     // puede hacer que el sistema ejecute esto automáticamente. Nunca son
     // "pending" — no hay ruta de aprobación dentro del sistema para ellas.
-    if (this.hardProhibitedActions.has(request.toolName)) {
+    // AG-02: se compara la forma NORMALIZADA (NFKC + minúsculas + sin
+    // separadores) del nombre, no el string crudo — así "Sign_Document",
+    // "SIGN-DOCUMENT" o "sign document" coinciden con "sign_document".
+    const normalizedToolName = normalizeToolName(request.toolName);
+    if (this.normalizedHardProhibitedActions.has(normalizedToolName)) {
       return { decision: "denied", reason: "prohibicion_dura_solo_humano_fuera_del_sistema" };
     }
 
@@ -167,7 +199,7 @@ export class AuthorizationPolicy {
       };
     }
 
-    if (this.prohibitedActions.has(request.toolName)) {
+    if (this.normalizedProhibitedActions.has(normalizedToolName)) {
       return { decision: "pending", reason: "accion_prohibida_siempre_requiere_humano" };
     }
 
