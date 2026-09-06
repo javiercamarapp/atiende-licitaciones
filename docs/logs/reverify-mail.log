@@ -1,0 +1,307 @@
+=== reverify-mail.log — reverificador Sonnet (2026-09-06) ===
+
+--- npm audit --omit=dev ---
+found 0 vulnerabilities
+
+--- npm run -w packages/mail typecheck ---
+
+> @atiende/mail@0.1.0 typecheck
+> tsc --noEmit
+
+EXIT: 0
+
+--- npm run -w packages/mail lint ---
+
+> @atiende/mail@0.1.0 lint
+> eslint src test scripts
+
+EXIT: 0
+
+--- npm run -w packages/mail test ---
+
+> @atiende/mail@0.1.0 test
+> vitest run
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-mail/packages/mail[39m
+
+ [32m✓[39m test/provider/resend-provider.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 10[2mms[22m[39m
+ [32m✓[39m test/service/send-store.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/provider/postmark-provider.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 10[2mms[22m[39m
+ [32m✓[39m test/webhooks/verify-signature.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m test/provider/smtp-provider.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/security/signed-link.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+ [32m✓[39m test/security/safe-url.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/theme/contrast.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/service/list-unsubscribe.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/webhooks/replay-guard.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 9[2mms[22m[39m
+ [32m✓[39m test/service/rate-limiter.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/provider/capture-provider.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+ [32m✓[39m test/webhooks/apply-event.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/templates/common.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/provider/factory.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 1[2mms[22m[39m
+ [32m✓[39m test/service/retry.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/webhooks/parse-resend-payload.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/components/email-layout.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[90m 29[2mms[22m[39m
+ [32m✓[39m test/recipients/types.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/preferences/filter.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/suppression/types.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/components/atiende-logo.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[90m 25[2mms[22m[39m
+ [32m✓[39m test/provider/types.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/service/mail-service.test.ts [2m([22m[2m18 tests[22m[2m)[22m[33m 332[2mms[22m[39m
+ [32m✓[39m test/index.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/templates/catalog.test.ts [2m([22m[2m84 tests[22m[2m)[22m[33m 586[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m26 passed[39m[22m[90m (26)[39m
+[2m      Tests [22m [1m[32m252 passed[39m[22m[90m (252)[39m
+[2m   Start at [22m 13:27:03
+[2m   Duration [22m 2.17s[2m (transform 457ms, setup 0ms, collect 4.32s, tests 1.07s, environment 26ms, prepare 1.91s)[22m
+
+EXIT: 0
+
+--- npm run -w packages/mail test:coverage ---
+
+> @atiende/mail@0.1.0 test:coverage
+> vitest run --coverage
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-mail/packages/mail[39m
+      [2mCoverage enabled with [22m[33mv8[39m
+
+ [32m✓[39m test/service/send-store.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/security/signed-link.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/provider/postmark-provider.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/provider/resend-provider.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+ [32m✓[39m test/webhooks/verify-signature.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/provider/smtp-provider.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+ [32m✓[39m test/theme/contrast.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/security/safe-url.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/service/list-unsubscribe.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/provider/capture-provider.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/webhooks/replay-guard.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/service/rate-limiter.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m test/components/email-layout.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[90m 27[2mms[22m[39m
+ [32m✓[39m test/webhooks/apply-event.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/provider/factory.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/service/retry.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/templates/common.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/webhooks/parse-resend-payload.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+ [32m✓[39m test/service/mail-service.test.ts [2m([22m[2m18 tests[22m[2m)[22m[90m 153[2mms[22m[39m
+ [32m✓[39m test/recipients/types.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/provider/types.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/suppression/types.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/preferences/filter.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/components/atiende-logo.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[90m 21[2mms[22m[39m
+ [32m✓[39m test/index.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 1[2mms[22m[39m
+ [32m✓[39m test/templates/catalog.test.ts [2m([22m[2m84 tests[22m[2m)[22m[33m 471[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m26 passed[39m[22m[90m (26)[39m
+[2m      Tests [22m [1m[32m252 passed[39m[22m[90m (252)[39m
+[2m   Start at [22m 13:29:09
+[2m   Duration [22m 1.72s[2m (transform 533ms, setup 0ms, collect 3.10s, tests 757ms, environment 4ms, prepare 1.62s)[22m
+
+[34m % [39m[2mCoverage report from [22m[33mv8[39m
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-------------------|---------|----------|---------|---------|-------------------
+[32;1mAll files         [0m | [32;1m  96.26[0m | [32;1m   85.17[0m | [32;1m  97.89[0m | [32;1m  96.26[0m | [31;1m                 [0m 
+[32;1m src              [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  index.ts        [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  theme.ts        [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m src/components   [0m | [32;1m  89.23[0m | [32;1m   93.54[0m | [32;1m  83.33[0m | [32;1m  89.23[0m | [31;1m                 [0m 
+[32;1m  AtiendeLogo.tsx [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  EmailLayout.tsx [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  blocks.tsx      [0m | [32;1m  81.33[0m | [32;1m    90.9[0m | [33;1m  77.77[0m | [32;1m  81.33[0m | [31;1m193-235,295-296  [0m 
+[32;1m src/preferences  [0m | [32;1m    100[0m | [32;1m   85.71[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  filter.ts       [0m | [32;1m    100[0m | [32;1m   83.33[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m13               [0m 
+[32;1m  types.ts        [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m src/provider     [0m | [32;1m  96.24[0m | [32;1m   83.69[0m | [32;1m    100[0m | [32;1m  96.24[0m | [31;1m                 [0m 
+[32;1m  ...e-provider.ts[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  factory.ts      [0m | [32;1m    100[0m | [32;1m    92.3[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m50               [0m 
+[32;1m  ...k-provider.ts[0m | [32;1m    100[0m | [32;1m      80[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m46-47,65,67,69   [0m 
+[32;1m  ...d-provider.ts[0m | [32;1m    100[0m | [33;1m   77.27[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m39,54,64-68,70   [0m 
+[32;1m  smtp-provider.ts[0m | [32;1m  82.97[0m | [33;1m   77.77[0m | [32;1m    100[0m | [32;1m  82.97[0m | [31;1m28-29,45-50      [0m 
+[32;1m  types.ts        [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m src/recipients   [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  types.ts        [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m src/security     [0m | [32;1m   92.3[0m | [32;1m    90.9[0m | [32;1m    100[0m | [32;1m   92.3[0m | [31;1m                 [0m 
+[32;1m  safe-url.ts     [0m | [32;1m  90.47[0m | [32;1m    92.3[0m | [32;1m    100[0m | [32;1m  90.47[0m | [31;1m46-47            [0m 
+[32;1m  signed-link.ts  [0m | [32;1m  92.98[0m | [32;1m      90[0m | [32;1m    100[0m | [32;1m  92.98[0m | [31;1m91-92,94-95      [0m 
+[32;1m src/service      [0m | [32;1m  93.69[0m | [32;1m   85.85[0m | [32;1m    100[0m | [32;1m  93.69[0m | [31;1m                 [0m 
+[32;1m  ...nsubscribe.ts[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  mail-service.ts [0m | [32;1m  90.74[0m | [33;1m   79.68[0m | [32;1m    100[0m | [32;1m  90.74[0m | [31;1m...80,185-190,279[0m 
+[32;1m  rate-limiter.ts [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  retry.ts        [0m | [32;1m    100[0m | [33;1m      50[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m25               [0m 
+[32;1m  send-store.ts   [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m src/suppression  [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  types.ts        [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m src/templates    [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  common.ts       [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  registry.ts     [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  render-html.ts  [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+  types.ts         |       0 |        0 |       0 |       0 | [31;1m                 [0m 
+[32;1m ...plates/catalog[0m | [32;1m  99.77[0m | [33;1m   54.54[0m | [32;1m    100[0m | [32;1m  99.77[0m | [31;1m                 [0m 
+[32;1m  ...generated.tsx[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  ...-received.tsx[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  ...-reminder.tsx[0m | [32;1m    100[0m | [33;1m      50[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m43               [0m 
+[32;1m  ...xpiration.tsx[0m | [32;1m  96.66[0m | [31;1m      20[0m | [32;1m    100[0m | [32;1m  96.66[0m | [31;1m44,58            [0m 
+[32;1m  ...ification.tsx[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  ...der-match.tsx[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  ...on-invite.tsx[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  ...ord-reset.tsx[0m | [32;1m    100[0m | [33;1m      50[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m53               [0m 
+[32;1m  ...-approval.tsx[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  ...ard-alert.tsx[0m | [32;1m    100[0m | [31;1m   33.33[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m54-64            [0m 
+[32;1m  ...age-ready.tsx[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  ...er-change.tsx[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  ...ch-digest.tsx[0m | [32;1m    100[0m | [31;1m      25[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m51-64            [0m 
+[32;1m  ...r-enabled.tsx[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  ...y-summary.tsx[0m | [32;1m    100[0m | [33;1m      50[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m62               [0m 
+[32;1m  ...nboarding.tsx[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m src/webhooks     [0m | [32;1m  96.46[0m | [32;1m   90.38[0m | [32;1m    100[0m | [32;1m  96.46[0m | [31;1m                 [0m 
+[32;1m  apply-event.ts  [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  ...nd-payload.ts[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  replay-guard.ts [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+  types.ts         |       0 |        0 |       0 |       0 | [31;1m                 [0m 
+[32;1m  ...-signature.ts[0m | [32;1m  92.98[0m | [32;1m   84.37[0m | [32;1m    100[0m | [32;1m  92.98[0m | [31;1m67-68,92-93      [0m 
+-------------------|---------|----------|---------|---------|-------------------
+EXIT: 0
+
+--- npm run -w packages/mail build ---
+
+> @atiende/mail@0.1.0 build
+> tsc -p tsconfig.build.json
+
+EXIT: 0
+
+--- npm run -w packages/mail preview ---
+
+> @atiende/mail@0.1.0 preview
+> tsx scripts/preview.ts
+
+Vista previa generada: 16 plantillas en /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-mail/packages/mail/preview
+  - email-verification (account_security, obligatoria): "Confirma tu correo — Atiende Licitaciones"
+  - organization-invite (account_security, obligatoria): "Te dieron acceso a Constructora Ejemplo S.A. de C.V. (ejemplo) en Atiende Licitaciones"
+  - password-reset (account_security, obligatoria): "Recupera tu acceso a Atiende Licitaciones"
+  - two-factor-enabled (account_security, obligatoria): "Activaste la verificación en dos pasos"
+  - backup-codes-generated (account_security, obligatoria): "Tus códigos de respaldo de verificación en dos pasos"
+  - welcome-onboarding (account_security, obligatoria): "Bienvenido a Atiende Licitaciones, Diana Castillo (ejemplo)"
+  - new-tender-match (tender_matches): "Nueva convocatoria: Suministro de equipo de cómputo para oficinas regionales (ejemplo)"
+  - tender-match-digest (tender_matches): "3 convocatorias nuevas que coinciden con tu perfil"
+  - tender-change (tender_changes): "Cambio en convocatoria: Suministro de equipo de cómputo para oficinas regionales (ejemplo)"
+  - pending-approval (approvals): "Una acción espera tu aprobación en Suministro de equipo de cómputo para oficinas regionales (ejemplo)"
+  - submission-package-ready (submission): "Tu paquete de licitación para Suministro de equipo de cómputo para oficinas regionales (ejemplo) está listo"
+  - deadline-reminder (deadlines): "Vence en 48 horas: Suministro de equipo de cómputo para oficinas regionales (ejemplo)"
+  - document-expiration (document_expiration): "Documento por vencer: Opinión de cumplimiento fiscal (ejemplo)"
+  - post-award-alert (post_award): "Vence en 10 días: Garantía de Suministro de equipo de cómputo para oficinas regionales (ejemplo)"
+  - weekly-summary (weekly_summary): "Tu resumen semanal de Atiende Licitaciones"
+  - contact-received (internal, obligatoria): "Nuevo contacto recibido: Fernanda Ibáñez (ejemplo)"
+EXIT: 0
+
+=== ATAQUES ADVERSARIALES (scripts ad-hoc del reverificador, packages/mail/test/_adhoc-reverify-*.test.ts, NO forman parte de la suite del repo) ===
+
+--- ML-01: concurrencia (50x misma clave, release tras not_configured, dead->reintento, dos claves distintas) ---
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-mail/packages/mail[39m
+
+ [32m✓[39m test/_adhoc-reverify-ml01.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 96[2mms[22m[39m
+ [32m✓[39m test/_adhoc-reverify-ml01b.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 422[2mms[22m[39m
+   [33m[2m✓[22m[39m REVERIFICACION ADVERSARIAL ML-01b (ventana de espera acotada del perdedor)[2m > [22msi el ganador de la reserva tarda MAS de ~200ms (40 intentos x 5ms) en escribir el resultado, el perdedor NUNCA vuelve a llamar al provider, pero su outcome no trae providerMessageId (documentado, no un duplicado) [33m421[2mms[22m[39m
+[90mstdout[2m | test/_adhoc-reverify-ml01b.test.ts[2m > [22m[2mREVERIFICACION ADVERSARIAL ML-01b (ventana de espera acotada del perdedor)[2m > [22m[2msi el ganador de la reserva tarda MAS de ~200ms (40 intentos x 5ms) en escribir el resultado, el perdedor NUNCA vuelve a llamar al provider, pero su outcome no trae providerMessageId (documentado, no un duplicado)
+[22m[39moutcome del perdedor cuando el ganador tarda > 200ms: {"status":"already_sent","messageKey":"verificacion:lento"}
+
+
+[2m Test Files [22m [1m[32m2 passed[39m[22m[90m (2)[39m
+[2m      Tests [22m [1m[32m5 passed[39m[22m[90m (5)[39m
+[2m   Start at [22m 13:43:02
+[2m   Duration [22m 948ms[2m (transform 94ms, setup 0ms, collect 584ms, tests 518ms, environment 0ms, prepare 90ms)[22m
+
+
+--- ML-02: cabeceras List-Unsubscribe solo en categorias no obligatorias, mailto y URL verificables ---
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-mail/packages/mail[39m
+
+ [32m✓[39m test/_adhoc-reverify-ml02.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 53[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m2 passed[39m[22m[90m (2)[39m
+[2m   Start at [22m 13:43:03
+[2m   Duration [22m 557ms[2m (transform 82ms, setup 0ms, collect 267ms, tests 53ms, environment 0ms, prepare 32ms)[22m
+
+
+--- ML-03: safeUrl -- localhost.evil.com, 127.0.0.1.evil, [::1], puerto/credenciales, javascript: ---
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-mail/packages/mail[39m
+
+ [32m✓[39m test/_adhoc-reverify-ml03.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m12 passed[39m[22m[90m (12)[39m
+[2m   Start at [22m 13:43:04
+[2m   Duration [22m 223ms[2m (transform 21ms, setup 0ms, collect 20ms, tests 2ms, environment 0ms, prepare 37ms)[22m
+
+
+--- ML-04: contraste WCAG (funcion propia) de todos los tokens de texto, matriz completa + simulacion oscuro ---
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-mail/packages/mail[39m
+
+[90mstdout[2m | test/_adhoc-reverify-ml04.test.ts[2m > [22m[2mREVERIFICACION ADVERSARIAL ML-04 (contraste, funcion WCAG propia)[2m > [22m[2mHALLAZGO: muted (11px/600 'Atiende · Licitaciones' en EmailLayout, y 12px normal en Callout) vs canvas -- ¿cumple 4.5:1 de texto normal?
+[22m[39mmuted vs canvas = 5.145
+
+[90mstdout[2m | test/_adhoc-reverify-ml04.test.ts[2m > [22m[2mREVERIFICACION ADVERSARIAL ML-04 (contraste, funcion WCAG propia)[2m > [22m[2mHALLAZGO: muted vs surface (por si algun bloque futuro lo usa sobre tarjeta)
+[22m[39mmuted vs surface = 5.426
+
+ [32m✓[39m test/_adhoc-reverify-ml04.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+[90mstdout[2m | test/_adhoc-reverify-ml04.test.ts[2m > [22m[2mREVERIFICACION ADVERSARIAL ML-04 (contraste, funcion WCAG propia)[2m > [22m[2mHALLAZGO: ToneBadge -- danger/warning/success a 10px BOLD (600) -- WCAG define 'texto grande' como >=18.66px bold, 10px NO calza -- exige 4.5:1, no 3:1
+[22m[39mdanger vs surface = 6.248
+warning vs surface = 5.022
+success vs surface = 5.016
+
+[90mstdout[2m | test/_adhoc-reverify-ml04.test.ts[2m > [22m[2mREVERIFICACION ADVERSARIAL ML-04 (contraste, funcion WCAG propia)[2m > [22m[2mmatriz completa: todos los tokens de color de texto conocidos vs surface y canvas (para el informe)
+[22m[39mink vs surface = 17.284
+ink vs canvas = 16.388
+ink vs well = 15.374
+body vs surface = 8.954
+body vs canvas = 8.489
+body vs well = 7.964
+muted vs surface = 5.426
+muted vs canvas = 5.145
+muted vs well = 4.826
+faint vs surface = 4.924
+faint vs canvas = 4.668
+faint vs well = 4.379
+danger vs surface = 6.248
+danger vs canvas = 5.924
+danger vs well = 5.557
+warning vs surface = 5.022
+warning vs canvas = 4.761
+warning vs well = 4.467
+success vs surface = 5.016
+success vs canvas = 4.755
+success vs well = 4.461
+brand vs surface = 6.702
+brand vs canvas = 6.354
+brand vs well = 5.961
+
+[90mstdout[2m | test/_adhoc-reverify-ml04.test.ts[2m > [22m[2mREVERIFICACION ADVERSARIAL ML-04 (contraste, funcion WCAG propia)[2m > [22m[2msimulacion de 'oscuro por inversion de fondo ignorando light-only': ink/body/faint sobre un fondo oscuro tipico de Gmail (#1e1e1e) NO alcanzan un contraste razonable
+[22m[39mink vs gmailDarkBg = 1.037
+body vs gmailDarkBg = 1.862
+faint vs gmailDarkBg = 3.386
+
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m10 passed[39m[22m[90m (10)[39m
+[2m   Start at [22m 13:43:05
+[2m   Duration [22m 215ms[2m (transform 20ms, setup 0ms, collect 14ms, tests 2ms, environment 0ms, prepare 36ms)[22m
+
+
+--- ML-05: replay Svix (mismo id dentro/fuera de ventana, ids distintos misma firma, firma valida timestamp viejo) ---
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-mail/packages/mail[39m
+
+ [32m✓[39m test/_adhoc-reverify-ml05.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m6 passed[39m[22m[90m (6)[39m
+[2m   Start at [22m 13:43:05
+[2m   Duration [22m 227ms[2m (transform 18ms, setup 0ms, collect 17ms, tests 2ms, environment 0ms, prepare 28ms)[22m
+
