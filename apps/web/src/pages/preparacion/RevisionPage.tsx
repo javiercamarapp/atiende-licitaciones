@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { ClipboardCheck, MessageSquare, Send, CheckCircle2, XCircle, ShieldAlert } from "lucide-react";
 
 import { StepUpDialog } from "@/components/StepUpDialog";
+import { AiDisclosureNote } from "@/components/AiDisclosureNote";
 import { SectionHeader } from "@/components/layout/SectionHeader";
 import { TenderSelect } from "@/components/expediente/TenderSelect";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -87,6 +88,7 @@ export default function RevisionPage() {
         title="Revisión"
         description="Solicitar revisión, comentar y aprobar/rechazar el expediente según rol — el autor de una sección nunca puede aprobarla."
       />
+      <AiDisclosureNote />
 
       {!currentOrgId ? (
         <EmptyState icon={ClipboardCheck} title="Selecciona una organización" description="Elige una organización en el encabezado para revisar su expediente." />

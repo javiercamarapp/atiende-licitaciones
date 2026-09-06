@@ -1,11 +1,147 @@
 # @atiende/web
 
 Frontend del back office de **Atiende Licitaciones** (marca Atiende, plataforma
-de IA para gestión de licitaciones públicas). Ronda 3: conectado a `apps/api`
-real (sin mocks en producción — MSW solo en pruebas de componente, ver
-`src/test/msw.ts`). Toda pantalla que todavía no tiene un endpoint real detrás
-sigue mostrando un estado honesto (vacío, error con `request_id`, o "endpoint
-pendiente en apps/api") en vez de datos ficticios.
+de IA para gestión de licitaciones públicas). Conectado a `apps/api` real (sin
+mocks en producción — MSW solo en pruebas de componente, ver `src/test/msw.ts`).
+Toda pantalla que todavía no tiene un endpoint real detrás sigue mostrando un
+estado honesto (vacío, error con `request_id`, o "endpoint pendiente en
+apps/api") en vez de datos ficticios.
+
+## Ronda 5 — expediente de participación completo + back office restante
+
+Conecta los últimos módulos de dominio que quedaban en `EmptyState` genérico
+(ver "Módulos sin conectar" de la ronda 3, ya retirada) contra las 26 rutas
+reales de `apps/api` bajo `/expediente/tenders/:tenderId/...`, y cierra los
+huecos de back office que ronda 3/4 habían dejado documentados como
+"endpoint pendiente":
+
+- **Análisis de bases** (`pages/evaluacion/AnalisisBasesPage.tsx`): subida de
+  documentos (con validación de tipo/tamaño en cliente), `textExtractionStatus`
+  explícito (incluido `requires_ocr`, nunca oculto), matriz de requisitos
+  editable por rol (estado/responsable), y conflictos escalados con
+  resolución.
+- **Cumplimiento documental** (`CumplimientoDocumentalPage.tsx`): ejecuta
+  `IntegrityChecklist` real (7 dimensiones) declarando solo lo que la API
+  exige del llamador (archivos finales, firmas confirmadas por el usuario,
+  anexos ya adjuntos) — documentos de empresa y cálculo económico se validan
+  con datos reales, sin declaración manual.
+- **Redacción** (`RedaccionPage.tsx`): genera la propuesta técnica mapeando
+  cada requisito a un dato real y aprobado de la empresa (capacidad,
+  experiencia, documento, firmante) y la propuesta económica con tarifas
+  reales (bloqueo íntegro de un concepto sin tarifa aprobada/vigente, nunca
+  total parcial); lista secciones con `source_ref` visibles y permite
+  editarlas (nueva versión, invalida aprobaciones vigentes de esa sección).
+- **Revisión** (`RevisionPage.tsx`): solicitar revisión, comentar,
+  aprobar (reviewer/admin/owner, nunca el autor) e invalidación visible de
+  aprobaciones tras un cambio (A11). La API no modela un estado de "rechazo"
+  propio (solo borrador/en_revisión/aprobado) — un rechazo se registra aquí
+  como comentario explícito, documentado como gap de dominio, no simulado.
+- **Expediente** (`ExpedientePage.tsx`): panel general por convocatoria que
+  resume bases, propuesta, checklist, aprobación, paquete y presentación con
+  enlaces a cada módulo.
+- **Aprobaciones** (Preparación, `AprobacionesPage.tsx`): bandeja de estado
+  de aprobación por convocatoria (armada en el cliente — no existe un
+  endpoint agregado "todas las pendientes de mi organización"), distinta de
+  "Aprobaciones (tool_calls)" del back office.
+- **Entregas** (`EntregasPage.tsx`) y **Paquete descargable**
+  (`PaqueteDescargablePage.tsx`): ensamblar el paquete, ver manifiesto real
+  (`status`/`draftReasons`/`missing`/`notice`, SIEMPRE derivado por el
+  servidor — A13/A14), descarga autenticada, y declarar la presentación
+  (fecha + acuse opcional) con el aviso permanente de que el sistema nunca
+  envía ni firma nada.
+- **Seguimiento post-adjudicación** (`SeguimientoPage.tsx`): hitos,
+  garantías, facturación y pago — para `kind="pago"` solo se declara la
+  fecha de verificación de la factura; `calendarNote`/`legalRegime` (LAASSP
+  Art. 73 o régimen abrogado según la fecha de publicación) los deriva y
+  muestra el propio servidor.
+- **Back office**: "Usuarios y roles" (`UsuariosRolesPage.tsx`, ahora sobre
+  `GET /organizations/:orgId/memberships`, ronda 4 de apps/api) e invitar/
+  cambiar rol/eliminar; "Auditoría" (`AuditoriaPage.tsx`, sobre
+  `GET /audit-log`); "Aprobaciones" de tool_calls ahora aprueba/deniega
+  cross-org de verdad (`POST /admin/tool-calls/:id/approve|deny`, antes de
+  solo lectura). Conectores/Jobs/Costos/Incidentes ya estaban conectados
+  desde ronda 3 y no cambiaron.
+- **Guard 404 de tenant cruzado** (`ResourceNotFoundPage.tsx` +
+  `isNotFoundOrForbidden()` en `lib/api/http.ts`): un recurso de otra
+  organización (403/404 real de apps/api vía RLS) se muestra como "recurso
+  no encontrado" dedicado en `ConvocatoriaDetallePage` (la única ruta con un
+  `:id` tomado directo de la URL) — nunca el mensaje crudo del 403, que
+  confirmaría implícitamente su existencia.
+- **Aviso de privacidad** (`PrivacyNoticePage.tsx`, ruta pública
+  `/privacidad`, fuera de `RequireAuth`): contenido basado en
+  `docs/legal/verificacion-legal.md` (nueva LFPDPPP DOF 20-mar-2025,
+  responsable SABG, ARCO 20 días, multas 200-320,000 UMA, disclosure de
+  enrutamiento a IA por REQ-131), marcado explícitamente como **borrador
+  pendiente de validación jurídica**.
+- **E2E completo contra apps/api real**
+  (`e2e/expediente-flujo-completo.spec.ts`): bases → matriz → propuesta
+  técnica/económica → checklist verde → revisión/aprobación con DOS actores
+  reales (`writer` solicita, `admin` aprueba) → paquete "borrador" → paquete
+  "listo" → descarga autenticada → declarar presentación; cubre además A11
+  (editar una sección tras aprobar invalida y el paquete vuelve a
+  "borrador"), A12 (writer no puede aprobar) y A14 (paquete incompleto nunca
+  "listo"), con axe-core y 320×568/390×844 sobre las pantallas con datos
+  reales cargados. Corre en una organización dedicada (`orgC` del seed,
+  `e2e/global-setup.ts`) con una convocatoria real sembrada por
+  `POST /internal/tenders/ingest` — aislada de `orgA`/`orgB` para no romper
+  los supuestos ya probados de `ronda3-flujo-real.spec.ts` (convocatorias
+  vacías en `orgA`) ni de `recorrido.spec.ts` (paquete de la organización
+  por defecto sin convocatorias).
+- **Polyfills de jsdom** (`src/test/setup.ts`): `hasPointerCapture`/
+  `setPointerCapture`/`releasePointerCapture`/`scrollIntoView`/
+  `ResizeObserver` — sin ellos, cualquier prueba de componente que abra un
+  `<Select/>` real de Radix (el selector de convocatoria, usado por todos
+  los módulos nuevos) se queda colgada en vez de fallar o pasar. De paso,
+  `vite.config.ts` (test) fija `testTimeout: 20000` + `retry: 1`: este
+  entorno sandboxeado tiene contención real de CPU bajo la suite completa
+  en paralelo, y una prueba que interactúa con un `<Select/>` y encadena
+  varias queries puede tardar más que el timeout por defecto (5s) sin que
+  haya ningún bug.
+- **Corrección real encontrada**: `hooks/useAdmin.ts` disparaba sus queries
+  en el primer render, antes de que `AuthProvider` terminara de rotar el
+  refresh token guardado y consiguiera un access token real — en producción
+  el `retry: 1` por defecto de `queryClient` disimulaba la carrera, pero
+  seguía siendo una petición real de más. Ahora cada lectura admin espera
+  `status === "authenticated"`.
+
+### Ronda 5, segunda mitad — apps/api agregó 2FA/step-up, aviso versionado, alertas y traza
+
+Mientras se conectaban los módulos de arriba, `apps/api` despachó en
+paralelo su propia ronda 5 (2FA/step-up TOTP, aviso de privacidad
+versionado, E11 ampliado con alertas, `correlation_id` de extremo a
+extremo). Se conecta todo desde `apps/web` en la misma ronda:
+
+- **2FA/step-up (REQ-044/064)**: `POST /company/rates/:id/approve` y
+  `POST .../approval/approve` ahora exigen el encabezado `X-Step-Up`
+  (sesión de step-up vigente, `POST /auth/2fa/step-up`). Agrega
+  `lib/api/twofa.ts` + `hooks/useTwoFactor.ts` +
+  `components/StepUpDialog.tsx` (modal reutilizado por
+  `TarifasAprobadasPage` y `RevisionPage`: pide el código TOTP o de
+  respaldo, o dirige a Configuración si no hay 2FA enrolado) y una
+  sección de enrolamiento real en `ConfiguracionPage.tsx` (QR/secreto,
+  códigos de respaldo mostrados una sola vez, confirmación con código).
+  Solo TOTP en esta ronda (passkey/WebAuthn pendiente, igual que
+  documenta `apps/api`).
+- **Aviso de privacidad real** (`GET /legal/privacy-notice`, público):
+  `PrivacyNoticePage.tsx` ya no tiene el texto redactado a mano — lo
+  obtiene versionado del servidor y lo renderiza con un Markdown mínimo
+  propio (`lib/renderSimpleMarkdown.tsx`, sin dependencia nueva ni
+  `dangerouslySetInnerHTML`).
+- **Alertas de vencimiento (REQ-056)**: `SeguimientoPage.tsx` agrega una
+  tarjeta de alertas (`GET /expediente/post-award-alerts`) a través de
+  TODAS las convocatorias de la organización activa, y el formulario de
+  seguimiento gana los campos de los kinds ampliados (`garantia` con
+  tipo, `facturacion` con CFDI + fecha de aceptación,
+  `penalizacion`/`convenio_modificatorio` con referencia registrada).
+- **Traza por correlación (REQ-171)**: `AuditoriaPage.tsx` agrega un
+  filtro por `correlationId` y un botón "Ver traza" por fila para
+  reconstruir el flujo completo (perfil → tarifa → propuesta →
+  checklist → aprobación → paquete) desde un solo evento.
+- **E2E real con 2FA**: `e2e/expediente-flujo-completo.spec.ts` enrola
+  2FA de verdad (mismo algoritmo TOTP que `apps/api`, vía `otplib`
+  como devDependency de `apps/web`) antes de las dos aprobaciones con
+  step-up, y reutiliza códigos de respaldo de un solo uso para
+  completarlas — nunca simula el segundo factor.
 
 ## Ronda 4 — correcciones de la auditoría adversarial (WI-01..05)
 
@@ -153,17 +289,22 @@ src/
   lib/
     utils.ts               # cn() (clsx + tailwind-merge)
     datetime.ts             # formato America/Mexico_City (plazos/aclaraciones de convocatorias)
+    renderSimpleMarkdown.tsx # Markdown mínimo propio (ronda 5, aviso de privacidad — sin dependencia nueva)
     api/                    # cliente API tipado hacia apps/api (ver "Ronda 3" arriba)
       http.ts, session.ts, client.ts, schemas.ts
       auth.ts, organizations.ts, company.ts, tenders.ts, matching.ts, go-no-go.ts, agents.ts, admin.ts
+      expediente.ts, audit.ts, legal.ts, twofa.ts  # ronda 5
   hooks/
     useAuth.tsx              # AuthProvider/useAuth() — sesión real
     useCompany.ts, useTenders.ts, useMatching.ts, useGoNoGo.ts, useAgents.ts, useAdmin.ts
+    useExpediente.ts, useMemberships.ts, useAuditLog.ts, useTwoFactor.ts  # ronda 5
   components/
     AtiendeLogo.tsx         # AtiendeMark / AtiendeWordmark (mismo glifo que atiende-restaurantes)
     ThemeSelector.tsx        # claro/sistema/oscuro; vive en el header (md+) y en el drawer (<md, W-21)
     SkipLink.tsx              # "saltar a..." con foco real (.focus() explícito, no solo href="#id")
     AiDisclosureNote.tsx       # aviso de uso de IA (REQ-115), antepuesto a módulos con `disclosure: true`
+    StepUpDialog.tsx            # modal de step-up 2FA (ronda 5, REQ-044/064)
+    expediente/TenderSelect.tsx  # selector de convocatoria compartido por los módulos del expediente (ronda 5)
     auth/
       RequireAuth.tsx          # guard de rutas real (W-12)
     layout/
@@ -179,29 +320,34 @@ src/
   pages/
     LoginPage.tsx            # pantalla partida (kicker + h1 serif + lámina), solo contraseña (ver abajo)
     login.css                 # fuente Fraunces del titular, exclusiva de esta pantalla
-    NotFoundPage.tsx
-    createModulePage.tsx     # fábrica: SectionHeader + EmptyState honesto (módulos aún sin backend)
+    NotFoundPage.tsx          # ruta desconocida (catch-all)
+    ResourceNotFoundPage.tsx  # ronda 5: guard 404 de tenant cruzado (403 de otra org -> "no encontrado")
+    PrivacyNoticePage.tsx     # ronda 5: aviso de privacidad real (GET /legal/privacy-notice), ruta pública /privacidad
+    createModulePage.tsx     # fábrica: SectionHeader + EmptyState honesto (módulos aún sin backend, ya ninguno en ronda 5)
     empresa/                 # Perfil y capacidades, Documentos y vigencias, Firmantes, Tarifas — datos reales
-    convocatorias/            # Descubrimiento, detalle, Matching, Fuentes y frescura — datos reales
-    evaluacion/                # Go/No-Go (real), Análisis de bases (sin backend, ver abajo)
+    convocatorias/            # Descubrimiento, detalle (con guard 404), Matching, Fuentes y frescura — datos reales
+    evaluacion/                # Go/No-Go, Análisis de bases (documentos+matriz+conflictos, ronda 5) — datos reales
     preparacion/                # Cumplimiento documental, Redacción, Revisión, Expediente, Aprobaciones
-                                 # (fuera de alcance de esta ronda — ver "Módulos sin conectar")
-    entrega/                     # Entregas, Paquete descargable, Seguimiento post-adjudicación (ídem)
-    backoffice/                   # Organizaciones, Agentes y herramientas (reales); Usuarios y roles,
-                                   # Auditoría (endpoint pendiente en apps/api); Conectores, Jobs,
-                                   # Costos, Incidentes, Aprobaciones (reales, solo superadmin)
-    ConfiguracionPage.tsx
+                                 # — conectadas en ronda 5 contra /expediente/tenders/:tenderId/...
+    entrega/                     # Entregas, Paquete descargable, Seguimiento post-adjudicación — ídem, ronda 5
+    backoffice/                   # Organizaciones, Agentes y herramientas, Usuarios y roles, Auditoría,
+                                   # Conectores, Jobs, Costos, Incidentes, Aprobaciones — todas reales (ronda 5
+                                   # cierra Usuarios y roles/Auditoría/Aprobaciones cross-org)
+    ConfiguracionPage.tsx     # ronda 5: enrolamiento 2FA real (antes placeholder genérico)
   test/
     setup.ts                 # jest-dom + vitest-axe + servidor MSW (server.listen/reset/close) + limpia sesión
     utils.tsx                # renderWithProviders() (QueryClient + Router + TooltipProvider + AuthProvider)
     msw.ts                   # servidor MSW compartido (éxito/401/403/500/red caída en pruebas de componente)
 e2e/                          # suite Playwright + axe-core sobre el navegador real (REQ-049/065)
   fixtures.ts                 # `page` (admin, login fresco por worker), `writerPage`, `noAuthPage`
-  global-setup.ts             # siembra 2 orgs + 2 usuarios reales vía la propia apps/api (test:e2e:full)
-  seed-client.ts               # cliente HTTP mínimo del seed (independiente del cliente de producción)
+  global-setup.ts             # siembra orgs A/B/C + 2 usuarios + una convocatoria real (orgC, ronda 5) vía la propia apps/api
+  seed-client.ts               # cliente HTTP mínimo del seed (independiente del cliente de producción); ingestTender (ronda 5)
   ronda3-flujo-real.spec.ts    # login→cambiar org→perfil→documento→tarifa→convocatorias vacías→403
-  recorrido.spec.ts            # login→shell, las 24+ rutas del sidebar, drawer móvil, tema oscuro,
-                                # Fuentes y frescura, Paquete "Borrador", sin scroll horizontal a 390px
+  recorrido.spec.ts            # login→shell, las 30+ rutas del sidebar, drawer móvil, tema oscuro,
+                                # Fuentes y frescura, Paquete sin convocatorias, sin scroll horizontal a 390px
+  expediente-flujo-completo.spec.ts  # ronda 5: bases→matriz→propuesta→checklist→revisión/aprobación (2FA
+                                       # real, 2 actores)→paquete borrador→listo→descarga→presentación;
+                                       # A11/A12/A14, axe, 320/390
   contraste.spec.ts, heading-order.spec.ts, login-landmarks.spec.ts, login-parity.spec.ts,
   skip-link.spec.ts, touch-targets.spec.ts, ai-disclosure.spec.ts  # regresión por hallazgo (ver
                                                                      # docs/auditoria-1/web*.md)
@@ -489,40 +635,29 @@ de esta corrección de `apps/web` (ver alcance en
 `docs/auditoria-2/web-integrado.md`). Rastrear este TODO junto con REQ-098
 (seguridad de credenciales) hasta que `apps/api` ofrezca esa opción.
 
-## Módulos sin conectar (fuera de alcance de esta ronda)
+## Módulos sin conectar (histórico, ronda 3-4 — cerrado en ronda 5)
 
-`apps/api` (ver su README) no expone endpoints para estos módulos todavía;
-siguen mostrando el `EmptyState` genérico de `createModulePage.tsx`, no una
-integración real: **Análisis de bases**, **Cumplimiento documental**,
-**Redacción**, **Revisión**, **Expediente**, **Aprobaciones** (Preparación),
-**Entregas**, **Paquete descargable**, **Seguimiento post-adjudicación**.
-Son responsabilidad de `packages/expediente` y de la orquestación de
-agentes (`packages/agents`) cableada con proveedores LLM reales, ninguno de
-los cuales expone HTTP todavía — ver sus propios README para el estado real.
+Hasta ronda 4, `apps/api` no exponía endpoints para **Análisis de bases**,
+**Cumplimiento documental**, **Redacción**, **Revisión**, **Expediente**,
+**Aprobaciones** (Preparación), **Entregas**, **Paquete descargable** ni
+**Seguimiento post-adjudicación** — todos mostraban el `EmptyState`
+genérico de `createModulePage.tsx`. Ronda 5 conecta los 9 contra las 26
+rutas reales de `/expediente/tenders/:tenderId/...` (ver sección "Ronda 5"
+arriba); no queda ningún módulo de dominio sin conectar.
 
-## Endpoints de apps/api que SÍ existen pero no se pudieron conectar (gaps documentados en el código)
+## Endpoints de apps/api que existían pero no se conectaron (histórico, cerrado en ronda 5)
 
-- **Usuarios y roles** (`/backoffice/usuarios-roles`): `apps/api` no expone
-  ningún endpoint para LISTAR los miembros de una organización.
-  `GET /organizations` solo devuelve las organizaciones del USUARIO ACTUAL
-  (`app.my_organizations`), no la lista de miembros de una organización
-  dada; existen mutaciones (`POST /organizations/invitations`,
-  `PATCH/DELETE /organizations/memberships/:userId`) pero ninguna consulta
-  previa. Hace falta un `GET /organizations/memberships` (o equivalente).
-- **Auditoría / Trazabilidad** (`/backoffice/auditoria`): `apps/api`
-  mantiene `audit_log` con cadena de hashes verificable
-  (`app.verify_audit_log_chain()`, ver `packages/db/README.md`) y escribe
-  en cada mutación relevante, pero no expone NINGÚN endpoint HTTP para
-  leerlo. Hace falta un `GET /audit-log` (con filtro por organización) o
-  `GET /admin/audit-log` para el back office.
-- **Aprobación cross-org de tool_calls** (`/backoffice/aprobaciones`):
-  `GET /admin/approvals` (superadmin) lista tool_calls pendientes de TODAS
-  las organizaciones, pero aprobar/denegar de verdad
-  (`POST /agents/tool-calls/:id/approve|deny`) exige `X-Org-Id` + rol
-  owner/admin DE ESA organización — un superadmin no necesariamente lo es.
-  La pantalla es de solo lectura a propósito, con el flujo real explicado
-  (cambiar de organización en el selector y aprobar desde "Agentes y
-  herramientas").
+Los tres gaps documentados hasta ronda 4 ya están conectados:
+
+- **Usuarios y roles** — `GET /organizations/:orgId/memberships` (ronda 4
+  de apps/api) conectado en `UsuariosRolesPage.tsx` (listar, invitar,
+  cambiar rol, eliminar).
+- **Auditoría / Trazabilidad** — `GET /audit-log` conectado en
+  `AuditoriaPage.tsx` (filtro por entidad y por `correlationId`, ronda 5).
+- **Aprobación cross-org de tool_calls** — `POST
+  /admin/tool-calls/:id/approve|deny` (ronda 4 de apps/api) conectado en
+  `AprobacionesBackofficePage.tsx`: aprobar/denegar ya no exige cambiar de
+  organización.
 
 ## Bug real de apps/api encontrado por la suite E2E: CORS no permite PUT/DELETE
 
