@@ -1,0 +1,383 @@
+# Reverificación adversarial ronda 3 (CIERRE) — packages/expediente
+
+Fecha: 2026-09-05
+Agente: reverificador adversarial independiente, vuelta 3 (cierre). Solo
+encuentra/verifica, no repara código. model=sonnet en todo descendiente.
+
+Alcance: docs/auditoria-1/expediente.md, expediente-reverificacion.md,
+expediente-reverificacion-2.md (columna "Estado reparación": EX-EXP-17/18/19/20
+en 14a35bb, EX-EXP-21 en b5acc45, log+tabla en 5e03e90); packages/expediente/
+README.md; docs/AMPLIACION-BACKOFFICE.md §6-8; docs/ACEPTACION.md A6-A15.
+
+Reglas duras respetadas: NINGÚN `git reset`/`git checkout <commit>`/`git stash`/
+`git rebase`/`git add -A` en el repo principal. Todo el trabajo de ejecución se
+hizo en `git worktree add <scratchpad>/reverify3-exp HEAD`, con `npm install`
+propio, eliminado al final. El repo principal solo recibió los `git add`
+puntuales de los dos archivos de salida de esta ronda.
+
+================================================================================
+## 1. Ancestría y `git show --stat` de los 3 commits del mandato
+================================================================================
+
+Worktree creado en HEAD del repo principal en el momento de arrancar esta
+ronda: 29a120d ("docs(sources): reverificación adversarial 2 (cierre) --
+SR-12..18, hallazgos nuevos SR-19..22").
+
+```
+$ git merge-base --is-ancestor 14a35bb HEAD && echo YES
+YES
+$ git merge-base --is-ancestor b5acc45 HEAD && echo YES
+YES
+$ git merge-base --is-ancestor 5e03e90 HEAD && echo YES
+YES
+```
+
+Los 3 commits son ancestros directos de HEAD, en el orden esperado:
+14a35bb (fix) -> b5acc45 (test coverage gate) -> 5e03e90 (docs/log).
+
+```
+$ git show --stat 14a35bb
+fix(expediente): EX-EXP-17/18/19/20 -- hash de insumos sellado, Date/Map/Set/BigInt,
+NO APLICA visible, hora 24:00
+
+ packages/expediente/src/approval-workflow.ts       |  29 +++-
+ packages/expediente/src/package-assembler.ts       |  44 +++++-
+ packages/expediente/src/proposal-version.ts        | 165 ++++++++++++++++++++-
+ packages/expediente/src/technical-proposal.ts      |  53 ++++++-
+ packages/expediente/src/types.ts                   | 108 ++++++++++++++
+ packages/expediente/test/approval-workflow.test.ts | 120 ++++++++++++---
+ packages/expediente/test/expediente-flow.test.ts   |   5 +-
+ packages/expediente/test/helpers/hashed-inputs.ts  |  27 ++++
+ packages/expediente/test/package-assembler.test.ts |  48 +++++-
+ packages/expediente/test/proposal-invalidation.test.ts | 13 +-
+ packages/expediente/test/technical-proposal-property.test.ts | 58 ++++----
+ packages/expediente/test/technical-proposal.test.ts |  32 ++--
+ packages/expediente/test/types.test.ts             | 129 ++++++++++++++++
+ 13 files changed, 732 insertions(+), 99 deletions(-)
+
+$ git show --stat b5acc45
+test(expediente): EX-EXP-21 -- gate de cobertura CI (mismo patron que packages/agents)
+
+ packages/expediente/package.json     |  2 ++
+ packages/expediente/vitest.config.ts | 28 ++++++++++++++++++++++++++++
+ 2 files changed, 30 insertions(+)
+
+$ git show --stat 5e03e90
+docs(expediente): ronda 3 -- log real de corrida y columna Estado reparacion
+(EX-EXP-17..21)
+
+ docs/auditoria-1/expediente-reverificacion-2.md |  45 +++-
+ docs/logs/fix-expediente-ronda3.log             | 322 ++++++++++++++++++++++++
+ 2 files changed, 358 insertions(+), 9 deletions(-)
+```
+
+Veredicto: la trazabilidad afirmada en expediente-reverificacion-2.md (columna
+"Estado reparación") es EXACTA — los 3 commits existen, contienen exactamente
+los archivos que dicen contener, y están en el orden causal correcto.
+
+================================================================================
+## 2. Suite completa (391) y gate de cobertura (mutación de umbral)
+================================================================================
+
+```
+$ npm run -w packages/expediente test
+ Test Files  16 passed (16)
+      Tests  391 passed (391)
+```
+
+Confirmado: 391/391, mismo número que reporta expediente-reverificacion-2.md.
+
+Cobertura real (baseline, sin mutar):
+
+```
+$ npm run -w packages/expediente test:coverage
+ Test Files  16 passed (16)
+      Tests  391 passed (391)
+ % Coverage report from v8
+ All files | 92.99 | 90.57 | 92.43 | 92.99 |
+```
+
+Umbrales declarados en vitest.config.ts: lines 85 / branches 80 / functions 85
+/ statements 85 — todos superados con margen (holgura real ~8-10 puntos).
+
+Prueba de que el gate REALMENTE falla cuando debe (mutación adversarial de
+umbral, restaurado exactamente después):
+
+```
+$ sed -i 's/lines: 85/lines: 99/; s/branches: 80/branches: 99/; s/functions: 85/functions: 99/; s/statements: 85/statements: 99/' vitest.config.ts
+$ npm run test:coverage
+ERROR: Coverage for lines (92.99%) does not meet global threshold (99%)
+ERROR: Coverage for functions (92.43%) does not meet global threshold (99%)
+ERROR: Coverage for statements (92.99%) does not meet global threshold (99%)
+ERROR: Coverage for branches (90.55%) does not meet global threshold (99%)
+npm error command failed
+npm error command sh -c vitest run --coverage
+```
+(vitest.config.ts restaurado a los valores originales inmediatamente después;
+`git diff` sobre ese archivo queda vacío tras restaurar.)
+
+Veredicto EX-EXP-21: CONFIRMADO. El gate de cobertura es real (no un script
+decorativo): con umbrales alcanzables pasa limpio, con umbrales artificialmente
+altos falla con mensaje explícito y código de salida distinto de cero.
+
+================================================================================
+## 3. Ataques finales a EX-EXP-17 (HashedInputs sellado)
+================================================================================
+
+Todos los ataques se codificaron en `test/_attack_reverify3.test.ts` dentro del
+worktree (NUNCA en el repo principal), se corrieron con vitest, y se
+ELIMINARON al final de la ronda (mismo patrón que rondas anteriores — no se
+deja código de ataque en el árbol).
+
+| Ataque | Resultado | Veredicto |
+|---|---|---|
+| `Object.create(legit)` SIN overrides (solo herencia de prototipo, sin tocar nada) | Se ACEPTA — pero es indistinguible de usar `legit` directamente (mismos `inputs`/`hash` heredados). No es un ataque. | No aplica |
+| `Object.create(legit)` + override de `inputs`/`hash` PROPIOS con datos del atacante, hash recalculado con la función pública `computeInputsHash` | **Se ACEPTA.** `isSealedHashedInputs` usa `value[SEALED_MARKER] === true` (acceso de propiedad normal, recorre la cadena de prototipos) — el símbolo heredado de CUALQUIER `HashedInputs` legítimo previo (aunque sea de otro expediente) es indistinguible de un símbolo "propio". Ver hallazgo REVERIFY3-EXP-A abajo. | **Hallazgo nuevo (documental/estructural), ver sección 3.1** |
+| Copiar el símbolo vía `Object.getOwnPropertySymbols` + aplicar a inputs distintos, reusando el `hash` del objeto legítimo (sin recalcular) | Rechazado (`InvalidInputsHashError`): recompute de `computeInputsHash(inputs_falsos)` no coincide con el `hash` copiado. | Correcto (capa 3 activa) |
+| Copiar el símbolo + hash correctamente recalculado para los inputs propios del atacante | Se acepta — pero matemáticamente equivalente a llamar `sealInputs(misInputs)` directamente (función ya pública). No añade poder que el atacante no tuviera ya. | No es un bypass real |
+| `structuredClone(legit)` | El símbolo se PIERDE en la copia (`Object.getOwnPropertySymbols(cloned).length === 0`) — confirmado explícitamente. `requireValidHashedInputs(cloned, ...)` lo RECHAZA correctamente. | Correcto, comportamiento seguro por defecto |
+| `Proxy` sobre `legit` que sustituye `inputs` al leer (mismo `hash` original) | Rechazado: recompute con los inputs falsos del proxy no coincide con el hash real. | Correcto (capa 3 activa) |
+| Mutación profunda tras sellar: `companyDocuments.push(...)` sobre el arreglo referenciado | Rechazado: recompute detecta el arreglo cambiado. | Correcto |
+| Mutación profunda tras sellar: propiedad anidada `companyDocuments[0].hash = "..."` | Rechazado: recompute detecta el campo mutado. | Correcto |
+| Serializar a JSON y deserializar (`JSON.parse(JSON.stringify(legit))`) | El símbolo se pierde (JSON.stringify omite claves de tipo `symbol`). Rechazado correctamente. | Correcto |
+| Dos "instancias de módulo": `Symbol("x") !== Symbol("x")`; contraste con `Symbol.for("x") === Symbol.for("x")` | Confirmado: el módulo real usa `Symbol()` (no `Symbol.for()`), por lo que dos cargas del módulo (si llegaran a ocurrir, p. ej. por dual ESM/CJS) producirían símbolos NO intercambiables — el diseño actual es el correcto para este propósito (evita que un símbolo con el mismo nombre "de otro lado" cuele). | Diseño correcto, confirmado por contraste |
+| `WeakMap` interno vs símbolo | El módulo NO usa `WeakMap`; usa exclusivamente el símbolo privado de módulo. Única superficie de ataque es la ya cubierta arriba. | Confirmado por lectura de código + prueba |
+| `approve()`/`buildManifest()` con `string` plano (regresión básica) | Rechazado con `InvalidInputsHashError` y mensaje de migración explícito. | Correcto |
+
+### 3.1 Hallazgo nuevo (menor, estructural): `isSealedHashedInputs` es forgeable vía herencia de prototipo
+
+`src/proposal-version.ts:103-109`:
+```ts
+function isSealedHashedInputs(value: unknown): value is SealedHashedInputs {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    (value as Record<symbol, unknown>)[SEALED_MARKER] === true
+  );
+}
+```
+Este acceso de propiedad (`value[SEALED_MARKER]`) recorre la cadena de
+prototipos, igual que `obj.foo` para cualquier propiedad heredada. Un objeto
+`Object.create(cualquierHashedInputsLegitimoPrevio)` con `inputs`/`hash`
+PROPIOS (nuevos, coherentes entre sí vía `computeInputsHash` pública) pasa la
+verificación aunque JAMÁS pasó por `sealInputs()`.
+
+**Por qué NO es una escalada de privilegio explotable HOY**: tanto
+`sealInputs` como `computeInputsHash` ya son funciones exportadas y públicas
+del paquete — cualquier código que pueda ejecutar el ataque anterior ya podía,
+de forma mucho más simple, llamar `sealInputs(misPropiosInputs)` directamente
+y obtener el mismo resultado de forma 100 % legítima. El ataque no otorga
+ninguna capacidad nueva.
+
+**Por qué SÍ vale la pena documentarlo**: la afirmación del código fuente
+("ningún código externo puede construir un objeto con esta clave... salvo que
+copie la referencia real") y del README ("verificado con un símbolo privado
+no exportado") es imprecisa en un sentido estricto — es literalmente posible
+construir un objeto con esa clave sin importar el símbolo directamente,
+mediante herencia de prototipo desde CUALQUIER `HashedInputs` legítimo
+obtenido previamente (incluso de OTRO expediente/tenant). La garantía real de
+integridad de `requireValidHashedInputs` recae ENTERAMENTE en la capa 3
+(recomputación de hash), no en que el símbolo sea "infalsificable" per se
+(capa 2). Esto importa como riesgo LATENTE si en el futuro `apps/api` (u otro
+consumidor) decide restringir el acceso a `sealInputs`/`computeInputsHash`
+para algún contexto de menor confianza mientras sigue pasando objetos
+`HashedInputs` ya sellados por ese contexto — en ese escenario SÍ sería una
+escalada real de privilegio (bastaría con obtener CUALQUIER `HashedInputs`
+ajeno para heredar la "capacidad de sellar" datos propios). Mitigación
+sugerida si se quiere cerrar en sentido estricto: `isSealedHashedInputs`
+debería usar `Object.hasOwn(value, SEALED_MARKER)` en vez de acceso de
+propiedad normal, para exigir que el símbolo sea una propiedad PROPIA del
+objeto, no heredada. Verificado con prueba: `Object.hasOwn(forged, symbol)`
+es `false` en el objeto forjado y `true` en el legítimo — la mitigación es
+mecánica y de una línea si se decide aplicar.
+
+Severidad asignada: BAJA/documental — no es explotable con la superficie
+pública actual del paquete, pero la afirmación de "infalsificable" en
+comentarios/README debería matizarse.
+
+================================================================================
+## 4. EX-EXP-18: ataques adicionales (Date/Map/Set/BigInt/-0/NaN)
+================================================================================
+
+| Caso | Resultado observado |
+|---|---|
+| `Date` inválido (`new Date("not-a-real-date")`) | `stableStringify`/`sha256Hex` LANZAN explícitamente ("no se puede serializar un Date inválido") — fail-closed, correcto, no colapsa a `"{}"` ni a ningún valor fijo. |
+| `Map` con claves objeto (no primitivas) | Serializa correctamente con marcador de tipo; PERO dos `Map` con objetos DISTINTOS por identidad (`{id:1}` vs otro `{id:1}` diferente) que tienen la MISMA forma producen el MISMO hash — la identidad de objeto se pierde, solo se preserva igualdad estructural. Esto es inherente a cualquier canonicalización basada en JSON (no hay forma de serializar identidad de referencia) y NO es un defecto nuevo de EX-EXP-18: ningún campo de `ExpedienteInputs` usa objetos como claves de `Map`. Documentado como limitación conocida de las utilidades genéricas exportadas, no como hallazgo explotable. |
+| `Set` de `Set`s anidado, con orden de inserción externo/interno invertido | Produce el MISMO hash canónico en ambos órdenes de inserción (`compareCanonical` ordena recursivamente) — confirma que la corrección EX-EXP-18 es robusta también para anidamiento, no solo para el caso plano probado en los tests oficiales. |
+| `BigInt` negativo | Serializa como texto decimal con signo, distinto del positivo — correcto, sin colisión. |
+| `-0` vs `0` | **Colisionan**: ambos serializan a `"0"` (comportamiento heredado de `JSON.stringify(-0) === "0"`, estándar de JS). No hay ningún campo numérico con signo relevante en `ExpedienteInputs` (todos son `string`/hashes), así que no es explotable hoy, pero es la MISMA clase de trampa latente que motivó EX-EXP-18 para `Date` — no fue cubierta por el fix. |
+| `NaN` | Serializa a `null` (comportamiento heredado de `JSON.stringify(NaN) === "null"`), colisiona con `stableStringify(null)`. Misma observación que `-0`: trampa latente heredada de JSON, no explotable en el uso actual del paquete pero no cerrada explícitamente como sí se hizo con `Date`/`Map`/`Set`/`BigInt`. |
+| `sha256Hex(Date válido)` vs `sha256Hex(Date inválido)` | El inválido lanza, el válido produce un hash estable — no hay colisión posible porque uno de los dos casos ni siquiera produce un valor. |
+
+Veredicto EX-EXP-18: la corrección CIERRA exactamente lo que dice cerrar
+(`Date`/`Map`/`Set`/`BigInt`), incluyendo el caso anidado (`Set` de `Set`s)
+que no estaba en la suite oficial. Los casos `-0`/`NaN` son residuales,
+heredados de `JSON.stringify` estándar, de severidad BAJA/latente (mismo
+patrón de "trampa para un futuro uso de estas utilidades públicas" que ya
+advierte el README para otros casos) — no reabren EX-EXP-18 porque no afectan
+ningún campo real de `ExpedienteInputs` hoy.
+
+================================================================================
+## 5. EX-EXP-19: no aplica -> condición cambia a aplicable
+================================================================================
+
+Prueba directa: `TechnicalProposalBuilder.build()` es una función PURA/sin
+estado (no cachea resultados entre llamadas). Se construyó el mismo
+`RequirementItem` condicional dos veces:
+
+1. `conditionEvaluations = { "req-cond-1": false }` -> sección
+   `NO APLICA (condición "..." evaluada falsa)`, sin bloqueos.
+2. MISMO requisito, `conditionEvaluations = { "req-cond-1": true }` -> sección
+   `PENDIENTE: ...` con un `SectionBlocker` (`field: "evidencia_no_mapeable"`).
+
+Confirmado: SÍ se reevalúa y SÍ bloquea — no hay caché ni estado que impida
+reflejar el cambio. `extractNotApplicableRequirements` refleja correctamente
+las secciones NO APLICA para que `PackageAssembler` las incruste en el
+manifiesto (`PackageManifest.notApplicableRequirements`).
+
+**Nota de integración (no un defecto del paquete puro)**: `conditionEvaluations`
+NO forma parte de `ExpedienteInputs` (el conjunto cerrado que entra al hash de
+`computeInputsHash`). Esto significa que si `apps/api` cambia la evaluación de
+una condición (p. ej. una cláusula que antes no aplicaba ahora sí aplica al
+caso concreto) DESPUÉS de una aprobación vigente, el hash de insumos de
+alcance "expediente" NO detecta ese cambio por sí solo — `apps/api` es
+responsable de reconstruir la propuesta técnica y de invalidar/reaprobar
+manualmente cuando cambie una decisión de aplicabilidad, ya que el paquete
+puro recibe el `TechnicalProposal` ya construido como dato de entrada al
+ensamblador y no lo reconstruye ni lo revalida por sí mismo. Riesgo de
+integración a vigilar en `apps/api`, no un defecto de `packages/expediente`.
+
+================================================================================
+## 6. EX-EXP-20: casos de hora adicionales
+================================================================================
+
+| Caso | Resultado |
+|---|---|
+| `"...T23:59:60Z"` (segundo de salto / leap second) | Rechazado (segundo > 59) |
+| `"...T00:00:00.0000Z"` (fracción de 4 ceros) | Aceptado (formato de fracción válido, límite correcto) |
+| `"...T10:00:00+05:00:30"` (offset con componente de segundos) | Rechazado en la verificación de FORMATO de offset (`ISO_OFFSET_PATTERN` no matchea, porque no termina en `Z` ni en `±HH:MM` exacto) — fail-closed correcto, no se trunca silenciosamente el offset. |
+| `"...T24:00:00-06:00"` (medianoche del día siguiente con offset NO-Z) | Rechazado — confirma que `assertValidTimeComponents` cubre TODOS los offsets (no solo `Z`, que era el ejemplo original del hallazgo). |
+
+Veredicto EX-EXP-20: la corrección es robusta más allá del caso `"24:00:00Z"`
+original — cubre offsets no-Z, segundos de salto, y formatos de fracción
+límite sin falsos positivos ni negativos nuevos.
+
+================================================================================
+## 7. A6-A15 flujo integrado end-to-end (ZIP real releído)
+================================================================================
+
+`test/expediente-flow.test.ts` (326 líneas) ejercita el flujo COMPLETO dentro
+de la librería pura: bases -> matriz de requisitos -> datos de empresa ->
+propuesta técnica/económica -> checklist -> aprobación por rol -> ensamblado
+-> ZIP real (`jszip`) releído de vuelta (`JSZip.loadAsync(zip)` +
+verificación de contenido de `manifiesto.json`/`checklist.json`/archivos
+individuales). `test/package-assembler.test.ts` hace lo mismo de forma más
+granular. Confirmado con las 3 pruebas de `expediente-flow.test.ts` en verde:
+
+- A13 (expediente completo -> "ready", ZIP real releído, manifiesto+checklist
+  correctos dentro del ZIP).
+- A14/A9 (anexo obligatorio faltante -> checklist rojo, paquete "draft",
+  archivos con prefijo `BORRADOR_` dentro del ZIP real).
+- A7/A9 (documento vencido -> bloqueo de propuesta técnica + checklist
+  "vigencias" en rojo).
+
+El resto de A6-A15 tiene evidencia en archivos de test específicos, tal como
+lista el README (tabla "Pruebas de aceptación cubiertas"): A6
+(`requirement-matrix.test.ts`, `company-data.test.ts`), A8
+(`economic-proposal.test.ts`, `company-data.test.ts`), A10 (`money.test.ts`,
+`number-to-words.test.ts`, `economic-proposal.test.ts`), A11/A12
+(`approval-workflow.test.ts` — confirmado por lectura de los 20 `it(...)` de
+ese archivo, incluye jerarquía de alcance, rechazo de rol indebido y
+autoaprobación), A15 (`api-surface.test.ts` — escanea la API pública y el
+código fuente en busca de métodos de envío/firma/actuación en portal; ninguno
+encontrado).
+
+**Veredicto agregado sin cambios respecto a la ronda 2**: el propio docstring
+de `expediente-flow.test.ts` (línea 23-32) es honesto y explícito: este es un
+flujo integrado DENTRO del paquete puro, condición NECESARIA pero NO
+SUFICIENTE para que A6-A15 de `docs/ACEPTACION.md` se marquen CERRADAS — esas
+pruebas exigen explícitamente integración real API/UI/portal autenticado. El
+veredicto agregado PENDIENTE de A6-A15 en `docs/ACEPTACION.md` sigue siendo
+correcto por esta razón estructural, INDEPENDIENTEMENTE de cuánta cobertura
+tenga la librería pura.
+
+**Cambio de contexto relevante para el orquestador**: a diferencia de las
+rondas anteriores, `apps/api` YA tiene una integración real y sustancial con
+`@atiende/expediente` en el HEAD actual del repo principal (ver sección 9) —
+2455 líneas repartidas en `apps/api/src/modules/expediente/*.routes.ts` +
+`apps/api/src/lib/expediente/*`, registradas bajo `/expediente/...` en
+`apps/api/src/app.ts` (commits `8fdeb68`, `72cc525`, `c4a6165`, todos
+POSTERIORES a los 3 commits de este mandato y realizados por otro agente en
+paralelo). Esto significa que la barrera estructural que mantenía A6-A15 en
+PENDIENTE ("ningún consumidor real existe todavía") puede estar cerca de
+resolverse, pero verificar A6-A15 contra esa integración real (UI, sesión
+autenticada, flujo E2E API) está FUERA DEL ALCANCE de esta ronda (enfocada en
+`packages/expediente` puro) y debe ser objeto de una reverificación adversarial
+independiente sobre `apps/api`/E6-E11 cuando ese trabajo cierre.
+
+================================================================================
+## 8. Balance final del paquete (ver tabla completa en expediente-cierre.md)
+================================================================================
+
+Ver `docs/auditoria-1/expediente-cierre.md` sección "Balance final EX-EXP-01..22"
+para la tabla completa con estado definitivo de los 22 hallazgos. Resumen: 20
+CERRADOS/CORREGIDOS con evidencia de test, 2 aceptados como límites conocidos
+con causa documentada (EX-EXP-08 autoaprobación multi-cuenta de la misma
+persona física — fuera del alcance de una librería sin capa de identidad;
+EX-EXP-10 ámbar de consistencia_cruzada con <2 documentos — decisión de
+diseño correcta, no defecto), y 1 hallazgo nuevo de esta ronda (sección 3.1,
+BAJA/documental, no explotable con la superficie pública actual).
+
+================================================================================
+## 9. Regresión: apps/api typecheck en el worktree
+================================================================================
+
+El worktree se creó originalmemte en HEAD=29a120d (el HEAD del repo principal
+al iniciar esta ronda). Durante la ejecución, otros agentes avanzaron el HEAD
+del repo principal hasta c4a6165 (commits `8fdeb68` "feat(api): adaptadores de
+@atiende/expediente sobre packages/db (ronda 3)", `72cc525` "feat(api):
+endpoints E6-E11 del expediente de participación real", `c4a6165` "test(api):
+E6 — documentos de bases, matriz de requisitos y extracción de texto") — todos
+POSTERIORES y ancestros de HEAD, ninguno reescribe historia. Se actualizó el
+worktree a ese nuevo HEAD (`git checkout c4a6165` DENTRO del worktree, nunca
+en el repo principal) para probar la integración real de `@atiende/expediente`
+en `apps/api`, que no existía todavía en el HEAD original de esta ronda.
+
+Confirmado que los 3 commits del mandato (14a35bb/b5acc45/5e03e90) siguen
+siendo ancestros del nuevo HEAD tras la actualización. Se reinstaló
+`npm install` en el worktree actualizado (692 paquetes) y se volvió a correr
+la suite de `packages/expediente` (391/391 verde, sin cambios).
+
+```
+$ npm run -w apps/api typecheck
+> @atiende/api@0.1.0 typecheck
+> tsc --noEmit
+(sin salida, exit code 0)
+```
+
+**Resultado: SIN ERRORES.** `apps/api typecheck` pasa limpio contra la
+integración real de `@atiende/expediente` (rutas E6-E11,
+`apps/api/src/lib/expediente/*`, `apps/api/src/modules/expediente/*`). No hay
+ningún error que clasificar como (a) causado por el paquete `expediente` ni
+(b) WIP ajeno — el typecheck combinado de ambos paquetes en su estado actual
+comprometido a git es limpio.
+
+Nota metodológica: el repo principal (fuera del worktree) tiene además ~74
+archivos con cambios NO COMMITEADOS (`apps/web`, partes de `apps/api`,
+`package-lock.json`) de trabajo en curso de otros agentes/rondas — esos
+cambios NO se probaron aquí (correctamente fuera de alcance: un worktree
+`git worktree add ... HEAD` solo materializa el árbol COMMITEADO, nunca el
+working tree con cambios sin commitear del repo principal). El typecheck
+limpio reportado arriba es sobre el estado COMMITEADO en c4a6165, no sobre el
+working tree actual del repo principal.
+
+================================================================================
+## 10. Limpieza del worktree
+================================================================================
+
+```
+$ rm -f packages/expediente/test/_attack_reverify3.test.ts packages/expediente/test/_attack_ex19_ex20.test.ts
+$ git status --short   # limpio salvo package-lock.json (ruido de npm install local, no commiteado)
+$ cd /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging
+$ git worktree remove <scratchpad>/reverify3-exp --force
+```
