@@ -1,0 +1,292 @@
+2026-09-06T01:06:44Z
+=== git rev-parse HEAD ===
+67b28886a9728e919d7642272964f669a359251e
+=== npm install ===
+
+removed 2 packages, and audited 637 packages in 1s
+
+199 packages are looking for funding
+  run `npm fund` for details
+
+5 vulnerabilities (3 moderate, 1 high, 1 critical)
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+exit: 0
+=== npm install (worktree) ===
+npm warn deprecated whatwg-encoding@3.1.1: Use @exodus/bytes instead for a more spec-conformant and faster implementation
+npm warn deprecated eslint@9.39.5: This version is no longer supported. Please see https://eslint.org/version-support for other options.
+
+added 532 packages, and audited 535 packages in 16s
+
+174 packages are looking for funding
+  run `npm fund` for details
+
+5 vulnerabilities (3 moderate, 1 high, 1 critical)
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+exit:0
+=== typecheck/lint/test/build packages/agents (worktree, unmodified) ===
+
+> @atiende/agents@0.1.0 typecheck
+> tsc --noEmit
+
+typecheck exit:0
+
+> @atiende/agents@0.1.0 lint
+> eslint src test
+
+lint exit:0
+
+> @atiende/agents@0.1.0 test
+> vitest run
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-agents-audit/packages/agents[39m
+
+ [32m✓[39m test/authorization.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/llm/openai-responses-provider.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/guardrails.test.ts [2m([22m[2m13 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/tool-registry.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/idempotency.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m test/retry.test.ts [2m([22m[2m13 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+ [32m✓[39m test/llm/router.test.ts [2m([22m[2m16 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/no-fabrication.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m test/agent-runner.test.ts [2m([22m[2m22 tests[22m[2m)[22m[90m 35[2mms[22m[39m
+ [32m✓[39m test/budget-ledger.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/rate-limiter.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 1[2mms[22m[39m
+ [32m✓[39m test/dependency-invalidation.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/llm/fake-provider.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m13 passed[39m[22m[90m (13)[39m
+[2m      Tests [22m [1m[32m127 passed[39m[22m[90m (127)[39m
+[2m   Start at [22m 19:07:55
+[2m   Duration [22m 606ms[2m (transform 424ms, setup 0ms, collect 729ms, tests 88ms, environment 5ms, prepare 623ms)[22m
+
+test exit:0
+
+> @atiende/agents@0.1.0 build
+> tsc -p tsconfig.build.json
+
+build exit:0
+=== ADVERSARIAL SUITE (worktree, NO se commitea) ===
+
+ RUN  v4.1.11 /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-agents-audit/packages/agents
+
+ ❯ test/adversarial-audit.test.ts (24 tests | 2 failed) 16ms
+     × mutación directa del Set retornado por DEFAULT_HARD_PROHIBITED_ACTIONS no es posible (ReadonlySet real en runtime) 2ms
+     × tryConsume() con tokens negativos AGREGA tokens al bucket en vez de gastarlos (bypass de rate limit) 0ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/adversarial-audit.test.ts > ADVERSARIAL: intentos de bypass de prohibiciones duras > mutación directa del Set retornado por DEFAULT_HARD_PROHIBITED_ACTIONS no es posible (ReadonlySet real en runtime)
+AssertionError: expected [Function] to throw an error
+ ❯ test/adversarial-audit.test.ts:167:66
+    165|     // Prueba de robustez: intentar mutar el set exportado.
+    166|     // @ts-expect-error: ReadonlySet no expone .add() en los tipos, pe…
+    167|     expect(() => DEFAULT_HARD_PROHIBITED_ACTIONS.add?.("nuevo")).toThr…
+       |                                                                  ^
+    168|   });
+    169| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  test/adversarial-audit.test.ts > ADVERSARIAL: TokenBucketRateLimiter — tokens negativos > tryConsume() con tokens negativos AGREGA tokens al bucket en vez de gastarlos (bypass de rate limit)
+AssertionError: expected 5 to be greater than 5
+ ❯ test/adversarial-audit.test.ts:290:49
+    288|     // "Consumir" -1000 tokens en realidad rellena el bucket muy por e…
+    289|     expect(limiter.tryConsume("org-1", -1000)).toBe(true);
+    290|     expect(limiter.getAvailableTokens("org-1")).toBeGreaterThan(5); //…
+       |                                                 ^
+    291|   });
+    292| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 22 passed (24)
+   Start at  19:09:27
+   Duration  206ms (transform 74ms, setup 0ms, import 95ms, tests 16ms, environment 0ms)
+
+
+ RUN  v4.1.11 /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-agents-audit/packages/agents
+
+ ❯ test/adversarial-audit.test.ts (24 tests | 1 failed) 19ms
+     × tryConsume() con tokens negativos rellena el bucket a capacidad máxima al instante (bypass del tiempo de espera de refill) 3ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/adversarial-audit.test.ts > ADVERSARIAL: TokenBucketRateLimiter — tokens negativos > tryConsume() con tokens negativos rellena el bucket a capacidad máxima al instante (bypass del tiempo de espera de refill)
+AssertionError: expected 1 to be 5 // Object.is equality
+
+- Expected
++ Received
+
+- 5
++ 1
+
+ ❯ test/adversarial-audit.test.ts:308:49
+    306|     // completa de inmediato — bypass total del rate limit para esa or…
+    307|     expect(limiter.tryConsume("org-1", -1)).toBe(true);
+    308|     expect(limiter.getAvailableTokens("org-1")).toBe(5); // CONFIRMADO…
+       |                                                 ^
+    309|
+    310|     // Y desde ahí puede seguir consumiendo 5 tokens "gratis" más de l…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 23 passed (24)
+   Start at  19:10:12
+   Duration  319ms (transform 119ms, setup 0ms, import 154ms, tests 19ms, environment 0ms)
+
+
+ RUN  v4.1.11 /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-agents-audit/packages/agents
+
+
+ Test Files  1 passed (1)
+      Tests  24 passed (24)
+   Start at  19:10:24
+   Duration  178ms (transform 56ms, setup 0ms, import 75ms, tests 14ms, environment 0ms)
+
+=== MUTATION TESTING (5 reglas clave, en worktree, revertido después) ===
+--- Mutación 1: authorization.ts, quitar chequeo de prohibiciones duras ---
+    102|       for (const toolName of categories) {
+    103|         expect(DEFAULT_HARD_PROHIBITED_ACTIONS.has(toolName)).toBe(tru…
+    104|         expect(policy.decide({ toolName, riskLevel: "write", actorRole…
+       |                                                                                                 ^
+    105|       }
+    106|     });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+
+ Test Files  2 failed | 11 passed (13)
+      Tests  5 failed | 122 passed (127)
+   Start at  19:10:40
+   Duration  381ms (transform 394ms, setup 0ms, import 598ms, tests 81ms, environment 1ms)
+
+revertido mutación 1
+--- Mutación 2: tool-registry.ts, desactivar bloqueo de organizationId/tenant_id en esquema ---
+     63|         }),
+     64|       ),
+     65|     ).toThrow(UnauthorizedToolInputError);
+       |       ^
+     66|
+     67|     expect(() =>
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 12 passed (13)
+      Tests  1 failed | 126 passed (127)
+   Start at  19:10:50
+   Duration  372ms (transform 394ms, setup 0ms, import 642ms, tests 77ms, environment 4ms)
+
+revertido mutación 2
+--- Mutación 3: no-fabrication.ts, dejar de exigir approvedSourceRef ---
+     34|     expect(result.status).toBe("pendiente_no_evaluable");
+     35|     if (result.status === "pendiente_no_evaluable") {
+     36|       expect(result.missing.sort()).toEqual(["b", "c"]);
+       |                                     ^
+     37|     }
+     38|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  2 failed | 11 passed (13)
+      Tests  3 failed | 124 passed (127)
+   Start at  19:10:50
+   Duration  369ms (transform 389ms, setup 0ms, import 620ms, tests 127ms, environment 1ms)
+
+revertido mutación 3
+--- Mutación 4: retry.ts, ignorar AbortSignal durante backoff ---
+
++ Received:
+undefined
+
+ ❯ test/retry.test.ts:129:55
+    127|     const fn = vi.fn();
+    128|
+    129|     await expect(policy.execute(fn, controller.signal)).rejects.toThro…
+       |                                                       ^
+    130|     expect(fn).not.toHaveBeenCalled();
+    131|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 12 passed (13)
+      Tests  1 failed | 126 passed (127)
+   Start at  19:11:02
+   Duration  441ms (transform 517ms, setup 0ms, import 802ms, tests 152ms, environment 1ms)
+
+revertido mutación 4
+--- Mutación 5: idempotency.ts, quitar guarda de ejecución concurrente in_progress ---
+
+ FAIL  test/idempotency.test.ts > IdempotencyStore > una ejecución concurrente con la misma clave lanza IdempotencyInProgressError en vez de ejecutar dos veces
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ test/idempotency.test.ts:38:3
+     36|   });
+     37|
+     38|   it("una ejecución concurrente con la misma clave lanza IdempotencyIn…
+       |   ^
+     39|     const store = new IdempotencyStore();
+     40|     let resolveFirst!: (value: string) => void;
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 12 passed (13)
+      Tests  1 failed | 126 passed (127)
+   Start at  19:11:03
+   Duration  5.29s (transform 440ms, setup 0ms, import 709ms, tests 5.10s, environment 1ms)
+
+revertido mutación 5
+=== vitest --coverage (no configurado en package.json; probar si está disponible) ===
+
+ RUN  v4.1.11 /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-agents-audit/packages/agents
+      Coverage enabled with v8
+
+
+ Test Files  13 passed (13)
+      Tests  127 passed (127)
+   Start at  19:11:22
+   Duration  613ms (transform 730ms, setup 0ms, import 1.06s, tests 114ms, environment 1ms)
+
+ % Coverage report from v8
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-------------------|---------|----------|---------|---------|-------------------
+[32;1mAll files         [0m | [32;1m  89.87[0m | [32;1m   84.51[0m | [32;1m  89.62[0m | [32;1m  92.59[0m | [31;1m                 [0m 
+[32;1m src              [0m | [32;1m  87.44[0m | [32;1m   83.78[0m | [32;1m  86.27[0m | [32;1m   90.7[0m | [31;1m                 [0m 
+[32;1m  agent-runner.ts [0m | [32;1m  80.66[0m | [33;1m   74.72[0m | [33;1m  76.19[0m | [32;1m  84.32[0m | [31;1m...82-485,497-506[0m 
+[32;1m  budget-ledger.ts[0m | [32;1m  97.29[0m | [32;1m      90[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m91               [0m 
+[32;1m  errors.ts       [0m | [32;1m  85.71[0m | [32;1m    93.1[0m | [32;1m  84.21[0m | [32;1m     88[0m | [31;1m37-50            [0m 
+[32;1m  idempotency.ts  [0m | [32;1m  94.11[0m | [32;1m     100[0m | [33;1m     75[0m | [32;1m  94.11[0m | [31;1m72               [0m 
+[32;1m  retry.ts        [0m | [32;1m  86.66[0m | [32;1m   89.47[0m | [32;1m    100[0m | [32;1m  88.46[0m | [31;1m74,81-82         [0m 
+[33;1m  stores.ts       [0m | [33;1m  73.91[0m | [33;1m      75[0m | [33;1m  54.54[0m | [32;1m  84.21[0m | [31;1m146-151,169      [0m 
+[32;1m  tool-registry.ts[0m | [32;1m  85.29[0m | [33;1m   72.22[0m | [32;1m    100[0m | [32;1m  90.32[0m | [31;1m122-123,125      [0m 
+[32;1m  tracing.ts      [0m | [32;1m  92.85[0m | [33;1m      75[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m6-16             [0m 
+[32;1m src/guardrails   [0m | [32;1m  96.29[0m | [32;1m   94.11[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  ...corruption.ts[0m | [32;1m  96.29[0m | [32;1m   94.11[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m82               [0m 
+[32;1m src/llm          [0m | [32;1m  98.97[0m | [32;1m    84.5[0m | [32;1m    100[0m | [32;1m  98.91[0m | [31;1m                 [0m 
+[32;1m  ...s-provider.ts[0m | [32;1m     98[0m | [33;1m      75[0m | [32;1m    100[0m | [32;1m  97.91[0m | [31;1m93               [0m 
+-------------------|---------|----------|---------|---------|-------------------
+
+=============================== Coverage summary ===============================
+[32;1mStatements   : 89.87% ( 506/563 )[0m
+[32;1mBranches     : 84.51% ( 262/310 )[0m
+[32;1mFunctions    : 89.62% ( 121/135 )[0m
+[32;1mLines        : 92.59% ( 475/513 )[0m
+================================================================================
+fin 2026-09-06T01:11:54Z
