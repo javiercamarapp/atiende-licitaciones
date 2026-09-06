@@ -3,7 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { MEMBERSHIP_ADMIN_ROLES, type DbExecutor } from '@atiende/db';
-import { ConflictError, ForbiddenError } from '../../lib/errors.js';
+import { ConflictError, ForbiddenError, UnauthorizedError } from '../../lib/errors.js';
 import { recordAudit } from '../../lib/audit.js';
 import { runIdempotent, hashRequestBody } from '../../lib/idempotency.js';
 import {
@@ -14,9 +14,29 @@ import {
   invitationSchema,
   changeRoleBodySchema,
   memberParamsSchema,
+  acceptInvitationBodySchema,
+  acceptedInvitationSchema,
 } from './schemas.js';
 
 const UNIQUE_VIOLATION = '23505';
+
+/**
+ * Protección del último owner (cierre de pendiente ronda 1): una
+ * organización nunca puede quedarse sin ningún owner activo, ni por cambio
+ * de rol ni por baja de membresía. Cuenta owners ACTIVOS distintos del
+ * usuario objetivo dentro de la misma transacción/contexto de tenant ya
+ * fijado por el llamador.
+ */
+async function assertNotLastOwner(tx: DbExecutor, orgId: string, targetUserId: string): Promise<void> {
+  const { rows } = await tx.query<{ count: string }>(
+    `select count(*)::text as count from memberships
+     where org_id = $1 and role = 'owner' and status = 'active' and user_id <> $2`,
+    [orgId, targetUserId]
+  );
+  if (Number(rows[0]?.count ?? '0') === 0) {
+    throw new ConflictError('No puedes dejar a la organización sin ningún owner activo');
+  }
+}
 
 export async function organizationRoutes(app: FastifyInstance): Promise<void> {
   const server = app.withTypeProvider<ZodTypeProvider>();
@@ -107,9 +127,14 @@ export async function organizationRoutes(app: FastifyInstance): Promise<void> {
 
       const { email, role } = request.body;
       const invitationId = randomUUID();
-      const tokenHash = createHash('sha256').update(randomUUID()).digest('hex');
+      // El token EN CLARO solo existe en memoria hasta este punto: se
+      // devuelve una única vez en la respuesta (ver invitationSchema) y solo
+      // su hash se persiste. Sin esto, "aceptar invitación" sería imposible
+      // (pendiente real de ronda 1: el token nunca se exponía).
+      const token = randomUUID();
+      const tokenHash = createHash('sha256').update(token).digest('hex');
 
-      type InvitationBody = { id: string; email: string; role: string; status: string };
+      type InvitationBody = { id: string; email: string; role: string; status: string; token: string };
 
       const doInsert = async (tx: DbExecutor): Promise<{ statusCode: 201; body: InvitationBody }> => {
         await tx.query(
@@ -126,7 +151,7 @@ export async function organizationRoutes(app: FastifyInstance): Promise<void> {
           after: { email, role },
           requestId: request.id,
         });
-        return { statusCode: 201, body: { id: invitationId, email, role, status: 'pending' } };
+        return { statusCode: 201, body: { id: invitationId, email, role, status: 'pending', token } };
       };
 
       let result: { statusCode: number; body: InvitationBody };
@@ -183,6 +208,12 @@ export async function organizationRoutes(app: FastifyInstance): Promise<void> {
           targetUserId,
         ]);
 
+        // Protección del último owner: si el objetivo es owner hoy y el
+        // nuevo rol no lo es, no puede ser el último owner activo.
+        if (before.rows[0]?.role === 'owner' && role !== 'owner') {
+          await assertNotLastOwner(tx, orgId, targetUserId);
+        }
+
         const res = await tx.query(
           'update memberships set role = $1 where org_id = $2 and user_id = $3',
           [role, orgId, targetUserId]
@@ -208,6 +239,113 @@ export async function organizationRoutes(app: FastifyInstance): Promise<void> {
       }
 
       return { userId: targetUserId, role };
+    }
+  );
+
+  server.delete(
+    '/memberships/:userId',
+    {
+      preHandler: [app.authenticate, app.requireOrg],
+      schema: { params: memberParamsSchema },
+    },
+    async (request, reply) => {
+      const orgId = request.orgId!;
+      const actorId = request.userId!;
+      const targetUserId = request.params.userId;
+
+      if (!MEMBERSHIP_ADMIN_ROLES.includes(request.orgRole as any)) {
+        throw new ForbiddenError('Solo owner/admin pueden eliminar miembros');
+      }
+
+      const deleted = await app.db.transaction(async (tx) => {
+        await tx.query('set local role app_role');
+        await tx.query("select set_config('app.current_org_id', $1, true)", [orgId]);
+        await tx.query("select set_config('app.current_user_id', $1, true)", [actorId]);
+
+        const before = await tx.query<{ role: string }>('select role from memberships where org_id = $1 and user_id = $2', [
+          orgId,
+          targetUserId,
+        ]);
+        if (before.rows[0]?.role === 'owner') {
+          await assertNotLastOwner(tx, orgId, targetUserId);
+        }
+
+        const res = await tx.query('delete from memberships where org_id = $1 and user_id = $2', [orgId, targetUserId]);
+        if (res.rowCount > 0) {
+          await recordAudit(tx, {
+            orgId,
+            actorId,
+            action: 'membership.delete',
+            entity: 'membership',
+            entityId: targetUserId,
+            before: before.rows[0] ?? null,
+            requestId: request.id,
+          });
+        }
+        return res.rowCount;
+      });
+
+      if (deleted === 0) {
+        throw new ConflictError('El usuario no es miembro de esta organización');
+      }
+      return reply.code(204).send();
+    }
+  );
+
+  server.post(
+    '/invitations/accept',
+    {
+      preHandler: [app.authenticate],
+      schema: { body: acceptInvitationBodySchema, response: { 200: acceptedInvitationSchema } },
+    },
+    async (request) => {
+      const userId = request.userId!;
+      const tokenHash = createHash('sha256').update(request.body.token).digest('hex');
+
+      let result: { org_id: string; role: string };
+      try {
+        const { rows } = await app.db.transaction(async (tx) => {
+          await tx.query('set local role app_role');
+          await tx.query("select set_config('app.current_user_id', $1, true)", [userId]);
+          return tx.query<{ out_org_id: string; out_role: string }>('select * from app.accept_invitation($1, $2)', [
+            tokenHash,
+            userId,
+          ]);
+        });
+        result = { org_id: rows[0].out_org_id, role: rows[0].out_role };
+      } catch (err) {
+        const pgErr = err as { message?: string };
+        if (pgErr.message?.includes('invitation_not_found')) {
+          throw new ConflictError('Invitación no encontrada');
+        }
+        if (pgErr.message?.includes('invitation_not_pending')) {
+          throw new ConflictError('La invitación ya fue aceptada o revocada');
+        }
+        if (pgErr.message?.includes('invitation_expired')) {
+          throw new ConflictError('La invitación ha expirado');
+        }
+        if (pgErr.message?.includes('invitation_email_mismatch')) {
+          throw new UnauthorizedError('Esta invitación fue emitida para otro correo electrónico');
+        }
+        throw err;
+      }
+
+      await app.db.transaction(async (tx) => {
+        await tx.query('set local role app_role');
+        await tx.query("select set_config('app.current_org_id', $1, true)", [result.org_id]);
+        await tx.query("select set_config('app.current_user_id', $1, true)", [userId]);
+        await recordAudit(tx, {
+          orgId: result.org_id,
+          actorId: userId,
+          action: 'invitation.accept',
+          entity: 'invitation',
+          entityId: null,
+          after: { role: result.role },
+          requestId: request.id,
+        });
+      });
+
+      return { orgId: result.org_id, role: result.role as any };
     }
   );
 }

@@ -1,13 +1,35 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { hashPassword, verifyPassword } from '../../lib/passwords.js';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../lib/jwt.js';
 import { ConflictError, UnauthorizedError } from '../../lib/errors.js';
-import { registerBodySchema, loginBodySchema, refreshBodySchema, authTokensSchema } from './schemas.js';
+import { registerBodySchema, loginBodySchema, refreshBodySchema, logoutBodySchema, authTokensSchema } from './schemas.js';
 
 const UNIQUE_VIOLATION = '23505';
+const REFRESH_TTL_DAYS = 30;
+
+function hashToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
+}
+
+async function issueTokenPair(
+  app: FastifyInstance,
+  userId: string
+): Promise<{ accessToken: string; refreshToken: string }> {
+  const accessToken = await signAccessToken(app.config.jwtSecret, userId);
+  const { token: refreshToken, jti } = await signRefreshToken(app.config.jwtSecret, userId);
+  await app.db.transaction(async (tx) => {
+    await tx.query('set local role app_role');
+    await tx.query(`select app.create_refresh_token($1, $2, $3, now() + interval '${REFRESH_TTL_DAYS} days')`, [
+      randomUUID(),
+      userId,
+      hashToken(jti),
+    ]);
+  });
+  return { accessToken, refreshToken };
+}
 
 export async function authRoutes(app: FastifyInstance): Promise<void> {
   const server = app.withTypeProvider<ZodTypeProvider>();
@@ -80,9 +102,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         throw new UnauthorizedError('Credenciales inválidas');
       }
 
-      const accessToken = await signAccessToken(app.config.jwtSecret, user.id);
-      const refreshToken = await signRefreshToken(app.config.jwtSecret, user.id);
-      return { accessToken, refreshToken };
+      return issueTokenPair(app, user.id);
     }
   );
 
@@ -96,16 +116,56 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     },
     async (request) => {
       let userId: string;
+      let jti: string;
       try {
         const payload = await verifyRefreshToken(app.config.jwtSecret, request.body.refreshToken);
         userId = payload.sub;
+        jti = payload.jti;
       } catch {
         throw new UnauthorizedError('Refresh token inválido o expirado');
       }
 
-      const accessToken = await signAccessToken(app.config.jwtSecret, userId);
-      const refreshToken = await signRefreshToken(app.config.jwtSecret, userId);
-      return { accessToken, refreshToken };
+      // Rotación + revocación real: el token JWT puede ser criptográficamente
+      // válido y no estar expirado, pero si ya fue revocado (logout, o esta
+      // misma rotación ejecutada dos veces) se rechaza igualmente. Esto es lo
+      // que hace posible el logout real con JWT stateless (ver
+      // apps/api/README.md, pendiente cerrado de ronda 1).
+      const { rows } = await app.db.transaction(async (tx) => {
+        await tx.query('set local role app_role');
+        return tx.query<{ id: string; user_id: string; expires_at: string; revoked_at: string | null }>(
+          'select * from app.find_refresh_token($1)',
+          [hashToken(jti)]
+        );
+      });
+      const stored = rows[0];
+      if (!stored || stored.revoked_at || new Date(stored.expires_at).getTime() < Date.now()) {
+        throw new UnauthorizedError('Refresh token inválido, expirado o revocado');
+      }
+
+      await app.db.transaction(async (tx) => {
+        await tx.query('set local role app_role');
+        await tx.query('select app.revoke_refresh_token($1)', [hashToken(jti)]);
+      });
+
+      return issueTokenPair(app, userId);
+    }
+  );
+
+  server.post(
+    '/logout',
+    { schema: { body: logoutBodySchema } },
+    async (request, reply) => {
+      try {
+        const payload = await verifyRefreshToken(app.config.jwtSecret, request.body.refreshToken);
+        await app.db.transaction(async (tx) => {
+          await tx.query('set local role app_role');
+          await tx.query('select app.revoke_refresh_token($1)', [hashToken(payload.jti)]);
+        });
+      } catch {
+        // Logout es idempotente y nunca revela si el token era válido: un
+        // token ya inválido/expirado/ajeno simplemente no revoca nada.
+      }
+      return reply.code(204).send();
     }
   );
 }

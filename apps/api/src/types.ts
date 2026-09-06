@@ -8,11 +8,14 @@ declare module 'fastify' {
     config: AppConfig;
     authenticate: (request: FastifyRequest) => Promise<void>;
     requireOrg: (request: FastifyRequest) => Promise<void>;
+    requireSuperadmin: (request: FastifyRequest) => Promise<void>;
+    requirePlatformApiKey: (request: FastifyRequest) => Promise<void>;
   }
 
   interface FastifyRequest {
     userId?: string;
     orgId?: string;
     orgRole?: OrgRole;
+    isSuperadmin?: boolean;
   }
 }

@@ -1,19 +1,28 @@
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { createPgliteClient } from '@atiende/db';
 import type { DbClient } from '@atiende/db';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app.js';
-import type { AppConfig } from '../src/config.js';
+import { loadConfig, type AppConfig } from '../src/config.js';
 
 export const TEST_JWT_SECRET = 'test-secret-do-not-use-in-production-01234567890';
+export const TEST_PLATFORM_API_KEY = 'test-platform-api-key-01234567890';
 
-export async function createTestApp(): Promise<{ app: FastifyInstance; db: DbClient }> {
+export async function createTestApp(overrides: Partial<AppConfig> = {}): Promise<{ app: FastifyInstance; db: DbClient }> {
   const db = await createPgliteClient();
   const config: AppConfig = {
+    ...loadConfig({
+      JWT_SECRET: TEST_JWT_SECRET,
+      NODE_ENV: 'test',
+      STORAGE_DIR: mkdtempSync(join(tmpdir(), 'atiende-api-test-storage-')),
+      PLATFORM_API_KEY: TEST_PLATFORM_API_KEY,
+    }),
     port: 0,
-    jwtSecret: TEST_JWT_SECRET,
     databaseUrl: undefined,
-    nodeEnv: 'test',
     autoMigrate: true,
+    ...overrides,
   };
   const app = await buildApp({ db, config, logger: false });
   await app.ready();

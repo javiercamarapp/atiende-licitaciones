@@ -41,6 +41,21 @@ async function authPluginImpl(app: FastifyInstance): Promise<void> {
     request.orgId = orgId;
     request.orgRole = role as FastifyRequest['orgRole'];
   });
+
+  // Autenticación de servicios internos (p.ej. apps/worker) vía cabecera
+  // `X-Platform-Api-Key` comparada contra `config.platformApiKey`. Falla
+  // CERRADO: si la variable de entorno no está configurada, NINGUNA
+  // solicitud pasa (nunca "sin clave configurada = abierto").
+  app.decorate('requirePlatformApiKey', async function requirePlatformApiKey(request: FastifyRequest): Promise<void> {
+    const expected = app.config.platformApiKey;
+    if (!expected) {
+      throw new ForbiddenError('PLATFORM_API_KEY no está configurada: la ingesta interna está deshabilitada');
+    }
+    const provided = request.headers['x-platform-api-key'];
+    if (!provided || typeof provided !== 'string' || provided !== expected) {
+      throw new UnauthorizedError('Clave de API de plataforma inválida o ausente');
+    }
+  });
 }
 
 export const authPlugin = fp(authPluginImpl, { name: 'auth-plugin' });

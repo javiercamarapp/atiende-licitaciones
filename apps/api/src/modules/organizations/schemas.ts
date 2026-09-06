@@ -29,6 +29,12 @@ export const invitationSchema = z.object({
   email: z.string(),
   role: orgRoleEnum,
   status: z.string(),
+  // Token en claro devuelto SOLO en la respuesta de creación (no se persiste
+  // en claro, solo su hash en `invitations.token_hash`): es la única vez que
+  // el sistema lo expone, igual que una API key. El invitador debe
+  // transmitirlo fuera de banda (esta ronda no envía email); ver
+  // `POST /organizations/invitations/accept`.
+  token: z.string().optional(),
 });
 
 export const changeRoleBodySchema = z.object({
@@ -36,3 +42,12 @@ export const changeRoleBodySchema = z.object({
 });
 
 export const memberParamsSchema = z.object({ userId: z.string().uuid() });
+
+export const acceptInvitationBodySchema = z.object({
+  token: z.string().min(1),
+});
+
+export const acceptedInvitationSchema = z.object({
+  orgId: z.string().uuid(),
+  role: orgRoleEnum,
+});

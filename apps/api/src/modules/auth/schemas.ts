@@ -18,6 +18,11 @@ export const refreshBodySchema = z.object({
 });
 export type RefreshBody = z.infer<typeof refreshBodySchema>;
 
+export const logoutBodySchema = z.object({
+  refreshToken: z.string().min(1),
+});
+export type LogoutBody = z.infer<typeof logoutBodySchema>;
+
 export const authTokensSchema = z.object({
   accessToken: z.string(),
   refreshToken: z.string(),
