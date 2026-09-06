@@ -26,6 +26,7 @@ import {
   CircleDollarSign,
   AlertOctagon,
   ShieldAlert,
+  ScrollText,
   type LucideIcon,
 } from "lucide-react";
 
@@ -169,6 +170,9 @@ export const NAV_GROUPS: NavGroup[] = [
       // aviso de privacidad debe poder consultarse sin sesión activa, igual
       // que /login.
       { id: "privacidad", label: "Aviso de privacidad", to: "/privacidad", icon: ShieldAlert },
+      // Ronda 7: mismo criterio que "Aviso de privacidad" -- pública, fuera
+      // de <AppShell/>, ver App.tsx y pages/TermsPage.tsx.
+      { id: "terminos", label: "Términos de servicio", to: "/legal/terminos", icon: ScrollText },
     ],
   },
 ];

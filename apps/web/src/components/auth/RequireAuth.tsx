@@ -28,3 +28,26 @@ export function RequireAuth() {
 
   return <Outlet />;
 }
+
+/**
+ * Ronda 7: variante de RequireAuth para todo lo que cuelga de <AppShell/>
+ * (el panel real, no /onboarding, que es una ruta hermana bajo el mismo
+ * <RequireAuth/> y nunca queda envuelta por este componente). Un usuario
+ * recién registrado que todavía no pertenece a NINGUNA organización no
+ * tiene nada real que ver en el panel (cada pantalla de negocio exige
+ * `currentOrgId` -- ver useAuth.tsx): en vez de dejarlo aterrizar en un
+ * panel vacío sin explicación, se le manda directo al wizard de bienvenida
+ * (OnboardingPage.tsx), cuyo primer paso es exactamente crear esa
+ * organización. Una vez que ya tiene alguna organización, puede volver a
+ * /onboarding libremente (p. ej. para crear una organización adicional)
+ * sin que esta guarda se lo impida.
+ */
+export function RequireOrganization() {
+  const { memberships } = useAuth();
+
+  if (memberships.length === 0) {
+    return <Navigate to="/onboarding" replace />;
+  }
+
+  return <Outlet />;
+}

@@ -1,18 +1,22 @@
 import { Component, Suspense, lazy, type ReactNode } from "react";
-import { BrowserRouter, Navigate, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { QueryClientProvider } from "@tanstack/react-query";
 
 import { AtiendeMark } from "@/components/AtiendeLogo";
 import { AppShell } from "@/components/layout/AppShell";
-import { RequireAuth } from "@/components/auth/RequireAuth";
+import { RequireAuth, RequireOrganization } from "@/components/auth/RequireAuth";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { AuthProvider } from "@/hooks/useAuth";
 import { queryClient } from "@/lib/queryClient";
 
+const LandingPage = lazy(() => import("@/pages/LandingPage"));
 const LoginPage = lazy(() => import("@/pages/LoginPage"));
 const PrivacyNoticePage = lazy(() => import("@/pages/PrivacyNoticePage"));
+const TermsPage = lazy(() => import("@/pages/TermsPage"));
+const DemoPage = lazy(() => import("@/pages/DemoPage"));
+const OnboardingPage = lazy(() => import("@/pages/onboarding/OnboardingPage"));
 const NotFoundPage = lazy(() => import("@/pages/NotFoundPage"));
 const PanelPage = lazy(() => import("@/pages/PanelPage"));
 const PerfilCapacidadesPage = lazy(() => import("@/pages/empresa/PerfilCapacidadesPage"));
@@ -96,46 +100,67 @@ export default function App() {
             <RouteErrorBoundary>
               <Suspense fallback={<LoadingScreen />}>
                 <Routes>
-                  <Route path="/" element={<Navigate to="/panel" replace />} />
+                  {/* Ronda 7: landing pública real (ver LandingPage.tsx) en
+                      vez de una redirección ciega a /panel — un usuario SIN
+                      sesión que llega a "/" debe ver la propuesta de valor,
+                      no un salto directo a /login. LandingPage.tsx redirige
+                      por su cuenta a /panel cuando SÍ hay sesión activa
+                      (mismo patrón que LoginPage.tsx). */}
+                  <Route path="/" element={<LandingPage />} />
                   <Route path="/login" element={<LoginPage />} />
                   {/* REQ-119/131: accesible SIN sesión, como cualquier aviso de
                       privacidad real (debe poder consultarse antes de crear
                       una cuenta). */}
                   <Route path="/privacidad" element={<PrivacyNoticePage />} />
+                  {/* Ronda 7: mismo criterio que /privacidad -- términos de
+                      servicio también deben poder consultarse sin sesión. */}
+                  <Route path="/legal/terminos" element={<TermsPage />} />
+                  {/* Ronda 7 (REQ §34.4): demo de solo lectura con datos de
+                      ejemplo servidos por MSW SOLO en esta ruta -- pública,
+                      sin sesión, ver DemoPage.tsx. */}
+                  <Route path="/demo" element={<DemoPage />} />
                   {/* W-12: todo lo que cuelga de <AppShell/> exige sesión real
                       (ver components/auth/RequireAuth.tsx) — la barrera de
                       verdad sigue siendo la API en cada petición. */}
                   <Route element={<RequireAuth />}>
-                    <Route element={<AppShell />}>
-                      <Route path="/panel" element={<PanelPage />} />
-                      <Route path="/empresa/perfil-capacidades" element={<PerfilCapacidadesPage />} />
-                      <Route path="/empresa/documentos-vigencias" element={<DocumentosVigenciasPage />} />
-                      <Route path="/empresa/firmantes-autorizados" element={<FirmantesAutorizadosPage />} />
-                      <Route path="/empresa/tarifas-aprobadas" element={<TarifasAprobadasPage />} />
-                      <Route path="/convocatorias/descubrimiento" element={<DescubrimientoPage />} />
-                      <Route path="/convocatorias/descubrimiento/:tenderId" element={<ConvocatoriaDetallePage />} />
-                      <Route path="/convocatorias/matching" element={<MatchingPage />} />
-                      <Route path="/convocatorias/fuentes-frescura" element={<FuentesFrescuraPage />} />
-                      <Route path="/evaluacion/go-no-go" element={<GoNoGoPage />} />
-                      <Route path="/evaluacion/analisis-bases" element={<AnalisisBasesPage />} />
-                      <Route path="/preparacion/cumplimiento-documental" element={<CumplimientoDocumentalPage />} />
-                      <Route path="/preparacion/redaccion" element={<RedaccionPage />} />
-                      <Route path="/preparacion/revision" element={<RevisionPage />} />
-                      <Route path="/preparacion/expediente" element={<ExpedientePage />} />
-                      <Route path="/preparacion/aprobaciones" element={<AprobacionesPage />} />
-                      <Route path="/entrega/entregas" element={<EntregasPage />} />
-                      <Route path="/entrega/paquete-descargable" element={<PaqueteDescargablePage />} />
-                      <Route path="/entrega/seguimiento" element={<SeguimientoPage />} />
-                      <Route path="/backoffice/organizaciones" element={<OrganizacionesPage />} />
-                      <Route path="/backoffice/usuarios-roles" element={<UsuariosRolesPage />} />
-                      <Route path="/backoffice/agentes-herramientas" element={<AgentesHerramientasPage />} />
-                      <Route path="/backoffice/auditoria" element={<AuditoriaPage />} />
-                      <Route path="/backoffice/conectores" element={<ConectoresPage />} />
-                      <Route path="/backoffice/jobs" element={<JobsPage />} />
-                      <Route path="/backoffice/costos" element={<CostosPage />} />
-                      <Route path="/backoffice/incidentes" element={<IncidentesPage />} />
-                      <Route path="/backoffice/aprobaciones" element={<AprobacionesBackofficePage />} />
-                      <Route path="/configuracion" element={<ConfiguracionPage />} />
+                    {/* Ronda 7: wizard de bienvenida tras el primer login
+                        (sin organizaciones todavía) -- fuera de <AppShell/> a
+                        propósito (layout de pantalla completa, sin sidebar
+                        de un panel que aún no tiene datos que mostrar). Ver
+                        RequireAuth.tsx para la redirección automática. */}
+                    <Route path="/onboarding" element={<OnboardingPage />} />
+                    <Route element={<RequireOrganization />}>
+                      <Route element={<AppShell />}>
+                        <Route path="/panel" element={<PanelPage />} />
+                        <Route path="/empresa/perfil-capacidades" element={<PerfilCapacidadesPage />} />
+                        <Route path="/empresa/documentos-vigencias" element={<DocumentosVigenciasPage />} />
+                        <Route path="/empresa/firmantes-autorizados" element={<FirmantesAutorizadosPage />} />
+                        <Route path="/empresa/tarifas-aprobadas" element={<TarifasAprobadasPage />} />
+                        <Route path="/convocatorias/descubrimiento" element={<DescubrimientoPage />} />
+                        <Route path="/convocatorias/descubrimiento/:tenderId" element={<ConvocatoriaDetallePage />} />
+                        <Route path="/convocatorias/matching" element={<MatchingPage />} />
+                        <Route path="/convocatorias/fuentes-frescura" element={<FuentesFrescuraPage />} />
+                        <Route path="/evaluacion/go-no-go" element={<GoNoGoPage />} />
+                        <Route path="/evaluacion/analisis-bases" element={<AnalisisBasesPage />} />
+                        <Route path="/preparacion/cumplimiento-documental" element={<CumplimientoDocumentalPage />} />
+                        <Route path="/preparacion/redaccion" element={<RedaccionPage />} />
+                        <Route path="/preparacion/revision" element={<RevisionPage />} />
+                        <Route path="/preparacion/expediente" element={<ExpedientePage />} />
+                        <Route path="/preparacion/aprobaciones" element={<AprobacionesPage />} />
+                        <Route path="/entrega/entregas" element={<EntregasPage />} />
+                        <Route path="/entrega/paquete-descargable" element={<PaqueteDescargablePage />} />
+                        <Route path="/entrega/seguimiento" element={<SeguimientoPage />} />
+                        <Route path="/backoffice/organizaciones" element={<OrganizacionesPage />} />
+                        <Route path="/backoffice/usuarios-roles" element={<UsuariosRolesPage />} />
+                        <Route path="/backoffice/agentes-herramientas" element={<AgentesHerramientasPage />} />
+                        <Route path="/backoffice/auditoria" element={<AuditoriaPage />} />
+                        <Route path="/backoffice/conectores" element={<ConectoresPage />} />
+                        <Route path="/backoffice/jobs" element={<JobsPage />} />
+                        <Route path="/backoffice/costos" element={<CostosPage />} />
+                        <Route path="/backoffice/incidentes" element={<IncidentesPage />} />
+                        <Route path="/backoffice/aprobaciones" element={<AprobacionesBackofficePage />} />
+                        <Route path="/configuracion" element={<ConfiguracionPage />} />
+                      </Route>
                     </Route>
                   </Route>
                   <Route path="*" element={<NotFoundPage />} />
