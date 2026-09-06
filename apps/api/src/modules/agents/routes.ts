@@ -95,18 +95,21 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
         await tx.query("select set_config('app.current_org_id', $1, true)", [orgId]);
         await tx.query("select set_config('app.current_user_id', $1, true)", [userId]);
 
-        const before = await tx.query<{ authorization_status: string }>(
-          'select authorization_status from tool_calls where id = $1 and org_id = $2',
-          [request.params.id, orgId]
-        );
-        if (before.rows.length === 0) return { kind: 'not_found' as const };
-        if (before.rows[0].authorization_status !== 'pending') return { kind: 'not_pending' as const };
-
+        // API-09 (docs/auditoria-1/db-api-reverificacion.md): el check
+        // (`pending`) y la mutación deben ser LA MISMA sentencia atómica --
+        // un SELECT previo seguido de un UPDATE sin repetir la condición en
+        // su propio WHERE deja una ventana TOCTOU real bajo un pool de
+        // conexiones físicas concurrentes (no reproducible bajo PGlite,
+        // conexión física única, pero sí bajo `pg.Pool` de producción).
         const updated = await tx.query(
           `update tool_calls set authorization_status = 'approved', approved_by = $1, approved_at = now()
-           where id = $2 and org_id = $3 returning *`,
+           where id = $2 and org_id = $3 and authorization_status = 'pending' returning *`,
           [userId, request.params.id, orgId]
         );
+        if (updated.rows.length === 0) {
+          const existing = await tx.query('select id from tool_calls where id = $1 and org_id = $2', [request.params.id, orgId]);
+          return existing.rows.length === 0 ? { kind: 'not_found' as const } : { kind: 'not_pending' as const };
+        }
         await recordAudit(tx, {
           orgId,
           actorId: userId,
@@ -140,18 +143,16 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
         await tx.query("select set_config('app.current_org_id', $1, true)", [orgId]);
         await tx.query("select set_config('app.current_user_id', $1, true)", [userId]);
 
-        const before = await tx.query<{ authorization_status: string }>(
-          'select authorization_status from tool_calls where id = $1 and org_id = $2',
-          [request.params.id, orgId]
-        );
-        if (before.rows.length === 0) return { kind: 'not_found' as const };
-        if (before.rows[0].authorization_status !== 'pending') return { kind: 'not_pending' as const };
-
+        // API-09: mismo cierre atómico que approve() -- ver comentario ahí.
         const updated = await tx.query(
           `update tool_calls set authorization_status = 'denied', approved_by = $1, approved_at = now()
-           where id = $2 and org_id = $3 returning *`,
+           where id = $2 and org_id = $3 and authorization_status = 'pending' returning *`,
           [userId, request.params.id, orgId]
         );
+        if (updated.rows.length === 0) {
+          const existing = await tx.query('select id from tool_calls where id = $1 and org_id = $2', [request.params.id, orgId]);
+          return existing.rows.length === 0 ? { kind: 'not_found' as const } : { kind: 'not_pending' as const };
+        }
         await recordAudit(tx, {
           orgId,
           actorId: userId,
