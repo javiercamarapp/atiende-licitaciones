@@ -1,0 +1,62 @@
+=== 2026-09-06T01:34:34Z npm run -w apps/worker typecheck ===
+
+> @atiende/worker@0.1.0 typecheck
+> tsc --noEmit
+
+
+=== 2026-09-06T01:34:35Z npm run -w apps/worker lint ===
+
+> @atiende/worker@0.1.0 lint
+> eslint src test
+
+
+=== 2026-09-06T01:34:36Z npm run -w apps/worker test ===
+
+> @atiende/worker@0.1.0 test
+> vitest run
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/worker[39m
+
+ [32m✓[39m test/ingest-client.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 78[2mms[22m[39m
+ [32m✓[39m test/run-agent-handler.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 18335[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mejecuta con FakeProvider por defecto (sin OPENAI_API_KEY) y refleja el resultado en agent_runs [33m2866[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22msin agentRunId en el payload, igual ejecuta el AgentRunner sin fallar (uso "fire and forget") [33m5977[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mun rol sin permiso para el riesgo de la herramienta hace que la corrida termine "denied" -> el job falla explícitamente [33m9491[2mms[22m[39m
+ [32m✓[39m test/scheduler.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 20319[2mms[22m[39m
+   [33m[2m✓[22m[39m Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150[2m > [22mvarios tick() dentro de la misma ventana encolan un solo job por fuente [33m3104[2mms[22m[39m
+   [33m[2m✓[22m[39m Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150[2m > [22mavanzar a la siguiente ventana sí encola un nuevo job, sin duplicar el anterior [33m8900[2mms[22m[39m
+   [33m[2m✓[22m[39m Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150[2m > [22muna fuente deshabilitada (enabled: false) nunca se encola [33m6431[2mms[22m[39m
+   [33m[2m✓[22m[39m Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150[2m > [22mel job encolado ya trae sourceId en el payload para que discover_tenders sepa qué conector correr [33m1876[2mms[22m[39m
+ [32m✓[39m test/worker-shutdown.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 20321[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: cierre ordenado (SIGTERM)[2m > [22mdeja terminar el job en curso, libera el lock, y no reclama nuevos jobs tras stop() [33m2838[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: cierre ordenado (SIGTERM)[2m > [22msi el handler no respeta AbortSignal, stop() igual resuelve tras shutdownTimeoutMs (no cuelga para siempre) [33m6592[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: cierre ordenado (SIGTERM)[2m > [22mllamar stop() dos veces es seguro (idempotente) [33m8875[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: cierre ordenado (SIGTERM)[2m > [22mmétricas: cuenta succeeded/retried/dead por tipo de job [33m2014[2mms[22m[39m
+ [32m✓[39m test/discover-tenders-handler.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 21501[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A4: fuente inaccesible/no verificada nunca es "0 nuevas" silencioso[2m > [22mlos 5 conectores reales de packages/sources hoy no tienen liveVerification.verified=true: se reporta not_configured explícito, nunca "ok" [33m3790[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A4: fuente inaccesible/no verificada nunca es "0 nuevas" silencioso[2m > [22mun conector que lanza error con "captcha" en el mensaje se clasifica como captcha_detected, no "ok" [33m11352[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A4: fuente inaccesible/no verificada nunca es "0 nuevas" silencioso[2m > [22mfuente sin conector registrado nunca produce "0 nuevas": falla explícito con not_configured [33m3778[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay[2m > [22mconvocatoria nueva de una fuente verificada: se ingiere vía HTTP y source_runs queda "ok" [33m1210[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay[2m > [22mreplay del mismo lote (misma corrida repetida) envía el mismo payload de ingesta — idempotente (A2) [33m656[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay[2m > [22muna corrida sin registros nuevos NO llama al endpoint de ingesta pero sí queda "ok" (no confundir con fuente caída) [33m713[2mms[22m[39m
+ [32m✓[39m test/job-queue.test.ts [2m([22m[2m13 tests[22m[2m)[22m[33m 25421[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: reclamo atómico sin doble procesamiento[2m > [22mN workers > M jobs: cada job se reclama como máximo una vez [33m2445[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: reclamo atómico sin doble procesamiento[2m > [22mun job ya en running no es reclamado dos veces por workers adicionales [33m5540[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: reclamo atómico sin doble procesamiento[2m > [22mun job claimeado incrementa attempts y queda en running con locked_by [33m10198[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: reintentos con backoff exponencial + jitter[2m > [22mcada fallo reprograma next_run_at con backoff creciente hasta max_attempts, luego "dead" [33m2052[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: reintentos con backoff exponencial + jitter[2m > [22mel jitter mantiene el delay dentro del rango esperado (no determinista pero acotado) [33m716[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: lease expirado se recupera[2m > [22mun job running cuyo lease expiró es reclamable por otro worker [33m664[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: lease expirado se recupera[2m > [22mheartbeat extiende el lease y evita que otro worker lo recupere [33m622[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: cancelación[2m > [22mcancelar un job queued lo deja fuera de circulación (dead) y no se reclama [33m554[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: cancelación[2m > [22mcancelar un job running también lo detiene [33m545[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: idempotencia por jobKey[2m > [22mencolar dos veces con el mismo jobKey mientras el primero sigue activo no duplica [33m529[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: idempotencia por jobKey[2m > [22muna vez terminado (succeeded), un nuevo jobKey (otra ventana) sí encola [33m513[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: complete[2m > [22mcomplete limpia el lock y marca succeeded [33m525[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: complete[2m > [22mcomplete con el workerId equivocado no hace nada (protege contra confirmaciones cruzadas) [33m514[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m6 passed[39m[22m[90m (6)[39m
+[2m      Tests [22m [1m[32m36 passed[39m[22m[90m (36)[39m
+[2m   Start at [22m 19:34:36
+[2m   Duration [22m 25.76s[2m (transform 484ms, setup 0ms, collect 969ms, tests 105.98s, environment 1ms, prepare 336ms)[22m
+
