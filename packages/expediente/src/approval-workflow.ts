@@ -6,6 +6,7 @@
  * lo registra para auditoría.
  */
 import { isoNow, type WorkflowRole } from "./types.js";
+import { requireValidHashedInputs, type HashedInputs, type InputsHash } from "./proposal-version.js";
 
 export type ExpedienteState = "borrador" | "en_revision" | "aprobado";
 
@@ -24,7 +25,14 @@ export interface Approval {
   approvedBy: string;
   approvedByRole: WorkflowRole;
   approvedAt: string;
-  inputsHash: string;
+  /**
+   * Hash de insumos BRANDED (EX-EXP-17): se almacena solo el `InputsHash`
+   * (string branded), nunca el `ExpedienteInputs` completo — este objeto se
+   * incluye tal cual en `PackageManifest.approvals` (serializado a JSON
+   * dentro del ZIP), así que cargar los insumos completos aquí filtraría
+   * datos de negocio y ablonaría el manifiesto innecesariamente.
+   */
+  inputsHash: InputsHash;
   status: "vigente" | "invalidada";
   invalidatedAt?: string;
   invalidatedReason?: string;
@@ -120,10 +128,16 @@ export class ApprovalWorkflow {
    *    puede aprobarlo, sin importar qué rol tenga ahora ("nunca writer
    *    sobre lo propio").
    */
-  approve(input: { scope: ApprovalScope; scopeRef: string; actorId: string; actorRole: WorkflowRole; inputsHash: string }): WorkflowActionResult<Approval> {
+  approve(input: { scope: ApprovalScope; scopeRef: string; actorId: string; actorRole: WorkflowRole; inputsHash: HashedInputs }): WorkflowActionResult<Approval> {
     if (!APPROVER_ROLES.has(input.actorRole)) {
       return { ok: false, reason: `rol_no_autorizado_para_aprobar:${input.actorRole}` };
     }
+    // EX-EXP-17: `inputsHash` DEBE ser un `HashedInputs` sellado por
+    // `sealInputs`/`computeInputsHash` (o `ProposalVersionRegistry.
+    // createVersion(...).hash`) — nunca un `string` calculado a mano. Lanza
+    // `InvalidInputsHashError` (fail-closed) si no lo es, incluyendo el caso
+    // de insumos mutados después de sellarse.
+    const { hash: verifiedInputsHash } = requireValidHashedInputs(input.inputsHash, "Approval.inputsHash (approve())");
     // EX-EXP-02/EX-EXP-14 (reverificación ronda 1): `scope === "expediente"`
     // es la raíz jerárquica que cubre TODO el expediente — su `scopeRef`
     // DEBE ser exactamente la cadena `"expediente"`. Sin esta validación,
@@ -148,7 +162,7 @@ export class ApprovalWorkflow {
       approvedBy: input.actorId,
       approvedByRole: input.actorRole,
       approvedAt: isoNow(),
-      inputsHash: input.inputsHash,
+      inputsHash: verifiedInputsHash,
       status: "vigente",
     };
     this.approvals.push(approval);
@@ -220,15 +234,16 @@ export class ApprovalWorkflow {
    * independiente del hash, así que ni siquiera un llamador que omita esta
    * llamada puede producir un `"ready"` con insumos divergentes.
    */
-  revalidateAgainstCurrentHash(input: { scopeRef: string; currentInputsHash: string; reason?: string }): ChangeDetected | null {
+  revalidateAgainstCurrentHash(input: { scopeRef: string; currentInputsHash: HashedInputs; reason?: string }): ChangeDetected | null {
+    const { hash: currentHash } = requireValidHashedInputs(input.currentInputsHash, "revalidateAgainstCurrentHash(currentInputsHash)");
     const stale = this.approvals.filter(
-      (a) => a.status === "vigente" && a.scopeRef === input.scopeRef && a.inputsHash !== input.currentInputsHash,
+      (a) => a.status === "vigente" && a.scopeRef === input.scopeRef && a.inputsHash !== currentHash,
     );
     if (stale.length === 0) return null;
     return this.recordChange({
       scope: stale[0].scope,
       scopeRef: input.scopeRef,
-      reason: input.reason ?? `hash_insumos_divergente:aprobado=${stale[0].inputsHash}:actual=${input.currentInputsHash}`,
+      reason: input.reason ?? `hash_insumos_divergente:aprobado=${stale[0].inputsHash}:actual=${currentHash}`,
     });
   }
 
@@ -241,7 +256,7 @@ export class ApprovalWorkflow {
    * en vez de confiar en `isFullyApproved()` a secas (que no sabe nada del
    * hash actual de los insumos).
    */
-  isFullyApprovedForCurrentHash(currentInputsHash: string): boolean {
+  isFullyApprovedForCurrentHash(currentInputsHash: HashedInputs): boolean {
     this.revalidateAgainstCurrentHash({ scopeRef: "expediente", currentInputsHash });
     return this.isFullyApproved();
   }

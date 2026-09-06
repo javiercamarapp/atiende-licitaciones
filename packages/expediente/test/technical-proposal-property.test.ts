@@ -12,19 +12,16 @@ import type { Obligatoriedad, RequirementItem, RequirementType } from "../src/re
  * ALEATORIOS DETERMINISTAS (PRNG con semilla fija — mismo resultado en
  * cualquier máquina/CI) en vez de ejemplos sueltos.
  *
- * Invariante verificada en cada uno de los 200 casos: para el conjunto de
- * requisitos de tipo relevante (tecnico/administrativo/legal/anexo),
- * `sections.length` (la "salida") nunca es menor que la cantidad de
- * requisitos que el propio contrato de `TechnicalProposalBuilder` declara
- * que NUNCA deben desaparecer sin sección — es decir,
- * `salida.length >= entrada.length` para `entrada` = requisitos
- * obligatorios, o condicionales que aplican, o condicionales cuya
- * aplicabilidad no fue evaluada explícitamente (fail-closed). Solo un
- * requisito `opcional`, o un `condicional` que el llamador marcó
- * EXPLÍCITAMENTE como no aplicable, puede quedar sin sección — y se
- * verifica que ESE conjunto de omisiones está contabilizado (no es una
- * desaparición muda): `sections.length + omitidosJustificados.length ===`
- * el total de requisitos de tipo relevante.
+ * EX-EXP-19 (reverificación ronda 2): antes, un requisito `opcional` o un
+ * `condicional` marcado explícitamente como no aplicable desaparecía con
+ * `continue` sin dejar NINGÚN rastro en `TechnicalProposal` — este mismo
+ * test tenía que RECALCULAR externamente el conjunto de "omisiones
+ * justificadas" replicando la regla de negocio del builder, precisamente
+ * porque no había ninguna señal inspeccionable en el objeto de salida.
+ * Ahora ESE requisito también genera una sección visible ("NO APLICA...",
+ * sin bloqueos ni afirmaciones) — el invariante de conteo es más simple y
+ * más fuerte: TODO requisito de tipo relevante tiene sección, sin
+ * excepción. `sections.length === relevantCount` para los 200 casos.
  */
 
 // PRNG determinista (mulberry32): mismo resultado en cualquier corrida/CI.
@@ -85,10 +82,7 @@ describe("TechnicalProposalBuilder — invariante de propiedad: ningún requisit
 
     const technical = new TechnicalProposalBuilder(emptyCompanyService()).build("empresa-prop", requirements, [], "2026-10-20T12:00:00-06:00", conditionEvaluations);
 
-    const sectionIds = new Set(technical.sections.map((s) => s.requirementId));
-
-    let mustHaveSectionCount = 0;
-    let justifiedOmissionCount = 0;
+    const sectionById = new Map(technical.sections.map((s) => [s.requirementId, s]));
 
     for (const req of requirements) {
       if (!RELEVANT_TYPES.includes(req.type)) continue; // filtrado por diseño, no es "desaparición"
@@ -98,26 +92,32 @@ describe("TechnicalProposalBuilder — invariante de propiedad: ningún requisit
         (req.obligatoriedad === "opcional" ||
           (req.obligatoriedad === "condicional" && conditionEvaluations[req.id] === false));
 
+      // EX-EXP-19: TODO requisito de tipo relevante tiene sección — nunca
+      // desaparece, sin excepción. La única diferencia entre una omisión
+      // procedimental justificada y un requisito que sí debe redactarse es
+      // el CONTENIDO de su sección, no su existencia.
+      const section = sectionById.get(req.id);
+      expect(section, `requisito "${req.id}" (obligatoriedad=${req.obligatoriedad}, evidencia=${req.requiredEvidence.length}) desapareció sin sección`).toBeDefined();
+
       if (isProceduralOmission) {
-        justifiedOmissionCount += 1;
-        // Una omisión procedimental NUNCA debe dejar sección ni bloqueo.
-        expect(sectionIds.has(req.id), `requisito "${req.id}" omitido procedimentalmente NO debía tener sección`).toBe(false);
+        // Sección visible "NO APLICA...", sin bloqueos ni afirmaciones —
+        // contabilizada y auditable, nunca una desaparición muda.
+        expect(section!.title, `requisito "${req.id}" omitido procedimentalmente debía tener título "NO APLICA..."`).toContain("NO APLICA");
+        expect(section!.statements).toHaveLength(0);
+        expect(section!.blockers).toHaveLength(0);
         continue;
       }
 
       // Todo lo demás (obligatorio; condicional que aplica o no evaluado;
       // cualquier requisito CON evidencia, sea cual sea su obligatoriedad;
-      // o bloqueado) DEBE tener sección — nunca desaparece.
-      mustHaveSectionCount += 1;
-      expect(sectionIds.has(req.id), `requisito "${req.id}" (obligatoriedad=${req.obligatoriedad}, evidencia=${req.requiredEvidence.length}) desapareció sin sección`).toBe(true);
+      // o bloqueado) DEBE tener una sección que NO sea "NO APLICA".
+      expect(section!.title, `requisito "${req.id}" no debía tratarse como omisión procedimental`).not.toContain("NO APLICA");
     }
 
-    // Invariante central: la salida nunca es menor que el conjunto de
-    // requisitos que el contrato garantiza que no pueden desaparecer.
-    expect(technical.sections.length).toBeGreaterThanOrEqual(mustHaveSectionCount);
-    // Y nada se pierde SIN CONTABILIZAR: sección + omisión justificada cubre
-    // el 100% de los requisitos de tipo relevante.
+    // Invariante central: ningún requisito de tipo relevante se pierde —
+    // sección exactamente uno a uno, sin necesidad de reconstruir un
+    // "omitidosJustificados" aparte fuera del objeto de salida (EX-EXP-19).
     const relevantCount = requirements.filter((r) => RELEVANT_TYPES.includes(r.type)).length;
-    expect(technical.sections.length + justifiedOmissionCount).toBe(relevantCount);
+    expect(technical.sections.length).toBe(relevantCount);
   });
 });

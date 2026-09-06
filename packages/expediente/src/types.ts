@@ -90,6 +90,52 @@ function assertValidCalendarComponents(iso: string, label: string): void {
 }
 
 /**
+ * Aísla y valida el componente de HORA (`HH:MM:SS[.fracción]`) de una
+ * cadena ISO 8601 (EX-EXP-20): ni `assertOffsetInRange` ni
+ * `assertValidCalendarComponents` miraban nunca la hora, solo el offset y
+ * el prefijo `AAAA-MM-DD`. Esto dejaba pasar `"24:00:00"` — representación
+ * ISO 8601 válida de la medianoche del día SIGUIENTE — sin lanzar, porque
+ * `new Date("...T24:00:00Z")` no produce `NaN`: V8 la reinterpreta
+ * silenciosamente como el día siguiente a las 00:00, el mismo patrón exacto
+ * del bug de 29-feb ya corregido para el componente de FECHA (EX-EXP-13),
+ * pero no extendido al componente de HORA. Se rechaza `"24:00:00"` sin
+ * excepción (el llamador debe normalizar al día siguiente antes de pasarlo)
+ * y cualquier minuto/segundo ≥60 o formato de hora/fracción mal formado.
+ */
+const ISO_TIME_SEGMENT_PATTERN = /T([0-9:.,]+)(?:Z|[+-]\d{2}:\d{2})$/;
+
+function assertValidTimeComponents(iso: string, label: string): void {
+  const match = iso.match(ISO_TIME_SEGMENT_PATTERN);
+  if (!match) return; // no se pudo aislar un segmento de hora reconocible: se deja que Date/NaN decida.
+  const parts = match[1].split(":");
+  if (parts.length !== 3 || !/^\d{2}$/.test(parts[0]) || !/^\d{2}$/.test(parts[1])) {
+    throw new Error(`${label} con formato de hora inválido (se esperaba "HH:MM:SS"): "${iso}".`);
+  }
+  const secondParts = parts[2].split(/[.,]/);
+  if (
+    secondParts.length > 2 ||
+    !/^\d{2}$/.test(secondParts[0]) ||
+    (secondParts.length === 2 && !/^\d+$/.test(secondParts[1]))
+  ) {
+    throw new Error(`${label} con segundos/fracción de hora en formato inválido: "${iso}".`);
+  }
+  const hour = Number(parts[0]);
+  const minute = Number(parts[1]);
+  const second = Number(secondParts[0]);
+  if (hour > 23) {
+    throw new Error(
+      `${label} con hora fuera de rango (00-23): "${iso}" — "24:00:00" (medianoche del día siguiente) NO se acepta; normalice al día siguiente antes de pasarlo (EX-EXP-20).`,
+    );
+  }
+  if (minute > 59) {
+    throw new Error(`${label} con minutos fuera de rango (00-59): "${iso}".`);
+  }
+  if (second > 59) {
+    throw new Error(`${label} con segundos fuera de rango (00-59): "${iso}".`);
+  }
+}
+
+/**
  * Verifica que una cadena ISO 8601 traiga offset horario EXPLÍCITO ("Z" o
  * "±HH:MM") — EX-EXP-04, REQ-160. Rechaza fechas "naive" (sin offset)
  * porque su interpretación dependería implícitamente de la zona horaria del
@@ -104,6 +150,10 @@ function assertValidCalendarComponents(iso: string, label: string): void {
  * CALENDÁRICA de la fecha (día/mes reales, incluyendo años bisiestos) antes
  * de aceptarla — fail-closed: cualquier fecha inválida lanza, nunca se deja
  * pasar como si fuera una fecha válida "no vencida".
+ *
+ * EX-EXP-20 (reverificación ronda 2): también valida el componente de HORA
+ * (ver `assertValidTimeComponents`) — "24:00:00" y minutos/segundos ≥60 ya
+ * no se dejan pasar en silencio.
  */
 export function assertExplicitOffset(iso: string, label = "fecha"): void {
   if (typeof iso !== "string" || iso.trim().length === 0) {
@@ -117,6 +167,7 @@ export function assertExplicitOffset(iso: string, label = "fecha"): void {
   }
   assertOffsetInRange(trimmed, label);
   assertValidCalendarComponents(trimmed, label);
+  assertValidTimeComponents(trimmed, label);
   // Defensa final: cualquier otra forma de fecha inválida que las
   // comprobaciones anteriores no hayan capturado explícitamente también se
   // rechaza aquí — un `Date` inválido (`NaN`) NUNCA debe llegar a
@@ -168,8 +219,65 @@ export function stableStringify(value: unknown): string {
  */
 const UNDEFINED_SENTINEL = " __stableStringify_undefined__ ";
 
+/**
+ * Marcador de tipo usado por `sortKeysDeep` para envolver valores que
+ * `Object.entries`/`JSON.stringify` normalizarían de forma ambigua o
+ * incorrecta (EX-EXP-18, reverificación ronda 2). Clave reservada (mismo
+ * criterio que `UNDEFINED_SENTINEL`: bytes NUL que datos de negocio
+ * normales no contienen literalmente) para distinguir el marcador de una
+ * clave real de un objeto de llamador.
+ */
+const TYPE_MARKER_KEY = " __stableStringify_type__ ";
+
+/** Compara dos valores YA normalizados por `sortKeysDeep`, sin importar su tipo (usado para ordenar entradas de `Map`/`Set`, cuyo orden de inserción no debe afectar el hash). */
+function compareCanonical(a: unknown, b: unknown): number {
+  const sa = JSON.stringify(a);
+  const sb = JSON.stringify(b);
+  if (sa === sb) return 0;
+  return sa < sb ? -1 : 1;
+}
+
+/**
+ * Normaliza recursivamente `value` para que `JSON.stringify` produzca
+ * siempre la misma cadena para el mismo valor lógico, sin importar el
+ * orden de inserción de claves/entradas ni el tipo exacto del contenedor.
+ *
+ * EX-EXP-18 (reverificación ronda 2): antes, cualquier `value` con
+ * `typeof value === "object"` no-array (incluyendo `Date`, `Map`, `Set`)
+ * caía en la rama genérica `Object.entries(value)` — que para estos tres
+ * tipos devuelve `[]` (ninguno tiene propiedades PROPIAS enumerables), así
+ * que CUALQUIER `Date`/`Map`/`Set` se serializaba como `"{}"`,
+ * indistinguible de cualquier otro. `sha256Hex(new Date("2026-01-01"))` ===
+ * `sha256Hex(new Date("2099-12-31"))`: una colisión real. Ahora cada uno se
+ * serializa explícitamente con un marcador de tipo (`TYPE_MARKER_KEY`) que
+ * conserva su valor lógico: `Date` como ISO 8601, `Map`/`Set` como sus
+ * entradas/elementos (recursivamente normalizados y ordenados de forma
+ * canónica, para que el orden de inserción no afecte el hash), y `bigint`
+ * (que ni siquiera es `typeof "object"`, así que antes pasaba directo a
+ * `JSON.stringify`, y `JSON.stringify(1n)` LANZA `TypeError: Do not know
+ * how to serialize a BigInt`) como su representación decimal en texto.
+ */
 function sortKeysDeep(value: unknown): unknown {
   if (value === undefined) return UNDEFINED_SENTINEL;
+  if (typeof value === "bigint") {
+    return { [TYPE_MARKER_KEY]: "BigInt", value: value.toString() };
+  }
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) {
+      throw new Error("stableStringify: no se puede serializar un Date inválido (Invalid Date).");
+    }
+    return { [TYPE_MARKER_KEY]: "Date", value: value.toISOString() };
+  }
+  if (value instanceof Map) {
+    const entries = [...value.entries()]
+      .map(([k, v]) => [sortKeysDeep(k), sortKeysDeep(v)] as [unknown, unknown])
+      .sort((a, b) => compareCanonical(a[0], b[0]));
+    return { [TYPE_MARKER_KEY]: "Map", entries };
+  }
+  if (value instanceof Set) {
+    const items = [...value].map(sortKeysDeep).sort(compareCanonical);
+    return { [TYPE_MARKER_KEY]: "Set", items };
+  }
   if (Array.isArray(value)) return value.map(sortKeysDeep);
   if (value !== null && typeof value === "object") {
     const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b));

@@ -81,7 +81,7 @@ describe("TechnicalProposalBuilder — EX-EXP-03: requisito obligatorio sin evid
     expect(section!.blockers[0].field).toBe("evidencia_no_mapeable");
   });
 
-  it("un requisito condicional que el llamador declara EXPLÍCITAMENTE como no aplicable (anuncio de plazo) sigue omitiéndose en silencio — no es una regresión de REQ-158", async () => {
+  it("un requisito condicional que el llamador declara EXPLÍCITAMENTE como no aplicable (anuncio de plazo) genera una sección VISIBLE 'NO APLICA', sin bloqueos ni afirmaciones (EX-EXP-19)", async () => {
     const doc: TenderDocumentText = {
       documentId: "bases-v1",
       documentLabel: "Bases de licitación",
@@ -96,15 +96,24 @@ describe("TechnicalProposalBuilder — EX-EXP-03: requisito obligatorio sin evid
     expect(plazo?.obligatoriedad).toBe("condicional"); // anuncio de plazo, no un requisito obligatorio léxico
     expect(plazo?.requiredEvidence).toHaveLength(0);
 
-    // EX-EXP-03/EX-EXP-12: a diferencia de la ronda anterior, el skip
-    // silencioso YA NO se infiere solo de `obligatoriedad === "condicional"`
-    // — el llamador debe declarar EXPLÍCITAMENTE que este condicional no
-    // aplica al caso concreto (un anuncio de plazo genuinamente
-    // procedimental, no una obligación sustantiva del licitante).
+    // EX-EXP-03/EX-EXP-12: el skip silencioso ya NO se infiere solo de
+    // `obligatoriedad === "condicional"` — el llamador debe declarar
+    // EXPLÍCITAMENTE que este condicional no aplica al caso concreto (un
+    // anuncio de plazo genuinamente procedimental, no una obligación
+    // sustantiva del licitante).
+    // EX-EXP-19 (reverificación ronda 2): además, esa omisión YA NO
+    // desaparece sin rastro — genera una sección visible "NO APLICA" con el
+    // motivo, sin bloqueos ni afirmaciones, para que un auditor/UI pueda ver
+    // QUÉ se omitió y POR QUÉ.
     const technical = new TechnicalProposalBuilder(emptyCompanyService()).build(COMPANY_ID, requirements, [], ASOF, {
       [plazo!.id]: false,
     });
-    expect(technical.sections.find((s) => s.requirementId === plazo!.id)).toBeUndefined();
+    const section = technical.sections.find((s) => s.requirementId === plazo!.id);
+    expect(section).toBeDefined();
+    expect(section!.title).toContain("NO APLICA");
+    expect(section!.title).toContain("evaluada falsa");
+    expect(section!.statements).toHaveLength(0);
+    expect(section!.blockers).toHaveLength(0);
     expect(technical.blockers.some((b) => b.requirementId === plazo!.id)).toBe(false);
   });
 
@@ -145,12 +154,17 @@ describe("TechnicalProposalBuilder — EX-EXP-03: requisito obligatorio sin evid
       expect(section!.blockers[0].field).toBe("evidencia_no_mapeable");
     });
 
-    it("condición evaluada como FALSA (no aplica al caso concreto): procedimental real, se omite en silencio", async () => {
+    it("condición evaluada como FALSA (no aplica al caso concreto): procedimental real, sección VISIBLE 'NO APLICA' sin bloqueos (EX-EXP-19)", async () => {
       const { requirements, plazo } = await buildPlazoRequirement();
       const technical = new TechnicalProposalBuilder(emptyCompanyService()).build(COMPANY_ID, requirements, [], ASOF, {
         [plazo.id]: false,
       });
-      expect(technical.sections.find((s) => s.requirementId === plazo.id)).toBeUndefined();
+      const section = technical.sections.find((s) => s.requirementId === plazo.id);
+      expect(section).toBeDefined();
+      expect(section!.title).toContain("NO APLICA");
+      expect(section!.blockers).toHaveLength(0);
+      expect(section!.statements).toHaveLength(0);
+      expect(technical.blockers.some((b) => b.requirementId === plazo.id)).toBe(false);
     });
   });
 

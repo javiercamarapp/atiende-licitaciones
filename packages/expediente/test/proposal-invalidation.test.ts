@@ -6,6 +6,7 @@ import { PackageAssembler, type AssembleInput } from "../src/package-assembler.j
 import { ProposalVersionRegistry, type ExpedienteInputs } from "../src/proposal-version.js";
 import { sha256Hex } from "../src/types.js";
 import type { ChecklistReport } from "../src/integrity-checklist.js";
+import { fakeHashedInputs } from "./helpers/hashed-inputs.js";
 
 /**
  * EX-EXP-01 (CRÍTICA, auditoría ronda 1): reproduce end-to-end el ataque
@@ -58,7 +59,7 @@ function assembleInputFor(overrides: Partial<AssembleInput>): AssembleInput {
     documents: [{ documentId: "economica", label: "Propuesta económica", required: true, filename: "economica.pdf", content: "x" }],
     checklist: GREEN_CHECKLIST,
     approvals: [],
-    currentInputsHash: "",
+    currentInputsHash: fakeHashedInputs("unset"),
     ...overrides,
   };
 }
@@ -122,7 +123,7 @@ describe("EX-EXP-01: invalidación automática de la aprobación cuando cambia u
     expect(economicV2.totals?.total).toBe("59160.00"); // el precio nuevo, NUNCA aprobado
 
     const versionV2 = versions.createVersion(baseExpedienteInputs({ rates: [{ concept: "consultoria_hora", hash: "2550.00" }] }));
-    expect(versionV2.hash).not.toBe(versionV1.hash);
+    expect(versionV2.hash.hash).not.toBe(versionV1.hash.hash);
 
     // 4a. El FLUJO DE APROBACIÓN, al reevaluar contra el hash actual,
     // invalida automáticamente la aprobación obsoleta (sin llamada manual a
@@ -145,7 +146,7 @@ describe("EX-EXP-01: invalidación automática de la aprobación cuando cambia u
         approvedBy: "user-reviewer",
         approvedByRole: "reviewer" as const,
         approvedAt: "2026-10-01T00:00:00-06:00",
-        inputsHash: versionV1.hash,
+        inputsHash: versionV1.hash.hash,
         status: "vigente" as const,
       },
     ];
@@ -198,7 +199,7 @@ describe("EX-EXP-11: el hash de insumos generaliza a CUALQUIER insumo del conjun
     const versionV2 = versions.createVersion(
       baseExpedienteInputs({ companyDocuments: [{ documentId: "acta-constitutiva", hash: "acta-sustituida-tras-aprobacion", vigenteHasta: null }] }),
     );
-    expect(versionV2.hash).not.toBe(versionV1.hash);
+    expect(versionV2.hash.hash).not.toBe(versionV1.hash.hash);
 
     expect(workflow.isFullyApprovedForCurrentHash(versionV2.hash)).toBe(false);
     expect(workflow.listApprovals()[0].status).toBe("invalidada");
@@ -215,7 +216,7 @@ describe("EX-EXP-11: el hash de insumos generaliza a CUALQUIER insumo del conjun
 
     // ATAQUE: se publica una nueva versión de las bases (convocatoria v2).
     const versionV2 = versions.createVersion(baseExpedienteInputs({ tenderVersionHash: "bases-convocatoria-v2" }));
-    expect(versionV2.hash).not.toBe(versionV1.hash);
+    expect(versionV2.hash.hash).not.toBe(versionV1.hash.hash);
 
     expect(workflow.isFullyApprovedForCurrentHash(versionV2.hash)).toBe(false);
     expect(workflow.listApprovals()[0].status).toBe("invalidada");
@@ -227,7 +228,7 @@ describe("EX-EXP-11: el hash de insumos generaliza a CUALQUIER insumo del conjun
     const b = new ProposalVersionRegistry().createVersion(
       baseExpedienteInputs({ rates: [{ concept: "a_concepto", hash: "2" }, { concept: "z_concepto", hash: "1" }] }),
     );
-    expect(a.hash).toBe(b.hash);
+    expect(a.hash.hash).toBe(b.hash.hash);
   });
 
   it("una clave con valor undefined ya NO colisiona con la misma clave ausente (EX-EXP-11: colisión de serialización)", () => {

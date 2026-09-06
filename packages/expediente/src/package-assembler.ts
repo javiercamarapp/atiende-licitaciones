@@ -12,6 +12,7 @@ import JSZip from "jszip";
 import type { ChecklistReport } from "./integrity-checklist.js";
 import type { Approval } from "./approval-workflow.js";
 import { isoNow, sha256Hex } from "./types.js";
+import { requireValidHashedInputs, type HashedInputs } from "./proposal-version.js";
 
 export const USER_RESPONSIBILITY_NOTICE =
   "La presentación y firma las realiza el usuario; el sistema no envía ofertas.";
@@ -49,6 +50,15 @@ export interface PackageManifest {
   draftReasons: string[];
   notice: string;
   watermark: string | null;
+  /**
+   * Requisitos condicionales/opcionales marcados explícitamente como "no
+   * aplica" en la propuesta técnica (EX-EXP-19), reflejados también aquí
+   * para que la decisión de omitir sea visible en el manifiesto final, no
+   * solo en `TechnicalProposal.sections`. Vacío por defecto si el llamador
+   * no pasa `notApplicableRequirements` en `AssembleInput` (p. ej. porque
+   * este ensamblaje no incluye una propuesta técnica).
+   */
+  notApplicableRequirements: { requirementId: string; reason: string }[];
 }
 
 export interface AssembleInput {
@@ -57,17 +67,28 @@ export interface AssembleInput {
   checklist: ChecklistReport;
   approvals: Approval[];
   /**
-   * Hash ACTUAL de los insumos cubiertos por el alcance "expediente" (p. ej.
+   * `HashedInputs` sellado (EX-EXP-17) con el hash ACTUAL de los insumos
+   * cubiertos por el alcance "expediente" (p. ej.
    * `ProposalVersionRegistry.latest().hash`, recalculado justo antes de
    * ensamblar — tarifas, documentos, datos de empresa, versión de bases).
-   * El assembler lo compara contra el `inputsHash` registrado en cada
-   * aprobación: si su hash no coincide con el actual NUNCA cuenta como
-   * válida (REQ-161/REQ-162/EX-EXP-01) — protege contra que el llamador
-   * haya olvidado invalidar la aprobación (vía
+   * Ya NO se acepta un `string` plano: debe venir de `sealInputs`/
+   * `computeInputsHash`/`ProposalVersionRegistry.createVersion`, y
+   * `buildManifest` lo verifica con `requireValidHashedInputs` antes de
+   * usarlo (fail-closed ante un hash calculado a mano o insumos mutados
+   * después de sellarse). El assembler compara el hash verificado contra el
+   * `inputsHash` registrado en cada aprobación: si no coincide con el
+   * actual NUNCA cuenta como válida (REQ-161/REQ-162/EX-EXP-01) — protege
+   * contra que el llamador haya olvidado invalidar la aprobación (vía
    * `ApprovalWorkflow.revalidateAgainstCurrentHash`) tras un cambio de
    * insumos.
    */
-  currentInputsHash: string;
+  currentInputsHash: HashedInputs;
+  /**
+   * Requisitos "no aplica" de la propuesta técnica (EX-EXP-19), típicamente
+   * `extractNotApplicableRequirements(technical)` — opcional: se refleja
+   * en `PackageManifest.notApplicableRequirements` (vacío si se omite).
+   */
+  notApplicableRequirements?: { requirementId: string; reason: string }[];
 }
 
 /**
@@ -89,6 +110,12 @@ export interface AssembleResult {
 export class PackageAssembler {
   /** Construye el manifiesto sin generar el ZIP; útil para pruebas/inspección. */
   buildManifest(input: AssembleInput): PackageManifest {
+    // EX-EXP-17: `currentInputsHash` debe ser un `HashedInputs` sellado por
+    // `sealInputs`/`computeInputsHash` de proposal-version.ts, nunca un
+    // `string` calculado a mano — `requireValidHashedInputs` lanza
+    // `InvalidInputsHashError` (fail-closed) si no lo es, incluyendo el caso
+    // de insumos mutados tras sellarse.
+    const { hash: currentInputsHash } = requireValidHashedInputs(input.currentInputsHash, "AssembleInput.currentInputsHash (buildManifest())");
     const missing: string[] = [];
     const documents: PackageManifestDocumentEntry[] = input.documents.map((doc) => {
       const present = doc.content !== undefined && doc.content !== null;
@@ -120,7 +147,7 @@ export class PackageAssembler {
     // `scope: "expediente"` pero un `scopeRef` arbitrario, el assembler por
     // sí solo la rechaza igual, sin depender de que nadie más la validara.
     const hashValidExpedienteApproval = input.approvals.find(
-      (a) => a.scope === "expediente" && a.scopeRef === "expediente" && a.status === "vigente" && a.inputsHash === input.currentInputsHash,
+      (a) => a.scope === "expediente" && a.scopeRef === "expediente" && a.status === "vigente" && a.inputsHash === currentInputsHash,
     );
     const approvedOk = hashValidExpedienteApproval !== undefined;
 
@@ -139,7 +166,7 @@ export class PackageAssembler {
           draftReasons.push("sin_aprobacion_vigente_de_alcance_expediente");
         } else {
           draftReasons.push(
-            `aprobacion_vigente_con_hash_insumos_divergente:aprobado=${vigentesExpediente.map((a) => a.inputsHash).join("|")}:actual=${input.currentInputsHash}`,
+            `aprobacion_vigente_con_hash_insumos_divergente:aprobado=${vigentesExpediente.map((a) => a.inputsHash).join("|")}:actual=${currentInputsHash}`,
           );
         }
       }
@@ -156,6 +183,7 @@ export class PackageAssembler {
       draftReasons,
       notice: USER_RESPONSIBILITY_NOTICE,
       watermark: status === "draft" ? "BORRADOR" : null,
+      notApplicableRequirements: input.notApplicableRequirements ?? [],
     };
   }
 

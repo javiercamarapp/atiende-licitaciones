@@ -3,6 +3,10 @@ import { describe, expect, it } from "vitest";
 import { PackageAssembler, USER_RESPONSIBILITY_NOTICE, type AssembleInput } from "../src/package-assembler.js";
 import type { ChecklistReport } from "../src/integrity-checklist.js";
 import type { Approval } from "../src/approval-workflow.js";
+import { fakeHashedInputs } from "./helpers/hashed-inputs.js";
+
+/** EX-EXP-17: `Approval.inputsHash`/`AssembleInput.currentInputsHash` ya no son un `string` plano — se derivan de un `HashedInputs` sellado real. */
+const HASH_1 = fakeHashedInputs("hash-1");
 
 const GREEN_CHECKLIST: ChecklistReport = {
   overallStatus: "verde",
@@ -31,7 +35,7 @@ function approvalVigente(scope: Approval["scope"] = "expediente"): Approval {
     approvedBy: "user-reviewer",
     approvedByRole: "reviewer",
     approvedAt: "2026-10-01T00:00:00-06:00",
-    inputsHash: "hash-1",
+    inputsHash: HASH_1.hash,
     status: "vigente",
   };
 }
@@ -45,7 +49,7 @@ function baseInput(overrides: Partial<AssembleInput> = {}): AssembleInput {
     ],
     checklist: GREEN_CHECKLIST,
     approvals: [approvalVigente()],
-    currentInputsHash: "hash-1",
+    currentInputsHash: HASH_1,
     ...overrides,
   };
 }
@@ -135,7 +139,7 @@ describe("PackageAssembler — EX-EXP-01: invalidación automática por hash de 
     // pero el hash de insumos recalculado en este ensamblaje (p. ej. porque
     // una tarifa cambió después de la aprobación) ya no coincide.
     const { manifest } = await assembler.assemble(
-      baseInput({ approvals: [approvalVigente()], currentInputsHash: "hash-DISTINTO-tras-cambio-de-tarifa" }),
+      baseInput({ approvals: [approvalVigente()], currentInputsHash: fakeHashedInputs("hash-DISTINTO-tras-cambio-de-tarifa") }),
     );
 
     expect(manifest.status).toBe("draft");
@@ -145,7 +149,7 @@ describe("PackageAssembler — EX-EXP-01: invalidación automática por hash de 
 
   it("cuando el hash actual SÍ coincide con el de la aprobación vigente, el paquete puede quedar 'ready'", async () => {
     const assembler = new PackageAssembler();
-    const { manifest } = await assembler.assemble(baseInput({ currentInputsHash: "hash-1" }));
+    const { manifest } = await assembler.assemble(baseInput({ currentInputsHash: HASH_1 }));
     expect(manifest.status).toBe("ready");
     expect(manifest.draftReasons).toHaveLength(0);
   });
@@ -157,7 +161,7 @@ describe("PackageAssembler — EX-EXP-02: 'ready' exige aprobación vigente de a
     const documentoApproval = approvalVigente("documento"); // scope: "documento", nunca "expediente"
 
     const { manifest } = await assembler.assemble(
-      baseInput({ approvals: [documentoApproval], currentInputsHash: documentoApproval.inputsHash }),
+      baseInput({ approvals: [documentoApproval], currentInputsHash: HASH_1 }),
     );
 
     expect(manifest.status).toBe("draft");
@@ -182,11 +186,43 @@ describe("PackageAssembler — EX-EXP-02: 'ready' exige aprobación vigente de a
     };
 
     const { manifest } = await assembler.assemble(
-      baseInput({ approvals: [approvalConScopeRefInconsistente], currentInputsHash: approvalConScopeRefInconsistente.inputsHash }),
+      baseInput({ approvals: [approvalConScopeRefInconsistente], currentInputsHash: HASH_1 }),
     );
 
     expect(manifest.status).toBe("draft");
     expect(manifest.watermark).toBe("BORRADOR");
     expect(manifest.draftReasons.some((r) => r.includes("sin_aprobacion_vigente_de_alcance_expediente"))).toBe(true);
+  });
+});
+
+/**
+ * EX-EXP-17 (reverificación ronda 2, ALTA — mismo hilo que EX-EXP-01/11):
+ * `buildManifest` aceptaba `currentInputsHash` como `string` plano, así que
+ * un hash calculado a mano (sin relación real con ningún `ExpedienteInputs`)
+ * producía `"ready"` sin protesta. Ahora exige un `HashedInputs` sellado y
+ * lo verifica con `requireValidHashedInputs` (símbolo privado + recómputo).
+ */
+describe("PackageAssembler — EX-EXP-17: currentInputsHash exige un HashedInputs sellado, nunca un string suelto", () => {
+  it("buildManifest lanza InvalidInputsHashError si currentInputsHash es un string plano (incluso uno 'correcto' en apariencia)", () => {
+    const assembler = new PackageAssembler();
+    expect(() =>
+      assembler.buildManifest(
+        baseInput({
+          // @ts-expect-error EX-EXP-17: un string ya no es asignable a HashedInputs — ataque deliberado
+          currentInputsHash: HASH_1.hash,
+        }),
+      ),
+    ).toThrow(/InvalidInputsHashError|STRING PLANO/);
+  });
+
+  it("buildManifest lanza InvalidInputsHashError si currentInputsHash es un objeto {inputs, hash} reensamblado a mano, aunque use un InputsHash legítimo y TYPECHECKEE limpio (el símbolo privado no es falsificable, ni siquiera reusando un hash real)", () => {
+    // Deliberadamente SIN @ts-expect-error: `{ inputs, hash }` con un
+    // `InputsHash` legítimo (obtenido de HASH_1) satisface estructuralmente
+    // el tipo público `HashedInputs` — esto demuestra por qué EX-EXP-17
+    // exige una verificación en RUNTIME (símbolo privado), no solo el tipo:
+    // TypeScript por sí solo no puede rechazar esta reconstrucción.
+    const forged: import("../src/proposal-version.js").HashedInputs = { inputs: HASH_1.inputs, hash: HASH_1.hash };
+    const assembler = new PackageAssembler();
+    expect(() => assembler.buildManifest(baseInput({ currentInputsHash: forged }))).toThrow(/InvalidInputsHashError|sello interno/);
   });
 });

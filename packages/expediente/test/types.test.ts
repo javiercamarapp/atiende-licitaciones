@@ -71,6 +71,57 @@ describe("assertExplicitOffset — EX-EXP-04/EX-EXP-13: rango de offset y valide
   });
 });
 
+/**
+ * EX-EXP-20 (reverificación ronda 2, BAJA): ni `assertOffsetInRange` ni
+ * `assertValidCalendarComponents` validaban nunca el componente de HORA
+ * (`HH:MM:SS`). `"24:00:00"` — representación ISO 8601 válida de la
+ * medianoche del día SIGUIENTE — pasaba sin lanzar: `new Date("...
+ * T24:00:00Z")` no produce `NaN`, V8 la reinterpreta silenciosamente como
+ * el día siguiente a las 00:00 — el mismo patrón exacto del bug de 29-feb
+ * ya corregido para el componente de FECHA (EX-EXP-13), no extendido a la
+ * HORA. Ahora se rechaza explícitamente, junto con cualquier
+ * minuto/segundo ≥60 y formatos de hora/fracción mal formados.
+ */
+describe("assertExplicitOffset — EX-EXP-20: rechaza '24:00:00' y componentes de hora fuera de rango", () => {
+  it("rechaza la hora '24:00:00' (medianoche del día siguiente, ISO 8601 válida pero NO aceptada aquí)", () => {
+    expect(() => assertExplicitOffset("2026-06-15T24:00:00Z")).toThrow(/hora fuera de rango|EX-EXP-20/);
+  });
+
+  it("rechaza '24:00:00' también con offset numérico explícito, no solo 'Z'", () => {
+    expect(() => assertExplicitOffset("2026-06-15T24:00:00-06:00")).toThrow(/hora fuera de rango/);
+  });
+
+  it("acepta horas límite válidas: '00:00:00' y '23:59:59'", () => {
+    expect(() => assertExplicitOffset("2026-06-15T00:00:00Z")).not.toThrow();
+    expect(() => assertExplicitOffset("2026-06-15T23:59:59Z")).not.toThrow();
+  });
+
+  it("rechaza minutos fuera de rango (00-59), p. ej. '23:60:00'", () => {
+    expect(() => assertExplicitOffset("2026-06-15T23:60:00Z")).toThrow(/minutos fuera de rango/);
+  });
+
+  it("rechaza segundos fuera de rango (00-59), p. ej. '00:00:60'", () => {
+    expect(() => assertExplicitOffset("2026-06-15T00:00:60Z")).toThrow(/segundos fuera de rango/);
+  });
+
+  it("rechaza una hora de 25 (fuera de todo rango real)", () => {
+    expect(() => assertExplicitOffset("2026-06-15T25:00:00Z")).toThrow(/hora fuera de rango/);
+  });
+
+  it("acepta segundos fraccionarios válidos ('.999') sin falsos positivos", () => {
+    expect(() => assertExplicitOffset("2026-06-15T23:59:59.999Z")).not.toThrow();
+    expect(() => assertExplicitOffset("2026-06-15T00:00:00.123456Z")).not.toThrow();
+  });
+
+  it("rechaza una fracción de segundo con formato inválido (no dígitos tras el punto)", () => {
+    expect(() => assertExplicitOffset("2026-06-15T12:00:00.abcZ")).toThrow();
+  });
+
+  it("rechaza un formato de hora con componentes faltantes/mal formados ('12:00' sin segundos)", () => {
+    expect(() => assertExplicitOffset("2026-06-15T12:00Z")).toThrow(/formato de hora inválido/);
+  });
+});
+
 describe("isPast — EX-EXP-04/EX-EXP-13: nunca compara NaN, siempre falla cerrado ante una fecha inválida", () => {
   const ASOF = "2026-10-20T12:00:00-06:00";
 
@@ -101,5 +152,83 @@ describe("isPast — EX-EXP-04/EX-EXP-13: nunca compara NaN, siempre falla cerra
 describe("sha256Hex/stableStringify — determinismo básico (usado por assertExplicitOffset indirectamente vía otros módulos)", () => {
   it("es determinista para el mismo valor lógico", () => {
     expect(sha256Hex({ a: 1, b: 2 })).toBe(sha256Hex({ b: 2, a: 1 }));
+  });
+});
+
+/**
+ * EX-EXP-18 (reverificación ronda 2, MEDIA): antes, `sortKeysDeep` trataba
+ * cualquier `typeof value === "object"` no-array (incluyendo `Date`, `Map`,
+ * `Set`) como "objeto con propiedades enumerables" vía `Object.entries` —
+ * que para estos tres tipos devuelve `[]`, así que CUALQUIER `Date`/`Map`/
+ * `Set` colapsaba a `"{}"`. `sha256Hex(new Date("2026-01-01"))` ===
+ * `sha256Hex(new Date("2099-12-31"))`: una colisión real. `bigint` ni
+ * siquiera llegaba a esa rama (`typeof 1n === "bigint"`, no `"object"`) y
+ * `JSON.stringify(1n)` LANZA. Ahora los cuatro se serializan explícitamente
+ * con un marcador de tipo que preserva su valor lógico.
+ */
+describe("stableStringify/sha256Hex — EX-EXP-18: Date/Map/Set/BigInt ya no colisionan", () => {
+  it("dos Date lógicamente distintos ya NO producen el mismo hash (antes: ambos colapsaban a '{}')", () => {
+    expect(sha256Hex(new Date("2026-01-01T00:00:00.000Z"))).not.toBe(sha256Hex(new Date("2099-12-31T00:00:00.000Z")));
+  });
+
+  it("el mismo instante representado por dos objetos Date distintos (construidos de forma distinta) SÍ produce el mismo hash (ISO 8601 canónico)", () => {
+    const a = new Date("2026-01-01T00:00:00.000Z");
+    const b = new Date(Date.UTC(2026, 0, 1, 0, 0, 0, 0));
+    expect(sha256Hex(a)).toBe(sha256Hex(b));
+  });
+
+  it("una Date colapsada dentro de un objeto ya no colisiona con un objeto sin ese campo (antes: ambos '{}' anidados)", () => {
+    const withDate = { fecha: new Date("2026-01-01T00:00:00.000Z") };
+    const withoutDate = { fecha: {} };
+    expect(sha256Hex(withDate)).not.toBe(sha256Hex(withoutDate));
+  });
+
+  it("serializar un Invalid Date lanza explícitamente (nunca produce '{}' silencioso)", () => {
+    expect(() => sha256Hex(new Date("no-es-una-fecha"))).toThrow(/Invalid Date/);
+  });
+
+  it("un Map con las mismas entradas en distinto orden de inserción produce el MISMO hash", () => {
+    const a = new Map<string, number>([["z", 1], ["a", 2]]);
+    const b = new Map<string, number>([["a", 2], ["z", 1]]);
+    expect(sha256Hex(a)).toBe(sha256Hex(b));
+  });
+
+  it("un Map con contenido lógicamente distinto produce un hash distinto, y ya no colisiona con {} ni con un objeto plano equivalente", () => {
+    const a = new Map<string, number>([["x", 1]]);
+    const b = new Map<string, number>([["x", 2]]);
+    expect(sha256Hex(a)).not.toBe(sha256Hex(b));
+    expect(sha256Hex(a)).not.toBe(sha256Hex({}));
+    expect(sha256Hex(a)).not.toBe(sha256Hex({ x: 1 }));
+  });
+
+  it("un Set con los mismos elementos en distinto orden de inserción produce el MISMO hash", () => {
+    const a = new Set([3, 1, 2]);
+    const b = new Set([1, 2, 3]);
+    expect(sha256Hex(a)).toBe(sha256Hex(b));
+  });
+
+  it("un Set con contenido lógicamente distinto produce un hash distinto, y ya no colisiona con {}", () => {
+    expect(sha256Hex(new Set([1, 2]))).not.toBe(sha256Hex(new Set([1, 2, 3])));
+    expect(sha256Hex(new Set([1, 2]))).not.toBe(sha256Hex({}));
+  });
+
+  it("un BigInt se serializa sin lanzar (antes: JSON.stringify(1n) lanzaba TypeError) y distingue valores distintos", () => {
+    expect(() => sha256Hex(1n)).not.toThrow();
+    expect(sha256Hex(1n)).not.toBe(sha256Hex(2n));
+    expect(sha256Hex(10n)).toBe(sha256Hex(10n));
+  });
+
+  it("un BigInt no colisiona con el Number/string equivalente (tipos lógicamente distintos)", () => {
+    expect(sha256Hex(10n)).not.toBe(sha256Hex(10));
+    expect(sha256Hex(10n)).not.toBe(sha256Hex("10"));
+  });
+
+  it("undefined/null/ausente siguen produciendo hashes distintos entre sí (sin regresión de EX-EXP-01/EX-EXP-11)", () => {
+    const withUndefined = { a: 1, b: undefined };
+    const withNull = { a: 1, b: null };
+    const absent = { a: 1 };
+    expect(sha256Hex(withUndefined)).not.toBe(sha256Hex(withNull));
+    expect(sha256Hex(withUndefined)).not.toBe(sha256Hex(absent));
+    expect(sha256Hex(withNull)).not.toBe(sha256Hex(absent));
   });
 });

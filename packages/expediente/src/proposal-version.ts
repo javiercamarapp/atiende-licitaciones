@@ -11,14 +11,160 @@
  * empresa o publicar una nueva versión de bases DESPUÉS de aprobar, sin que
  * el llamador los incluyera en el hash (el test oficial solo hasheaba
  * `economicTotals`), dejaba `isFullyApprovedForCurrentHash`/`manifest.status`
- * completamente ciegos al cambio. Ahora `createVersion`/`computeInputsHash`
+ * completamente ciegos al cambio. `createVersion`/`computeInputsHash`
  * exigen `ExpedienteInputs`: un conjunto CERRADO y OBLIGATORIO (versión de
  * bases, documentos de empresa usados con su vigencia, tarifas usadas,
  * datos de perfil, plantillas) que TypeScript fuerza a declarar completo —
- * el llamador ya NO puede "olvidar" un insumo ni pasar un hash arbitrario
- * calculado por su cuenta.
+ * el llamador ya NO puede "olvidar" un insumo.
+ *
+ * EX-EXP-17 (reverificación ronda 2, ALTA — mismo hilo que EX-EXP-01/11):
+ * lo anterior dejaba, sin embargo, un hueco estructural: `computeInputsHash`
+ * era correcta pero NADA obligaba a usarla en el punto de uso.
+ * `ApprovalWorkflow.approve()`/`PackageAssembler.buildManifest()` aceptaban
+ * `inputsHash`/`currentInputsHash` como un `string` plano, así que un
+ * llamador podía aprobar/ensamblar con un hash calculado a mano
+ * (`sha256Hex("cualquier-cosa")`, sin relación con `ExpedienteInputs`) y
+ * `buildManifest` lo marcaba `"ready"` sin protesta. Ahora:
+ *  - `computeInputsHash` devuelve un tipo BRANDED `InputsHash` (`string &
+ *    { [INPUTS_HASH_BRAND]: true }`) que NINGÚN otro código puede producir
+ *    por asignación directa sin un cast explícito (rechazo en TIEMPO DE
+ *    COMPILACIÓN de un `string` suelto).
+ *  - `sealInputs(inputs)` devuelve un `HashedInputs` — un objeto `{ inputs,
+ *    hash }` con una propiedad de símbolo PRIVADA (`SEALED_MARKER`, no
+ *    exportada) que solo este módulo puede adjuntar. `approve()`/
+ *    `buildManifest()`/`revalidateAgainstCurrentHash` ya NO reciben un
+ *    `string`: exigen un `HashedInputs` y lo verifican con
+ *    `requireValidHashedInputs()`, que (a) comprueba la presencia del
+ *    símbolo privado — un objeto ensamblado a mano fuera de este módulo
+ *    JAMÁS puede tener esa propiedad, porque el símbolo ni siquiera se
+ *    exporta — y (b) RECALCULA `computeInputsHash(value.inputs)` y lo
+ *    compara contra `value.hash`: si los insumos referenciados se
+ *    mutaron después de sellarse, la recomputación ya no coincide y se
+ *    rechaza igual. Cualquier fallo lanza `InvalidInputsHashError` en
+ *    runtime — incluyendo un mensaje explícito de migración si lo que
+ *    llega es un `string` plano (deprecado por inseguro, no silenciosamente
+ *    aceptado).
  */
 import { isoNow, sha256Hex } from "./types.js";
+
+/**
+ * Símbolo PRIVADO del módulo (nunca exportado): es la única forma de que un
+ * objeto `HashedInputs` cuente como "sellado" por `sealInputs`/
+ * `computeInputsHash`. Como los símbolos son valores únicos por identidad y
+ * este NO se exporta, ningún código externo puede construir un objeto con
+ * esta clave — ni siquiera con `Object.getOwnPropertySymbols` sobre una
+ * instancia ajena podría reutilizarlo para fabricar un objeto nuevo con el
+ * mismo símbolo salvo que copie la referencia real (que nunca sale de este
+ * módulo). Esto es lo que hace la verificación "no falsificable desde fuera
+ * del módulo" (EX-EXP-17).
+ */
+const SEALED_MARKER: unique symbol = Symbol("expediente:HashedInputs");
+
+/** Símbolo de marca (privado) usado solo a nivel de TIPOS para "brandear" `InputsHash`; nunca existe en runtime sobre un `string` (los primitivos no cargan propiedades), es puramente una técnica de nominal typing de TypeScript. */
+declare const INPUTS_HASH_BRAND: unique symbol;
+
+/**
+ * Hash de insumos de alcance "expediente", producido EXCLUSIVAMENTE por
+ * `computeInputsHash(inputs)` (EX-EXP-17). El brand a nivel de tipos
+ * rechaza en TIEMPO DE COMPILACIÓN cualquier intento de pasar un `string`
+ * suelto donde se espera un `InputsHash` — un llamador tendría que forzar
+ * un cast (`as unknown as InputsHash`) para burlarlo, y en ese caso
+ * `requireValidHashedInputs`/`HashedInputs` (que exige además el símbolo
+ * privado) sigue rechazándolo en RUNTIME.
+ */
+export type InputsHash = string & { readonly [INPUTS_HASH_BRAND]: true };
+
+/**
+ * Envoltorio sellado de un hash de insumos ya verificado (EX-EXP-17):
+ * conserva tanto el `ExpedienteInputs` de origen como su `InputsHash`, y
+ * está marcado internamente con `SEALED_MARKER` (símbolo privado). Es el
+ * tipo que `ApprovalWorkflow.approve()`, `revalidateAgainstCurrentHash`,
+ * `isFullyApprovedForCurrentHash` y `PackageAssembler.buildManifest` exigen
+ * en vez de un `string` — se obtiene con `sealInputs(inputs)` o leyendo
+ * `ProposalVersion.hash` de `ProposalVersionRegistry.createVersion`.
+ */
+export interface HashedInputs {
+  readonly inputs: ExpedienteInputs;
+  readonly hash: InputsHash;
+}
+
+/** Lanzado cuando `approve()`/`buildManifest()`/`revalidateAgainstCurrentHash()` reciben algo que no es un `HashedInputs` sellado producido por `sealInputs`/`computeInputsHash` de este módulo (EX-EXP-17): un `string` plano (incluso el hash "correcto" calculado por fuera), un objeto sin el símbolo privado, o un `HashedInputs` cuyos `inputs` fueron mutados después de sellarse (la recomputación ya no coincide con `hash`). */
+export class InvalidInputsHashError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidInputsHashError";
+  }
+}
+
+interface SealedHashedInputs extends HashedInputs {
+  readonly [SEALED_MARKER]: true;
+}
+
+function isSealedHashedInputs(value: unknown): value is SealedHashedInputs {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    (value as Record<symbol, unknown>)[SEALED_MARKER] === true
+  );
+}
+
+/**
+ * Sella `inputs` en un `HashedInputs` verificable (EX-EXP-17): calcula su
+ * `InputsHash` canónico vía `computeInputsHash` y adjunta el símbolo
+ * privado que `requireValidHashedInputs` exige. Es la única forma soportada
+ * de producir un valor que `approve()`/`buildManifest()` acepten
+ * directamente (además de `ProposalVersionRegistry.createVersion`, que la
+ * usa internamente para poblar `ProposalVersion.hash`).
+ */
+export function sealInputs(inputs: ExpedienteInputs): HashedInputs {
+  const hash = computeInputsHash(inputs);
+  const sealed: SealedHashedInputs = {
+    inputs,
+    hash,
+    [SEALED_MARKER]: true,
+  };
+  return sealed;
+}
+
+/**
+ * Verifica que `value` sea un `HashedInputs` legítimo antes de usarlo para
+ * decidir una aprobación/ensamblaje (EX-EXP-17). Fail-closed: cualquier
+ * discrepancia lanza `InvalidInputsHashError`, nunca deja pasar un valor
+ * dudoso "por si acaso".
+ *  1. Si `value` es un `string` (el hueco original de EX-EXP-17: pasar un
+ *     hash calculado a mano), lanza con un mensaje de migración explícito
+ *     — el soporte de `string` está DEPRECADO, no aceptado en silencio.
+ *  2. Si no trae el símbolo privado `SEALED_MARKER`, no pudo haber sido
+ *     producido por `sealInputs`/`computeInputsHash` de este módulo.
+ *  3. Recalcula `computeInputsHash(value.inputs)` y lo compara contra
+ *     `value.hash`: si alguien mutó el objeto `inputs` referenciado
+ *     DESPUÉS de sellarlo, la recomputación ya no coincide.
+ */
+export function requireValidHashedInputs(value: unknown, label: string): HashedInputs {
+  if (typeof value === "string") {
+    throw new InvalidInputsHashError(
+      `${label}: se recibió un hash de insumos como STRING PLANO ("${value}"). Esto está DEPRECADO por inseguro ` +
+        `(EX-EXP-17): cualquier string suelto —incluso uno "correcto" calculado por fuera— podía aprobar/ensamblar ` +
+        `un expediente sin relación real con sus insumos. Use computeInputsHash(inputs) + sealInputs(inputs) (o ` +
+        `ProposalVersionRegistry.createVersion(inputs).hash) y pase ese HashedInputs aquí. Ver README §"Hash de insumos".`,
+    );
+  }
+  if (!isSealedHashedInputs(value)) {
+    throw new InvalidInputsHashError(
+      `${label}: se esperaba un HashedInputs producido por sealInputs()/computeInputsHash() de este módulo (EX-EXP-17); ` +
+        `se recibió un objeto sin el sello interno (no puede haberse construido fuera de proposal-version.ts).`,
+    );
+  }
+  const recomputed = computeInputsHash(value.inputs);
+  if (recomputed !== value.hash) {
+    throw new InvalidInputsHashError(
+      `${label}: los ExpedienteInputs sellados fueron MUTADOS después de sellarse — el hash recalculado ` +
+        `("${recomputed}") ya no coincide con el hash registrado ("${value.hash}"). Un HashedInputs se invalida si ` +
+        `su objeto \`inputs\` cambia después de \`sealInputs()\` (EX-EXP-17).`,
+    );
+  }
+  return { inputs: value.inputs, hash: value.hash };
+}
 
 export interface ProposalInputRecord {
   /** p. ej. "tender_version", "company_profile", "company_document:doc-32d", "rate:consultoria_hora" */
@@ -28,7 +174,8 @@ export interface ProposalInputRecord {
 
 export interface ProposalVersion {
   version: number;
-  hash: string;
+  /** `HashedInputs` sellado (EX-EXP-17): pásese tal cual a `ApprovalWorkflow.approve()`/`buildManifest()`, nunca extraiga `.hash` "a mano" para reconstruir un `string`. */
+  hash: HashedInputs;
   createdAt: string;
   inputs: ProposalInputRecord[];
 }
@@ -154,8 +301,8 @@ function buildInputRecords(inputs: ExpedienteInputs): ProposalInputRecord[] {
  * `ProposalVersionRegistry.createVersion`, que la usa internamente) NO
  * tiene ninguna garantía de cubrir el conjunto completo de insumos.
  */
-export function computeInputsHash(inputs: ExpedienteInputs): string {
-  return sha256Hex(buildInputRecords(inputs));
+export function computeInputsHash(inputs: ExpedienteInputs): InputsHash {
+  return sha256Hex(buildInputRecords(inputs)) as InputsHash;
 }
 
 export class ProposalVersionRegistry {
@@ -164,13 +311,15 @@ export class ProposalVersionRegistry {
   /**
    * Registra una nueva versión a partir del conjunto CERRADO y OBLIGATORIO
    * `ExpedienteInputs` (EX-EXP-01/EX-EXP-11): hashea cada insumo individual
-   * y el conjunto completo vía `computeInputsHash`.
+   * y el conjunto completo vía `computeInputsHash`, y sella el resultado con
+   * `sealInputs` (EX-EXP-17) para que `.hash` se pueda pasar directamente a
+   * `ApprovalWorkflow.approve()`/`PackageAssembler.buildManifest()`.
    */
   createVersion(inputs: ExpedienteInputs): ProposalVersion {
     const inputRecords = buildInputRecords(inputs);
     const version: ProposalVersion = {
       version: this.versions.length + 1,
-      hash: computeInputsHash(inputs),
+      hash: sealInputs(inputs),
       createdAt: isoNow(),
       inputs: inputRecords,
     };

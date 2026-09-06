@@ -36,6 +36,30 @@ export interface TechnicalProposal {
   blockers: SectionBlocker[];
 }
 
+/** Prefijo de título usado por las secciones "no aplica" (EX-EXP-19) — ver `evaluateObligatorioLike`/`isNotApplicableSection`. */
+export const NOT_APPLICABLE_TITLE_PREFIX = "NO APLICA";
+
+/** `true` si `section` es una de las secciones "no aplica" visibles agregadas por EX-EXP-19 (requisito opcional, o condicional declarado explícitamente como no aplicable). */
+export function isNotApplicableSection(section: ProposalSection): boolean {
+  return section.title.startsWith(NOT_APPLICABLE_TITLE_PREFIX);
+}
+
+/**
+ * Extrae, de una `TechnicalProposal` ya construida, las secciones "no
+ * aplica" (EX-EXP-19) en la forma ligera que `PackageAssembler` puede
+ * incrustar en `PackageManifest.notApplicableRequirements` — para que la
+ * decisión de omitir un requisito sea visible también en el manifiesto
+ * final, no solo en la propuesta técnica.
+ */
+export function extractNotApplicableRequirements(
+  proposal: TechnicalProposal,
+): { requirementId: string; reason: string }[] {
+  return proposal.sections.filter(isNotApplicableSection).map((section) => ({
+    requirementId: section.requirementId,
+    reason: section.title.slice(NOT_APPLICABLE_TITLE_PREFIX.length).trim().replace(/^\(|\)$/g, ""),
+  }));
+}
+
 /**
  * Estrategia de mapeo: para cada requisito, qué campo(s) de la empresa se
  * necesitan para redactarlo. El llamador (apps/api en producción, tests
@@ -116,11 +140,30 @@ export class TechnicalProposalBuilder {
       if (requirement.requiredEvidence.length === 0) {
         const kind = evaluateObligatorioLike(requirement, conditionEvaluations);
         if (kind === "no_aplica") {
-          // Requisito verdaderamente procedimental (opcional, o condicional
-          // que el llamador declaró explícitamente como NO aplicable al
-          // caso concreto, p. ej. un anuncio de plazo): no genera sección de
-          // propuesta ni bloqueo — se gestiona solo como fila de la
-          // matriz/checklist de plazos, no como afirmación a redactar.
+          // EX-EXP-19 (reverificación ronda 2): antes, un requisito
+          // verdaderamente procedimental (opcional, o condicional que el
+          // llamador declaró explícitamente como NO aplicable al caso
+          // concreto, p. ej. un anuncio de plazo) desaparecía con `continue`
+          // sin dejar NINGÚN rastro en `TechnicalProposal` — indistinguible
+          // de "este requisito nunca se incluyó". Ahora genera una sección
+          // VISIBLE explícita ("NO APLICA...") sin bloqueos ni afirmaciones,
+          // para que un auditor/UI pueda ver QUÉ se omitió y POR QUÉ, en vez
+          // de tener que recalcular la regla de negocio por fuera del
+          // objeto de salida (el invariante de conteo de
+          // `test/technical-proposal-property.test.ts` ya no necesita
+          // reconstruir un "omitidosJustificados" aparte: TODO requisito
+          // relevante tiene sección).
+          const reason =
+            requirement.obligatoriedad === "opcional"
+              ? "requisito opcional"
+              : `condición "${requirement.topicKey ?? requirement.id}" evaluada falsa`;
+          sections.push({
+            id: `sec-${requirement.id}`,
+            requirementId: requirement.id,
+            title: `NO APLICA (${reason})`,
+            statements: [],
+            blockers: [],
+          });
           continue;
         }
         // REQ-158/EX-EXP-03/EX-EXP-12: un requisito OBLIGATORIO (o

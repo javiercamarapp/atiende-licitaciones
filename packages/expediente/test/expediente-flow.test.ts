@@ -13,6 +13,7 @@ import {
   type RequirementItem,
 } from "../src/requirement-matrix.js";
 import { TechnicalProposalBuilder, type RequirementFulfillmentMapping } from "../src/technical-proposal.js";
+import { fakeHashedInputs } from "./helpers/hashed-inputs.js";
 
 /**
  * Flujo integrado end-to-end del expediente de participación: bases →
@@ -266,7 +267,7 @@ describe("Flujo integrado del expediente de participación (A6-A15)", () => {
     expect(checklist.items.find((i) => i.dimension === "anexos_obligatorios")?.status).toBe("rojo");
 
     const workflow = new ApprovalWorkflow();
-    workflow.approve({ scope: "expediente", scopeRef: "expediente", actorId: "user-reviewer", actorRole: "reviewer", inputsHash: "h" });
+    workflow.approve({ scope: "expediente", scopeRef: "expediente", actorId: "user-reviewer", actorRole: "reviewer", inputsHash: fakeHashedInputs("h") });
 
     const assembler = new PackageAssembler();
     const { manifest, zip } = await assembler.assemble({
@@ -274,7 +275,7 @@ describe("Flujo integrado del expediente de participación (A6-A15)", () => {
       documents: [{ documentId: "tecnica", label: "Propuesta técnica", required: true, filename: "tecnica.pdf", content: "x" }],
       checklist,
       approvals: workflow.listApprovals(),
-      currentInputsHash: "h",
+      currentInputsHash: fakeHashedInputs("h"),
     });
 
     expect(manifest.status).toBe("draft");
