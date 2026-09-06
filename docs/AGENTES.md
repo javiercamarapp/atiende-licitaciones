@@ -4,7 +4,9 @@ Regla: Fable (claude-fable-5-1) solo orquesta. Cada despacho usa `Agent(subagent
 
 | # | Fecha | Nombre/tarea | Modelo param | Evidencia de sesión | Estado |
 |---|-------|--------------|--------------|---------------------|--------|
-| 1 | 2026-09-05 | investigar-pdf-requisitos → docs/REQUISITOS.md, ACEPTACION.md, investigacion/pdf-resumen.md | model="sonnet" | pendiente (ID al completar) | en curso |
-| 2 | 2026-09-05 | inventario-frontend-restaurantes → investigacion/frontend-restaurantes.md | model="sonnet" | pendiente | en curso |
-| 3 | 2026-09-05 | investigar-likida-arquitectura → investigacion/likida-arquitectura.md | model="sonnet" | pendiente | en curso |
-| 4 | 2026-09-05 | localizar-carpeta-empresas-agenticas → investigacion/ubicacion-empresas-agenticas.md | model="sonnet" | pendiente | en curso |
+| 1 | 2026-09-05 | investigar-pdf-requisitos → /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/docs/REQUISITOS.md, ACEPTACION.md, investigacion/pdf-resumen.md | model="sonnet" | pendiente (ID al completar) | en curso |
+| 2 | 2026-09-05 | inventario-frontend-restaurantes → /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/docs/investigacion/frontend-restaurantes.md | model="sonnet" | notificación de tarea completada (24 tool uses, 117k tokens subagente, 293 s) | COMPLETADO |
+| 3 | 2026-09-05 | investigar-likida-arquitectura → /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/docs/investigacion/likida-arquitectura.md | model="sonnet" | pendiente | en curso |
+| 4 | 2026-09-05 | localizar-carpeta-empresas-agenticas → /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/docs/investigacion/ubicacion-empresas-agenticas.md | model="sonnet" | notificación de tarea completada (10 tool uses, 73k tokens subagente, 111 s) | COMPLETADO: NO ENCONTRADA |
+
+Nota: la herramienta Agent de esta versión no expone el ID de modelo del subagente en la notificación; la evidencia es el parámetro `model="sonnet"` de cada llamada (registrado aquí) más la notificación de completado. Cuando la sesión no puede garantizar Sonnet, no se despacha con herencia.
