@@ -1,0 +1,111 @@
+=== 2026-09-06T08:50:31Z — corrector micro-vuelta AE-06/AE-07/AE-08/AE-11 (packages/expediente) ===
+
+--- npm run -w packages/expediente typecheck ---
+
+> @atiende/expediente@0.1.0 typecheck
+> tsc --noEmit
+
+
+--- npm run -w packages/expediente lint ---
+
+> @atiende/expediente@0.1.0 lint
+> eslint src test
+
+
+--- npm run -w packages/expediente test ---
+
+> @atiende/expediente@0.1.0 test
+> vitest run
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/packages/expediente[39m
+
+ [32m✓[39m test/types.test.ts [2m([22m[2m42 tests[22m[2m)[22m[90m 11[2mms[22m[39m
+ [32m✓[39m test/technical-proposal.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/requirement-matrix.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/integrity-checklist.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/approval-workflow.test.ts [2m([22m[2m27 tests[22m[2m)[22m[90m 13[2mms[22m[39m
+ [32m✓[39m test/technical-proposal-property.test.ts [2m([22m[2m200 tests[22m[2m)[22m[90m 28[2mms[22m[39m
+ [32m✓[39m test/expediente-flow.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 25[2mms[22m[39m
+ [32m✓[39m test/proposal-invalidation.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 26[2mms[22m[39m
+ [32m✓[39m test/package-assembler.test.ts [2m([22m[2m21 tests[22m[2m)[22m[90m 67[2mms[22m[39m
+ [32m✓[39m test/number-to-words.test.ts [2m([22m[2m42 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+ [32m✓[39m test/economic-proposal.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/llm-extractor.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/company-data.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/money.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m test/api-surface.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/timezone-determinism.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 1692[2mms[22m[39m
+   [33m[2m✓[22m[39m isPast — determinismo ante el TZ del proceso (EX-EXP-04, REQ-160 vigencias)[2m > [22muna fecha CON offset explícito produce EXACTAMENTE el mismo veredicto bajo TZ=UTC, America/Mexico_City y Asia/Tokyo [33m323[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m16 passed[39m[22m[90m (16)[39m
+[2m      Tests [22m [1m[32m413 passed[39m[22m[90m (413)[39m
+[2m   Start at [22m 02:50:32
+[2m   Duration [22m 2.22s[2m (transform 299ms, setup 0ms, collect 801ms, tests 1.90s, environment 2ms, prepare 860ms)[22m
+
+
+--- npm run -w packages/expediente build ---
+
+> @atiende/expediente@0.1.0 build
+> tsc -p tsconfig.build.json
+
+
+--- npm run -w packages/expediente test:coverage ---
+
+> @atiende/expediente@0.1.0 test:coverage
+> vitest run --coverage
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/packages/expediente[39m
+      [2mCoverage enabled with [22m[33mv8[39m
+
+ [32m✓[39m test/types.test.ts [2m([22m[2m42 tests[22m[2m)[22m[90m 12[2mms[22m[39m
+ [32m✓[39m test/integrity-checklist.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/requirement-matrix.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 9[2mms[22m[39m
+ [32m✓[39m test/approval-workflow.test.ts [2m([22m[2m27 tests[22m[2m)[22m[90m 13[2mms[22m[39m
+ [32m✓[39m test/technical-proposal.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/technical-proposal-property.test.ts [2m([22m[2m200 tests[22m[2m)[22m[90m 42[2mms[22m[39m
+ [32m✓[39m test/proposal-invalidation.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 29[2mms[22m[39m
+ [32m✓[39m test/expediente-flow.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 33[2mms[22m[39m
+ [32m✓[39m test/package-assembler.test.ts [2m([22m[2m21 tests[22m[2m)[22m[90m 93[2mms[22m[39m
+ [32m✓[39m test/economic-proposal.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/number-to-words.test.ts [2m([22m[2m42 tests[22m[2m)[22m[90m 9[2mms[22m[39m
+ [32m✓[39m test/company-data.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/llm-extractor.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/money.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/api-surface.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m test/timezone-determinism.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 1718[2mms[22m[39m
+   [33m[2m✓[22m[39m isPast — determinismo ante el TZ del proceso (EX-EXP-04, REQ-160 vigencias)[2m > [22muna fecha CON offset explícito produce EXACTAMENTE el mismo veredicto bajo TZ=UTC, America/Mexico_City y Asia/Tokyo [33m317[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m16 passed[39m[22m[90m (16)[39m
+[2m      Tests [22m [1m[32m413 passed[39m[22m[90m (413)[39m
+[2m   Start at [22m 02:50:35
+[2m   Duration [22m 2.35s[2m (transform 309ms, setup 0ms, collect 775ms, tests 1.99s, environment 2ms, prepare 916ms)[22m
+
+[34m % [39m[2mCoverage report from [22m[33mv8[39m
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-------------------|---------|----------|---------|---------|-------------------
+[32;1mAll files         [0m | [32;1m  92.99[0m | [32;1m   89.69[0m | [32;1m  92.91[0m | [32;1m  92.99[0m | [31;1m                 [0m 
+[32;1m src              [0m | [32;1m  92.86[0m | [32;1m   89.75[0m | [32;1m  92.68[0m | [32;1m  92.86[0m | [31;1m                 [0m 
+[32;1m  ...l-workflow.ts[0m | [32;1m    100[0m | [32;1m   98.14[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m170              [0m 
+[33;1m  company-data.ts [0m | [33;1m  71.11[0m | [32;1m   84.61[0m | [33;1m  64.28[0m | [33;1m  71.11[0m | [31;1m...15-222,225-232[0m 
+[32;1m  ...c-proposal.ts[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  index.ts        [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  ...-checklist.ts[0m | [32;1m  89.92[0m | [32;1m   87.09[0m | [32;1m    100[0m | [32;1m  89.92[0m | [31;1m...73-179,181-182[0m 
+[32;1m  money.ts        [0m | [32;1m   93.1[0m | [33;1m      64[0m | [32;1m   87.5[0m | [32;1m   93.1[0m | [31;1m86-89            [0m 
+[32;1m  ...r-to-words.ts[0m | [32;1m  95.42[0m | [32;1m   86.44[0m | [32;1m    100[0m | [32;1m  95.42[0m | [31;1m...85,201-202,216[0m 
+[32;1m  ...-assembler.ts[0m | [32;1m  94.51[0m | [32;1m   82.08[0m | [32;1m    100[0m | [32;1m  94.51[0m | [31;1m...19-221,388-389[0m 
+[32;1m  ...al-version.ts[0m | [32;1m  97.16[0m | [32;1m   95.74[0m | [32;1m    100[0m | [32;1m  97.16[0m | [31;1m299-300,327-328  [0m 
+[32;1m  ...ent-matrix.ts[0m | [32;1m  93.16[0m | [32;1m   91.22[0m | [32;1m    100[0m | [32;1m  93.16[0m | [31;1m...31-333,430-438[0m 
+[32;1m  ...l-proposal.ts[0m | [32;1m     90[0m | [32;1m    90.9[0m | [33;1m  66.66[0m | [32;1m     90[0m | [31;1m...30,252,256,258[0m 
+[32;1m  types.ts        [0m | [32;1m  90.47[0m | [32;1m   96.51[0m | [32;1m   92.3[0m | [32;1m  90.47[0m | [31;1m...20-121,164-167[0m 
+[32;1m src/llm          [0m | [32;1m    100[0m | [32;1m   83.33[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  extractor.ts    [0m | [32;1m    100[0m | [32;1m   83.33[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m67               [0m 
+-------------------|---------|----------|---------|---------|-------------------
+
+--- npm run -w apps/api typecheck ---
+
+> @atiende/api@0.1.0 typecheck
+> tsc --noEmit
+
