@@ -145,6 +145,62 @@ Un criterio de aceptación por requisito (o grupo de requisitos estrechamente re
 | REQ-139 | Ninguna tarea marcada `needs-human` se cierra sin aprobación explícita registrada del fundador | integración | PENDIENTE |
 | REQ-140 | Estado actualizado de los bloqueos conocidos (verificación jurídica, HAR ComprasMX, plantillas WhatsApp) revisado antes de iniciar el módulo dependiente | — (revisión de gobierno) | PENDIENTE |
 
+| REQ-141 | El esquema de perfil de empresa persiste las 8 categorías (capacidades, experiencia, productos/servicios, ubicaciones, registros, documentos con vigencia, firmantes, restricciones) por tenant, con CRUD probado por categoría | integración | PENDIENTE |
+| REQ-142 | Un dato de perfil sin `owner`/`source`/`updated_at` es rechazado o excluido de matching/expediente en prueba de contrato de datos | unit | PENDIENTE |
+| REQ-143 | Una referencia de experiencia sin `doc_id` de respaldo queda excluida del cálculo de elegibilidad en el set de prueba | unit | PENDIENTE |
+| REQ-144 | Un rol sin permiso de edición de una sección del perfil recibe rechazo de escritura en prueba de autorización | integración | PENDIENTE |
+| REQ-145 | Asociar una firma a una persona no listada como firmante autorizado es rechazado en prueba E2E del flujo de firma | E2E | PENDIENTE |
+| REQ-146 | La cadencia de ingesta configurada por fuente se respeta en ejecución real/simulada, distinta entre al menos dos fuentes de prueba | integración | PENDIENTE |
+| REQ-147 | `source_runs` queda poblado tras cada corrida con fuente, última consulta exitosa, intentos, estado, evidencia y cobertura; consulta reconstruye el historial de una fuente | integración | PENDIENTE |
+| REQ-148 | Fixtures que simulan fuente caída/CAPTCHA/cambio de interfaz/permisos faltantes producen el estado explícito correspondiente en back office, nunca una lista vacía silenciosa | adversarial | PENDIENTE |
+| REQ-149 | Una convocatoria con dato más viejo que el umbral de frescura configurado muestra el badge de obsolescencia calculado contra `source_runs` | integración | PENDIENTE |
+| REQ-150 | El conector del portal oficial vigente solo se marca "activo" con evidencia de verificación puntual documentada; sin ella queda en "no verificado" | integración | PENDIENTE |
+| REQ-151 | Timestamps de convocatoria/versión/plazo se almacenan y muestran correctamente convertidos a America/Mexico_City en casos de prueba con distintos husos de origen | unit | PENDIENTE |
+| REQ-152 | pgTAP: reingesta de la misma versión produce 0 filas nuevas; una nueva versión del mismo procedimiento produce 1 fila enlazada, sin duplicar el procedimiento | unit | PENDIENTE |
+| REQ-153 | Consulta de historial reconstruye, en orden, todas las versiones/aclaraciones/anexos de una convocatoria de prueba | integración | PENDIENTE |
+| REQ-154 | Reprocesar el mismo snapshot de detección de cambios dos veces produce el mismo estado final (idempotencia) | integración | PENDIENTE |
+| REQ-155 | Modificar el plazo/bases de una convocatoria de prueba invalida la matriz/expediente/aprobación dependiente y dispara notificación a los roles responsables | E2E | PENDIENTE |
+| REQ-156 | Cada fila de la matriz de requisitos de bases expone fuente/página/cláusula/obligatoriedad/responsable/fecha/estado; una fila incompleta bloquea el estado "listo" del expediente | integración | PENDIENTE |
+| REQ-157 | Un dato/tarifa en estado "pendiente de aprobación" es rechazado por el pipeline de redacción de la propuesta técnica/económica en prueba adversarial | adversarial | PENDIENTE |
+| REQ-158 | Un expediente de prueba con un dato/documento/tarifa faltante muestra el bloqueo con el campo exacto pendiente, sin sustituir ni inferir el valor | integración | PENDIENTE |
+| REQ-159 | Un expediente con al menos un ítem de checklist en rojo/ámbar nunca transiciona a estado "listo" en prueba E2E | E2E | PENDIENTE |
+| REQ-160 | Cada una de las 7 dimensiones del checklist de integridad (formatos, límites, firmas, anexos, vigencias, cálculos, consistencia) tiene un chequeo automatizado independiente con resultado propio | integración | PENDIENTE |
+| REQ-161 | Consultar una versión del expediente reconstruye los insumos exactos (por hash) usados en esa versión | integración | PENDIENTE |
+| REQ-162 | Editar una tarifa/dato/documento ya aprobado tras la aprobación del expediente revoca esa aprobación en el alcance afectado y exige nueva revisión, verificado en prueba E2E | E2E | PENDIENTE |
+| REQ-163 | Exportar un expediente incompleto de prueba produce un paquete con marca "BORRADOR" visible en portada y manifiesto; solo un expediente completo y validado produce el paquete "listo" | integración | PENDIENTE |
+| REQ-164 | Suite adversarial confirma que ninguna salida del sistema (propuesta, matriz, checklist, mensaje) contiene un valor no trazable a `Claim.sources[]` o al perfil aprobado | adversarial | PENDIENTE |
+| REQ-165 | Revisión de código y prueba adversarial confirman que no existe ruta de ejecución que envíe, firme o actúe en un portal sin un `approval_request` explícito y específico previo | adversarial | PENDIENTE |
+| REQ-166 | Un campo de elegibilidad sin dato de respaldo nunca produce `elegible=true` en el set de prueba adversarial | adversarial | PENDIENTE |
+| REQ-167 | pgTAP y eval de aislamiento con tenant sintético "competidor" sobre las tablas nuevas de perfil/expediente no producen fuga de datos | adversarial | PENDIENTE |
+| REQ-168 | La API/UI de matching expone relevancia y elegibilidad como dos valores independientes, cada uno con su propio desglose de evidencia, en caso de prueba | integración | PENDIENTE |
+| REQ-169 | Revisión de dashboards confirma que toda métrica derivada de una proyección/estimación lleva una etiqueta visible distinta de una métrica medida | render | PENDIENTE |
+| REQ-170 | Suite E2E navega los 6 módulos de back office (conectores/frescura, jobs/reintentos, costos IA, evals, incidentes, aprobaciones) y confirma que muestran datos reales, no mocks | E2E | PENDIENTE |
+| REQ-171 | Consulta de auditoría con un solo `correlation_id` reconstruye la cadena completa convocatoria→matriz→propuesta→paquete→archivo en un caso de prueba de extremo a extremo | integración | PENDIENTE |
+
+## Pruebas mínimas obligatorias de la ampliación back office
+
+Exigidas explícitamente por `docs/AMPLIACION-BACKOFFICE.md` (sección "CRITERIOS Y PRUEBAS DE ACEPTACIÓN"). Cada una debe probar el **flujo integrado real** (ingesta/matching/expediente/aprobación end-to-end), no solo funciones auxiliares o mocks aislados. Estado inicial: **PENDIENTE**.
+
+| # | Prueba mínima | REQ relacionados | Tipo de prueba | Flujo integrado que ejercita | Estado |
+|---|---|---|---|---|---|
+| A1 | Nueva publicación de convocatoria | REQ-001, REQ-151, REQ-152 | integración | Ingesta real de fuente → detección de convocatoria nueva → alta en BD con timestamp America/Mexico_City, sin pasar solo por el parser aislado | PENDIENTE |
+| A2 | Duplicado / replay del mismo evento de ingesta | REQ-073, REQ-074, REQ-152, REQ-154 | integración | Reingesta/reentrega del mismo snapshot/versión de extremo a extremo → 0 efectos duplicados en BD, cola y notificaciones | PENDIENTE |
+| A3 | Modificación/aclaración con plazo adelantado | REQ-017, REQ-041, REQ-153, REQ-155 | E2E | Publicación de aclaración que adelanta el plazo → detección de cambio → invalidación de matriz/expediente/aprobación dependiente → notificación al rol responsable | PENDIENTE |
+| A4 | Fuente inaccesible y obsolescencia visible | REQ-148, REQ-149, REQ-150 | adversarial | Fuente simulada caída/CAPTCHA → estado explícito persistido → UI de back office muestra el estado real y la obsolescencia, nunca "cero oportunidades" | PENDIENTE |
+| A5 | Dos clientes con capacidades distintas y cero fuga | REQ-059, REQ-061, REQ-167 | adversarial | Dos tenants con perfiles/capacidades distintos ejecutan matching/expediente en paralelo → ningún dato de un tenant aparece en resultados/contexto del otro | PENDIENTE |
+| A6 | Dato ausente o contradictorio | REQ-142, REQ-158, REQ-166 | integración | Perfil con campo faltante o dos fuentes contradictorias para el mismo campo → sistema marca "pendiente"/"no evaluable", nunca infiere ni promedia en silencio | PENDIENTE |
+| A7 | Documento o certificado vencido | REQ-022, REQ-023, REQ-143, REQ-160 | integración | Documento de perfil con vigencia expirada a la fecha del acto → semáforo en rojo → checklist del expediente bloquea "listo" | PENDIENTE |
+| A8 | Precio no aprobado | REQ-029, REQ-157, REQ-164 | adversarial | Intento de generar propuesta económica con tarifa en estado "pendiente de aprobación" → pipeline de redacción rechaza el dato de extremo a extremo | PENDIENTE |
+| A9 | Anexo obligatorio faltante | REQ-048, REQ-156, REQ-158 | integración | Expediente sin uno de los anexos marcados obligatorios en la matriz → bloqueo visible → paquete no puede marcarse "listo" | PENDIENTE |
+| A10 | Cálculo económico | REQ-029, REQ-030, REQ-160 | unit+integración | Motor determinista de cálculo económico (Decimal, redondeo, banda legal) ejercitado con casos reales de extremo a extremo hasta el documento renderizado | PENDIENTE |
+| A11 | Edición que invalida aprobación | REQ-155, REQ-162 | E2E | Edición de un insumo ya aprobado (dato, documento, tarifa) tras aprobación del expediente → revoca la aprobación afectada → exige nueva revisión, verificado en la UI real | PENDIENTE |
+| A12 | Autorización desde rol indebido | REQ-062, REQ-064, REQ-144, REQ-165 | adversarial | Usuario con rol sin permiso intenta aprobar/firmar/enviar → rechazo de extremo a extremo (API + UI), incluyendo re-autenticación exigida | PENDIENTE |
+| A13 | Expediente completo descargable con manifiesto, evidencia y revisión | REQ-048, REQ-159, REQ-161, REQ-163 | E2E | Expediente completo y validado → generación del ZIP con manifiesto/checklist/versiones/evidencia → descarga real desde el portal autenticado | PENDIENTE |
+| A14 | Expediente incompleto nunca aparece "listo" | REQ-159, REQ-163 | adversarial | Combinaciones de pendientes (dato, documento, firma, anexo) probadas de extremo a extremo → ninguna combinación produce estado "listo" | PENDIENTE |
+| A15 | Firma/envío siempre a cargo del usuario | REQ-045, REQ-046, REQ-165 | adversarial | Intento de automatizar firma o envío a portal sin acción explícita del usuario → rechazado en cada punto de entrada (API, agente, UI) | PENDIENTE |
+
 ---
 
 **Nota**: los criterios marcados con "bloqueado hasta VERIFICAR" (REQ-100, 102-107, 110, 121) no deben implementarse en el motor determinista de reglas legales hasta que el equipo confirme la norma/artículo/vigencia exacta contra la fuente oficial (DOF), tal como señalan explícitamente los propios documentos fuente (`DECISIONS-HUMANAS.md` y `tasks-licitaciones-FOCUS.md` del proyecto).
+
+**Ampliación back office** (REQ-141 a REQ-171, tabla arriba y sección "Pruebas mínimas obligatorias de la ampliación back office"): ningún criterio ni prueba mínima A1-A15 se marca cumplido por un test de helper aislado o por un mock que simule integración real; deben ejercitar el flujo integrado correspondiente, tal como exige `docs/AMPLIACION-BACKOFFICE.md`.
