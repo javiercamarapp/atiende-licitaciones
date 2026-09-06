@@ -1,3 +1,4 @@
+import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -56,6 +57,42 @@ export default function TarifasAprobadasPage() {
   const canApprove = Boolean(currentMembership && MEMBERSHIP_ADMIN_ROLES.includes(currentMembership.role));
 
   const form = useForm<RateValues>({ resolver: zodResolver(rateSchema), defaultValues: { itemCode: "", description: "", unitPrice: 0 } });
+
+  // WI-06 (docs/auditoria-2/reverificacion-final-integrada.md): el guard
+  // anterior (`disabled` derivado de `approveRate.isPending`/`rejectRate.isPending`)
+  // solo cierra la ventana de doble clic DESPUÉS de que React confirme el
+  // re-render que sigue a `mutate()` — un doble clic físico verdaderamente
+  // simultáneo puede pasar el chequeo de "actionability" del navegador antes
+  // de que ese re-render ocurra, y ambos clics llegan a disparar la mutación
+  // (servidor sigue siendo la barrera real vía WI-04, pero el cliente debía
+  // cerrar la ventana). `pendingRatesRef` es un guard SÍNCRONO: se comprueba
+  // y se fija ANTES de llamar a `mutate()`, en la misma ejecución síncrona
+  // del handler de cada clic — no depende de ningún ciclo de render. El
+  // `useState` (`submittingAction`) solo maneja el `disabled` visual y el
+  // texto del botón; la barrera real es el `useRef`.
+  const pendingRatesRef = useRef<Record<string, boolean>>({});
+  const [submittingAction, setSubmittingAction] = useState<Record<string, "approve" | "reject">>({});
+
+  const handleRateAction = (rateId: string, action: "approve" | "reject") => {
+    if (pendingRatesRef.current[rateId]) return;
+    pendingRatesRef.current[rateId] = true;
+    setSubmittingAction((prev) => ({ ...prev, [rateId]: action }));
+
+    const mutation = action === "approve" ? approveRate : rejectRate;
+    const successMessage = action === "approve" ? "Tarifa aprobada." : "Tarifa rechazada.";
+    mutation.mutate(rateId, {
+      onSuccess: () => toast.success(successMessage),
+      onError: (err) => toast.error(describeRateActionError(err)),
+      onSettled: () => {
+        pendingRatesRef.current[rateId] = false;
+        setSubmittingAction((prev) => {
+          const next = { ...prev };
+          delete next[rateId];
+          return next;
+        });
+      },
+    });
+  };
 
   const onSubmit = async (values: RateValues) => {
     try {
@@ -178,15 +215,16 @@ export default function TarifasAprobadasPage() {
                             <TableCell>
                               {rate.status === "draft" ? (
                                 (() => {
-                                  // WI-04: deshabilitado por FILA (no toda la
-                                  // tabla) mientras SU propia tarifa tiene una
-                                  // decisión en curso — `mutation.variables`
-                                  // guarda el id pasado a `mutate()`, así que
-                                  // otra fila puede seguir operando en
-                                  // paralelo sin bloquearse por esta.
-                                  const isThisRatePending =
-                                    (approveRate.isPending && approveRate.variables === rate.id) ||
-                                    (rejectRate.isPending && rejectRate.variables === rate.id);
+                                  // WI-04/WI-06: deshabilitado por FILA (no
+                                  // toda la tabla) mientras SU propia tarifa
+                                  // tiene una decisión en curso —
+                                  // `submittingAction[rate.id]` se fija de
+                                  // forma síncrona en `handleRateAction`
+                                  // (ver arriba), así que otra fila puede
+                                  // seguir operando en paralelo sin
+                                  // bloquearse por esta.
+                                  const pendingAction = submittingAction[rate.id];
+                                  const isThisRatePending = Boolean(pendingAction);
                                   return (
                                     <div className="flex gap-1.5">
                                       <Button
@@ -195,15 +233,10 @@ export default function TarifasAprobadasPage() {
                                         variant="outline"
                                         className="gap-1"
                                         disabled={isThisRatePending}
-                                        onClick={() =>
-                                          approveRate.mutate(rate.id, {
-                                            onSuccess: () => toast.success("Tarifa aprobada."),
-                                            onError: (err) => toast.error(describeRateActionError(err)),
-                                          })
-                                        }
+                                        onClick={() => handleRateAction(rate.id, "approve")}
                                       >
                                         <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                                        {approveRate.isPending && approveRate.variables === rate.id ? "Aprobando…" : "Aprobar"}
+                                        {pendingAction === "approve" ? "Aprobando…" : "Aprobar"}
                                       </Button>
                                       <Button
                                         type="button"
@@ -211,15 +244,10 @@ export default function TarifasAprobadasPage() {
                                         variant="ghost"
                                         className="gap-1"
                                         disabled={isThisRatePending}
-                                        onClick={() =>
-                                          rejectRate.mutate(rate.id, {
-                                            onSuccess: () => toast.success("Tarifa rechazada."),
-                                            onError: (err) => toast.error(describeRateActionError(err)),
-                                          })
-                                        }
+                                        onClick={() => handleRateAction(rate.id, "reject")}
                                       >
                                         <X className="h-3.5 w-3.5" aria-hidden="true" />
-                                        {rejectRate.isPending && rejectRate.variables === rate.id ? "Rechazando…" : "Rechazar"}
+                                        {pendingAction === "reject" ? "Rechazando…" : "Rechazar"}
                                       </Button>
                                     </div>
                                   );

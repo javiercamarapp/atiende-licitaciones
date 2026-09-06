@@ -41,6 +41,10 @@ function readSeed(): SeedData {
 // de la propia prueba que la propone, así cada intento real usa un valor
 // nuevo.
 let rateItemCode = "";
+// WI-06 (docs/auditoria-2/reverificacion-final-integrada.md): tarifa aparte
+// para el ataque de doble clic, para no interferir con el recorrido
+// principal (que ya aprueba `rateItemCode` en su propio test).
+let dblClickRateItemCode = "";
 
 test.describe.serial("Ronda 3 — recorrido real contra apps/api", () => {
   test("login con credenciales reales del seed redirige a /panel", async ({ noAuthPage: page }) => {
@@ -178,6 +182,21 @@ test.describe.serial("Ronda 3 — recorrido real contra apps/api", () => {
       await expect(page.getByRole("button", { name: "Aprobar" })).toHaveCount(0);
     });
 
+    // WI-06: tarifa dedicada, propuesta aparte, para el ataque de doble clic
+    // físico que corre más abajo como admin.
+    test("propone una segunda tarifa, dedicada al ataque de doble clic (WI-06)", async ({ writerPage: page }) => {
+      dblClickRateItemCode = `E2E-TARIFA-DBLCLICK-${Date.now()}`;
+      await page.goto("/empresa/tarifas-aprobadas");
+      await page.getByLabel("Código").fill(dblClickRateItemCode);
+      await page.getByLabel("Descripción").fill("Servicio para ataque de doble clic WI-06");
+      await page.getByLabel("Precio unitario (MXN)").fill("2000");
+      await page.getByRole("button", { name: "Proponer" }).click();
+
+      const row = page.getByRole("row", { name: new RegExp(dblClickRateItemCode) });
+      await expect(row).toBeVisible({ timeout: 15_000 });
+      await expect(row.getByText("Propuesta (borrador)")).toBeVisible();
+    });
+
     test("ve convocatorias vacías honestas (sin datos ficticios)", async ({ writerPage: page }) => {
       await page.goto("/convocatorias/descubrimiento");
       await expect(page.getByText("Aún no hay convocatorias")).toBeVisible();
@@ -207,6 +226,65 @@ test.describe.serial("Ronda 3 — recorrido real contra apps/api", () => {
       expect(response.ok(), `POST .../rates/:id/approve respondió ${response.status()}`).toBe(true);
 
       await expect(row.getByText("Aprobada")).toBeVisible({ timeout: 10_000 });
+    });
+
+    // WI-06 (docs/auditoria-2/reverificacion-final-integrada.md): un doble
+    // clic FÍSICO real (dos gestos `page.click()` reales de Playwright,
+    // disparados con `Promise.all` sin `await` entre ellos -- no
+    // `dispatchEvent`/JS sintético) sobre "Aprobar" debía disparar 2
+    // peticiones de red reales antes de la reparación del guard síncrono en
+    // TarifasAprobadasPage.tsx. Verifica: (a) contra el servidor real, se
+    // dispara UNA sola petición `POST .../rates/:id/approve` (no dos), (b)
+    // ningún toast de error aparece (ni el 409 honesto de WI-04, que sí
+    // aparecería si el guard cliente dejara pasar un segundo POST real).
+    test("un doble clic físico real en Aprobar dispara UNA sola petición de red (WI-06)", async ({ page }) => {
+      test.setTimeout(60_000);
+      await page.goto("/empresa/tarifas-aprobadas");
+      const row = page.getByRole("row", { name: new RegExp(dblClickRateItemCode) });
+      await expect(row).toBeVisible();
+
+      const approveRequests: string[] = [];
+      page.on("request", (request) => {
+        if (request.method() === "POST" && /\/rates\/.+\/approve$/.test(request.url())) {
+          approveRequests.push(request.url());
+        }
+      });
+
+      const approveButton = row.getByRole("button", { name: "Aprobar" });
+      const box = await approveButton.boundingBox();
+      if (!box) throw new Error("No se pudo obtener la posición del botón Aprobar para el doble clic físico");
+      const x = box.x + box.width / 2;
+      const y = box.y + box.height / 2;
+
+      const firstResponse = page.waitForResponse(
+        (res) => res.url().includes("/rates/") && res.url().includes("/approve") && res.request().method() === "POST",
+        { timeout: 40_000 },
+      );
+
+      // Dos clics físicos reales en las MISMAS coordenadas, disparados con
+      // `Promise.all` sin `await` entre ellos -- `page.mouse.click()` (a
+      // diferencia de `locator.click()`) no repite ningún chequeo de
+      // "actionability": si el guard cliente deshabilita/retira el botón
+      // entre el primer clic y el segundo, `locator.click()` se queda
+      // reintentando esperar a que vuelva a estar "enabled" (nunca ocurre,
+      // porque la fila ya cambió de estado) hasta agotar el timeout -- esto
+      // es lo más cercano a dos eventos de clic físico verdaderamente
+      // simultáneos del navegador real, sin depender de que Playwright
+      // considere "accionable" al elemento en el segundo clic.
+      await Promise.all([page.mouse.click(x, y), page.mouse.click(x, y)]);
+      const response = await firstResponse;
+      expect(response.ok(), `POST .../rates/:id/approve respondió ${response.status()}`).toBe(true);
+
+      await expect(row.getByText("Aprobada")).toBeVisible({ timeout: 10_000 });
+
+      // Margen para que una segunda petición espuria (si el guard fallara)
+      // alcance a llegar antes de contar.
+      await page.waitForTimeout(1_000);
+      expect(approveRequests.length, `peticiones POST .../approve observadas: ${approveRequests.length}`).toBe(1);
+
+      // Ningún toast de error (ni el 409 honesto de WI-04, que aparecería si
+      // el guard cliente hubiera dejado pasar un segundo POST real).
+      await expect(page.getByText(/ya cambió de estado/)).toHaveCount(0);
     });
   });
 });

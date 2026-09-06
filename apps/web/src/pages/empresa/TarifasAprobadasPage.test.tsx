@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { renderWithProviders } from "@/test/utils";
@@ -112,5 +112,46 @@ describe("TarifasAprobadasPage (WI-04)", () => {
     // La lista se refrescó: la fila ya no ofrece Aprobar/Rechazar (dejó de
     // estar en "draft" según la respuesta actualizada del servidor).
     await waitFor(() => expect(screen.queryByRole("button", { name: /Aprobar|Rechazar/ })).not.toBeInTheDocument());
+  });
+
+  // WI-06 (docs/auditoria-2/reverificacion-final-integrada.md): un doble
+  // clic físico verdaderamente simultáneo (dos eventos de clic reales, sin
+  // ceder el control al event loop entre ellos) podía pasar el chequeo de
+  // `disabled` ANTES de que React confirmara el re-render que sigue al
+  // primer `mutate()` -- `fireEvent.click` dos veces sin `await` entre
+  // medias reproduce exactamente esa ventana (a diferencia de
+  // `userEvent.click`, que ya cede el control al event loop internamente).
+  // El guard síncrono (`useRef` fijado ANTES de `mutate()`) debe cerrarla:
+  // sin él, este test detecta 2 peticiones POST en vez de 1.
+  it("un doble clic físico real (sin esperar entre clics) en Aprobar dispara UNA sola petición de red", async () => {
+    let approveCalls = 0;
+    server.use(
+      http.get("*/company/rates", () => HttpResponse.json([RATE_BASE])),
+      http.post("*/company/rates/:id/approve", async () => {
+        approveCalls += 1;
+        return HttpResponse.json({ ...RATE_BASE, status: "approved", approvedBy: "user-1" });
+      }),
+    );
+
+    renderWithProviders(
+      <>
+        <Toaster />
+        <TarifasAprobadasPage />
+      </>,
+    );
+    await screen.findByText("SRV-001");
+    const approveButton = screen.getByRole("button", { name: "Aprobar" });
+
+    // Sin `await` entre los dos clics: ambos corren en el mismo tick
+    // síncrono, antes de cualquier re-render.
+    fireEvent.click(approveButton);
+    fireEvent.click(approveButton);
+
+    await waitFor(() => expect(approveCalls).toBeGreaterThanOrEqual(1));
+    // Margen para que un segundo POST espurio (si el guard fallara) alcance
+    // a llegar antes de aserirlo.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(approveCalls).toBe(1);
+    expect(screen.queryByText(/ya cambió de estado/)).not.toBeInTheDocument();
   });
 });
