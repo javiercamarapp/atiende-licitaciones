@@ -3,6 +3,7 @@
 // apps/api (nunca insertando filas directo en la base de datos, y nunca
 // datos ficticios embebidos en el frontend — ver global-setup.ts). Solo se
 // usa desde infraestructura de pruebas (global-setup.ts).
+import { generate as generateTotpCode } from "otplib";
 
 export interface Tokens {
   accessToken: string;
@@ -103,6 +104,29 @@ export function createSeedClient(apiUrl: string) {
         }),
       });
       return { tenderId: response.results[0].tenderId };
+    },
+    /**
+     * REQ-044/064: enrola 2FA (TOTP) de `admin` de una sola vez, en
+     * `global-setup.ts` -- corre en un ÚNICO proceso Node (a diferencia de
+     * los tests, que Playwright puede reejecutar en un worker NUEVO al
+     * reintentar, perdiendo cualquier estado en memoria). El secreto queda
+     * en `seed.json`: los specs recalculan un código TOTP vigente en el
+     * momento de cada step-up (nunca reutilizan uno viejo, así que ni el
+     * rechazo de replay de apps/api ni un reintento de Playwright rompen
+     * el flujo).
+     */
+    async enrollTwoFactor(accessToken: string): Promise<{ secretBase32: string; backupCodes: string[] }> {
+      const enrollment = await request<{ secretBase32: string; otpauthUrl: string; backupCodes: string[] }>("/auth/2fa/enroll", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const code = await generateTotpCode({ secret: enrollment.secretBase32 });
+      await request("/auth/2fa/verify-enrollment", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ code }),
+      });
+      return { secretBase32: enrollment.secretBase32, backupCodes: enrollment.backupCodes };
     },
     async waitForHealthz(timeoutMs: number): Promise<void> {
       const deadline = Date.now() + timeoutMs;

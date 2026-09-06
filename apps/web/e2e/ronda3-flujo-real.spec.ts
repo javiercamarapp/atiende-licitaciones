@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, expect } from "./fixtures";
-import { ensureAdminTwoFactorEnrolled, nextAdminBackupCode, completeStepUp } from "./two-factor-helpers";
+import { getAdminStepUpCode, completeStepUp } from "./two-factor-helpers";
 import type { SeedData } from "./global-setup";
 
 // ESM real ("type": "module" en package.json): sin `__dirname` global.
@@ -212,15 +212,13 @@ test.describe.serial("Ronda 3 — recorrido real contra apps/api", () => {
   });
 
   test.describe("como admin (aprueba lo que propuso writer)", () => {
-    // REQ-044/064 (ronda 5): aprobar exige X-Step-Up -- enrola 2FA para
-    // `admin` (idempotente entre archivos, ver two-factor-helpers.ts) antes
-    // de la primera aprobación real de esta suite.
-    test("admin enrola 2FA (requerido para aprobar tarifas, REQ-044/064)", async ({ page }) => {
-      await ensureAdminTwoFactorEnrolled(page);
-    });
-
+    // REQ-044/064 (ronda 5): aprobar exige X-Step-Up. El enrolamiento de 2FA
+    // de `admin` ocurre UNA SOLA VEZ en e2e/global-setup.ts (proceso único,
+    // inmune a reintentos de Playwright) -- aquí solo se calcula un código
+    // TOTP vigente en el momento de cada step-up (ver two-factor-helpers.ts).
     test("aprueba la tarifa propuesta por writer con step-up 2FA", async ({ page }) => {
       test.setTimeout(60_000);
+      const seed = readSeed();
       await page.goto("/empresa/tarifas-aprobadas");
       const row = page.getByRole("row", { name: new RegExp(rateItemCode) });
       await expect(row).toBeVisible();
@@ -231,7 +229,7 @@ test.describe.serial("Ronda 3 — recorrido real contra apps/api", () => {
         (res) => res.url().includes("/rates/") && res.url().includes("/approve") && res.request().method() === "POST",
         { timeout: 40_000 },
       );
-      await completeStepUp(page, nextAdminBackupCode());
+      await completeStepUp(page, await getAdminStepUpCode(seed));
       const response = await approveResponse;
       expect(response.ok(), `POST .../rates/:id/approve respondió ${response.status()}`).toBe(true);
 
@@ -252,6 +250,7 @@ test.describe.serial("Ronda 3 — recorrido real contra apps/api", () => {
     // aparecería si el guard cliente dejara pasar un segundo POST real).
     test("un doble clic físico real en \"Verificar y continuar\" dispara UNA sola petición de red (WI-06)", async ({ page }) => {
       test.setTimeout(60_000);
+      const seed = readSeed();
       await page.goto("/empresa/tarifas-aprobadas");
       const row = page.getByRole("row", { name: new RegExp(dblClickRateItemCode) });
       await expect(row).toBeVisible();
@@ -264,7 +263,7 @@ test.describe.serial("Ronda 3 — recorrido real contra apps/api", () => {
       });
 
       await row.getByRole("button", { name: "Aprobar" }).click();
-      await page.getByLabel("Código TOTP o de respaldo").fill(nextAdminBackupCode());
+      await page.getByLabel("Código TOTP o de respaldo").fill(await getAdminStepUpCode(seed));
       const verifyButton = page.getByRole("button", { name: "Verificar y continuar" });
       const box = await verifyButton.boundingBox();
       if (!box) throw new Error('No se pudo obtener la posición de "Verificar y continuar" para el doble clic físico');

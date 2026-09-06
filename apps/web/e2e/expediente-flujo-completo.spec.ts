@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, expect } from "./fixtures";
 import { seriousOrCriticalViolations, formatViolations } from "./utils/a11y";
-import { ensureAdminTwoFactorEnrolled, nextAdminBackupCode, completeStepUp } from "./two-factor-helpers";
+import { getAdminStepUpCode, completeStepUp } from "./two-factor-helpers";
 import type { SeedData } from "./global-setup";
 
 // ESM real ("type": "module" en package.json): sin `__dirname` global.
@@ -53,10 +53,11 @@ async function selectTender(page: import("@playwright/test").Page, tenderTitle: 
   await page.getByRole("option", { name: tenderTitle }).click();
 }
 
-// REQ-044/064: `ensureAdminTwoFactorEnrolled`/`nextAdminBackupCode`/
-// `completeStepUp` viven en ./two-factor-helpers.ts (compartidas con
-// ronda3-flujo-real.spec.ts -- 2FA es de CUENTA, no de organización, así
-// que la misma cuenta `admin` solo puede enrolarse una vez por corrida).
+// REQ-044/064: `getAdminStepUpCode`/`completeStepUp` viven en
+// ./two-factor-helpers.ts (compartidas con ronda3-flujo-real.spec.ts). El
+// enrolamiento de 2FA de `admin` ocurre UNA SOLA VEZ en e2e/global-setup.ts
+// (2FA es de CUENTA, no de organización) -- los specs solo calculan un
+// código TOTP vigente en el momento de cada step-up.
 
 test.describe.serial("Expediente — flujo completo real (ronda 5)", () => {
   test("preparación: admin agrega un firmante autorizado en la organización C", async ({ page }) => {
@@ -69,10 +70,6 @@ test.describe.serial("Expediente — flujo completo real (ronda 5)", () => {
     await page.getByLabel("Cargo (opcional)").fill(SIGNER_ROLE_TITLE);
     await page.getByRole("button", { name: "Agregar" }).click();
     await expect(page.getByText(SIGNER_ROLE_TITLE)).toBeVisible();
-  });
-
-  test("preparación: admin enrola 2FA (requerido para aprobar tarifas y expedientes, REQ-044/064)", async ({ page }) => {
-    await ensureAdminTwoFactorEnrolled(page);
   });
 
   test("preparación: admin propone y aprueba una tarifa con step-up 2FA (dato real para la propuesta económica)", async ({ page }) => {
@@ -88,7 +85,7 @@ test.describe.serial("Expediente — flujo completo real (ronda 5)", () => {
 
     const row = page.getByRole("row", { name: new RegExp(RATE_ITEM_CODE) });
     await row.getByRole("button", { name: "Aprobar" }).click();
-    await completeStepUp(page, nextAdminBackupCode());
+    await completeStepUp(page, await getAdminStepUpCode(seed));
     await expect(row.getByText("Aprobada")).toBeVisible();
   });
 
@@ -120,6 +117,16 @@ test.describe.serial("Expediente — flujo completo real (ronda 5)", () => {
   test("A14: el paquete nunca aparece \"Listo\" con el expediente todavía incompleto", async ({ page }) => {
     const seed = readSeed();
     await switchOrganization(page, seed.orgC.name);
+
+    // `POST .../package/assemble` exige que el expediente (fila `proposals`)
+    // ya exista -- a diferencia de `GET /proposal`, no lo autocrea (404
+    // explícito real, ver apps/api/src/lib/expediente/context.ts
+    // `requireProposal`). Visitar Redacción primero dispara `GET /proposal`
+    // (que SÍ autocrea el expediente en estado "draft", sin secciones
+    // todavía) sin generar nada -- exactamente el caso "incompleto" que A14
+    // debe cubrir.
+    await page.goto("/preparacion/redaccion");
+    await selectTender(page, seed.tender!.title);
 
     await page.goto("/entrega/paquete-descargable");
     await selectTender(page, seed.tender!.title);
@@ -214,7 +221,7 @@ test.describe.serial("Expediente — flujo completo real (ronda 5)", () => {
     await selectTender(page, seed.tender!.title);
 
     await page.getByRole("button", { name: "Aprobar expediente" }).click();
-    await completeStepUp(page, nextAdminBackupCode());
+    await completeStepUp(page, await getAdminStepUpCode(seed));
     await expect(page.getByText("Aprobado", { exact: true })).toBeVisible();
   });
 

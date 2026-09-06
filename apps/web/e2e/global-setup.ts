@@ -37,7 +37,19 @@ const ARTIFACTS_DIR = path.resolve(__dirname, ".artifacts");
 
 export interface SeedData {
   apiUrl: string;
-  admin: { email: string; password: string };
+  admin: {
+    email: string;
+    password: string;
+    /**
+     * REQ-044/064: enrolado UNA SOLA VEZ aquí (proceso único de
+     * global-setup), no desde un test -- Playwright puede reejecutar un
+     * test fallido en un worker NUEVO al reintentar, perdiendo cualquier
+     * secreto guardado solo en memoria de ese proceso. Los specs
+     * recalculan un código TOTP vigente en el momento de cada step-up
+     * (ver e2e/two-factor-helpers.ts), nunca reutilizan uno ya usado.
+     */
+    twoFactor: { secretBase32: string; backupCodes: string[] };
+  };
   writer: { email: string; password: string };
   orgA: { id: string; name: string; slug: string };
   orgB: { id: string; name: string; slug: string };
@@ -77,6 +89,11 @@ export default async function globalSetup(): Promise<void> {
   await client.register(writer.email, writer.password);
 
   const adminTokens = await client.login(admin.email, admin.password);
+  // REQ-044/064: enrola 2FA de `admin` de una sola vez, ANTES de cualquier
+  // test -- aprobar una tarifa o un expediente lo exige (ver
+  // e2e/two-factor-helpers.ts para cómo los specs calculan el código
+  // vigente en cada step-up).
+  const twoFactor = await client.enrollTwoFactor(adminTokens.accessToken);
   const orgA = await client.createOrganization(adminTokens.accessToken, `E2E Org A ${runId}`, `e2e-org-a-${runId}`);
   const orgB = await client.createOrganization(adminTokens.accessToken, `E2E Org B ${runId}`, `e2e-org-b-${runId}`);
 
@@ -110,6 +127,6 @@ export default async function globalSetup(): Promise<void> {
     tender = { id: ingestResult.tenderId, title: `Convocatoria E2E ${runId}` };
   }
 
-  const seed: SeedData = { apiUrl, admin, writer, orgA, orgB, orgC, tender };
+  const seed: SeedData = { apiUrl, admin: { ...admin, twoFactor }, writer, orgA, orgB, orgC, tender };
   fs.writeFileSync(path.join(ARTIFACTS_DIR, "seed.json"), JSON.stringify(seed, null, 2));
 }
