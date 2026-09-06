@@ -168,7 +168,11 @@ organizaciones.
 ### expediente (E6-E9/E11 — expediente de participación real)
 Integra `@atiende/expediente` (paquete puro, sin DB) sobre `packages/db`
 mediante adaptadores en `src/lib/expediente/` (ver docstrings de cada
-archivo para el detalle de cada decisión de mapeo). Todas bajo el prefijo
+archivo para el detalle de cada decisión de mapeo). **26 rutas** (AE-12,
+docs/auditoria-2/api-expediente.md — documentos 7, propuesta 5, checklist
+2, aprobación 4, paquete 3, presentación 2, post-adjudicación 3; conteo
+verificable con `grep -c "server\.\(get\|post\|patch\|delete\|put\)("
+src/modules/expediente/*.routes.ts`), todas bajo el prefijo
 `/expediente/tenders/:tenderId/...`; roles con el mismo criterio del resto
 de la API (`WRITE_ROLES` = owner/admin/analyst/writer/reviewer para
 mutar, `viewer` solo lee), salvo aprobar (ver más abajo).
@@ -431,3 +435,46 @@ solo, pasa establemente en <2s por caso).
     el resto de la API (ver punto de aprobaciones económicas arriba), la
     aprobación queda en `audit_log` con el aprobador real, pero no exige un
     segundo factor adicional.
+
+## Reparaciones — auditoría 2 (`docs/auditoria-2/api-expediente.md`)
+
+- **AE-01 (ALTA)**: `asOfIso` ya no lo decide el cliente -- se deriva
+  SIEMPRE de `tenders.submission_deadline` (`resolveExpedienteAsOfIso`,
+  `lib/expediente/dates.ts`); sin `submission_deadline` fijado, 422
+  explícito ("fecha de presentación desconocida") en vez de usar "ahora".
+- **AE-02 (ALTA)**: editar el CONTENIDO de una sección de la propuesta
+  (`PATCH /proposal/sections/:sectionKey`) invalida explícitamente
+  (`workflow.recordChange`) cualquier aprobación vigente que la cubra --
+  mismo mecanismo que ya usaba `conditionEvaluations`.
+- **AE-03 (MEDIA)**: `assertSafeFileContent` (`lib/storage.ts`) busca cada
+  firma peligrosa (ejecutables, PEM) en TODO el buffer, no solo en el
+  offset 0; añade validación estructural de PDF (`%PDF-` en los primeros
+  1024 bytes exige también `%%EOF`).
+- **AE-04 (MEDIA)**: el texto extraído (`lib/expediente/text-extraction.ts`)
+  se sanitiza (se elimina `<script>`/`<style>` y cualquier otra etiqueta
+  HTML) antes de persistirse en `extracted_text`.
+- **AE-05 (BAJA-MEDIA)**: cualquier firma de ZIP se rechaza de forma
+  fail-closed en `assertSafeFileContent` (ningún flujo de este dominio
+  espera legítimamente un ZIP subido por el cliente) -- elimina el vector
+  de zip-bomb en vez de intentar limitar ratio/tamaño descomprimido.
+  Además, límites anti "PDF bomb" (páginas/tamaño de texto extraído).
+- **AE-06/AE-07 (BAJA)**: **fuera del ámbito de este corrector** -- ambos
+  hallazgos viven en `packages/expediente` (`package-assembler.ts`/
+  `types.ts`: sha256 de JSON en vez de bytes reales; Zip Slip latente sin
+  sanitizar `filename`), un paquete no asignado a este agente. En
+  `apps/api` el vector de Zip Slip NO es explotable hoy (`package.routes.ts`
+  solo pasa `filename: "${section_key}.txt"`, fijo por el servidor).
+- **AE-09 (MEDIA)**: `POST/GET /post-award` expone `calendarNote`
+  ("solo excluye sábados y domingos; días inhábiles oficiales pendientes")
+  y `legalRegime` (REQ-050: LAASSP nueva/Art. 73/17 días hábiles vs.
+  LAASSP 2000 abrogada/Art. 51/20 días naturales, decidido por
+  `tenders.published_at`, nunca "hoy").
+- **AE-10 (BAJA hoy/MEDIA latente)**: `runContextCache`
+  (`lib/agent-stores.pg.ts`) es ahora un `BoundedCache` (LRU acotado,
+  `lib/bounded-cache.ts`) en vez de un `Map` sin límite de tamaño.
+- **AE-12 (documentación)**: corregido el conteo de rutas de `/expediente`
+  a 26 (ver arriba).
+- **DB-13 / API-13**: ver `packages/db/README.md`
+  (`migrations/0050`/`0051`) y `lib/audit.ts` (`recordAuthAudit`) — vigencia
+  de tarifas evaluada siempre en `America/Mexico_City`, y eventos de
+  autenticación (login/refresh/reutilización/logout) en `audit_log`.
