@@ -164,12 +164,22 @@ cambios.
 
 ## Pendiente / fuera de alcance de esta ronda
 
-- Endpoints de `apps/api` para las tablas de la ampliación back office
-  (perfil de empresa, versiones de convocatoria, precios, aprobaciones,
-  paquete final): solo se construyó el **esquema + RLS + tests** en
-  `packages/db`, según lo acordado con el coordinador si el tiempo no
-  alcanzaba para ambas capas en la misma ronda.
 - Prueba de concurrencia de `jobs` contra un Postgres real con múltiples
   conexiones físicas (no disponible en este entorno).
-- No se probó "accept invitation" (aceptar invitación) como flujo de la API;
-  la tabla `invitations` y su `status` ya existen para ese flujo futuro.
+
+## Alcance real del constraint `package_ready_requires_checklist` (DB-04)
+
+Hallazgo `docs/auditoria-1/db-api.md` (MEDIA): el `CHECK
+package_ready_requires_checklist` (0015) solo exige que
+`checklist_snapshot` **no sea `NULL`** cuando `status='ready'`. Esto es
+**una defensa parcial** (evita el caso trivial de "ready" sin siquiera
+capturar el checklist), **no** la garantía completa de REQ-159/REQ-160
+("todos los ítems del checklist en verde"). Un `checklist_snapshot` con
+ítems en rojo/ámbar, o incompleto, pasa igual este `CHECK` porque
+Postgres no puede validar aquí la semántica de negocio de un `jsonb` de
+forma genérica sin acoplar el esquema a la forma exacta que
+`packages/expediente` (paquete responsable de esa lógica, fuera del
+alcance de `packages/db`) decida darle al checklist. Quien lea este
+esquema **no debe asumir** que la completitud real del checklist está
+garantizada por la base de datos: la validación de completitud vive, y
+debe seguir viviendo, en `packages/expediente`.
