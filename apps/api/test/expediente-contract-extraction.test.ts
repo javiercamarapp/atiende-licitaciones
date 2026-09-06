@@ -223,6 +223,51 @@ describe('expediente — extracción del contrato firmado (REQ-052)', () => {
     expect(upload.statusCode).toBe(404);
   });
 
+  it('R6-05: un documentId/fieldId de OTRO contrato de la MISMA organización no es accesible vía el tenderId "equivocado" (la URL anidada dice la verdad)', async () => {
+    const owner = await registerAndLogin(app, 'c052-owner-6@example.com');
+    const org = await createOrgFor(app, owner, 'C052 Org 6', 'c052-org-6');
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+
+    // Contrato A: documento y campo real.
+    const tenderIdA = await createTender(app, org.id, 'c052-006-a');
+    await app.inject({ method: 'POST', url: `/expediente/tenders/${tenderIdA}/contract`, headers });
+    const uploadA = await app.inject({
+      method: 'POST',
+      url: `/expediente/tenders/${tenderIdA}/contract/documents`,
+      headers,
+      payload: { filename: 'contrato-a.txt', mimeType: 'text/plain', contentBase64: toBase64(SIGNED_CONTRACT_TEXT) },
+    });
+    expect(uploadA.statusCode).toBe(201);
+    const documentIdA = uploadA.json().id;
+    const fieldsA = (await app.inject({ method: 'GET', url: `/expediente/tenders/${tenderIdA}/contract/documents/${documentIdA}/fields`, headers })).json();
+    const fieldIdA = fieldsA[0].id;
+
+    // Contrato B: registrado en la MISMA organización, pero es un contrato distinto.
+    const tenderIdB = await createTender(app, org.id, 'c052-006-b');
+    await app.inject({ method: 'POST', url: `/expediente/tenders/${tenderIdB}/contract`, headers });
+
+    // El documento/campo de A no debe verse a través de la URL de B.
+    const crossFields = await app.inject({ method: 'GET', url: `/expediente/tenders/${tenderIdB}/contract/documents/${documentIdA}/fields`, headers });
+    expect(crossFields.statusCode).toBe(404);
+
+    const crossConfirm = await app.inject({
+      method: 'POST',
+      url: `/expediente/tenders/${tenderIdB}/contract/fields/${fieldIdA}/confirm`,
+      headers,
+      payload: { action: 'confirm' },
+    });
+    expect(crossConfirm.statusCode).toBe(404);
+
+    // La ruta correcta (tenderId real de A) sigue funcionando.
+    const correctConfirm = await app.inject({
+      method: 'POST',
+      url: `/expediente/tenders/${tenderIdA}/contract/fields/${fieldIdA}/confirm`,
+      headers,
+      payload: { action: 'confirm' },
+    });
+    expect(correctConfirm.statusCode).toBe(200);
+  });
+
   it('viewer no puede subir el contrato ni confirmar campos', async () => {
     const owner = await registerAndLogin(app, 'c052-owner-4@example.com');
     const org = await createOrgFor(app, owner, 'C052 Org 4', 'c052-org-4');

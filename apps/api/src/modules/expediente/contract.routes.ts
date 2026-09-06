@@ -415,8 +415,18 @@ export async function expedienteContractRoutes(app: FastifyInstance): Promise<vo
       const orgId = request.orgId!;
       const rows = await withTx(app.db, orgId, request.userId, async (tx) => {
         await requireTender(tx, orgId, request.params.tenderId);
-        await requireContract(tx, orgId, request.params.tenderId);
-        const doc = await tx.query('select id from contract_documents where id = $1 and org_id = $2', [request.params.documentId, orgId]);
+        const contract = await requireContract(tx, orgId, request.params.tenderId);
+        // R6-05 (docs/auditoria-2/api-ronda6.md, BAJA): la URL anida
+        // `tenderId` -> contrato -> documento -> campos, pero antes solo se
+        // verificaba `documentId` contra `org_id` (aislamiento de
+        // organización), nunca contra el contrato REAL de ESE `tenderId` --
+        // un `documentId` válido de OTRO contrato de la misma organización
+        // pasaba igual. Hoy no es explotable como escalación de privilegios
+        // (la autorización de escritura ya es a nivel de organización
+        // completa), pero rompería silenciosamente si el producto introduce
+        // algún día permisos más finos por convocatoria/contrato -- se
+        // corrige aquí para que la URL diga la verdad.
+        const doc = await tx.query('select id from contract_documents where id = $1 and org_id = $2 and contract_id = $3', [request.params.documentId, orgId, contract.id]);
         if (doc.rows.length === 0) throw new NotFoundError('Documento de contrato no encontrado');
         return (
           await tx.query<Record<string, unknown>>(
@@ -450,8 +460,16 @@ export async function expedienteContractRoutes(app: FastifyInstance): Promise<vo
 
       const row = await withTx(app.db, orgId, userId, async (tx) => {
         await requireTender(tx, orgId, request.params.tenderId);
-        await requireContract(tx, orgId, request.params.tenderId);
-        const existing = await tx.query<Record<string, unknown>>('select * from contract_extracted_fields where id = $1 and org_id = $2', [request.params.fieldId, orgId]);
+        const contract = await requireContract(tx, orgId, request.params.tenderId);
+        // R6-05: mismo anidamiento real que en el GET de arriba -- el campo
+        // debe pertenecer a un documento del contrato de ESTE `tenderId`,
+        // no solo a la organización.
+        const existing = await tx.query<Record<string, unknown>>(
+          `select f.* from contract_extracted_fields f
+             join contract_documents d on d.id = f.contract_document_id and d.org_id = f.org_id
+           where f.id = $1 and f.org_id = $2 and d.contract_id = $3`,
+          [request.params.fieldId, orgId, contract.id]
+        );
         if (existing.rows.length === 0) throw new NotFoundError('Campo extraído no encontrado');
 
         const newStatus = request.body.action === 'confirm' ? 'confirmado' : 'corregido';
