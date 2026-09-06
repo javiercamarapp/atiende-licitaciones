@@ -48,3 +48,4 @@
 2026-09-05 21:08  DESPERTAR  reverificación 2 web (#39): 20/20 cerrados + W-21 ALTA/W-22/W-23 → asignados a #42; en curso #37,#40,#41,#42,#43,#45,#46.
 2026-09-05 21:13  DESPERTAR  corrector worker vuelta 2 (#40) 79 tests; reverificador de cierre (#47) despachado; en curso #37,#41,#42,#43,#45,#46.
 2026-09-06 21:18  DESPERTAR  corrector sources vuelta 2 (#37) 145/145; worker typecheck verificado OK por Fable; reverificador de cierre (#48) despachado; en curso #41,#42,#43,#45,#46,#47.
+2026-09-06 21:18  DESPERTAR  micro-fix AG-23 (#46) 263/263; INC-04 (git add -A ajeno) registrado y regla reenviada a #43; en curso #41,#42,#43,#45,#47,#48.
