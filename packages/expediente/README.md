@@ -1,0 +1,106 @@
+# @atiende/expediente
+
+Motor del **expediente de participación** (docs/AMPLIACION-BACKOFFICE.md §5-8,
+docs/REQUISITOS.md secciones 4-8 y 32-33 — REQ-156 a REQ-171,
+docs/ACEPTACION.md pruebas A6-A15).
+
+Librería TypeScript **pura**: sin dependencia de base de datos, de
+`packages/db` ni de `packages/agents` (evita acoplarse a APIs en cambio
+concurrente de otros implementadores). Toda interfaz de persistencia
+(`CompanyDataResolver`, etc.) solo tiene implementación en memoria aquí,
+para pruebas; `apps/api` debe proveer la implementación real respaldada por
+Postgres.
+
+## Arquitectura (módulos en `src/`)
+
+| Módulo | Responsabilidad | REQ |
+|---|---|---|
+| `requirement-matrix.ts` | `RequirementMatrixBuilder`: extrae `RequirementItem[]` de `TenderDocumentText` (bases/anexos/aclaraciones) vía `RuleBasedExtractor` (determinista, regex/léxico) y detecta `Conflict` entre documentos (plazos u obligatoriedad contradictorios) — nunca elige uno en silencio. | REQ-156, REQ-166 |
+| `llm/extractor.ts` | Hook de extractor LLM (`LlmExtractorClient` + `LlmRequirementExtractor`) que se combina con el extractor de reglas en el mismo `RequirementMatrixBuilder`. `FakeLlmExtractorClient` para pruebas deterministas sin red. | REQ-156 |
+| `company-data.ts` | `CompanyDataResolver` (interfaz) + `CompanyDataService`: resuelve documentos/capacidades/experiencia/tarifas/firmantes con reglas duras — ausente → `missing`, vencido/no aprobado → `blocked`, nunca un valor inventado. | REQ-157, REQ-158, REQ-164, REQ-166 |
+| `technical-proposal.ts` | `TechnicalProposalBuilder`: mapea requisitos → dato de empresa aprobado, produce `ProposalStatement` con `source_ref` trazable; dato faltante/bloqueado = bloqueo de sección, nunca texto inventado. | REQ-157, REQ-164 |
+| `economic-proposal.ts` | `EconomicProposalBuilder`: cálculo económico 100% determinista (centavos en `bigint`, half-up), rechaza tarifas no aprobadas/vencidas de punta a punta (sin total parcial), genera carta + anexo desde el mismo objeto de totales (consistencia estructural). | REQ-029, REQ-030, REQ-157, REQ-160, REQ-164 |
+| `money.ts` | Aritmética monetaria en centavos (`bigint`), redondeo half-up explícito. | REQ-029 |
+| `number-to-words.ts` | Motor propio de "cantidad con letra" en español (apócope de "uno", "cien" vs "ciento", etc.), sin dependencias externas. | REQ-031 |
+| `proposal-version.ts` | `ProposalVersionRegistry`: versiona con hash sha256 de cada insumo usado (documento, dato, tarifa) y del conjunto. | REQ-161 |
+| `integrity-checklist.ts` | `IntegrityChecklist`: 7 dimensiones independientes con resultado y evidencia propios — formatos, límites, firmas (solo "requiere firma del usuario", nunca firma), anexos obligatorios, vigencias, cálculos económicos, consistencia cruzada. | REQ-160 |
+| `approval-workflow.ts` | `ApprovalWorkflow`: borrador → en_revisión → aprobado; solo roles `reviewer`/`admin`/`owner` aprueban (nunca `writer`/`viewer`), autoaprobación prohibida; `recordChange` invalida aprobaciones según jerarquía de alcance (sección ⊂ documento ⊂ expediente). | REQ-159, REQ-161, REQ-162 |
+| `package-assembler.ts` | `PackageAssembler`: arma `PackageManifest` + ZIP real (`jszip`); `ready` solo si checklist verde + aprobación vigente de alcance expediente + sin faltantes; si no, `draft` con prefijo/marca "BORRADOR" en manifiesto y nombres de archivo. Incluye siempre el aviso de responsabilidad del usuario. | REQ-048, REQ-159, REQ-163 |
+
+Todos los módulos se re-exportan desde `src/index.ts`.
+
+## Reglas duras verificadas en tests
+
+- **Nunca se inventa un dato**: `CompanyDataService` solo devuelve `ok` con
+  `source_ref`; si falta o no es válido, `missing`/`blocked` explícito.
+- **Nunca un total parcial**: si cualquier concepto económico no resuelve a
+  tarifa aprobada y vigente, `EconomicProposalResult.totals` es `null`.
+- **Nunca "listo" por defecto**: `PackageAssembler.buildManifest` calcula
+  `status` a partir de checklist + aprobaciones + faltantes; nunca hay una
+  ruta que devuelva `"ready"` sin las tres condiciones.
+- **Nunca firma el sistema**: `IntegrityChecklist` solo lee
+  `userConfirmedSigned` (provisto por el llamador); no existe método que lo
+  ponga en `true` desde dentro del paquete.
+- **Sin envío/actuación automática**: `test/api-surface.test.ts` escanea la
+  API pública exportada y el código fuente para verificar que no hay ningún
+  método de "enviar/firmar/actuar en portal" ni import de un cliente
+  HTTP/red en todo el paquete.
+
+## Cómo lo consumirá `apps/api`
+
+1. Implementar `CompanyDataResolver` sobre `packages/db` (tablas de perfil
+   de empresa, documentos, tarifas, firmantes — E2 del backlog).
+2. Implementar `RunStore`-equivalente/persistencia de `RequirementItem[]`,
+   `Conflict[]`, `ApprovalWorkflow` (estado, aprobaciones, comentarios,
+   cambios) y `ProposalVersion` contra Postgres, siguiendo el patrón de
+   `packages/agents` (interfaces agnósticas al backend, in-memory solo para
+   tests).
+3. Conectar un `LlmExtractorClient` real (posiblemente sobre
+   `@atiende/agents`) para complementar `RuleBasedExtractor` en prosa libre
+   no cubierta por patrones.
+4. Exponer endpoints HTTP que llamen a `RequirementMatrixBuilder`,
+   `TechnicalProposalBuilder`/`EconomicProposalBuilder`, `IntegrityChecklist`,
+   `ApprovalWorkflow` y `PackageAssembler` en ese orden; la descarga del ZIP
+   final debe requerir sesión autenticada (fuera del alcance de este
+   paquete puro).
+5. **Ningún endpoint de `apps/api` debe agregar una función de
+   envío/firma/actuación en portal** — ese es exactamente el límite que
+   este paquete fija y que `test/api-surface.test.ts` protege.
+
+## Pruebas de aceptación cubiertas (docs/ACEPTACION.md)
+
+| Prueba | Cobertura | Archivo(s) de test |
+|---|---|---|
+| A6 — dato ausente/contradictorio | Conflicto de plazos entre documentos; dato/capacidad ausente o no aprobada nunca se infiere | `test/requirement-matrix.test.ts`, `test/company-data.test.ts` |
+| A7 — documento/certificado vencido | Documento vencido a la fecha del acto bloquea propuesta técnica y marca "vigencias" en rojo | `test/company-data.test.ts`, `test/integrity-checklist.test.ts`, `test/expediente-flow.test.ts` |
+| A8 — precio no aprobado | Tarifa pendiente/vencida rechazada de punta a punta, sin total parcial | `test/economic-proposal.test.ts`, `test/company-data.test.ts` |
+| A9 — anexo obligatorio faltante | Checklist "anexos_obligatorios" en rojo; paquete no puede ser "ready" | `test/integrity-checklist.test.ts`, `test/package-assembler.test.ts`, `test/expediente-flow.test.ts` |
+| A10 — cálculo económico | Subtotal/IVA/total deterministas half-up, total en letra, consistencia carta/anexo | `test/money.test.ts`, `test/number-to-words.test.ts`, `test/economic-proposal.test.ts` |
+| A11 — edición invalida aprobación | `recordChange` invalida aprobaciones vigentes según jerarquía de alcance | `test/approval-workflow.test.ts`, `test/expediente-flow.test.ts` |
+| A12 — rol indebido | `writer`/`viewer` no pueden aprobar; autoaprobación prohibida | `test/approval-workflow.test.ts` |
+| A13 — expediente completo descargable | Flujo íntegro produce manifiesto "ready" y ZIP real releído con `jszip` | `test/package-assembler.test.ts`, `test/expediente-flow.test.ts` |
+| A14 — expediente incompleto nunca "listo" | Combinaciones de pendientes (checklist rojo, documento faltante, sin aprobación vigente, aprobación invalidada) siempre "draft" | `test/package-assembler.test.ts`, `test/expediente-flow.test.ts` |
+| A15 — firma/envío siempre del usuario | Sin función de envío/firma en la API pública ni imports de red en el código fuente | `test/api-surface.test.ts`, `test/integrity-checklist.test.ts` |
+
+## Scripts
+
+```
+npm run -w packages/expediente typecheck
+npm run -w packages/expediente lint
+npm run -w packages/expediente test
+npm run -w packages/expediente build
+```
+
+## Pendientes (fuera del alcance de este paquete puro)
+
+- Implementaciones reales de `CompanyDataResolver`/persistencia sobre
+  `packages/db` (E2/E7 del backlog) — aquí solo hay in-memory para pruebas.
+- Cliente LLM real para `LlmExtractorClient` (actualmente solo
+  `FakeLlmExtractorClient` determinista en tests).
+- Simulador de puntaje del evaluador y banda legal de precio (REQ-030,
+  REQ-038) — pertenecen a `packages/agents`/E6, no a este paquete.
+- Huellas de similitud entre tenants (REQ-032, anticolusión) — transversal,
+  no implementado aquí.
+- Endpoints HTTP, autenticación y descarga del ZIP (apps/api).
+- `correlation_id` de punta a punta (REQ-171): este paquete no genera ni
+  persiste IDs de correlación; debe inyectarlos `apps/api` al llamarlo.

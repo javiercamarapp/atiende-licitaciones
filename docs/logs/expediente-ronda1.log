@@ -1,0 +1,59 @@
+=== npm install (raíz) ===
+2026-09-06T01:08:48Z
+
+removed 2 packages, and audited 637 packages in 687ms
+
+199 packages are looking for funding
+  run `npm fund` for details
+
+5 vulnerabilities (3 moderate, 1 high, 1 critical)
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+
+=== npm run -w packages/expediente typecheck lint test build ===
+2026-09-06T01:08:49Z
+
+> @atiende/expediente@0.1.0 typecheck
+> tsc --noEmit
+
+--- lint ---
+
+> @atiende/expediente@0.1.0 lint
+> eslint src test
+
+--- test ---
+
+> @atiende/expediente@0.1.0 test
+> vitest run
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/packages/expediente[39m
+
+ [32m✓[39m test/company-data.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/requirement-matrix.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/integrity-checklist.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/approval-workflow.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+ [32m✓[39m test/llm-extractor.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/economic-proposal.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/api-surface.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/package-assembler.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 64[2mms[22m[39m
+ [32m✓[39m test/expediente-flow.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 53[2mms[22m[39m
+ [32m✓[39m test/money.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+ [32m✓[39m test/number-to-words.test.ts [2m([22m[2m25 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m11 passed[39m[22m[90m (11)[39m
+[2m      Tests [22m [1m[32m84 passed[39m[22m[90m (84)[39m
+[2m   Start at [22m 19:08:51
+[2m   Duration [22m 804ms[2m (transform 394ms, setup 0ms, collect 802ms, tests 159ms, environment 2ms, prepare 973ms)[22m
+
+--- build ---
+
+> @atiende/expediente@0.1.0 build
+> tsc -p tsconfig.build.json
+
+
+2026-09-06T01:08:52Z
+=== fin ===
