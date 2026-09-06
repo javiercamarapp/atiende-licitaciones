@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, expect } from "./fixtures";
+import { ensureAdminTwoFactorEnrolled, nextAdminBackupCode, completeStepUp } from "./two-factor-helpers";
 import type { SeedData } from "./global-setup";
 
 // ESM real ("type": "module" en package.json): sin `__dirname` global.
@@ -211,33 +212,45 @@ test.describe.serial("Ronda 3 — recorrido real contra apps/api", () => {
   });
 
   test.describe("como admin (aprueba lo que propuso writer)", () => {
-    test("aprueba la tarifa propuesta por writer", async ({ page }) => {
+    // REQ-044/064 (ronda 5): aprobar exige X-Step-Up -- enrola 2FA para
+    // `admin` (idempotente entre archivos, ver two-factor-helpers.ts) antes
+    // de la primera aprobación real de esta suite.
+    test("admin enrola 2FA (requerido para aprobar tarifas, REQ-044/064)", async ({ page }) => {
+      await ensureAdminTwoFactorEnrolled(page);
+    });
+
+    test("aprueba la tarifa propuesta por writer con step-up 2FA", async ({ page }) => {
       test.setTimeout(60_000);
       await page.goto("/empresa/tarifas-aprobadas");
       const row = page.getByRole("row", { name: new RegExp(rateItemCode) });
       await expect(row).toBeVisible();
 
+      await row.getByRole("button", { name: "Aprobar" }).click();
+
       const approveResponse = page.waitForResponse(
         (res) => res.url().includes("/rates/") && res.url().includes("/approve") && res.request().method() === "POST",
         { timeout: 40_000 },
       );
-      await row.getByRole("button", { name: "Aprobar" }).click();
+      await completeStepUp(page, nextAdminBackupCode());
       const response = await approveResponse;
       expect(response.ok(), `POST .../rates/:id/approve respondió ${response.status()}`).toBe(true);
 
       await expect(row.getByText("Aprobada")).toBeVisible({ timeout: 10_000 });
     });
 
-    // WI-06 (docs/auditoria-2/reverificacion-final-integrada.md): un doble
-    // clic FÍSICO real (dos gestos `page.click()` reales de Playwright,
+    // WI-06 (docs/auditoria-2/reverificacion-final-integrada.md), reubicado
+    // en ronda 5: desde que aprobar exige step-up (REQ-044/064), "Aprobar"
+    // en la fila SOLO abre el modal (sin red) -- el punto real de doble
+    // envío ahora es "Verificar y continuar" dentro de StepUpDialog. Un
+    // doble clic FÍSICO real (dos gestos `page.mouse.click()` reales,
     // disparados con `Promise.all` sin `await` entre ellos -- no
-    // `dispatchEvent`/JS sintético) sobre "Aprobar" debía disparar 2
-    // peticiones de red reales antes de la reparación del guard síncrono en
+    // `dispatchEvent`/JS sintético) ahí debía disparar 2 peticiones de red
+    // reales antes de la reparación del guard síncrono en
     // TarifasAprobadasPage.tsx. Verifica: (a) contra el servidor real, se
     // dispara UNA sola petición `POST .../rates/:id/approve` (no dos), (b)
     // ningún toast de error aparece (ni el 409 honesto de WI-04, que sí
     // aparecería si el guard cliente dejara pasar un segundo POST real).
-    test("un doble clic físico real en Aprobar dispara UNA sola petición de red (WI-06)", async ({ page }) => {
+    test("un doble clic físico real en \"Verificar y continuar\" dispara UNA sola petición de red (WI-06)", async ({ page }) => {
       test.setTimeout(60_000);
       await page.goto("/empresa/tarifas-aprobadas");
       const row = page.getByRole("row", { name: new RegExp(dblClickRateItemCode) });
@@ -250,9 +263,11 @@ test.describe.serial("Ronda 3 — recorrido real contra apps/api", () => {
         }
       });
 
-      const approveButton = row.getByRole("button", { name: "Aprobar" });
-      const box = await approveButton.boundingBox();
-      if (!box) throw new Error("No se pudo obtener la posición del botón Aprobar para el doble clic físico");
+      await row.getByRole("button", { name: "Aprobar" }).click();
+      await page.getByLabel("Código TOTP o de respaldo").fill(nextAdminBackupCode());
+      const verifyButton = page.getByRole("button", { name: "Verificar y continuar" });
+      const box = await verifyButton.boundingBox();
+      if (!box) throw new Error('No se pudo obtener la posición de "Verificar y continuar" para el doble clic físico');
       const x = box.x + box.width / 2;
       const y = box.y + box.height / 2;
 

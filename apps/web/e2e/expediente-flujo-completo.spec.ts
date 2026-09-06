@@ -1,11 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { generate as generateTotpCode } from "otplib";
 import { test, expect } from "./fixtures";
 import { seriousOrCriticalViolations, formatViolations } from "./utils/a11y";
+import { ensureAdminTwoFactorEnrolled, nextAdminBackupCode, completeStepUp } from "./two-factor-helpers";
 import type { SeedData } from "./global-setup";
-import type { Page } from "@playwright/test";
 
 // ESM real ("type": "module" en package.json): sin `__dirname` global.
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -38,11 +37,6 @@ const SIGNER_ROLE_TITLE = `representante_legal_${runId}`;
 const RATE_ITEM_CODE = `E2E-EXP-${runId}`;
 const BASES_SENTENCE = `El licitante deberá contar con un representante legal ${runId} autorizado para firmar la propuesta.`;
 
-// Poblado por el test de enrolamiento 2FA (admin); consumido por las dos
-// aprobaciones posteriores (tarifa, expediente) -- cada código de respaldo
-// es de un solo uso real (ver apps/api/src/lib/step-up.ts).
-let adminBackupCodes: string[] = [];
-
 async function switchOrganization(page: import("@playwright/test").Page, orgName: string) {
   await page.goto("/panel");
   const switcher = page.getByRole("combobox", { name: "Organización" });
@@ -59,35 +53,10 @@ async function selectTender(page: import("@playwright/test").Page, tenderTitle: 
   await page.getByRole("option", { name: tenderTitle }).click();
 }
 
-/**
- * REQ-044/064: aprobar una tarifa o un expediente exige X-Step-Up. Enrola
- * 2FA real (mismo secreto/algoritmo TOTP que apps/api, vía `otplib`, la
- * misma librería) y devuelve los códigos de respaldo mostrados una única
- * vez -- se usan para los step-up posteriores (más simples que recalcular
- * un TOTP vigente cada vez, y cada uno es de un solo uso, igual de real).
- */
-async function enrollTwoFactorAndGetBackupCodes(page: Page): Promise<string[]> {
-  await page.goto("/configuracion");
-  await page.getByRole("button", { name: "Enrolar 2FA" }).click();
-
-  const secret = (await page.locator('[aria-label="Secreto TOTP"]').textContent())?.trim();
-  if (!secret) throw new Error("No se pudo leer el secreto TOTP recién generado en Configuración.");
-  const backupCodes = await page.locator('[aria-label="Códigos de respaldo"] li').allTextContents();
-  if (backupCodes.length === 0) throw new Error("No se pudieron leer los códigos de respaldo mostrados al enrolar.");
-
-  const code = await generateTotpCode({ secret });
-  await page.getByLabel("Código de 6 dígitos").fill(code);
-  await page.getByRole("button", { name: "Confirmar enrolamiento" }).click();
-  await expect(page.getByText("Enrolado")).toBeVisible();
-
-  return backupCodes.map((c) => c.trim());
-}
-
-/** Completa el modal de step-up (StepUpDialog, compartido por Aprobar tarifa y Aprobar expediente) con un código de respaldo de un solo uso. */
-async function completeStepUp(page: Page, backupCode: string) {
-  await page.getByLabel("Código TOTP o de respaldo").fill(backupCode);
-  await page.getByRole("button", { name: "Verificar y continuar" }).click();
-}
+// REQ-044/064: `ensureAdminTwoFactorEnrolled`/`nextAdminBackupCode`/
+// `completeStepUp` viven en ./two-factor-helpers.ts (compartidas con
+// ronda3-flujo-real.spec.ts -- 2FA es de CUENTA, no de organización, así
+// que la misma cuenta `admin` solo puede enrolarse una vez por corrida).
 
 test.describe.serial("Expediente — flujo completo real (ronda 5)", () => {
   test("preparación: admin agrega un firmante autorizado en la organización C", async ({ page }) => {
@@ -103,8 +72,7 @@ test.describe.serial("Expediente — flujo completo real (ronda 5)", () => {
   });
 
   test("preparación: admin enrola 2FA (requerido para aprobar tarifas y expedientes, REQ-044/064)", async ({ page }) => {
-    adminBackupCodes = await enrollTwoFactorAndGetBackupCodes(page);
-    expect(adminBackupCodes.length).toBeGreaterThanOrEqual(2);
+    await ensureAdminTwoFactorEnrolled(page);
   });
 
   test("preparación: admin propone y aprueba una tarifa con step-up 2FA (dato real para la propuesta económica)", async ({ page }) => {
@@ -120,7 +88,7 @@ test.describe.serial("Expediente — flujo completo real (ronda 5)", () => {
 
     const row = page.getByRole("row", { name: new RegExp(RATE_ITEM_CODE) });
     await row.getByRole("button", { name: "Aprobar" }).click();
-    await completeStepUp(page, adminBackupCodes[0]);
+    await completeStepUp(page, nextAdminBackupCode());
     await expect(row.getByText("Aprobada")).toBeVisible();
   });
 
@@ -246,7 +214,7 @@ test.describe.serial("Expediente — flujo completo real (ronda 5)", () => {
     await selectTender(page, seed.tender!.title);
 
     await page.getByRole("button", { name: "Aprobar expediente" }).click();
-    await completeStepUp(page, adminBackupCodes[1]);
+    await completeStepUp(page, nextAdminBackupCode());
     await expect(page.getByText("Aprobado", { exact: true })).toBeVisible();
   });
 
