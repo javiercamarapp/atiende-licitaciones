@@ -1,0 +1,861 @@
+=== Auditoría adversarial packages/db + apps/api -- commit 8052ff49359336d184a993fc2df160ac9b3cc08f ===
+Worktree: /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-dbapi (eliminado al terminar)
+Fecha: 2026-09-06T01:23:07Z
+
+############################################################
+# 1. REPRODUCIBILIDAD (npm install + test + typecheck + lint)
+############################################################
+=== Reproducibilidad ronda1 (worktree /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-dbapi, commit 8052ff4) ===
+2026-09-06T01:09:35Z
+v25.6.1
+11.12.1
+--- npm install ---
+npm warn deprecated whatwg-encoding@3.1.1: Use @exodus/bytes instead for a more spec-conformant and faster implementation
+npm warn deprecated eslint@9.39.5: This version is no longer supported. Please see https://eslint.org/version-support for other options.
+
+added 611 packages, and audited 616 packages in 10s
+
+199 packages are looking for funding
+  run `npm fund` for details
+
+5 vulnerabilities (3 moderate, 1 high, 1 critical)
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+exit: 0
+--- npm run -w packages/db test ---
+
+> @atiende/db@0.1.0 test
+> vitest run
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-dbapi/packages/db[39m
+
+ [32m✓[39m test/jobs-locking.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 5281[2mms[22m[39m
+ [32m✓[39m test/org-bootstrap.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 5411[2mms[22m[39m
+ [32m✓[39m test/backoffice-extension.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 5519[2mms[22m[39m
+ [32m✓[39m test/rls-roles.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 5853[2mms[22m[39m
+ [32m✓[39m test/rls-isolation.test.ts [2m([22m[2m68 tests[22m[2m)[22m[33m 6083[2mms[22m[39m
+ [32m✓[39m test/idempotency-and-audit.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 6334[2mms[22m[39m
+ [32m✓[39m test/migrate.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 7718[2mms[22m[39m
+   [33m[2m✓[22m[39m migraciones[2m > [22maplican todas sin error y quedan registradas en schema_migrations [33m5813[2mms[22m[39m
+   [33m[2m✓[22m[39m migraciones[2m > [22mse pueden aplicar dos veces sin error (idempotente): la segunda vez no repite nada [33m729[2mms[22m[39m
+   [33m[2m✓[22m[39m migraciones[2m > [22mensureMigrationsTable es idempotente [33m589[2mms[22m[39m
+   [33m[2m✓[22m[39m migraciones[2m > [22mcrea todas las tablas de dominio esperadas [33m585[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m7 passed[39m[22m[90m (7)[39m
+[2m      Tests [22m [1m[32m90 passed[39m[22m[90m (90)[39m
+[2m   Start at [22m 19:09:50
+[2m   Duration [22m 8.07s[2m (transform 198ms, setup 0ms, collect 378ms, tests 42.20s, environment 1ms, prepare 425ms)[22m
+
+exit: 0
+--- npm run -w packages/db typecheck ---
+
+> @atiende/db@0.1.0 typecheck
+> tsc --noEmit
+
+exit: 0
+--- npm run -w packages/db lint ---
+
+> @atiende/db@0.1.0 lint
+> eslint src test
+
+exit: 0
+--- npm run -w apps/api typecheck ---
+
+> @atiende/api@0.1.0 typecheck
+> tsc --noEmit
+
+exit: 0
+--- npm run -w apps/api lint ---
+
+> @atiende/api@0.1.0 lint
+> eslint src test
+
+exit: 0
+--- npm run -w apps/api test ---
+
+> @atiende/api@0.1.0 test
+> vitest run
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-dbapi/apps/api[39m
+
+ [32m✓[39m test/auth-and-orgs-flow.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 2684[2mms[22m[39m
+ [32m✓[39m test/isolation-and-idempotency.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 3550[2mms[22m[39m
+ [32m✓[39m test/rate-limit-and-health.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 4586[2mms[22m[39m
+   [33m[2m✓[22m[39m salud (healthz/readyz)[2m > [22mGET /healthz siempre responde 200 sin tocar la base de datos [33m732[2mms[22m[39m
+   [33m[2m✓[22m[39m salud (healthz/readyz)[2m > [22mGET /readyz responde 200 con la base de datos disponible [33m661[2mms[22m[39m
+   [33m[2m✓[22m[39m salud (healthz/readyz)[2m > [22mGET /readyz responde 503 si la base de datos no está disponible [33m766[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m3 passed[39m[22m[90m (3)[39m
+[2m      Tests [22m [1m[32m12 passed[39m[22m[90m (12)[39m
+[2m   Start at [22m 19:10:09
+[2m   Duration [22m 5.07s[2m (transform 86ms, setup 0ms, collect 448ms, tests 10.82s, environment 0ms, prepare 150ms)[22m
+
+exit: 0
+
+############################################################
+# 2. SCRIPT ADVERSARIAL RLS DINAMICO (622 ataques)
+############################################################
+[BLOQUEADO] DB-RLS SELECT tenders (rol owner) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tenders (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tenders (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT tenders (rol admin) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tenders (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tenders (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT tenders (rol analyst) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tenders (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tenders (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT tenders (rol writer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tenders (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tenders (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT tenders (rol reviewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tenders (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tenders (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT tenders (rol viewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tenders (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tenders (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT tender_matches (rol owner) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tender_matches (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tender_matches (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT tender_matches (rol admin) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tender_matches (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tender_matches (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT tender_matches (rol analyst) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tender_matches (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tender_matches (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT tender_matches (rol writer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tender_matches (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tender_matches (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT tender_matches (rol reviewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tender_matches (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tender_matches (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT tender_matches (rol viewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tender_matches (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tender_matches (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT go_no_go_decisions (rol owner) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE go_no_go_decisions (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE go_no_go_decisions (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT go_no_go_decisions (rol admin) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE go_no_go_decisions (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE go_no_go_decisions (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT go_no_go_decisions (rol analyst) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE go_no_go_decisions (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE go_no_go_decisions (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT go_no_go_decisions (rol writer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE go_no_go_decisions (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE go_no_go_decisions (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT go_no_go_decisions (rol reviewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE go_no_go_decisions (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE go_no_go_decisions (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT go_no_go_decisions (rol viewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE go_no_go_decisions (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE go_no_go_decisions (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT tender_documents (rol owner) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tender_documents (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tender_documents (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT tender_documents (rol admin) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tender_documents (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tender_documents (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT tender_documents (rol analyst) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tender_documents (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tender_documents (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT tender_documents (rol writer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tender_documents (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tender_documents (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT tender_documents (rol reviewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tender_documents (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tender_documents (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT tender_documents (rol viewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tender_documents (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tender_documents (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT requirement_items (rol owner) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE requirement_items (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE requirement_items (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT requirement_items (rol admin) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE requirement_items (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE requirement_items (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT requirement_items (rol analyst) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE requirement_items (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE requirement_items (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT requirement_items (rol writer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE requirement_items (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE requirement_items (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT requirement_items (rol reviewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE requirement_items (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE requirement_items (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT requirement_items (rol viewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE requirement_items (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE requirement_items (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT compliance_items (rol owner) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE compliance_items (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE compliance_items (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT compliance_items (rol admin) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE compliance_items (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE compliance_items (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT compliance_items (rol analyst) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE compliance_items (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE compliance_items (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT compliance_items (rol writer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE compliance_items (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE compliance_items (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT compliance_items (rol reviewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE compliance_items (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE compliance_items (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT compliance_items (rol viewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE compliance_items (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE compliance_items (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT proposals (rol owner) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE proposals (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE proposals (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT proposals (rol admin) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE proposals (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE proposals (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT proposals (rol analyst) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE proposals (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE proposals (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT proposals (rol writer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE proposals (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE proposals (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT proposals (rol reviewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE proposals (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE proposals (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT proposals (rol viewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE proposals (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE proposals (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT proposal_sections (rol owner) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE proposal_sections (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE proposal_sections (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT proposal_sections (rol admin) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE proposal_sections (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE proposal_sections (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT proposal_sections (rol analyst) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE proposal_sections (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE proposal_sections (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT proposal_sections (rol writer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE proposal_sections (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE proposal_sections (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT proposal_sections (rol reviewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE proposal_sections (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE proposal_sections (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT proposal_sections (rol viewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE proposal_sections (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE proposal_sections (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT reviews (rol owner) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE reviews (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE reviews (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT reviews (rol admin) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE reviews (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE reviews (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT reviews (rol analyst) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE reviews (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE reviews (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT reviews (rol writer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE reviews (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE reviews (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT reviews (rol reviewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE reviews (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE reviews (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT reviews (rol viewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE reviews (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE reviews (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT submissions (rol owner) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE submissions (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE submissions (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT submissions (rol admin) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE submissions (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE submissions (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT submissions (rol analyst) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE submissions (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE submissions (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT submissions (rol writer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE submissions (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE submissions (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT submissions (rol reviewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE submissions (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE submissions (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT submissions (rol viewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE submissions (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE submissions (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT post_award_followups (rol owner) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE post_award_followups (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE post_award_followups (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT post_award_followups (rol admin) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE post_award_followups (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE post_award_followups (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT post_award_followups (rol analyst) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE post_award_followups (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE post_award_followups (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT post_award_followups (rol writer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE post_award_followups (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE post_award_followups (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT post_award_followups (rol reviewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE post_award_followups (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE post_award_followups (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT post_award_followups (rol viewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE post_award_followups (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE post_award_followups (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT agent_runs (rol owner) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE agent_runs (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE agent_runs (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT agent_runs (rol admin) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE agent_runs (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE agent_runs (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT agent_runs (rol analyst) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE agent_runs (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE agent_runs (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT agent_runs (rol writer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE agent_runs (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE agent_runs (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT agent_runs (rol reviewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE agent_runs (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE agent_runs (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT agent_runs (rol viewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE agent_runs (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE agent_runs (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT tool_calls (rol owner) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tool_calls (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tool_calls (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT tool_calls (rol admin) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tool_calls (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tool_calls (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT tool_calls (rol analyst) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tool_calls (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tool_calls (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT tool_calls (rol writer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tool_calls (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tool_calls (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT tool_calls (rol reviewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tool_calls (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tool_calls (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT tool_calls (rol viewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tool_calls (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tool_calls (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT invitations (rol owner) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE invitations (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE invitations (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT invitations (rol admin) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE invitations (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE invitations (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT invitations (rol analyst) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE invitations (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE invitations (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT invitations (rol writer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE invitations (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE invitations (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT invitations (rol reviewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE invitations (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE invitations (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT invitations (rol viewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE invitations (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE invitations (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT api_keys (rol owner) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE api_keys (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE api_keys (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT api_keys (rol admin) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE api_keys (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE api_keys (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT api_keys (rol analyst) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE api_keys (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE api_keys (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT api_keys (rol writer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE api_keys (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE api_keys (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT api_keys (rol reviewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE api_keys (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE api_keys (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT api_keys (rol viewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE api_keys (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE api_keys (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT memberships (rol owner) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE memberships (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE memberships (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT memberships (rol admin) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE memberships (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE memberships (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT memberships (rol analyst) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE memberships (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE memberships (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT memberships (rol writer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE memberships (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE memberships (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT memberships (rol reviewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE memberships (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE memberships (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT memberships (rol viewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE memberships (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE memberships (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT jobs (rol owner) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE jobs (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE jobs (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT jobs (rol admin) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE jobs (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE jobs (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT jobs (rol analyst) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE jobs (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE jobs (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT jobs (rol writer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE jobs (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE jobs (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT jobs (rol reviewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE jobs (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE jobs (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT jobs (rol viewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE jobs (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE jobs (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT rate_limits (rol owner) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE rate_limits (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE rate_limits (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT rate_limits (rol admin) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE rate_limits (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE rate_limits (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT rate_limits (rol analyst) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE rate_limits (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE rate_limits (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT rate_limits (rol writer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE rate_limits (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE rate_limits (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT rate_limits (rol reviewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE rate_limits (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE rate_limits (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT rate_limits (rol viewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE rate_limits (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE rate_limits (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT company_profiles (rol owner) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE company_profiles (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE company_profiles (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT company_profiles (rol admin) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE company_profiles (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE company_profiles (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT company_profiles (rol analyst) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE company_profiles (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE company_profiles (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT company_profiles (rol writer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE company_profiles (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE company_profiles (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT company_profiles (rol reviewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE company_profiles (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE company_profiles (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT company_profiles (rol viewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE company_profiles (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE company_profiles (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT capabilities (rol owner) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE capabilities (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE capabilities (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT capabilities (rol admin) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE capabilities (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE capabilities (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT capabilities (rol analyst) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE capabilities (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE capabilities (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT capabilities (rol writer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE capabilities (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE capabilities (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT capabilities (rol reviewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE capabilities (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE capabilities (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT capabilities (rol viewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE capabilities (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE capabilities (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT experience_records (rol owner) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE experience_records (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE experience_records (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT experience_records (rol admin) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE experience_records (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE experience_records (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT experience_records (rol analyst) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE experience_records (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE experience_records (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT experience_records (rol writer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE experience_records (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE experience_records (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT experience_records (rol reviewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE experience_records (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE experience_records (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT experience_records (rol viewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE experience_records (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE experience_records (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT products_services (rol owner) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE products_services (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE products_services (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT products_services (rol admin) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE products_services (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE products_services (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT products_services (rol analyst) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE products_services (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE products_services (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT products_services (rol writer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE products_services (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE products_services (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT products_services (rol reviewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE products_services (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE products_services (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT products_services (rol viewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE products_services (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE products_services (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT locations (rol owner) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE locations (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE locations (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT locations (rol admin) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE locations (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE locations (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT locations (rol analyst) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE locations (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE locations (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT locations (rol writer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE locations (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE locations (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT locations (rol reviewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE locations (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE locations (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT locations (rol viewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE locations (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE locations (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT registrations (rol owner) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE registrations (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE registrations (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT registrations (rol admin) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE registrations (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE registrations (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT registrations (rol analyst) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE registrations (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE registrations (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT registrations (rol writer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE registrations (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE registrations (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT registrations (rol reviewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE registrations (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE registrations (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT registrations (rol viewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE registrations (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE registrations (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT company_documents (rol owner) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE company_documents (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE company_documents (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT company_documents (rol admin) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE company_documents (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE company_documents (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT company_documents (rol analyst) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE company_documents (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE company_documents (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT company_documents (rol writer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE company_documents (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE company_documents (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT company_documents (rol reviewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE company_documents (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE company_documents (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT company_documents (rol viewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE company_documents (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE company_documents (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT authorized_signatories (rol owner) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE authorized_signatories (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE authorized_signatories (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT authorized_signatories (rol admin) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE authorized_signatories (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE authorized_signatories (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT authorized_signatories (rol analyst) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE authorized_signatories (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE authorized_signatories (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT authorized_signatories (rol writer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE authorized_signatories (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE authorized_signatories (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT authorized_signatories (rol reviewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE authorized_signatories (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE authorized_signatories (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT authorized_signatories (rol viewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE authorized_signatories (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE authorized_signatories (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT restrictions (rol owner) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE restrictions (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE restrictions (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT restrictions (rol admin) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE restrictions (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE restrictions (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT restrictions (rol analyst) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE restrictions (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE restrictions (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT restrictions (rol writer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE restrictions (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE restrictions (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT restrictions (rol reviewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE restrictions (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE restrictions (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT restrictions (rol viewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE restrictions (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE restrictions (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT field_provenance (rol owner) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE field_provenance (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE field_provenance (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT field_provenance (rol admin) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE field_provenance (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE field_provenance (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT field_provenance (rol analyst) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE field_provenance (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE field_provenance (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT field_provenance (rol writer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE field_provenance (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE field_provenance (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT field_provenance (rol reviewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE field_provenance (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE field_provenance (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT field_provenance (rol viewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE field_provenance (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE field_provenance (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT tender_versions (rol owner) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tender_versions (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tender_versions (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT tender_versions (rol admin) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tender_versions (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tender_versions (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT tender_versions (rol analyst) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tender_versions (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tender_versions (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT tender_versions (rol writer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tender_versions (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tender_versions (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT tender_versions (rol reviewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tender_versions (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tender_versions (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT tender_versions (rol viewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tender_versions (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tender_versions (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT tender_change_events (rol owner) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tender_change_events (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tender_change_events (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT tender_change_events (rol admin) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tender_change_events (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tender_change_events (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT tender_change_events (rol analyst) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tender_change_events (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tender_change_events (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT tender_change_events (rol writer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tender_change_events (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tender_change_events (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT tender_change_events (rol reviewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tender_change_events (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tender_change_events (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT tender_change_events (rol viewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE tender_change_events (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE tender_change_events (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT approved_rates (rol owner) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE approved_rates (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE approved_rates (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT approved_rates (rol admin) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE approved_rates (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE approved_rates (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT approved_rates (rol analyst) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE approved_rates (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE approved_rates (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT approved_rates (rol writer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE approved_rates (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE approved_rates (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT approved_rates (rol reviewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE approved_rates (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE approved_rates (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT approved_rates (rol viewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE approved_rates (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE approved_rates (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT proposal_pricing_lines (rol owner) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE proposal_pricing_lines (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE proposal_pricing_lines (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT proposal_pricing_lines (rol admin) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE proposal_pricing_lines (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE proposal_pricing_lines (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT proposal_pricing_lines (rol analyst) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE proposal_pricing_lines (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE proposal_pricing_lines (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT proposal_pricing_lines (rol writer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE proposal_pricing_lines (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE proposal_pricing_lines (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT proposal_pricing_lines (rol reviewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE proposal_pricing_lines (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE proposal_pricing_lines (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT proposal_pricing_lines (rol viewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE proposal_pricing_lines (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE proposal_pricing_lines (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT proposal_approvals (rol owner) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE proposal_approvals (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE proposal_approvals (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT proposal_approvals (rol admin) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE proposal_approvals (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE proposal_approvals (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT proposal_approvals (rol analyst) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE proposal_approvals (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE proposal_approvals (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT proposal_approvals (rol writer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE proposal_approvals (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE proposal_approvals (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT proposal_approvals (rol reviewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE proposal_approvals (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE proposal_approvals (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT proposal_approvals (rol viewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE proposal_approvals (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE proposal_approvals (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT package_manifests (rol owner) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE package_manifests (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE package_manifests (rol owner) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT package_manifests (rol admin) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE package_manifests (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE package_manifests (rol admin) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT package_manifests (rol analyst) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE package_manifests (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE package_manifests (rol analyst) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT package_manifests (rol writer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE package_manifests (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE package_manifests (rol writer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT package_manifests (rol reviewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE package_manifests (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE package_manifests (rol reviewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS SELECT package_manifests (rol viewer) :: 0 filas (correcto)
+[BLOQUEADO] DB-RLS UPDATE package_manifests (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS DELETE package_manifests (rol viewer) :: 0 filas afectadas (correcto)
+[BLOQUEADO] DB-RLS contexto org_id inexistente (SELECT tenders) :: 0 filas
+[BLOQUEADO] DB-RLS INSERT org_id spoofed con contexto fantasma :: rechazado (RLS WITH CHECK)
+[BLOQUEADO] DB-RLS INSERT org_id ajeno (actor orgB escribe org_id=orgA) :: rechazado (RLS WITH CHECK / RETURNING 42501)
+[BLOQUEADO] DB-RLS UPDATE org_id (mover fila propia a otra org) :: rechazado con excepción: new row violates row-level security policy for table "tenders"
+[BLOQUEADO] DB-RLS JOIN tenders+proposals cross-org :: 0 filas
+[BLOQUEADO] DB-RLS subconsulta EXISTS (oráculo de existencia cross-org) :: EXISTS devolvió false (correcto)
+[BLOQUEADO] DB-RLS app.has_role(orgAjena) llamado directamente :: has_role devolvió false (correcto, valida membresía real, no confía en org_id del argumento)
+[FUGA] DB-RLS app.membership_role(orgAjena, usuarioAjeno) invocable directamente :: la función devolvió el rol real "owner" de un usuario de orgA a un actor autenticado de orgB (fuga de información de membresía cross-tenant vía función SECURITY DEFINER sin authz adicional)
+[FUGA] DB-RLS app.find_user_by_email(ajeno) invocable por cualquier actor autenticado :: devolvió id + password_hash de un usuario ajeno (test-hash...) a un actor sin relación con esa cuenta -- función SECURITY DEFINER pensada solo para /auth/login pero invocable por cualquiera con rol app_role
+[BLOQUEADO] DB-RLS app.is_superadmin() para actor normal :: devolvió false
+[INFO] Bypass de superusuario sin SET LOCAL ROLE app_role :: CONFIRMADO: una conexión que omite "SET LOCAL ROLE app_role" ve TODO sin RLS (riesgo documentado en packages/db/README.md). apps/api SIEMPRE fija el rol manualmente en cada una de sus 8 rutas con acceso a datos (verificado por grep), pero NO usa el helper centralizado withTenantContext/applyTenantContext de @atiende/db -- el patrón "set local role app_role" está duplicado a mano en cada ruta sin ninguna prueba/lint que impida omitirlo en una ruta futura.
+
+=== RESUMEN ===
+Ataques ejecutados: 622
+Bloqueados correctamente: 620
+Fugas encontradas: 2
+
+--- DETALLE DE FUGAS ---
+- DB-RLS app.membership_role(orgAjena, usuarioAjeno) invocable directamente: la función devolvió el rol real "owner" de un usuario de orgA a un actor autenticado de orgB (fuga de información de membresía cross-tenant vía función SECURITY DEFINER sin authz adicional)
+- DB-RLS app.find_user_by_email(ajeno) invocable por cualquier actor autenticado: devolvió id + password_hash de un usuario ajeno (test-hash...) a un actor sin relación con esa cuenta -- función SECURITY DEFINER pensada solo para /auth/login pero invocable por cualquiera con rol app_role
+
+############################################################
+# 3. SCRIPT ADVERSARIAL INTEGRIDAD DE NEGOCIO (DB)
+############################################################
+[FALLA] DB-BIZ trigger enforce_approved_rate rechaza tarifa VENCIDA (valid_until pasado) :: INSERT tuvo éxito (1 fila) usando una tarifa con valid_until en el pasado -- el trigger solo valida status='approved' y org_id, NO valid_from/valid_until
+[BLOQUEADO/OK] DB-BIZ trigger enforce_approved_rate rechaza tarifa de OTRA organización (bypass RLS, solo trigger) :: rechazado: La tarifa 2f8a5c09-29c6-496c-8e0e-4ca4c2573ab9 pertenece a otra organización
+[FALLA] DB-BIZ modificar unit_price de una tarifa YA aprobada exige nueva revisión (vuelve a draft o invalida algo) :: UPDATE tuvo éxito: unit_price cambió a 99999 y status SIGUE "approved" -- no hay trigger que revierta a 'draft' ni que invalide líneas/aprobaciones dependientes (REQ-162 no aplicado a approved_rates)
+[FALLA] DB-BIZ constraint package_ready_requires_checklist detecta checklist INCOMPLETO (no solo NULL) :: INSERT tuvo éxito (1 fila) con checklist_snapshot lleno de items en rojo/faltantes -- el CHECK solo exige "not null", no valida contenido; la validación de completitud real es responsabilidad de la capa de aplicación (packages/expediente, según el propio README), que NO EXISTE TODAVÍA en apps/api
+[FALLA] DB-BIZ trigger AUTOMÁTICO invalida proposals dependientes al insertar tender_change_events (REQ-155/REQ-162) :: la propuesta SIGUE sin invalidated_at tras insertar el evento de cambio: NO existe trigger de invalidación automática en la base de datos; las columnas invalidated_at/invalidated_reason existen pero solo se llenan si algún código de aplicación las actualiza a mano (y ese código no existe en apps/api todavía, según su propio README)
+
+=== RESUMEN INTEGRIDAD DE NEGOCIO ===
+Ataques/verificaciones: 5
+OK/bloqueados: 1
+Fallas: 4
+
+############################################################
+# 4. SCRIPT ADVERSARIAL API
+############################################################
+[OK] API-AUTH JWT alg=none rechazado :: status=401
+[OK] API-AUTH JWT con firma corrupta rechazado :: status=401
+[OK] API-AUTH JWT con sub falsificado (sin re-firmar) rechazado :: status=401
+[OK] API-AUTH access token no sirve como refresh token (typ check) :: status=401
+[OK] API-AUTH refresh token no sirve como access token (typ check) :: status=401
+[OK] API-AUTH token expirado rechazado :: status=401
+[OK] API-AUTH token firmado con secreto distinto rechazado :: status=401
+[FALLA] API-AUTH refresh token de un solo uso (se invalida tras usarse) :: el MISMO refresh token se pudo reutilizar 3 veces seguidas y siguió emitiendo tokens válidos -- no hay rotación ni lista de revocación (JWT stateless, documentado como pendiente en README, pero confirma que un refresh token robado es indefinidamente reutilizable durante 30 días sin forma de revocarlo)
+[FALLA] API-AUTH /auth/register NO revela si el email ya existe :: status=409 body={"type":"https://atiende.example/errors/conflict","title":"Ya existe una cuenta con ese email","status":409,"requestId": -- 409 explícito confirma para un atacante que el email ya está registrado (enumeración de usuarios)
+[OK] API-AUTH timing de /auth/login no distingue email existente vs inexistente :: mediana email inexistente=0.06ms, mediana email existente+password mala=0.04ms (ratio=0.6x) -- el código (routes.ts) retorna 401 INMEDIATAMENTE si el email no existe, pero ejecuta scrypt (costoso) antes de retornar 401 si el email SÍ existe; ambas respuestas dicen "Credenciales inválidas" pero el tiempo de respuesta las distingue
+[OK] API-AUTHZ X-Org-Id inexistente (UUID que no existe) rechazado :: status=403
+[FALLA] API-AUTHZ X-Org-Id con formato inválido (no UUID) rechazado sin 500 :: status=500
+[FALLA] API-AUTHZ un admin NO puede autopromoverse a owner :: status=200 body={"userId":"3eddc722-44e1-4351-acbb-87698e14d033","role":"owner"} -- PATCH /organizations/memberships/:userId solo exige que el actor sea owner/admin, sin distinguir que el rol destino sea "owner" ni que el objetivo sea uno mismo
+[OK] API-AUTHZ no se puede degradar al ÚLTIMO owner de una organización :: sigue habiendo al menos un owner (inesperado si el PATCH anterior tuvo éxito, revisar)
+[OK] API-IDEMP misma Idempotency-Key en dos organizaciones distintas no se pisan (aislada por org_id) :: orgA=201 orgB=201 (la tabla idempotency_keys es UNIQUE(org_id, key), así que esto se espera que funcione correctamente)
+[OK] API-RATELIMIT 6º intento sin X-Forwarded-For es 429 :: status=429
+[OK] API-RATELIMIT header X-Forwarded-For falso NO burla el límite (trustProxy no habilitado) :: status=429 -- correcto: Fastify no confía en X-Forwarded-For sin trustProxy, usa la IP real del socket
+[FALLA] API-SEC /docs/json (OpenAPI) accesible sin autenticación :: status=200, 7 rutas documentadas expuestas públicamente (incluye /organizations/memberships/:userId y todo el esquema de payloads) sin ningún gate por NODE_ENV ni autenticación
+[FALLA] API-SEC headers de seguridad HTTP presentes (helmet-like) :: faltan: x-content-type-options, x-frame-options, strict-transport-security, content-security-policy -- no hay @fastify/helmet ni configuración manual de estos headers (confirmado: no está en package.json)
+[OK] API-SEC error 500 en producción no filtra mensaje/stack interno :: status=500 body={"type":"https://atiende.example/errors/internal-server-error","title":"Error interno del servidor","status":500,"requestId":"5f0dd3e8-f8e1-4881-8551-219e41102648"}
+
+=== RESUMEN API ===
+Verificaciones: 20
+OK: 14
+Fallas: 6
+
+--- DETALLE ---
+- API-AUTH refresh token de un solo uso (se invalida tras usarse): el MISMO refresh token se pudo reutilizar 3 veces seguidas y siguió emitiendo tokens válidos -- no hay rotación ni lista de revocación (JWT stateless, documentado como pendiente en README, pero confirma que un refresh token robado es indefinidamente reutilizable durante 30 días sin forma de revocarlo)
+- API-AUTH /auth/register NO revela si el email ya existe: status=409 body={"type":"https://atiende.example/errors/conflict","title":"Ya existe una cuenta con ese email","status":409,"requestId": -- 409 explícito confirma para un atacante que el email ya está registrado (enumeración de usuarios)
+- API-AUTHZ X-Org-Id con formato inválido (no UUID) rechazado sin 500: status=500
+- API-AUTHZ un admin NO puede autopromoverse a owner: status=200 body={"userId":"3eddc722-44e1-4351-acbb-87698e14d033","role":"owner"} -- PATCH /organizations/memberships/:userId solo exige que el actor sea owner/admin, sin distinguir que el rol destino sea "owner" ni que el objetivo sea uno mismo
+- API-SEC /docs/json (OpenAPI) accesible sin autenticación: status=200, 7 rutas documentadas expuestas públicamente (incluye /organizations/memberships/:userId y todo el esquema de payloads) sin ningún gate por NODE_ENV ni autenticación
+- API-SEC headers de seguridad HTTP presentes (helmet-like): faltan: x-content-type-options, x-frame-options, strict-transport-security, content-security-policy -- no hay @fastify/helmet ni configuración manual de estos headers (confirmado: no está en package.json)
+
+############################################################
+# 4b. VERIFICACIONES API ADICIONALES (ultimo owner degradado, X-Org-Id malformado)
+############################################################
+[FALLA] API-AUTHZ degradar al ÚNICO owner (sin escalación previa, admin degrada directamente) :: status PATCH=200, owners restantes=0 -- LA ORGANIZACIÓN SE QUEDÓ SIN NINGÚN OWNER. Un admin pudo degradar al único owner a "viewer" sin ninguna comprobación de "último owner" en organizations/routes.ts (PATCH /organizations/memberships/:userId). La organización queda huérfana: nadie puede volver a asignar el rol owner (esa acción requiere MEMBERSHIP_ADMIN_ROLES = owner/admin, y ya no queda ningún owner; un admin restante SÍ podría reasignarlo, pero si también hay 0 admins la org queda completamente bloqueada).
+[INFO] respuesta completa para X-Org-Id malformado (posible inyección): status=500
+{"type":"https://atiende.example/errors/internal-server-error","title":"invalid input syntax for type uuid: \"not-a-uuid; DROP TABLE users;--\"","status":500,"requestId":"c96dbdf4-c4dc-41c4-8f4d-f4da3ce30ab6"}
+
+############################################################
+# 5. NPM AUDIT
+############################################################
+# npm audit report
+
+esbuild  <=0.24.2
+Severity: moderate
+esbuild enables any website to send any requests to the development server and read the response - https://github.com/advisories/GHSA-67mh-4wv8-2f99
+fix available via `npm audit fix --force`
+Will install vitest@4.1.11, which is a breaking change
+node_modules/vite-node/node_modules/esbuild
+node_modules/vitest/node_modules/esbuild
+  vite  <=6.4.2
+  Depends on vulnerable versions of esbuild
+  node_modules/vite-node/node_modules/vite
+  node_modules/vitest/node_modules/vite
+    @vitest/mocker  <=3.0.0-beta.4
+    Depends on vulnerable versions of vite
+    node_modules/vitest/node_modules/@vitest/mocker
+      vitest  <=3.2.5
+      Depends on vulnerable versions of @vitest/mocker
+      Depends on vulnerable versions of vite
+      Depends on vulnerable versions of vite-node
+      node_modules/vitest
+    vite-node  <=2.2.0-beta.2
+    Depends on vulnerable versions of vite
+    node_modules/vite-node
+
+
+
+5 vulnerabilities (3 moderate, 1 high, 1 critical)
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+############################################################
+# 6. MUTATION TESTING (5 mutaciones manuales, revertidas)
+############################################################
+Mutación 1: packages/db/migrations/0014_pricing.sql -- se comentó el chequeo
+`if v_status <> 'approved' then raise exception...` dentro de app.enforce_approved_rate().
+Resultado: `npm run -w packages/db test -- backoffice-extension` -> 1 failed | 4 passed (era 5 passed). CAPTURADO.
+Revertido con `git checkout -- packages/db/migrations/0014_pricing.sql`.
+
+Mutación 2: packages/db/migrations/0015_approvals_and_packages.sql -- se eliminó el
+`constraint package_ready_requires_checklist check (status = 'draft' or checklist_snapshot is not null)`.
+Resultado: `npm run -w packages/db test -- backoffice-extension` -> 1 failed | 4 passed. CAPTURADO.
+Revertido.
+
+Mutación 3: packages/db/migrations/0007_rls_functions.sql -- se cambió la política de
+SELECT genérica de `app.apply_org_rls` a `using (true)` (afecta a ~30 tablas de dominio a la vez).
+Resultado: `npm run -w packages/db test -- rls-isolation` -> 66 failed | 2 passed (de 68). CAPTURADO (masivamente).
+Revertido.
+
+Mutación 4: packages/db/migrations/0003_system_tables.sql -- se eliminó
+`unique (org_id, key)` de `idempotency_keys`.
+Resultado: `npm run -w packages/db test -- idempotency-and-audit` -> 1 failed | 3 passed (de 4). CAPTURADO.
+Revertido.
+
+Mutación 5: packages/db/migrations/0008_rls_policies.sql -- se agregó una política de
+UPDATE permisiva sobre `audit_log` (rompe el carácter append-only).
+Resultado: `npm run -w packages/db test -- idempotency-and-audit` -> 1 failed | 3 passed (de 4). CAPTURADO.
+Revertido.
+
+Verificación final tras revertir las 5 mutaciones: `npm run -w packages/db test` -> 7 archivos / 90 tests, todos en verde (idéntico al baseline). `git diff --stat` vacío.
+
+CONCLUSIÓN: 5/5 mutaciones fueron detectadas por la suite oficial. Los 90+12 tests no son
+solo camino feliz para los mecanismos mutados (RLS genérica, unicidad de idempotencia,
+inmutabilidad de audit_log, trigger de tarifa aprobada, constraint de checklist).
