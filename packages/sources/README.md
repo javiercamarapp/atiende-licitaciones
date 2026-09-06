@@ -98,41 +98,68 @@ fundamento normativo.
   `parseComprasMxHistoricoCsv()` lo parsea y está cubierto por pruebas.
 
 **Robustez del CSV histórico frente al archivo REAL de 951 MB (SR-15/16/17,
-ronda 2 de corrección)**: la muestra verificada en vivo es UTF-8 bien
-formada, pero el archivo completo (~951 MB, export de un sistema legado) no
-tiene esa garantía. Tres gaps reales, sin evidencia de que ocurran hoy pero
-sin protección si el export cambia:
+ronda 2; SR-22 y streaming, ronda 3 de corrección)**: la muestra verificada
+en vivo es UTF-8 bien formada, pero el archivo completo (~951 MB, export de
+un sistema legado) no tiene esa garantía.
 
-- **Encoding (SR-15)**: `ComprasMxHistoricalCsvConnector` ya NO usa
+- **Encoding (SR-15/SR-22)**: `ComprasMxHistoricalCsvConnector` ya NO usa
   `response.text()` (decodifica SIEMPRE como UTF-8 por spec WHATWG,
-  ignorando el charset real del servidor). `decodeHttpResponseText()`
-  (`src/util/encoding.ts`) decodifica por bytes crudos: usa el charset
-  declarado en `Content-Type` si lo hay y no es UTF-8, quita un BOM UTF-8
-  explícito, y si nada de eso aplica intenta una decodificación UTF-8
-  ESTRICTA — si los bytes no son UTF-8 válido (típico de Latin-1/
-  Windows-1252, común en exports legados mexicanos), decodifica como
-  `TextDecoder("latin1")` en vez de producir mojibake silencioso. El
-  encoding real declarado por el servidor SABG en el archivo completo NO
-  fue verificado explícitamente en esta ronda (solo `HEAD`, no `GET`
-  completo) — la heurística cubre el caso en que no lo sea.
-- **Resiliencia por fila (SR-16)**: `parseComprasMxHistoricoCsv()` valida y
-  mapea cada fila en su PROPIO `try/catch`; una fila inválida (p.ej.
-  `importe` no numérico) se acumula en `errors[]` con su número de fila,
-  sin abortar el resto del lote (antes: una sola fila inválida en
-  cualquier punto del archivo hacía perder TODAS las filas válidas, porque
-  esta función arma el array completo antes de que el conector empiece a
-  producir el primer registro — sigue sin ser streaming, limitación ya
-  reconocida).
-- **Filas con columnas de más (SR-17)**: `parseCsv()` (`src/util/csv.ts`)
-  sigue rellenando con `""` las filas con MENOS columnas que el
-  encabezado (tolerable), pero ahora RECHAZA explícitamente (como un error
-  de fila con su número, no como un registro desalineado en silencio)
-  cualquier fila con MÁS columnas — síntoma típico de una coma sin escapar
-  en un campo no entrecomillado (antes: el excedente se descartaba en
-  silencio, desalineando el resto de la fila sin ningún aviso).
+  ignorando el charset real del servidor). `decodeBestEffort()`/
+  `decodeHttpResponseText()` (`src/util/encoding.ts`) decodifican por bytes
+  crudos: charset declarado en `Content-Type` si lo hay y no es UTF-8, BOM
+  UTF-16LE/BE o UTF-8 explícito, heurística de bytes NUL alternos para
+  UTF-16LE/BE SIN BOM (SR-22, ronda 3 — antes no se detectaba: cada byte
+  ASCII de un carácter UTF-16 es, por sí solo, un byte UTF-8 válido, así que
+  la heurística "UTF-8 estricto inválido → Latin-1" nunca se activaba; el
+  resultado era mojibake con bytes NUL intercalados, sin ninguna excepción
+  — "Guardar como texto Unicode" en Excel/Windows produce exactamente este
+  formato), y si nada de eso aplica, UTF-8 estricto → Latin-1/Windows-1252
+  como último recurso. UTF-16BE se decodifica intercambiando bytes por
+  pareja y usando `TextDecoder("utf-16le")` (el estándar de codificación no
+  define una etiqueta "utf-16be"). El encoding real declarado por el
+  servidor SABG en el archivo completo NO fue verificado explícitamente
+  (solo `HEAD`, no `GET` completo) — la heurística cubre el caso en que no
+  lo sea.
+- **Resiliencia por fila (SR-16)**: cada fila se valida/mapea en su PROPIO
+  `try/catch` (`mapComprasMxHistoricoCsvRow`, compartida por la variante en
+  lote y en streaming); una fila inválida (p.ej. `importe` no numérico) se
+  acumula en `errors[]` con su número de fila, sin abortar el resto del
+  lote.
+- **Filas con columnas de más (SR-17)**: `parseCsv()`/`streamCsvRows()`
+  (`src/util/csv.ts`) siguen rellenando con `""` las filas con MENOS
+  columnas que el encabezado (tolerable), pero RECHAZAN explícitamente
+  (como un error de fila con su número, no como un registro desalineado en
+  silencio) cualquier fila con MÁS columnas — síntoma típico de una coma
+  sin escapar en un campo no entrecomillado.
+- **Memoria (streaming, ronda 3 de corrección)**: el parser anterior
+  (`parseComprasMxHistoricoCsv`, que sigue existiendo sin cambios para
+  llamadores con el CSV completo ya en memoria) arma el archivo completo
+  como una sola cadena y el arreglo completo de `TenderRecord` antes de
+  devolver el primer registro — medido en la reverificación adversarial 2
+  en **46.38x de multiplicación de memoria** (50 MB simulados → 2318.8 MB de
+  heap), inviable contra el archivo REAL (~951 MB, ~44 GB extrapolados).
+  `ComprasMxHistoricalCsvConnector.discover()` ahora consume
+  `response.body` byte a byte y usa `CsvRowStreamParser`/`streamCsvRows()`
+  (`src/util/csv.ts`) + `decodeByteChunksStream()` (`src/util/encoding.ts`)
+  + `parseComprasMxHistoricoCsvStreamed()` (`comprasmx-mapper.ts`) para
+  producir cada `TenderRecord` tan pronto como su fila está completa, SIN
+  concatenar nunca el cuerpo completo ni armar el arreglo completo de
+  registros. Medido con un test de ~50 MB generados de forma perezosa
+  (`test/csv-streaming-memory.test.ts`): heap acotado a un múltiplo pequeño
+  de un lote de referencia (2 MiB), >230x más estricto que el 46.38x medido
+  sobre el archivo COMPLETO del parser anterior (requiere `--expose-gc`
+  para la medición forzada, ya configurado en `package.json`
+  `test`/`test:coverage`). Límite real aceptado y documentado: la detección
+  de captcha/forma (SR-14) y la elección de encoding en la ruta de
+  streaming corren sobre el PRIMER chunk decodificado (hasta ~64 KiB), no
+  sobre el archivo completo — suficiente en la práctica porque un bloqueo
+  real es una página HTML pequeña COMPLETA y el encoding no cambia a mitad
+  de una misma respuesta; UTF-16BE SIN BOM tampoco se detecta en la ruta de
+  streaming (sí en `decodeBestEffort`, usado por conectores sin necesidad
+  de streaming) — caso raro, no verificado como real para este dataset.
 
 `ComprasMxHistoricalCsvConnector.discover()` reporta cada fila descartada
-vía `ctx.logger?.warn(...)` (visible para el consumidor) sin dejar de
+vía `ctx.logger?.warn(...)` Y vía `ctx.reportDropped` (SR-21) sin dejar de
 producir los registros válidos del resto del archivo.
 
 ### DOF (Diario Oficial de la Federación)
@@ -241,6 +268,14 @@ estructura real no cambió, solo el valor es `null`. El tipo inferido sigue
 siendo `T | undefined` (nunca `T | null | undefined`): el resto del código
 que ya maneja "campo ausente" no necesita cambios.
 
+Residual cerrado en la ronda 3 (SR-21, ver §Salud explícita por fuente):
+`optionalNullish()` normalizando `titulo_expediente: null` a `undefined`
+exponía un filtro preexistente en `mapComprasMxApiRecordToTenderRecord`
+(`title` es requerido en `TenderRecord` aunque opcional en el esquema
+crudo) que descartaba el registro en silencio. Ahora ese descarte se reporta
+explícitamente (`errors[]`/`dropped[]`/`ctx.reportDropped`), nunca en
+silencio.
+
 ## Zona horaria (ampliación §3)
 
 Todas las fechas de negocio son hora legal de México. México abolió el
@@ -306,7 +341,7 @@ estático (mismo archivo) prohíbe `new Date(<algo>)` con argumento en
 una fuente como "cero oportunidades": cada corrida de `DiscoveryPipeline`
 produce, por fuente, un `SourceHealth` con estado explícito:
 
-`ok | down | captcha_detected | interface_changed | permission_missing | rate_limited`
+`ok | down | captcha_detected | interface_changed | permission_missing | rate_limited | not_configured`
 
 `classifySourceFailure()` mapea automáticamente `HttpError`(401/403 ->
 `permission_missing`, 429 -> `rate_limited`, 5xx -> `down`),
@@ -318,28 +353,71 @@ corrida exitosa aunque la corrida actual falle, y expone `staleForMs`
 (frescura/obsolescencia) para que el back office pueda mostrarla
 visiblemente en vez de ocultar el problema.
 
-**`ResponseClassifier` (SR-14, ronda 2 de corrección)**:
+**`ResponseClassifier` (SR-14, ronda 2; SR-19/SR-20, ronda 3 de corrección)**:
 `src/http/response-classifier.ts`, `assertLegitimateResponseBody(body,
-{url, expected})`, común a todos los conectores. Antes de esta ronda, un
-`fetchImpl` que devolviera **HTTP 200 real** con un cuerpo HTML de
-captcha/bot-challenge (escenario que este mismo README documenta como real
-para PDN-S6/Zenedge) hacía que el parser de turno simplemente no encontrara
-nada, y `DiscoveryPipeline` reportaba `health.state = "ok"` / "0 nuevas" —
-indistinguible de una corrida real sin novedades, la violación exacta que
-REQ-148 prohíbe. `assertLegitimateResponseBody()`:
+{url, expected, minimalContentMarkers?})`, común a todos los conectores.
+Antes de la ronda 2, un `fetchImpl` que devolviera **HTTP 200 real** con un
+cuerpo HTML de captcha/bot-challenge (escenario que este mismo README
+documenta como real para PDN-S6/Zenedge) hacía que el parser de turno
+simplemente no encontrara nada, y `DiscoveryPipeline` reportaba
+`health.state = "ok"` / "0 nuevas" — indistinguible de una corrida real sin
+novedades, la violación exacta que REQ-148 prohíbe. `assertLegitimateResponseBody()`:
 
 - Lanza `CaptchaDetectedError` si el cuerpo contiene un marcador reconocido
-  de reCAPTCHA/hCaptcha/Cloudflare (`cf-challenge`, "checking your
-  browser...")/Zenedge/mensajes en español ("verificar/verifica que no eres
-  un robot") — sin importar el formato esperado.
+  de reCAPTCHA/hCaptcha/Cloudflare (`cf-challenge`/Turnstile/"checking your
+  browser..."/"Just a moment...")/Akamai Bot Manager ("Pardon Our
+  Interruption", `ak_bmsc`/`_abck`)/Imperva-Incapsula/Zenedge/la palabra
+  suelta "captcha"/mensajes en español ("verificar/verifica que no eres un
+  robot")/un formulario de login genérico (`<input type="password">`) — sin
+  importar el formato esperado (SR-20, ronda 3: Akamai/Imperva/login
+  genérico eran vendors reales sin marcador reconocido).
 - Lanza `InterfaceChangedError` si se esperaba `json`/`csv` y el cuerpo
   tiene forma de documento HTML sin ningún marcador de captcha reconocido
   (cambio de interfaz de la fuente, o un bloqueo genérico no identificado).
+- **SR-20 (ronda 3)**: para `expected: "text"` (hoy solo DOF) un cuerpo HTML
+  YA NO se acepta sin más solo por tener forma de HTML legítimo (una nota
+  real del DOF SÍ es HTML) — si el llamador declara `minimalContentMarkers`
+  (`DOF_MINIMAL_CONTENT_MARKERS` en `dof-connector.ts`: título "Diario
+  Oficial de la Federación"/`DivDetalleNota`), un cuerpo con forma de HTML
+  que no matchea NINGUNO de esos marcadores se trata como
+  `InterfaceChangedError` — antes, un login genérico o un vendor sin
+  marcador de captcha reconocido pasaba sin lanzar.
 
-Se invoca en `DofConnector` (expected `"text"`, el único conector de
-scraping de texto/HTML de hoy), `ComprasMxConnector`, `create-ocds-connector.ts`
-(compartido por `OcdsShcpConnector`/`PdnS6Connector`), `StatePortalConnector`
-(expected `"json"`) y `ComprasMxHistoricalCsvConnector` (expected `"csv"`).
+Se invoca en `DofConnector` (expected `"text"`, con `minimalContentMarkers`),
+`ComprasMxConnector`, `create-ocds-connector.ts` (compartido por
+`OcdsShcpConnector`/`PdnS6Connector`), `StatePortalConnector` (expected
+`"json"`) y `ComprasMxHistoricalCsvConnector` (expected `"csv"`, sobre el
+primer chunk decodificado en la ruta de streaming — ver §Robustez del CSV
+histórico).
+
+**SR-19 (ALTA, ronda 3 de corrección)**: un 200 con JSON sintácticamente
+válido pero SIN la llave de colección esperada (`{}`, o un soft-block de
+aplicación como `{"success":false,"error":"captcha"}`) pasaba la validación
+zod SIN lanzar porque `ComprasMxApiResponseSchema.data`/
+`OcdsReleasePackageSchema.releases` usaban `.default([])` — la MISMA
+violación de REQ-148 que SR-14 debía cerrar, vía un JSON válido en vez de
+HTML (afecta también a PDN-S6/portales estatales, que comparten el esquema
+OCDS). Se quitó `.default([])` de ambas claves: la ausencia de la llave (o
+un valor no-array, `{"data":null}`) ahora lanza `ZodError` ->
+`interface_changed`; `{"data":[]}`/`{"releases":[]}` explícito sigue siendo
+un "0 registros" legítimo. Además, cuando una corrida termina `"ok"` con 0
+registros procesados, `SourceHealth.evidence.coverage = {emptyResult: true}`
+lo marca explícitamente (nunca un "0" mudo).
+
+**SR-21 (ALTA, ronda 3 de corrección)**: `mapComprasMxApiRecordToTenderRecord`
+descartaba en silencio (`return null`, sin ninguna entrada en `errors[]`) un
+registro con datos incompletos (p.ej. `titulo_expediente: null`, normalizado
+por SR-13 a `undefined` pero requerido en `TenderRecord.title`).
+`mapComprasMxApiRecords` ahora devuelve `{records, dropped}` (índice,
+`externalId` si se conoce, motivo exacto); `ConnectorContext.reportDropped?`
+(nuevo campo OPCIONAL — aditivo, no rompe `apps/worker`, que llama
+`connector.discover()` directamente sin pasarlo) reenvía cada descarte a
+`DiscoveryPipeline`, que lo acumula en `SourceRunStats.dropped`/`errores` y,
+si la tasa de descarte supera `dropRateThreshold` (`DiscoveryPipelineOptions`,
+default 20%, configurable), reclasifica la corrida completa a
+`interface_changed` EN VEZ de "ok" — una tasa alta es en sí misma evidencia
+de que el mapeo dejó de coincidir con la forma real de la fuente.
+`DiscoveryResult.totalDropped` agrega el conteo global.
 
 ## Pipeline de descubrimiento
 
@@ -407,7 +485,13 @@ npm run -w packages/sources build
 
 Salida real de la primera corrida en `docs/logs/sources-ronda1.log`; ronda
 2 de corrección (SR-12..SR-18, ver `docs/auditoria-1/sources-reverificacion.md`)
-en `docs/logs/fix-sources-ronda2.log`.
+en `docs/logs/fix-sources-ronda2.log`; ronda 3 de corrección (SR-19..SR-22,
+ver `docs/auditoria-1/sources-cierre.md`) en `docs/logs/fix-sources-ronda3.log`
+-- incluye también `npm run -w packages/sources test:coverage` y la
+verificación de los consumidores reales (`npm run -w apps/worker typecheck
+test`, `npm run -w apps/api typecheck`). `test`/`test:coverage` requieren
+`NODE_OPTIONS=--expose-gc` (ya configurado en `package.json`) para la
+medición forzada del test de memoria del parser CSV en streaming.
 
 ## Pendientes explícitos (no inventar integración real)
 
