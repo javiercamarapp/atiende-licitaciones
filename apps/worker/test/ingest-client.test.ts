@@ -211,7 +211,7 @@ describe('TenderIngestClient contra un servidor HTTP real', () => {
       [403, false, 'Forbidden — permiso denegado, reintentar no cambia el resultado'],
       [404, false, 'Not Found — recurso inexistente, reintentar no cambia el resultado'],
       [422, false, 'Unprocessable Entity — validación de esquema, reintentar no cambia el resultado'],
-    ] as const)('status %i -> transitorio=%s (%s)', async (status, transitorio) => {
+    ] as const)('status %i -> transitorio=%s (%s)', async (status, transitorio, _motivo) => {
       fakeServer.behavior = 'always-status';
       fakeServer.status = status;
       const client = new TenderIngestClient({ baseUrl: fakeServer.baseUrl, retryBaseDelayMs: 5, maxRetries });
