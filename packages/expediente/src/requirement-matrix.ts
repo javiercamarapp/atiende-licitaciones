@@ -264,32 +264,54 @@ const MESES: Record<string, number> = {
  * `null` — nunca se infiere una fecha por defecto (REQ-166).
  */
 export function extractDeadline(lower: string): { deadline: string | null; topicKey?: TopicKey } {
-  // Patrón "a más tardar el DD de <mes> de AAAA" o "el DD de <mes> de AAAA a las HH:MM horas"
-  const dateMatch = lower.match(/(\d{1,2}) de ([a-záéíóú]+) de (\d{4})(?: a las (\d{1,2}):(\d{2}) horas)?/);
-  if (!dateMatch) return { deadline: null };
-
-  const day = Number(dateMatch[1]);
-  const monthName = dateMatch[2];
-  const year = Number(dateMatch[3]);
-  const month = MESES[monthName];
-  if (!month) return { deadline: null };
-
-  const hour = dateMatch[4] ? Number(dateMatch[4]) : 23;
-  const minute = dateMatch[5] ? Number(dateMatch[5]) : dateMatch[4] ? 0 : 59;
-  const second = dateMatch[4] ? 0 : 59;
-
-  const iso = buildMexicoCityIso(year, month, day, hour, minute, second);
-
-  let topicKey: TopicKey | undefined;
-  if (lower.includes("entrega de proposiciones") || lower.includes("presentación de proposiciones") || lower.includes("acto de presentación")) {
-    topicKey = "plazo_entrega_proposiciones";
-  } else if (lower.includes("junta de aclaraciones")) {
-    topicKey = "plazo_junta_aclaraciones";
-  } else if (lower.includes("fallo")) {
-    topicKey = "plazo_fallo";
+  // Patrón "a más tardar el DD de <mes> de/del AAAA" o "... a las HH:MM horas"
+  // (EX-EXP-06: "del" es tan común en español como "de" antes del año — se
+  // aceptan ambos).
+  const monthNameMatch = lower.match(/(\d{1,2}) de ([a-záéíóú]+) del? (\d{4})(?: a las (\d{1,2}):(\d{2}) horas)?/);
+  if (monthNameMatch) {
+    const day = Number(monthNameMatch[1]);
+    const monthName = monthNameMatch[2];
+    const year = Number(monthNameMatch[3]);
+    const month = MESES[monthName];
+    if (month) {
+      const { hour, minute, second } = deadlineTimeOf(monthNameMatch[4], monthNameMatch[5]);
+      const iso = buildMexicoCityIso(year, month, day, hour, minute, second);
+      return { deadline: iso, topicKey: deadlineTopicKeyOf(lower) };
+    }
   }
 
-  return { deadline: iso, topicKey };
+  // Patrón numérico "DD/MM/AAAA" o "DD-MM-AAAA" (EX-EXP-06): tan común como
+  // el formato con nombre de mes en bases/actas reales, y antes no se
+  // reconocía en absoluto — el ítem quedaba sin `deadline` ni `topicKey` y
+  // no podía participar en `detectConflicts`.
+  const numericMatch = lower.match(/(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?: a las (\d{1,2}):(\d{2}) horas)?/);
+  if (numericMatch) {
+    const day = Number(numericMatch[1]);
+    const month = Number(numericMatch[2]);
+    const year = Number(numericMatch[3]);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      const { hour, minute, second } = deadlineTimeOf(numericMatch[4], numericMatch[5]);
+      const iso = buildMexicoCityIso(year, month, day, hour, minute, second);
+      return { deadline: iso, topicKey: deadlineTopicKeyOf(lower) };
+    }
+  }
+
+  return { deadline: null };
+}
+
+/** Hora/minuto/segundo de un plazo: si el texto trae hora explícita se usa tal cual (segundo 0); si no, se fija a las 23:59:59 (fin del día), nunca inferida a medias. */
+function deadlineTimeOf(hourGroup?: string, minuteGroup?: string): { hour: number; minute: number; second: number } {
+  if (hourGroup) return { hour: Number(hourGroup), minute: Number(minuteGroup), second: 0 };
+  return { hour: 23, minute: 59, second: 59 };
+}
+
+function deadlineTopicKeyOf(lower: string): TopicKey | undefined {
+  if (lower.includes("entrega de proposiciones") || lower.includes("presentación de proposiciones") || lower.includes("acto de presentación")) {
+    return "plazo_entrega_proposiciones";
+  }
+  if (lower.includes("junta de aclaraciones")) return "plazo_junta_aclaraciones";
+  if (lower.includes("fallo")) return "plazo_fallo";
+  return undefined;
 }
 
 /** Construye un ISO 8601 con el offset fijo -06:00 de America/Mexico_City. */

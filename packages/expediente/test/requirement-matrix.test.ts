@@ -135,3 +135,75 @@ describe("Detección de conflictos entre documentos (A6, REQ-166)", () => {
     expect(conflicts).toHaveLength(0);
   });
 });
+
+describe("EX-EXP-06: extractDeadline reconoce DD/MM/AAAA, DD-MM-AAAA y 'del AAAA' (REQ-156/REQ-166)", () => {
+  beforeEach(() => resetRequirementCounters());
+
+  it("reconoce 'DD/MM/AAAA' (acto de presentación) y le asigna topicKey", async () => {
+    const doc: TenderDocumentText = {
+      documentId: "bases-v1",
+      documentLabel: "Bases",
+      publishedAt: "2026-01-01T00:00:00-06:00",
+      pages: [{ page: 1, text: "El acto de presentación de proposiciones se llevará a cabo el 15/10/2026." }],
+    };
+    const builder = new RequirementMatrixBuilder([new RuleBasedExtractor()]);
+    const { items } = await builder.build([doc]);
+    const item = items.find((i) => i.text.includes("15/10/2026"));
+    expect(item).toBeDefined();
+    expect(item?.deadline).toBe("2026-10-15T23:59:59-06:00");
+    expect(item?.topicKey).toBe("plazo_entrega_proposiciones");
+  });
+
+  it("reconoce 'DD-MM-AAAA' con guiones", async () => {
+    const doc: TenderDocumentText = {
+      documentId: "bases-v1",
+      documentLabel: "Bases",
+      publishedAt: "2026-01-01T00:00:00-06:00",
+      pages: [{ page: 1, text: "La junta de aclaraciones se realizará el 25-09-2026." }],
+    };
+    const builder = new RequirementMatrixBuilder([new RuleBasedExtractor()]);
+    const { items } = await builder.build([doc]);
+    const item = items.find((i) => i.text.includes("25-09-2026"));
+    expect(item).toBeDefined();
+    expect(item?.deadline).toBe("2026-09-25T23:59:59-06:00");
+    expect(item?.topicKey).toBe("plazo_junta_aclaraciones");
+  });
+
+  it("reconoce '... del AAAA' (con 'del' en vez de 'de')", async () => {
+    const doc: TenderDocumentText = {
+      documentId: "bases-v1",
+      documentLabel: "Bases",
+      publishedAt: "2026-01-01T00:00:00-06:00",
+      pages: [{ page: 1, text: "La junta de aclaraciones se llevará a cabo el 25 de septiembre del 2026." }],
+    };
+    const builder = new RequirementMatrixBuilder([new RuleBasedExtractor()]);
+    const { items } = await builder.build([doc]);
+    const item = items.find((i) => i.text.includes("septiembre del 2026"));
+    expect(item).toBeDefined();
+    expect(item?.deadline).toBe("2026-09-25T23:59:59-06:00");
+    expect(item?.topicKey).toBe("plazo_junta_aclaraciones");
+  });
+
+  it("reproducción íntegra de la auditoría: un conflicto real de plazos SÍ se detecta aunque las bases y el acta de aclaraciones usen formatos de fecha distintos", async () => {
+    const bases: TenderDocumentText = {
+      documentId: "bases-v1",
+      documentLabel: "Bases originales",
+      publishedAt: "2026-01-01T00:00:00-06:00",
+      pages: [{ page: 1, text: "La entrega de proposiciones será a más tardar el 20 de octubre de 2026 a las 12:00 horas." }],
+    };
+    const aclaracion: TenderDocumentText = {
+      documentId: "acta-aclaraciones-1",
+      documentLabel: "Acta de junta de aclaraciones 1",
+      publishedAt: "2026-02-01T00:00:00-06:00",
+      pages: [{ page: 1, text: "Se adelanta el acto de presentación de proposiciones para el 15/10/2026." }],
+    };
+
+    const builder = new RequirementMatrixBuilder([new RuleBasedExtractor()]);
+    const { conflicts } = await builder.build([bases, aclaracion]);
+
+    expect(conflicts).toHaveLength(1);
+    expect(conflicts[0].kind).toBe("deadline_mismatch");
+    expect(conflicts[0].topicKey).toBe("plazo_entrega_proposiciones");
+    expect(conflicts[0].status).toBe("escalado");
+  });
+});
