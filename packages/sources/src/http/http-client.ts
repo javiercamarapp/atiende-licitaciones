@@ -36,6 +36,8 @@ export interface HttpClientOptions {
   minIntervalMsPerHost?: number;
   /** Nº de 403 consecutivos de un host antes de pausarlo por completo (REQ-077). */
   forbiddenPauseThreshold?: number;
+  /** Máximo de saltos de redirección a seguir antes de fallar explícitamente (SR-04, evita loops infinitos). */
+  maxRedirects?: number;
   fetchImpl?: typeof fetch;
   clock?: Clock;
   random?: () => number;
@@ -55,7 +57,44 @@ const DEFAULTS = {
   concurrencyPerHost: 2,
   minIntervalMsPerHost: 1000,
   forbiddenPauseThreshold: 3,
+  maxRedirects: 5,
 } as const;
+
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+
+function isRedirectStatus(status: number): boolean {
+  return REDIRECT_STATUSES.has(status);
+}
+
+/** Cabeceras que NUNCA deben reenviarse a un host distinto tras seguir una redirección (mismo criterio que aplica `fetch`/undici de forma nativa en un redirect cross-origin). */
+const SENSITIVE_CROSS_HOST_HEADERS = ["authorization", "cookie", "proxy-authorization"];
+
+/**
+ * Construye el `init` de la petición reentrante hacia el destino de una
+ * redirección (SR-04), replicando el comportamiento estándar de `fetch`:
+ * - Si el host de destino difiere del host original, se descartan cabeceras
+ *   sensibles (`Authorization`/`Cookie`/`Proxy-Authorization`).
+ * - Un 303 (o un 301/302 sobre una petición POST) degrada el método a GET y
+ *   descarta el cuerpo, igual que hace `fetch` nativamente.
+ */
+function buildRedirectInit(init: HttpRequestOptions, originalHost: string, nextHost: string, status: number): HttpRequestOptions {
+  const headers = new Headers(init.headers);
+  if (nextHost !== originalHost) {
+    for (const name of SENSITIVE_CROSS_HOST_HEADERS) headers.delete(name);
+  }
+
+  let method = init.method ?? "GET";
+  let body = init.body;
+  const shouldDowngradeToGet = status === 303 || ((status === 301 || status === 302) && method.toUpperCase() === "POST");
+  if (shouldDowngradeToGet) {
+    method = "GET";
+    body = undefined;
+    headers.delete("content-type");
+    headers.delete("content-length");
+  }
+
+  return { ...init, headers, method, body };
+}
 
 /**
  * Cliente HTTP inyectable con timeout, reintentos con backoff exponencial +
@@ -81,6 +120,7 @@ export class HttpClient {
       concurrencyPerHost: options.concurrencyPerHost ?? DEFAULTS.concurrencyPerHost,
       minIntervalMsPerHost: options.minIntervalMsPerHost ?? DEFAULTS.minIntervalMsPerHost,
       forbiddenPauseThreshold: options.forbiddenPauseThreshold ?? DEFAULTS.forbiddenPauseThreshold,
+      maxRedirects: options.maxRedirects ?? DEFAULTS.maxRedirects,
       fetchImpl: options.fetchImpl ?? fetch,
       clock: options.clock ?? realClock,
       random: options.random ?? Math.random,
@@ -100,6 +140,20 @@ export class HttpClient {
   }
 
   async request(url: string, init: HttpRequestOptions = {}): Promise<Response> {
+    return this.requestInternal(url, init, 0);
+  }
+
+  /**
+   * SR-04: una redirección se re-entra explícitamente a través de esta
+   * misma función (con el host/URL de DESTINO), para que el throttle por
+   * host, el espaciado mínimo y la pausa por 403 repetidos se apliquen
+   * SIEMPRE al host que realmente atiende la petición — nunca solo al host
+   * original. Antes del fix, `fetchWithTimeout` dejaba que `fetch` siguiera
+   * el redirect de forma transparente DENTRO de una sola llamada, así que
+   * `HostThrottleRegistry` nunca se enteraba de que la petición terminó en
+   * otro host (confirmado con un experimento HTTP real, ver auditoría).
+   */
+  private async requestInternal(url: string, init: HttpRequestOptions, redirectsFollowed: number): Promise<Response> {
     const host = new URL(url).host;
     if (this.pausedHosts.has(host)) {
       throw new HostPausedError(host);
@@ -128,6 +182,23 @@ export class HttpClient {
         throw error;
       }
       release();
+
+      if (isRedirectStatus(response.status)) {
+        const location = response.headers.get("location");
+        if (!location) return response; // sin `Location` no hay a dónde seguir: se devuelve el 3xx tal cual.
+
+        const nextUrl = new URL(location, url);
+        if (nextUrl.protocol !== "https:") {
+          throw new Error(
+            `HttpClient: redirección rechazada a un esquema no-https (${nextUrl.protocol.replace(":", "")}) desde ${url} hacia ${nextUrl.toString()} (REQ-079: solo lectura sobre https).`,
+          );
+        }
+        if (redirectsFollowed >= this.opts.maxRedirects) {
+          throw new Error(`HttpClient: se excedió el máximo de redirecciones (${this.opts.maxRedirects}) siguiendo ${url}.`);
+        }
+        const nextInit = buildRedirectInit(init, host, nextUrl.host, response.status);
+        return this.requestInternal(nextUrl.toString(), nextInit, redirectsFollowed + 1);
+      }
 
       if (response.status === 403) {
         const count = (this.consecutiveForbidden.get(host) ?? 0) + 1;
@@ -168,7 +239,9 @@ export class HttpClient {
     try {
       const headers = new Headers(init.headers);
       if (!headers.has("User-Agent")) headers.set("User-Agent", this.opts.userAgent);
-      return await this.opts.fetchImpl(url, { ...init, headers, signal: controller.signal });
+      // SR-04: `redirect: "manual"` para que un 3xx cross-host se procese en `requestInternal`
+      // (throttle/pausa del host de DESTINO) en vez de que `fetch` lo siga de forma transparente.
+      return await this.opts.fetchImpl(url, { ...init, headers, redirect: "manual", signal: controller.signal });
     } finally {
       clearTimeout(timer);
     }

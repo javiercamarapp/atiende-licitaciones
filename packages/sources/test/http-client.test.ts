@@ -170,3 +170,128 @@ describe("HttpClient", () => {
     expect(capturedHeaders?.get("User-Agent")).toBe("AtiendeLicitacionesBot/1.0 (+https://atiende.mx/bot)");
   });
 });
+
+describe("HttpClient: redirecciones cross-host (SR-04)", () => {
+  /**
+   * El mock simula el comportamiento REAL de `fetch`/undici: cuando NO se
+   * pide `redirect: "manual"` explícitamente, el redirect se sigue de forma
+   * TRANSPARENTE dentro de la misma llamada (el llamador nunca ve el 302 ni
+   * el host de destino) — así es como se reprodujo el bug real (§5 de la
+   * auditoría, 2 servidores locales). Cuando SÍ se pide `redirect: "manual"`
+   * (lo que debe hacer `fetchWithTimeout` tras el fix), el mock devuelve el
+   * 302 crudo con su `Location`, para que sea el propio `HttpClient` quien
+   * decida si reentra la petición a través de `request()` (y por lo tanto
+   * de su throttle por host).
+   */
+  /**
+   * 5 hosts de ORIGEN distintos (a1..a5) redirigen todos al MISMO host de
+   * destino (b.example.com). Usar hosts de origen distintos es intencional:
+   * si los 5 orígenes fueran el mismo host, el propio throttle POR ORIGEN
+   * ya serializaría las 5 llamadas al mock (sin importar si el bug de
+   * redirect cross-host está arreglado o no), y el test no distinguiría
+   * nada. Con 5 orígenes distintos, el throttle por origen NO limita nada
+   * entre sí — solo el throttle del host de DESTINO (b.example.com) puede
+   * evitar que las 5 lleguen "concurrentes" a B.
+   */
+  function makeRedirectingFetchImpl(opts: { onHostBCall: () => void | Promise<void> }) {
+    return vi.fn(async (url: string, init?: RequestInit) => {
+      const u = new URL(url);
+      if (/^a\d\.example\.com$/.test(u.host) && u.pathname === "/start") {
+        if (init?.redirect === "manual") {
+          return new Response(null, { status: 302, headers: { Location: "https://b.example.com/target" } });
+        }
+        // Comportamiento por defecto de `fetch` (redirect: "follow"): sigue el 302 sin que el
+        // llamador se entere, y por lo tanto SIN pasar por el throttle del host b.example.com.
+        await opts.onHostBCall();
+        return jsonResponse({ ok: true, via: "auto-follow" });
+      }
+      if (u.host === "b.example.com") {
+        await opts.onHostBCall();
+        return jsonResponse({ ok: true, via: "manual-refollow" });
+      }
+      throw new Error(`URL inesperada en el mock: ${url}`);
+    });
+  }
+
+  it("aplica concurrencyPerHost del host de DESTINO tras una redirección cross-host (antes del fix, el mock ni siquiera expone el 302: se sigue de forma transparente sin límite)", async () => {
+    let inFlightB = 0;
+    let maxInFlightB = 0;
+    const fetchImpl = makeRedirectingFetchImpl({
+      onHostBCall: async () => {
+        inFlightB += 1;
+        maxInFlightB = Math.max(maxInFlightB, inFlightB);
+        await new Promise((r) => setTimeout(r, 10));
+        inFlightB -= 1;
+      },
+    });
+
+    const client = new HttpClient({
+      userAgent: "TestBot/1.0",
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      concurrencyPerHost: 1,
+      minIntervalMsPerHost: 0,
+    });
+
+    await Promise.all(
+      Array.from({ length: 5 }, (_, i) => client.request(`https://a${i + 1}.example.com/start`)),
+    );
+    expect(maxInFlightB).toBeLessThanOrEqual(1);
+  });
+
+  it("no reenvía Authorization/Cookie a un host distinto tras redirigir, pero sí los preserva en un redirect al MISMO host", async () => {
+    const capturedAuth: Record<string, string | null> = {};
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      const u = new URL(url);
+      const headers = new Headers(init?.headers);
+      if (u.host === "a.example.com" && u.pathname === "/cross-host") {
+        return new Response(null, { status: 302, headers: { Location: "https://b.example.com/target" } });
+      }
+      if (u.host === "a.example.com" && u.pathname === "/same-host") {
+        return new Response(null, { status: 302, headers: { Location: "https://a.example.com/same-host-target" } });
+      }
+      if (u.host === "b.example.com") {
+        capturedAuth.b = headers.get("Authorization");
+        return jsonResponse({ ok: true });
+      }
+      if (u.host === "a.example.com" && u.pathname === "/same-host-target") {
+        capturedAuth.aSameHost = headers.get("Authorization");
+        return jsonResponse({ ok: true });
+      }
+      throw new Error(`URL inesperada: ${url}`);
+    });
+
+    const client = new HttpClient({ userAgent: "TestBot/1.0", fetchImpl: fetchImpl as unknown as typeof fetch, minIntervalMsPerHost: 0 });
+
+    await client.request("https://a.example.com/cross-host", { headers: { Authorization: "Bearer secreto" } });
+    expect(capturedAuth.b).toBeNull();
+
+    await client.request("https://a.example.com/same-host", { headers: { Authorization: "Bearer secreto" } });
+    expect(capturedAuth.aSameHost).toBe("Bearer secreto");
+  });
+
+  it("rechaza seguir una redirección hacia un esquema no-https", async () => {
+    const fetchImpl = vi.fn(async () => new Response(null, { status: 302, headers: { Location: "http://inseguro.example.com/x" } }));
+    const client = new HttpClient({ userAgent: "TestBot/1.0", fetchImpl: fetchImpl as unknown as typeof fetch, minIntervalMsPerHost: 0 });
+    await expect(client.request("https://a.example.com/start")).rejects.toThrow(/https/i);
+  });
+
+  it("limita el número de saltos de redirección (evita loops infinitos)", async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      const n = Number(new URL(url).searchParams.get("n") ?? "0");
+      return new Response(null, { status: 302, headers: { Location: `https://a.example.com/start?n=${n + 1}` } });
+    });
+    const client = new HttpClient({ userAgent: "TestBot/1.0", fetchImpl: fetchImpl as unknown as typeof fetch, minIntervalMsPerHost: 0, maxRedirects: 3 });
+    await expect(client.request("https://a.example.com/start?n=0")).rejects.toThrow(/redirec/i);
+  });
+
+  it("sigue una redirección 302 normal (same-host) y devuelve la respuesta final", async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url === "https://example.com/old") return new Response(null, { status: 302, headers: { Location: "https://example.com/new" } });
+      return jsonResponse({ ok: true, from: "new" });
+    });
+    const client = new HttpClient({ userAgent: "TestBot/1.0", fetchImpl: fetchImpl as unknown as typeof fetch, minIntervalMsPerHost: 0 });
+    const response = await client.request("https://example.com/old");
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true, from: "new" });
+  });
+});
