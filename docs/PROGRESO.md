@@ -271,3 +271,6 @@ Formato por entrada: requisito · acción · archivos/commit · prueba · result
 
 ## Tablero tras ronda 5 (2026-09-06 11:3x)
 - **Acción:** agente #83, commit `a644803`. **Conteos:** CUMPLIDO 47→54, EN_EVIDENCIA 53, PENDIENTE 77→69, LÍMITE_ACEPTADO 5, NO_APLICA 3, BLOQUEADO_EXTERNO 1→2 (REQ-056 calendario SABG sin fuente en línea). Cierres: REQ-044/064, 050, 142, 170, 171, A13. E11 corregida a EN CURSO real. Único defecto abierto: R5-12 (BAJA). Tests aislados: api 238, db 161, web 114 unit + 116 E2E ×2. **Pendiente de cierre en este ciclo:** `apps/web:test:coverage` (corrector #84 en curso) y ci-local 6.
+
+## Decisión del bucle tras ronda 5 (2026-09-06 11:4x)
+- **Informe actualizado:** docs/INFORME-ESTADO.md. **Decisión:** el bucle NO se detiene: quedan 69 criterios PENDIENTE con trabajo ejecutable (REQ-051..055 post-adjudicación avanzada, REQ-169 dashboard, sala de guerra, aviso de privacidad validable, etc.) además de bloqueos externos (B-01/B-02/B-03, INC-10 iCloud, OpenAI, abogado). **Ronda 6:** #85 API (REQ-051..055) despachado; web queda reservado para #84 (coverage) y después REQ-169/sala de guerra.
