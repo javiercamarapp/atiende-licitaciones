@@ -264,3 +264,77 @@ Verde tras bajar el techo:
 
 `npm run -w apps/api typecheck` y `lint` verdes tras ambos cambios.
 
+## Cierre — gate completo `typecheck && lint && test` x2 (apps/api, HEAD real, en primer plano)
+
+Nota de reproducibilidad: el árbol de trabajo se comparte en tiempo real
+con otros agentes correctores paralelos (mail/auth, apps/web), fuera del
+ámbito de este agente -- mismo patrón ya documentado en
+docs/auditoria-2/api-ronda6.md. El total de archivos/tests de este gate
+(76 archivos / 359 tests) es mayor que el medido por la reverificación
+(73/343) porque otros agentes sumaron cobertura entre medio.
+
+### Pasada 1 (17:37:58, duración total del test run 174.02s + typecheck/lint)
+
+```
+> @atiende/api@0.1.0 typecheck
+> tsc --noEmit
+(sin salida -- limpio)
+
+> @atiende/api@0.1.0 lint
+> eslint src test
+(sin salida -- limpio)
+
+> @atiende/api@0.1.0 test
+> vitest run
+...
+FAIL test/security-am02-mail-timing.test.ts > AM-02: ... > la mediana de
+latencia de /auth/email/resend-verification con cuenta existente y con
+cuenta inexistente difiere menos de 1.5x
+AssertionError: expected 1.6224930047050756 to be less than 1.5
+
+ Test Files  1 failed | 75 passed (76)
+      Tests  1 failed | 358 passed (359)
+```
+
+`security-am02-mail-timing.test.ts` (AM-02, timing-oracle de
+correo/contraseña) está FUERA del ámbito de este agente (módulo de correo,
+no expediente/PDF/post-award/renewals/helpers) y no es uno de los
+hallazgos R6-09..R6-14 de esta ronda -- es un test de latencia real bajo
+la máquina compartida con otros agentes corriendo en paralelo (mismo tipo
+de flake, distinto módulo, que R6-13 identificó en TOTP). No se tocó: está
+fuera del ámbito asignado a este agente (`apps/api/**` de expediente/PDF,
+post-award/renewals, `test/helpers.ts`).
+
+### Pasada 2 (17:41:14, duración total del test run 278.83s + typecheck/lint)
+
+```
+> @atiende/api@0.1.0 typecheck
+> tsc --noEmit
+(sin salida -- limpio)
+
+> @atiende/api@0.1.0 lint
+> eslint src test
+(sin salida -- limpio)
+
+> @atiende/api@0.1.0 test
+> vitest run
+...
+ Test Files  76 passed (76)
+      Tests  359 passed (359)
+```
+
+76/76 archivos, 359/359 tests -- incluida `security-am02-mail-timing.test.ts`,
+verde en esta pasada (confirma que era un flake de carga de máquina, no una
+regresión introducida por este agente). `typecheck`/`lint` limpios en
+ambas pasadas.
+
+### Resumen de hallazgos cerrados en esta ronda (R6-09..R6-14)
+
+| Hallazgo | Commit |
+|---|---|
+| R6-11 (ALTA) | `260a4df` |
+| R6-12 (MEDIA) | `527eba7` |
+| R6-10 (MEDIA) | `d462994` |
+| R6-13 (MEDIA) | `3972f52` |
+| R6-09 (criterio) / R6-14 (BAJA) | `e8da855` |
+

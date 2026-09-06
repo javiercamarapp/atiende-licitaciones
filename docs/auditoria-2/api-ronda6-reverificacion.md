@@ -463,3 +463,12 @@ toca `apps/worker`, `apps/web` ni `packages/db`.
 | R6-13 | MEDIA | **REPARADO**. `test/helpers.ts`: `enrollTwoFactor`/`enrollTwoFactorFull` reintentan UNA vez con un código TOTP recién generado si la primera verificación falla (nunca reutilizan el código ya rechazado); si el segundo intento también falla, propagan el error real sin ocultarlo. Test nuevo (`test/helpers-totp-window-retry.test.ts`) que intercepta la primera llamada a `/auth/2fa/verify-enrollment` para reproducir determinísticamente el 403 ambiguo medido por el reverificador, sin depender de ganar una carrera de reloj real. Verificado además que el rechazo de REPLAY real (mismo código dos veces) sigue funcionando (`security-req044-064-step-up-2fa.test.ts`). |
 | R6-09 (criterio) | — | **REPARADO**. `countTxQueries` (`test/expediente-renewal-radar.test.ts`) ahora también cuenta, vía `matchSql`, cuántas veces se ejecuta ESPECÍFICAMENTE la consulta de una página de contratos -- no solo el total de sentencias. Con 5,000 contratos / `pageSize` por defecto (2,000): `ceil(5000/2000) = 3` ejecuciones exactas; una implementación sin límite ejecuta esa consulta 1 sola vez. Confirmado mutante reproduciendo la mutación exacta del acta (quitar `limit $3` de `scanContractsPage`): 12 sentencias totales (idéntico a lo medido por el reverificador) pero `paginas=1` en vez de 3 -- el nuevo assert lo atrapa donde el criterio original no lo hacía. |
 | R6-14 | BAJA | **REPARADO**. Techo de `pageSize` bajado de 20,000 a 5,000 en `renewalScanRequestSchema` y `renewalScanEnqueueRequestSchema` (mismo orden de magnitud que el escaneo de 5,000 contratos ya medido y probado, R6-03) -- ya no admite una sola página con hasta 60,000 alertas candidatas en memoria. Test nuevo: `pageSize:20000` -> 422 (antes 200) en ambos endpoints; `pageSize:5000` sigue funcionando. |
+
+Cierre: `npm run -w apps/api typecheck && lint && test` ×2 en primer plano,
+salida real en `docs/logs/fix-api-r6b.log`. Pasada 1: `typecheck`/`lint`
+limpios, tests **75/76 archivos, 358/359** -- único rojo
+`security-am02-mail-timing.test.ts` (timing-oracle de correo, FUERA del
+ámbito de este agente y no un hallazgo R6-09..R6-14; no se tocó). Pasada
+2: `typecheck`/`lint` limpios, **76/76 archivos, 359/359** verde, incluida
+`security-am02-mail-timing.test.ts` (confirma flake de carga de máquina
+compartida con otros agentes, no una regresión de esta ronda).
