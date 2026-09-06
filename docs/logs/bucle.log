@@ -140,3 +140,4 @@
 2026-09-06 12:07  DESPERTAR  api ronda 6 (#85) completada (0065-0070; INC-11); despachados #92 Google OIDC y #93 auditoría; en curso #84,#88,#91.
 2026-09-06 12:16  DESPERTAR  web coverage (#84) causa demostrada y corregida (c27e905); web ronda 7 (#94) despachada; en curso #88,#91,#92,#93.
 2026-09-06 12:17  DESPERTAR  packages/mail (#88) completado (220 tests); auditor #95 despachado; en curso #91,#92,#93,#94.
+2026-09-06 12:27  INCIDENTE  429 masivo del servidor cortó #91,#92,#93,#94,#95 y descendientes; reanudaciones reintentadas (INC-08 ampliado).
