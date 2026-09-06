@@ -1,0 +1,1100 @@
+=== REVERIFICACION WEB RONDA 1 (2026-09-06T02:13:45Z) ===
+=== git log HEAD ===
+eed68437e56a3bb09a16a38871a1e772f2b7106b docs: corrección web completada; despacho reverificación web
+=== npm run -w apps/web typecheck ===
+
+> @atiende/web@0.1.0 typecheck
+> tsc -b --noEmit
+
+EXIT: 0
+=== npm run -w apps/web lint ===
+
+> @atiende/web@0.1.0 lint
+> eslint .
+
+EXIT: 0
+=== npm run -w apps/web test ===
+
+> @atiende/web@0.1.0 test
+> NODE_OPTIONS=--no-experimental-webstorage vitest run
+
+
+ RUN  v4.1.11 /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-web/apps/web
+
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-web/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-web/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-web/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-web/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-web/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-web/node_modules/axe-core/axe.js:17087:41)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-web/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-web/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-web/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-web/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-web/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-web/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-web/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-web/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-web/node_modules/axe-core/axe.js:17087:41)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-web/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-web/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-web/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+
+ Test Files  10 passed (10)
+      Tests  38 passed (38)
+   Start at  20:13:54
+   Duration  1.84s (transform 462ms, setup 915ms, import 1.58s, tests 951ms, environment 6.06s)
+
+EXIT: 0
+=== npm run -w apps/web build ===
+
+> @atiende/web@0.1.0 build
+> tsc -b && vite build
+
+[36mvite v6.4.3 [32mbuilding for production...[36m[39m
+transforming...
+[32m✓[39m 1778 modules transformed.
+rendering chunks...
+computing gzip size...
+[2mdist/[22m[32mindex.html                                     [39m[1m[2m  1.07 kB[22m[1m[22m[2m │ gzip:  0.53 kB[22m
+[2mdist/[22m[2massets/[22m[35mLoginPage-BcYFrIpy.css                  [39m[1m[2m  0.19 kB[22m[1m[22m[2m │ gzip:  0.17 kB[22m
+[2mdist/[22m[2massets/[22m[35mindex-CcFMGUiw.css                      [39m[1m[2m 30.21 kB[22m[1m[22m[2m │ gzip:  6.50 kB[22m
+[2mdist/[22m[2massets/[22m[36mAgentesHerramientasPage-DHcjQb6m.js     [39m[1m[2m  0.48 kB[22m[1m[22m[2m │ gzip:  0.32 kB[22m
+[2mdist/[22m[2massets/[22m[36mOrganizacionesPage-De8JnSgT.js          [39m[1m[2m  0.49 kB[22m[1m[22m[2m │ gzip:  0.32 kB[22m
+[2mdist/[22m[2massets/[22m[36mUsuariosRolesPage-7EAyAPIF.js           [39m[1m[2m  0.49 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mGoNoGoPage-BEFq7c_S.js                  [39m[1m[2m  0.50 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mEntregasPage-Dg2Ci2i9.js                [39m[1m[2m  0.50 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mPanelPage-BxyuALS2.js                   [39m[1m[2m  0.50 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mRevisionPage-BIgjdTLz.js                [39m[1m[2m  0.51 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mRedaccionPage-BhnyBeWS.js               [39m[1m[2m  0.51 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mConfiguracionPage-CAzYLz6q.js           [39m[1m[2m  0.52 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mAuditoriaPage-C_uewM92.js               [39m[1m[2m  0.52 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mAnalisisBasesPage-C-zQvRYy.js           [39m[1m[2m  0.52 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mDescubrimientoPage-DXvOi1fK.js          [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mFirmantesAutorizadosPage-pIQE-zOv.js    [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mDocumentosVigenciasPage-BsHkNHpH.js     [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mMatchingPage-CPM4T-5E.js                [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.37 kB[22m
+[2mdist/[22m[2massets/[22m[36mCumplimientoDocumentalPage-BWASslfW.js  [39m[1m[2m  0.54 kB[22m[1m[22m[2m │ gzip:  0.36 kB[22m
+[2mdist/[22m[2massets/[22m[36mSeguimientoPage-CFwN_u_s.js             [39m[1m[2m  0.54 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mAprobacionesPage-F9jXPNwE.js            [39m[1m[2m  0.54 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mTarifasAprobadasPage-Czt6BQYl.js        [39m[1m[2m  0.55 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mExpedientePage-BPgi7MDy.js              [39m[1m[2m  0.55 kB[22m[1m[22m[2m │ gzip:  0.36 kB[22m
+[2mdist/[22m[2massets/[22m[36mPerfilCapacidadesPage-DsrzaAgQ.js       [39m[1m[2m  0.57 kB[22m[1m[22m[2m │ gzip:  0.38 kB[22m
+[2mdist/[22m[2massets/[22m[36msparkles-BWt83dUD.js                    [39m[1m[2m  0.68 kB[22m[1m[22m[2m │ gzip:  0.40 kB[22m
+[2mdist/[22m[2massets/[22m[36mcreateModulePage-C8A3xMp5.js            [39m[1m[2m  0.94 kB[22m[1m[22m[2m │ gzip:  0.56 kB[22m
+[2mdist/[22m[2massets/[22m[36mcard-pd69Dkuw.js                        [39m[1m[2m  1.09 kB[22m[1m[22m[2m │ gzip:  0.45 kB[22m
+[2mdist/[22m[2massets/[22m[36mNotFoundPage-Ht5hncr-.js                [39m[1m[2m  1.23 kB[22m[1m[22m[2m │ gzip:  0.70 kB[22m
+[2mdist/[22m[2massets/[22m[36mFuentesFrescuraPage-CIt80C8C.js         [39m[1m[2m  1.51 kB[22m[1m[22m[2m │ gzip:  0.77 kB[22m
+[2mdist/[22m[2massets/[22m[36mempty-state-7VUyQnqw.js                 [39m[1m[2m  1.78 kB[22m[1m[22m[2m │ gzip:  0.81 kB[22m
+[2mdist/[22m[2massets/[22m[36mPaqueteDescargablePage-pVuTcf1N.js      [39m[1m[2m  2.29 kB[22m[1m[22m[2m │ gzip:  1.23 kB[22m
+[2mdist/[22m[2massets/[22m[36mquery-Cr5JZM0v.js                       [39m[1m[2m 46.31 kB[22m[1m[22m[2m │ gzip: 14.39 kB[22m
+[2mdist/[22m[2massets/[22m[36mLoginPage-BBIFlupu.js                   [39m[1m[2m100.44 kB[22m[1m[22m[2m │ gzip: 28.41 kB[22m
+[2mdist/[22m[2massets/[22m[36mindex-D59hrryw.js                       [39m[1m[2m133.11 kB[22m[1m[22m[2m │ gzip: 41.88 kB[22m
+[2mdist/[22m[2massets/[22m[36mapp-platform-ba7btYbn.js                [39m[1m[2m239.43 kB[22m[1m[22m[2m │ gzip: 78.71 kB[22m
+[32m✓ built in 1.58s[39m
+EXIT: 0
+=== npm run -w apps/web test:e2e ===
+
+> @atiende/web@0.1.0 test:e2e
+> npm run build && playwright test
+
+
+> @atiende/web@0.1.0 build
+> tsc -b && vite build
+
+[36mvite v6.4.3 [32mbuilding for production...[36m[39m
+transforming...
+[32m✓[39m 1778 modules transformed.
+rendering chunks...
+computing gzip size...
+[2mdist/[22m[32mindex.html                                     [39m[1m[2m  1.07 kB[22m[1m[22m[2m │ gzip:  0.53 kB[22m
+[2mdist/[22m[2massets/[22m[35mLoginPage-BcYFrIpy.css                  [39m[1m[2m  0.19 kB[22m[1m[22m[2m │ gzip:  0.17 kB[22m
+[2mdist/[22m[2massets/[22m[35mindex-CcFMGUiw.css                      [39m[1m[2m 30.21 kB[22m[1m[22m[2m │ gzip:  6.50 kB[22m
+[2mdist/[22m[2massets/[22m[36mAgentesHerramientasPage-DHcjQb6m.js     [39m[1m[2m  0.48 kB[22m[1m[22m[2m │ gzip:  0.32 kB[22m
+[2mdist/[22m[2massets/[22m[36mOrganizacionesPage-De8JnSgT.js          [39m[1m[2m  0.49 kB[22m[1m[22m[2m │ gzip:  0.32 kB[22m
+[2mdist/[22m[2massets/[22m[36mUsuariosRolesPage-7EAyAPIF.js           [39m[1m[2m  0.49 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mGoNoGoPage-BEFq7c_S.js                  [39m[1m[2m  0.50 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mEntregasPage-Dg2Ci2i9.js                [39m[1m[2m  0.50 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mPanelPage-BxyuALS2.js                   [39m[1m[2m  0.50 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mRevisionPage-BIgjdTLz.js                [39m[1m[2m  0.51 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mRedaccionPage-BhnyBeWS.js               [39m[1m[2m  0.51 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mConfiguracionPage-CAzYLz6q.js           [39m[1m[2m  0.52 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mAuditoriaPage-C_uewM92.js               [39m[1m[2m  0.52 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mAnalisisBasesPage-C-zQvRYy.js           [39m[1m[2m  0.52 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mDescubrimientoPage-DXvOi1fK.js          [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mFirmantesAutorizadosPage-pIQE-zOv.js    [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mDocumentosVigenciasPage-BsHkNHpH.js     [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mMatchingPage-CPM4T-5E.js                [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.37 kB[22m
+[2mdist/[22m[2massets/[22m[36mCumplimientoDocumentalPage-BWASslfW.js  [39m[1m[2m  0.54 kB[22m[1m[22m[2m │ gzip:  0.36 kB[22m
+[2mdist/[22m[2massets/[22m[36mSeguimientoPage-CFwN_u_s.js             [39m[1m[2m  0.54 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mAprobacionesPage-F9jXPNwE.js            [39m[1m[2m  0.54 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mTarifasAprobadasPage-Czt6BQYl.js        [39m[1m[2m  0.55 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mExpedientePage-BPgi7MDy.js              [39m[1m[2m  0.55 kB[22m[1m[22m[2m │ gzip:  0.36 kB[22m
+[2mdist/[22m[2massets/[22m[36mPerfilCapacidadesPage-DsrzaAgQ.js       [39m[1m[2m  0.57 kB[22m[1m[22m[2m │ gzip:  0.38 kB[22m
+[2mdist/[22m[2massets/[22m[36msparkles-BWt83dUD.js                    [39m[1m[2m  0.68 kB[22m[1m[22m[2m │ gzip:  0.40 kB[22m
+[2mdist/[22m[2massets/[22m[36mcreateModulePage-C8A3xMp5.js            [39m[1m[2m  0.94 kB[22m[1m[22m[2m │ gzip:  0.56 kB[22m
+[2mdist/[22m[2massets/[22m[36mcard-pd69Dkuw.js                        [39m[1m[2m  1.09 kB[22m[1m[22m[2m │ gzip:  0.45 kB[22m
+[2mdist/[22m[2massets/[22m[36mNotFoundPage-Ht5hncr-.js                [39m[1m[2m  1.23 kB[22m[1m[22m[2m │ gzip:  0.70 kB[22m
+[2mdist/[22m[2massets/[22m[36mFuentesFrescuraPage-CIt80C8C.js         [39m[1m[2m  1.51 kB[22m[1m[22m[2m │ gzip:  0.77 kB[22m
+[2mdist/[22m[2massets/[22m[36mempty-state-7VUyQnqw.js                 [39m[1m[2m  1.78 kB[22m[1m[22m[2m │ gzip:  0.81 kB[22m
+[2mdist/[22m[2massets/[22m[36mPaqueteDescargablePage-pVuTcf1N.js      [39m[1m[2m  2.29 kB[22m[1m[22m[2m │ gzip:  1.23 kB[22m
+[2mdist/[22m[2massets/[22m[36mquery-Cr5JZM0v.js                       [39m[1m[2m 46.31 kB[22m[1m[22m[2m │ gzip: 14.39 kB[22m
+[2mdist/[22m[2massets/[22m[36mLoginPage-BBIFlupu.js                   [39m[1m[2m100.44 kB[22m[1m[22m[2m │ gzip: 28.41 kB[22m
+[2mdist/[22m[2massets/[22m[36mindex-D59hrryw.js                       [39m[1m[2m133.11 kB[22m[1m[22m[2m │ gzip: 41.88 kB[22m
+[2mdist/[22m[2massets/[22m[36mapp-platform-ba7btYbn.js                [39m[1m[2m239.43 kB[22m[1m[22m[2m │ gzip: 78.71 kB[22m
+[32m✓ built in 1.08s[39m
+
+[2mRunning [22m44[2m tests using [22m5[2m workers[22m
+
+  [32m✓[39m  [2m 1 [22m[chromium] › e2e/ai-disclosure.spec.ts:10:5 › Disclosure de IA (W-15) › /preparacion/redaccion muestra el aviso de uso de IA[2m (1.2s)[22m
+  [32m✓[39m  [2m 4 [22m[chromium] › e2e/ai-disclosure.spec.ts:10:5 › Disclosure de IA (W-15) › /preparacion/revision muestra el aviso de uso de IA[2m (1.2s)[22m
+  [32m✓[39m  [2m 3 [22m[chromium] › e2e/ai-disclosure.spec.ts:10:5 › Disclosure de IA (W-15) › /evaluacion/analisis-bases muestra el aviso de uso de IA[2m (1.2s)[22m
+  [32m✓[39m  [2m 2 [22m[chromium] › e2e/contraste.spec.ts:22:3 › Contraste de color (W-05, W-06) › los badges de estado de fuente (CAPTCHA / cambio de interfaz) no tienen violaciones serias de contraste[2m (1.7s)[22m
+  [32m✓[39m  [2m 5 [22m[chromium] › e2e/contraste.spec.ts:8:3 › Contraste de color (W-05, W-06) › el wordmark en modo oscuro no tiene violaciones serias de contraste[2m (2.0s)[22m
+  [32m✓[39m  [2m 6 [22m[chromium] › e2e/heading-order.spec.ts:12:5 › Orden de encabezados (W-07) › /convocatorias/fuentes-frescura no tiene salto de nivel de encabezado[2m (1.2s)[22m
+  [32m✓[39m  [2m 7 [22m[chromium] › e2e/heading-order.spec.ts:12:5 › Orden de encabezados (W-07) › /entrega/paquete-descargable no tiene salto de nivel de encabezado[2m (1.2s)[22m
+  [32m✓[39m  [2m 8 [22m[chromium] › e2e/login-landmarks.spec.ts:8:1 › /login tiene landmark <main>, un <h1> real y ningún contenido fuera de landmarks (W-08)[2m (1.3s)[22m
+  [32m✓[39m  [2m 9 [22m[chromium] › e2e/login-parity.spec.ts:9:3 › Paridad visual del login (W-11) › escritorio: layout de pantalla partida con kicker, titular y lámina decorativa[2m (965ms)[22m
+  [32m✓[39m  [2m10 [22m[chromium] › e2e/login-parity.spec.ts:20:3 › Paridad visual del login (W-11) › móvil (390×844): la lámina decorativa se oculta y no hay scroll horizontal[2m (956ms)[22m
+  [32m✓[39m  [2m11 [22m[chromium] › e2e/login-parity.spec.ts:32:3 › Paridad visual del login (W-11) › mantiene contraseña + enlace mágico (divergencia deliberada: sin Google OAuth)[2m (960ms)[22m
+  [32m✓[39m  [2m13 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Panel (/panel) carga sin violaciones serious/critical[2m (1.3s)[22m
+  [32m✓[39m  [2m14 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Perfil y capacidades (/empresa/perfil-capacidades) carga sin violaciones serious/critical[2m (1.3s)[22m
+  [32m✓[39m  [2m12 [22m[chromium] › e2e/recorrido.spec.ts:26:3 › Recorrido esencial (W-14) › login → shell: /login carga y navegar a /panel muestra el AppShell[2m (1.6s)[22m
+  [32m✓[39m  [2m15 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Documentos y vigencias (/empresa/documentos-vigencias) carga sin violaciones serious/critical[2m (1.3s)[22m
+  [32m✓[39m  [2m16 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Firmantes autorizados (/empresa/firmantes-autorizados) carga sin violaciones serious/critical[2m (1.3s)[22m
+  [32m✓[39m  [2m17 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Tarifas aprobadas (/empresa/tarifas-aprobadas) carga sin violaciones serious/critical[2m (1.4s)[22m
+  [32m✓[39m  [2m18 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Descubrimiento (/convocatorias/descubrimiento) carga sin violaciones serious/critical[2m (1.4s)[22m
+  [32m✓[39m  [2m19 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Matching (/convocatorias/matching) carga sin violaciones serious/critical[2m (1.4s)[22m
+  [32m✓[39m  [2m20 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Fuentes y frescura (/convocatorias/fuentes-frescura) carga sin violaciones serious/critical[2m (1.3s)[22m
+  [32m✓[39m  [2m21 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Go/No-Go (/evaluacion/go-no-go) carga sin violaciones serious/critical[2m (1.3s)[22m
+  [32m✓[39m  [2m22 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Análisis de bases (/evaluacion/analisis-bases) carga sin violaciones serious/critical[2m (1.3s)[22m
+  [32m✓[39m  [2m23 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Cumplimiento documental (/preparacion/cumplimiento-documental) carga sin violaciones serious/critical[2m (1.4s)[22m
+  [32m✓[39m  [2m24 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Redacción (/preparacion/redaccion) carga sin violaciones serious/critical[2m (1.4s)[22m
+  [32m✓[39m  [2m25 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Revisión (/preparacion/revision) carga sin violaciones serious/critical[2m (1.4s)[22m
+  [32m✓[39m  [2m26 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Expediente (/preparacion/expediente) carga sin violaciones serious/critical[2m (1.3s)[22m
+  [32m✓[39m  [2m27 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Aprobaciones (/preparacion/aprobaciones) carga sin violaciones serious/critical[2m (1.5s)[22m
+  [32m✓[39m  [2m28 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Entregas (/entrega/entregas) carga sin violaciones serious/critical[2m (1.5s)[22m
+  [32m✓[39m  [2m29 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Paquete descargable (/entrega/paquete-descargable) carga sin violaciones serious/critical[2m (1.6s)[22m
+  [32m✓[39m  [2m30 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Seguimiento post-adjudicación (/entrega/seguimiento) carga sin violaciones serious/critical[2m (1.4s)[22m
+  [32m✓[39m  [2m31 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Organizaciones (/backoffice/organizaciones) carga sin violaciones serious/critical[2m (1.5s)[22m
+  [32m✓[39m  [2m32 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Usuarios y roles (/backoffice/usuarios-roles) carga sin violaciones serious/critical[2m (1.5s)[22m
+  [32m✓[39m  [2m33 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Agentes y herramientas (/backoffice/agentes-herramientas) carga sin violaciones serious/critical[2m (1.7s)[22m
+  [32m✓[39m  [2m35 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Configuración (/configuracion) carga sin violaciones serious/critical[2m (1.5s)[22m
+  [32m✓[39m  [2m34 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Auditoría / Trazabilidad (/backoffice/auditoria) carga sin violaciones serious/critical[2m (1.6s)[22m
+  [32m✓[39m  [2m36 [22m[chromium] › e2e/recorrido.spec.ts:43:3 › Recorrido esencial (W-14) › drawer móvil (390×844): se abre, comparte SidebarNav y no hay scroll horizontal[2m (1.8s)[22m
+  [32m✓[39m  [2m38 [22m[chromium] › e2e/recorrido.spec.ts:66:3 › Recorrido esencial (W-14) › Fuentes y frescura: expone los 5 estados de fuente sin violaciones serious/critical[2m (1.4s)[22m
+  [32m✓[39m  [2m39 [22m[chromium] › e2e/recorrido.spec.ts:74:3 › Recorrido esencial (W-14) › Paquete descargable: arranca en "Borrador", nunca en "Listo", sin violaciones serious/critical[2m (1.4s)[22m
+  [32m✓[39m  [2m37 [22m[chromium] › e2e/recorrido.spec.ts:58:3 › Recorrido esencial (W-14) › tema oscuro: activa .dark en <html> y el panel sigue sin violaciones serious/critical[2m (1.8s)[22m
+  [32m✓[39m  [2m41 [22m[chromium] › e2e/skip-link.spec.ts:7:3 › Skip-link mueve el foco real (W-09) › en LoginPage, el skip-link mueve el foco al formulario (#login-form)[2m (965ms)[22m
+  [32m✓[39m  [2m42 [22m[chromium] › e2e/skip-link.spec.ts:26:3 › Skip-link mueve el foco real (W-09) › en AppShell, el skip-link mueve el foco al contenido principal (#main-content)[2m (940ms)[22m
+  [32m✓[39m  [2m43 [22m[chromium] › e2e/touch-targets.spec.ts:9:3 › Objetivos táctiles ≥44×44px (W-10) › el botón hamburguesa mide al menos 44×44px[2m (919ms)[22m
+  [32m✓[39m  [2m44 [22m[chromium] › e2e/touch-targets.spec.ts:20:3 › Objetivos táctiles ≥44×44px (W-10) › el primer link del drawer móvil mide al menos 44px de alto[2m (951ms)[22m
+  [32m✓[39m  [2m40 [22m[chromium] › e2e/recorrido.spec.ts:84:3 › Recorrido esencial (W-14) › todas las rutas del sidebar: sin scroll horizontal a 390×844[2m (12.8s)[22m
+
+[32m  44 passed[39m[2m (24.1s)[22m
+EXIT: 0
+=== W-16: derivarEstadoPaquete entradas limite ===
+
+> @atiende/web@0.1.0 test
+> NODE_OPTIONS=--no-experimental-webstorage vitest run package-status-badge.reverify
+
+
+ RUN  v4.1.11 /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-web/apps/web
+
+
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+   Start at  20:15:25
+   Duration  1.06s (transform 113ms, setup 204ms, import 55ms, tests 5ms, environment 365ms)
+
+EXIT: 0
+=== W-14 MUTACION: quitar aviso presentacion/firma + forzar badge a Listo por defecto ===
+diff --git a/apps/web/src/pages/entrega/PaqueteDescargablePage.tsx b/apps/web/src/pages/entrega/PaqueteDescargablePage.tsx
+index 775b8c2..988def4 100644
+--- a/apps/web/src/pages/entrega/PaqueteDescargablePage.tsx
++++ b/apps/web/src/pages/entrega/PaqueteDescargablePage.tsx
+@@ -1,8 +1,7 @@
+-import { PackageCheck, ShieldAlert } from "lucide-react";
++import { PackageCheck } from "lucide-react";
+ 
+ import { SectionHeader } from "@/components/layout/SectionHeader";
+ import { EmptyState } from "@/components/ui/empty-state";
+-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+ import { derivarEstadoPaquete, PackageStatusBadge } from "@/components/ui/package-status-badge";
+ 
+ // El paquete solo puede pasar a "listo" cuando exista una validación real
+@@ -12,9 +11,9 @@ import { derivarEstadoPaquete, PackageStatusBadge } from "@/components/ui/packag
+ // para que el único cambio posible a "listo" pase por las tres condiciones
+ // explícitas y no por editar un valor hardcodeado.
+ const ESTADO_ACTUAL = derivarEstadoPaquete({
+-  checklistCompleto: false,
+-  firmasCompletas: false,
+-  anexosVigentes: false,
++  checklistCompleto: true,
++  firmasCompletas: true,
++  anexosVigentes: true,
+ });
+ 
+ export default function PaqueteDescargablePage() {
+@@ -26,19 +25,6 @@ export default function PaqueteDescargablePage() {
+         description="Documentos exigidos, índice/manifiesto, checklist y versiones listos para descargar."
+       />
+ 
+-      <Card className="mb-6 border-warning/40 bg-warning/5">
+-        <CardHeader className="flex-row items-start gap-3 space-y-0">
+-          <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-warning" aria-hidden="true" strokeWidth={1.75} />
+-          <div>
+-            <CardTitle className="text-base">La presentación y firma las realiza el usuario</CardTitle>
+-            <CardDescription>
+-              Esta plataforma no presenta ofertas ni firma documentos en tu nombre, ni actúa en portales oficiales o
+-              contacta terceros por su cuenta. Tú revisas y presentas el expediente.
+-            </CardDescription>
+-          </div>
+-        </CardHeader>
+-      </Card>
+-
+       <div className="mb-6 flex items-center gap-3">
+         <span className="text-sm font-medium text-muted-foreground">Estado del paquete:</span>
+         <PackageStatusBadge estado={ESTADO_ACTUAL} />
+
+> @atiende/web@0.1.0 test:e2e
+> npm run build && playwright test
+
+
+> @atiende/web@0.1.0 build
+> tsc -b && vite build
+
+[36mvite v6.4.3 [32mbuilding for production...[36m[39m
+transforming...
+[32m✓[39m 1778 modules transformed.
+rendering chunks...
+computing gzip size...
+[2mdist/[22m[32mindex.html                                     [39m[1m[2m  1.07 kB[22m[1m[22m[2m │ gzip:  0.53 kB[22m
+[2mdist/[22m[2massets/[22m[35mLoginPage-BcYFrIpy.css                  [39m[1m[2m  0.19 kB[22m[1m[22m[2m │ gzip:  0.17 kB[22m
+[2mdist/[22m[2massets/[22m[35mindex-ATNara6Z.css                      [39m[1m[2m 29.85 kB[22m[1m[22m[2m │ gzip:  6.46 kB[22m
+[2mdist/[22m[2massets/[22m[36mAgentesHerramientasPage-M0I3ZVkR.js     [39m[1m[2m  0.48 kB[22m[1m[22m[2m │ gzip:  0.32 kB[22m
+[2mdist/[22m[2massets/[22m[36mOrganizacionesPage-CXwYfFlJ.js          [39m[1m[2m  0.49 kB[22m[1m[22m[2m │ gzip:  0.32 kB[22m
+[2mdist/[22m[2massets/[22m[36mUsuariosRolesPage-eihnYZt0.js           [39m[1m[2m  0.49 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mGoNoGoPage-BoHqNZmD.js                  [39m[1m[2m  0.50 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mEntregasPage-BGPQJ1GN.js                [39m[1m[2m  0.50 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mPanelPage-9LSjgKxV.js                   [39m[1m[2m  0.50 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mRevisionPage-DaDFbm3F.js                [39m[1m[2m  0.51 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mRedaccionPage-B9lUMrM8.js               [39m[1m[2m  0.51 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mConfiguracionPage-CoTchE7L.js           [39m[1m[2m  0.52 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mAuditoriaPage-Dfhy7o_d.js               [39m[1m[2m  0.52 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mAnalisisBasesPage-DehRz-92.js           [39m[1m[2m  0.52 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mDescubrimientoPage-KojH74sv.js          [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mFirmantesAutorizadosPage-CwApBwnU.js    [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mDocumentosVigenciasPage-DazKYFxT.js     [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mMatchingPage-Cb9x2XYN.js                [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.36 kB[22m
+[2mdist/[22m[2massets/[22m[36mCumplimientoDocumentalPage-BgAjVeQc.js  [39m[1m[2m  0.54 kB[22m[1m[22m[2m │ gzip:  0.36 kB[22m
+[2mdist/[22m[2massets/[22m[36mSeguimientoPage-HLassM1t.js             [39m[1m[2m  0.54 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mAprobacionesPage-aVxBaQw5.js            [39m[1m[2m  0.54 kB[22m[1m[22m[2m │ gzip:  0.36 kB[22m
+[2mdist/[22m[2massets/[22m[36mTarifasAprobadasPage-B4u-lIWc.js        [39m[1m[2m  0.55 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mExpedientePage-CNKI_Pav.js              [39m[1m[2m  0.55 kB[22m[1m[22m[2m │ gzip:  0.37 kB[22m
+[2mdist/[22m[2massets/[22m[36mPerfilCapacidadesPage-BlIQN2gm.js       [39m[1m[2m  0.57 kB[22m[1m[22m[2m │ gzip:  0.38 kB[22m
+[2mdist/[22m[2massets/[22m[36msparkles-HMJ005lU.js                    [39m[1m[2m  0.68 kB[22m[1m[22m[2m │ gzip:  0.40 kB[22m
+[2mdist/[22m[2massets/[22m[36mcreateModulePage-fnSQqHi6.js            [39m[1m[2m  0.94 kB[22m[1m[22m[2m │ gzip:  0.56 kB[22m
+[2mdist/[22m[2massets/[22m[36mPaqueteDescargablePage-7TrL3Yra.js      [39m[1m[2m  1.21 kB[22m[1m[22m[2m │ gzip:  0.68 kB[22m
+[2mdist/[22m[2massets/[22m[36mNotFoundPage-D6g8yjpm.js                [39m[1m[2m  1.23 kB[22m[1m[22m[2m │ gzip:  0.70 kB[22m
+[2mdist/[22m[2massets/[22m[36mempty-state-M0yQ9k19.js                 [39m[1m[2m  1.78 kB[22m[1m[22m[2m │ gzip:  0.81 kB[22m
+[2mdist/[22m[2massets/[22m[36mFuentesFrescuraPage-BsKnQRmn.js         [39m[1m[2m  2.41 kB[22m[1m[22m[2m │ gzip:  1.03 kB[22m
+[2mdist/[22m[2massets/[22m[36mquery-Cr5JZM0v.js                       [39m[1m[2m 46.31 kB[22m[1m[22m[2m │ gzip: 14.39 kB[22m
+[2mdist/[22m[2massets/[22m[36mLoginPage-BAv3elqU.js                   [39m[1m[2m100.44 kB[22m[1m[22m[2m │ gzip: 28.41 kB[22m
+[2mdist/[22m[2massets/[22m[36mindex-C4sxnOae.js                       [39m[1m[2m133.08 kB[22m[1m[22m[2m │ gzip: 41.87 kB[22m
+[2mdist/[22m[2massets/[22m[36mapp-platform-ba7btYbn.js                [39m[1m[2m239.43 kB[22m[1m[22m[2m │ gzip: 78.71 kB[22m
+[32m✓ built in 19.17s[39m
+
+[2mRunning [22m44[2m tests using [22m5[2m workers[22m
+
+  [32m✓[39m  [2m 1 [22m[chromium] › e2e/ai-disclosure.spec.ts:10:5 › Disclosure de IA (W-15) › /evaluacion/analisis-bases muestra el aviso de uso de IA[2m (1.5s)[22m
+  [32m✓[39m  [2m 3 [22m[chromium] › e2e/ai-disclosure.spec.ts:10:5 › Disclosure de IA (W-15) › /preparacion/redaccion muestra el aviso de uso de IA[2m (1.5s)[22m
+  [32m✓[39m  [2m 5 [22m[chromium] › e2e/ai-disclosure.spec.ts:10:5 › Disclosure de IA (W-15) › /preparacion/revision muestra el aviso de uso de IA[2m (1.4s)[22m
+  [32m✓[39m  [2m 6 [22m[chromium] › e2e/heading-order.spec.ts:12:5 › Orden de encabezados (W-07) › /convocatorias/fuentes-frescura no tiene salto de nivel de encabezado[2m (1.8s)[22m
+  [32m✓[39m  [2m 2 [22m[chromium] › e2e/contraste.spec.ts:8:3 › Contraste de color (W-05, W-06) › el wordmark en modo oscuro no tiene violaciones serias de contraste[2m (3.6s)[22m
+  [32m✓[39m  [2m 7 [22m[chromium] › e2e/heading-order.spec.ts:12:5 › Orden de encabezados (W-07) › /entrega/paquete-descargable no tiene salto de nivel de encabezado[2m (1.6s)[22m
+  [32m✓[39m  [2m 4 [22m[chromium] › e2e/contraste.spec.ts:22:3 › Contraste de color (W-05, W-06) › los badges de estado de fuente (CAPTCHA / cambio de interfaz) no tienen violaciones serias de contraste[2m (3.5s)[22m
+  [32m✓[39m  [2m 8 [22m[chromium] › e2e/login-landmarks.spec.ts:8:1 › /login tiene landmark <main>, un <h1> real y ningún contenido fuera de landmarks (W-08)[2m (1.9s)[22m
+  [32m✓[39m  [2m 9 [22m[chromium] › e2e/login-parity.spec.ts:9:3 › Paridad visual del login (W-11) › escritorio: layout de pantalla partida con kicker, titular y lámina decorativa[2m (1.4s)[22m
+  [32m✓[39m  [2m10 [22m[chromium] › e2e/login-parity.spec.ts:20:3 › Paridad visual del login (W-11) › móvil (390×844): la lámina decorativa se oculta y no hay scroll horizontal[2m (1.6s)[22m
+  [32m✓[39m  [2m11 [22m[chromium] › e2e/login-parity.spec.ts:32:3 › Paridad visual del login (W-11) › mantiene contraseña + enlace mágico (divergencia deliberada: sin Google OAuth)[2m (1.4s)[22m
+  [32m✓[39m  [2m12 [22m[chromium] › e2e/recorrido.spec.ts:26:3 › Recorrido esencial (W-14) › login → shell: /login carga y navegar a /panel muestra el AppShell[2m (2.3s)[22m
+  [32m✓[39m  [2m13 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Panel (/panel) carga sin violaciones serious/critical[2m (3.0s)[22m
+  [32m✓[39m  [2m15 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Perfil y capacidades (/empresa/perfil-capacidades) carga sin violaciones serious/critical[2m (3.2s)[22m
+  [32m✓[39m  [2m14 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Firmantes autorizados (/empresa/firmantes-autorizados) carga sin violaciones serious/critical[2m (3.3s)[22m
+  [32m✓[39m  [2m16 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Documentos y vigencias (/empresa/documentos-vigencias) carga sin violaciones serious/critical[2m (3.4s)[22m
+  [32m✓[39m  [2m17 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Tarifas aprobadas (/empresa/tarifas-aprobadas) carga sin violaciones serious/critical[2m (3.5s)[22m
+  [32m✓[39m  [2m18 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Descubrimiento (/convocatorias/descubrimiento) carga sin violaciones serious/critical[2m (3.4s)[22m
+  [32m✓[39m  [2m19 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Matching (/convocatorias/matching) carga sin violaciones serious/critical[2m (3.3s)[22m
+  [32m✓[39m  [2m20 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Fuentes y frescura (/convocatorias/fuentes-frescura) carga sin violaciones serious/critical[2m (3.4s)[22m
+  [32m✓[39m  [2m21 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Go/No-Go (/evaluacion/go-no-go) carga sin violaciones serious/critical[2m (3.1s)[22m
+  [32m✓[39m  [2m22 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Análisis de bases (/evaluacion/analisis-bases) carga sin violaciones serious/critical[2m (2.8s)[22m
+  [32m✓[39m  [2m23 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Cumplimiento documental (/preparacion/cumplimiento-documental) carga sin violaciones serious/critical[2m (3.0s)[22m
+  [32m✓[39m  [2m24 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Redacción (/preparacion/redaccion) carga sin violaciones serious/critical[2m (3.5s)[22m
+  [32m✓[39m  [2m25 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Revisión (/preparacion/revision) carga sin violaciones serious/critical[2m (3.6s)[22m
+  [32m✓[39m  [2m26 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Expediente (/preparacion/expediente) carga sin violaciones serious/critical[2m (3.5s)[22m
+  [32m✓[39m  [2m27 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Aprobaciones (/preparacion/aprobaciones) carga sin violaciones serious/critical[2m (3.5s)[22m
+  [32m✓[39m  [2m28 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Entregas (/entrega/entregas) carga sin violaciones serious/critical[2m (2.8s)[22m
+  [32m✓[39m  [2m29 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Paquete descargable (/entrega/paquete-descargable) carga sin violaciones serious/critical[2m (3.1s)[22m
+  [32m✓[39m  [2m31 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Organizaciones (/backoffice/organizaciones) carga sin violaciones serious/critical[2m (3.1s)[22m
+  [32m✓[39m  [2m30 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Seguimiento post-adjudicación (/entrega/seguimiento) carga sin violaciones serious/critical[2m (3.2s)[22m
+  [32m✓[39m  [2m32 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Usuarios y roles (/backoffice/usuarios-roles) carga sin violaciones serious/critical[2m (3.6s)[22m
+  [32m✓[39m  [2m33 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Agentes y herramientas (/backoffice/agentes-herramientas) carga sin violaciones serious/critical[2m (3.2s)[22m
+  [32m✓[39m  [2m36 [22m[chromium] › e2e/recorrido.spec.ts:43:3 › Recorrido esencial (W-14) › drawer móvil (390×844): se abre, comparte SidebarNav y no hay scroll horizontal[2m (2.3s)[22m
+  [32m✓[39m  [2m35 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Configuración (/configuracion) carga sin violaciones serious/critical[2m (3.3s)[22m
+  [32m✓[39m  [2m34 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Auditoría / Trazabilidad (/backoffice/auditoria) carga sin violaciones serious/critical[2m (3.4s)[22m
+  [32m✓[39m  [2m37 [22m[chromium] › e2e/recorrido.spec.ts:58:3 › Recorrido esencial (W-14) › tema oscuro: activa .dark en <html> y el panel sigue sin violaciones serious/critical[2m (3.1s)[22m
+  [32m✓[39m  [2m38 [22m[chromium] › e2e/recorrido.spec.ts:66:3 › Recorrido esencial (W-14) › Fuentes y frescura: expone los 5 estados de fuente sin violaciones serious/critical[2m (3.0s)[22m
+  [32m✓[39m  [2m41 [22m[chromium] › e2e/skip-link.spec.ts:7:3 › Skip-link mueve el foco real (W-09) › en LoginPage, el skip-link mueve el foco al formulario (#login-form)[2m (1.3s)[22m
+  [32m✓[39m  [2m42 [22m[chromium] › e2e/skip-link.spec.ts:26:3 › Skip-link mueve el foco real (W-09) › en AppShell, el skip-link mueve el foco al contenido principal (#main-content)[2m (1.1s)[22m
+  [32m✓[39m  [2m43 [22m[chromium] › e2e/touch-targets.spec.ts:9:3 › Objetivos táctiles ≥44×44px (W-10) › el botón hamburguesa mide al menos 44×44px[2m (1.1s)[22m
+  [32m✓[39m  [2m44 [22m[chromium] › e2e/touch-targets.spec.ts:20:3 › Objetivos táctiles ≥44×44px (W-10) › el primer link del drawer móvil mide al menos 44px de alto[2m (1.1s)[22m
+  [31m✘[39m  [2m39 [22m[31m[chromium] › e2e/recorrido.spec.ts:74:3 › Recorrido esencial (W-14) › Paquete descargable: arranca en "Borrador", nunca en "Listo", sin violaciones serious/critical[39m[2m (6.3s)[22m
+  [32m✓[39m  [2m40 [22m[chromium] › e2e/recorrido.spec.ts:84:3 › Recorrido esencial (W-14) › todas las rutas del sidebar: sin scroll horizontal a 390×844[2m (13.4s)[22m
+
+
+[31m  1) [chromium] › e2e/recorrido.spec.ts:74:3 › Recorrido esencial (W-14) › Paquete descargable: arranca en "Borrador", nunca en "Listo", sin violaciones serious/critical [39m
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByText('Borrador', { exact: true })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" getByText('Borrador', { exact: true }) with timeout 5000ms[22m
+    [2m  - waiting for getByText('Borrador', { exact: true })[22m
+
+
+    [0m [90m 76 |[39m   }) [33m=>[39m {
+     [90m 77 |[39m     [36mawait[39m page[33m.[39mgoto([32m"/entrega/paquete-descargable"[39m)[33m;[39m
+    [31m[1m>[22m[39m[90m 78 |[39m     [36mawait[39m expect(page[33m.[39mgetByText([32m"Borrador"[39m[33m,[39m { exact[33m:[39m [36mtrue[39m }))[33m.[39mtoBeVisible()[33m;[39m
+     [90m    |[39m                                                               [31m[1m^[22m[39m
+     [90m 79 |[39m     [36mawait[39m expect(page[33m.[39mgetByText([32m"Listo para presentar"[39m))[33m.[39mtoHaveCount([35m0[39m)[33m;[39m
+     [90m 80 |[39m     [36mawait[39m expect(page[33m.[39mgetByText([32m"La presentación y firma las realiza el usuario"[39m))[33m.[39mtoBeVisible()[33m;[39m
+     [90m 81 |[39m     [36mawait[39m sinViolacionesSeriasOCriticas(page)[33m;[39m[0m
+    [2m    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-web/apps/web/e2e/recorrido.spec.ts:78:63[22m
+
+[2m    Error Context: test-results/recorrido-Recorrido-esenci-6502e-iolaciones-serious-critical-chromium/error-context.md[22m
+
+[2m    attachment #2: [1mtrace[2m (application/zip) [2m─────────────────────────────────────────────────────────[2m[22m
+[2m    test-results/recorrido-Recorrido-esenci-6502e-iolaciones-serious-critical-chromium/trace.zip[22m
+[2m    Usage:[22m
+
+[2m        npx playwright show-trace test-results/recorrido-Recorrido-esenci-6502e-iolaciones-serious-critical-chromium/trace.zip[22m
+
+[2m    [2m────────────────────────────────────────────────────────────────────────────────────────────────[2m[22m
+
+[31m  1 failed[39m
+[31m    [chromium] › e2e/recorrido.spec.ts:74:3 › Recorrido esencial (W-14) › Paquete descargable: arranca en "Borrador", nunca en "Listo", sin violaciones serious/critical [39m
+[32m  43 passed[39m[2m (44.1s)[22m
+npm error Lifecycle script `test:e2e` failed with error:
+npm error code 1
+npm error path /private/tmp/claude-501/-Users-javiercamaraportepetit/***/scratchpad/reverify-web/apps/web
+npm error workspace @atiende/web@0.1.0
+npm error location /private/tmp/claude-501/-Users-javiercamaraportepetit/***/scratchpad/reverify-web/apps/web
+npm error command failed
+npm error command sh -c npm run build && playwright test
+EXIT: 1
+=== git show --stat por hallazgo W-01..W-16 ===
+--- a9e45c2 ---
+commit a9e45c2da1b8a29471650da049a11686659adf50
+Author: Javier Cámara Porte Petit <javiercamaraportepetit@Mac-mini-de-Javier.local>
+Date:   Sat Sep 5 19:27:08 2026 -0600
+
+    fix(web): W-02 declarar @types/node explícito en apps/web
+    
+    apps/web/package.json nunca declaraba @types/node: typecheck y build solo
+    "funcionaban" porque la versión de un workspace hermano (apps/api,
+    packages/*) quedaba hoisteada en la raíz. Reproducido el fallo real
+    (TS2307/TS2339 en vite.config.ts) en una copia aislada de apps/web sin esa
+    dependencia hoisteada (docs/logs/fix-web-w02.log); tras declarar
+    "@types/node": "^22.10.2" (misma versión que el resto del monorepo) en
+    devDependencies, typecheck y build pasan en la misma copia aislada.
+    
+    Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+    Claude-Session: https://claude.ai/code/session_01PF5QyVoZ1Z35Mi9Xt9ehd8
+
+ apps/web/package.json     |  1 +
+ docs/logs/fix-web-w02.log | 70 +++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 71 insertions(+)
+--- 435ecbc ---
+commit 435ecbcaa3889068a37103ca09001601651905e6
+Author: Javier Cámara Porte Petit <javiercamaraportepetit@Mac-mini-de-Javier.local>
+Date:   Sat Sep 5 19:33:19 2026 -0600
+
+    fix(web): W-05/W-06 corrige violaciones serious de contraste (render real)
+    
+    Reproducido con Playwright + axe-core sobre el documento real servido por
+    `vite preview` (docs/logs/fix-web-w05-w06.log), no jsdom — REQ-089 exige
+    "sin hallazgos critical/serious":
+    
+    - W-05: AtiendeWordmark usaba style={{ color: "#1D4ED8" }} fijo (copiado del
+      origen), 2.49:1 en modo oscuro. Se reemplaza por la clase `text-primary`,
+      que sí tiene un valor propio en `.dark` (index.css).
+    - W-06: el badge `warning` de SourceStatusBadge ("CAPTCHA"/"Cambio de
+      interfaz") tenía 3.28:1 con texto blanco sobre --warning en modo claro.
+      Se cambia --warning-foreground a un tono oscuro (~5.2:1).
+    
+    Introduce la infraestructura Playwright/axe (@playwright/test,
+    @axe-core/playwright, playwright.config.ts, apps/web/e2e/) que se usa para
+    esta verificación y que W-14 completará con la suite de recorridos
+    completa; se excluye e2e/ de vitest (corre con su propio runner) y se
+    añade tsconfig.e2e.json para que `typecheck` también cubra el código E2E.
+    
+    Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+    Claude-Session: https://claude.ai/code/session_01PF5QyVoZ1Z35Mi9Xt9ehd8
+
+ apps/web/.gitignore                     |   4 +
+ apps/web/e2e/contraste.spec.ts          |  30 ++++
+ apps/web/e2e/utils/a11y.ts              |  20 +++
+ apps/web/package.json                   |   7 +-
+ apps/web/playwright.config.ts           |  26 +++
+ apps/web/src/components/AtiendeLogo.tsx |   9 +-
+ apps/web/src/index.css                  |   6 +-
+ apps/web/tsconfig.e2e.json              |  24 +++
+ apps/web/tsconfig.json                  |   3 +-
+ apps/web/vite.config.ts                 |   5 +
+ docs/logs/fix-web-w05-w06.log           | 269 ++++++++++++++++++++++++++++++++
+ 11 files changed, 396 insertions(+), 7 deletions(-)
+--- 9b5f43a ---
+commit 9b5f43ae5eb03792983549202b9e07ac30502333
+Author: Javier Cámara Porte Petit <javiercamaraportepetit@Mac-mini-de-Javier.local>
+Date:   Sat Sep 5 19:41:24 2026 -0600
+
+    fix(web): W-07 CardTitle acepta nivel de encabezado configurable
+    
+    CardTitle estaba fijo a <h3>: cualquier página con SectionHeader (h1) +
+    Card saltaba de h1 a h3 sin pasar por h2 (violación axe "moderate"
+    heading-order en /convocatorias/fuentes-frescura y
+    /entrega/paquete-descargable). Reproducido con axe-core sobre el documento
+    real servido por vite preview (docs/logs/fix-web-w07.log).
+    
+    Se añade la prop `level` (1-6, por defecto 2 — el caso normal de un Card
+    dentro de una página que ya tiene su <h1>) y se cubre con un test de
+    componente (card.test.tsx) y con el E2E de axe (e2e/heading-order.spec.ts).
+    
+    Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+    Claude-Session: https://claude.ai/code/session_01PF5QyVoZ1Z35Mi9Xt9ehd8
+
+ apps/web/e2e/heading-order.spec.ts       |  18 +++
+ apps/web/src/components/ui/card.test.tsx |  16 +++
+ apps/web/src/components/ui/card.tsx      |  27 +++-
+ docs/logs/fix-web-w07.log                | 216 +++++++++++++++++++++++++++++++
+ 4 files changed, 272 insertions(+), 5 deletions(-)
+--- 0151404 ---
+commit 0151404316377bfaba0ac4612b492a84e7926542
+Author: Javier Cámara Porte Petit <javiercamaraportepetit@Mac-mini-de-Javier.local>
+Date:   Sat Sep 5 19:43:09 2026 -0600
+
+    fix(web): W-08/W-09 LoginPage: landmark/h1 real y skip-link con foco real
+    
+    Se corrigen juntos porque ambos hallazgos caen sobre las mismas líneas de
+    LoginPage.tsx (W-08: el wrapper de la página; W-09: el elemento objetivo
+    del skip-link) — separarlos habría requerido tocar el mismo diff dos veces
+    sin trazabilidad adicional. Reproducido con Playwright + axe-core sobre el
+    documento real (docs/logs/fix-web-w08-w09.log), y por teclado real (Tab +
+    Enter) para W-09, que axe no puede detectar (solo ve que el enlace existe,
+    no a dónde mueve el foco):
+    
+    - W-08: LoginPage es la única pantalla sin <AppShell/> y no tenía landmark
+      <main> ni <h1> — 3 violaciones moderate (landmark-one-main,
+      page-has-heading-one, region). Se envuelve en <main> y el CardTitle pasa
+      a level={1} (título real de la página).
+    - W-09: el skip-link (#login-form) apuntaba a un <div> del wrapper de Tabs
+      sin tabindex — Enter dejaba el foco en <body>. Se añade `tabIndex={-1}`
+      al contenedor y un componente <SkipLink/> compartido que llama
+      `.focus()` explícitamente en vez de depender del comportamiento nativo
+      del navegador (inconsistente entre motores); se usa también en AppShell
+      para que el mecanismo sea el mismo en todas las páginas.
+    
+    Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+    Claude-Session: https://claude.ai/code/session_01PF5QyVoZ1Z35Mi9Xt9ehd8
+
+ apps/web/e2e/login-landmarks.spec.ts        |  14 +
+ apps/web/e2e/skip-link.spec.ts              |  36 +++
+ apps/web/src/components/SkipLink.tsx        |  33 ++
+ apps/web/src/components/layout/AppShell.tsx |   5 +-
+ apps/web/src/pages/LoginPage.test.tsx       |   6 +
+ apps/web/src/pages/LoginPage.tsx            |  20 +-
+ apps/web/tsconfig.e2e.json                  |   2 +-
+ docs/logs/fix-web-w08-w09.log               | 480 ++++++++++++++++++++++++++++
+ 8 files changed, 585 insertions(+), 11 deletions(-)
+--- 3ab333c ---
+commit 3ab333c3d9b92804e5bec72c385a5c72f6c9b94c
+Author: Javier Cámara Porte Petit <javiercamaraportepetit@Mac-mini-de-Javier.local>
+Date:   Sat Sep 5 19:50:03 2026 -0600
+
+    fix(web): W-11 LoginPage alineado a la anatomía real del login Restaurantes
+    
+    docs/investigacion/frontend-restaurantes.md describía el login real como
+    "tabs contraseña/enlace mágico"; el AdminLogin.tsx real de
+    atiende-restaurantes (revisado en código, sin tocar su .env ni sus datos)
+    es un layout de pantalla partida con kicker, titular serif (Fraunces) y
+    lámina decorativa — nada de eso estaba en LoginPage.tsx. Reproducido con
+    Playwright (docs/logs/fix-web-w11.log) revirtiendo temporalmente al layout
+    centrado en Card y confirmando que la nueva prueba e2e/login-parity.spec.ts
+    fallaba.
+    
+    Se adopta esa misma anatomía (pantalla partida, kicker "Acceso al panel",
+    h1 en Fraunces vía login.css) manteniendo divergencias deliberadas
+    documentadas en README.md § "Paridad del login con Restaurantes": la
+    lámina es un degradado de marca en vez de una foto de cocina (dominio
+    equivocado, sin licencia), y se conservan las tabs contraseña/enlace
+    mágico en vez de solo enlace mágico + Google OAuth (apps/api expone
+    /auth/login con contraseña; no hay integración OAuth en esta ronda).
+    
+    axe-core sobre el documento real: 0 violaciones de cualquier impacto en
+    /login (antes 3 moderate por W-08, ya corregido). Sin scroll horizontal a
+    390×844 (la lámina se oculta en móvil).
+    
+    skip-link.spec.ts se ajusta para esperar networkidle antes del primer Tab,
+    ya que la fuente externa (Fraunces) introduce una carga de red adicional
+    que podía retrasar el asentamiento del orden de foco en Chromium headless.
+    
+    Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+    Claude-Session: https://claude.ai/code/session_01PF5QyVoZ1Z35Mi9Xt9ehd8
+
+ apps/web/README.md                |  23 +++++++++
+ apps/web/e2e/login-parity.spec.ts |  38 ++++++++++++++
+ apps/web/e2e/skip-link.spec.ts    |   7 ++-
+ apps/web/src/pages/LoginPage.tsx  | 104 ++++++++++++++++++++++++++------------
+ apps/web/src/pages/login.css      |  16 ++++++
+ docs/logs/fix-web-w11.log         |  55 ++++++++++++++++++++
+ 6 files changed, 209 insertions(+), 34 deletions(-)
+--- 1adb386 ---
+commit 1adb3866184d60e42692e4613afe37391053a299
+Author: Javier Cámara Porte Petit <javiercamaraportepetit@Mac-mini-de-Javier.local>
+Date:   Sat Sep 5 19:50:52 2026 -0600
+
+    fix(web): W-12 documenta la ausencia de guard de ruta
+    
+    apps/web no tiene ningún guard de ruta y login()/requestMagicLink() no
+    persisten ningún token — no hay ni un lugar donde guardar una sesión
+    todavía. Se documenta esta limitación en README.md en vez de añadir un
+    guard client-side cosmético (que solo podría comprobar la ausencia de una
+    clave de localStorage que ningún flujo real escribe hoy, dando una falsa
+    sensación de control de acceso). El control de acceso real queda para
+    cuando exista persistencia de sesión real contra apps/api.
+    
+    Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+    Claude-Session: https://claude.ai/code/session_01PF5QyVoZ1Z35Mi9Xt9ehd8
+
+ apps/web/README.md | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+--- 2f85346 ---
+commit 2f85346a0d24581a364f5fd94ab4fed1b9bf3d72
+Author: Javier Cámara Porte Petit <javiercamaraportepetit@Mac-mini-de-Javier.local>
+Date:   Sat Sep 5 19:50:35 2026 -0600
+
+    fix(web): W-04 corrige el registro de npm audit en README
+    
+    El registro de la ronda 1 reportaba "5 vulnerabilities" de apps/web sin
+    explicar el origen. Verificado con npm ls vitest / npm ls esbuild --all
+    (docs/logs/fix-web-w04.log): las 5 vulnerabilidades vienen de
+    vitest@2.1.8 (esbuild@0.21.5 vía vite@5.4.21) que fijan apps/api y los
+    cuatro packages/*, no de apps/web (que usa vitest@4.1.11 con
+    esbuild@0.25.12, no vulnerable). npm audit --workspace <nombre> no aísla
+    el árbol real cuando hay hoisting cruzado entre workspaces del mismo
+    lockfile — se documenta esta limitación en README.md en vez de repetir un
+    "0 vulnerabilidades" que solo es cierto en un clon aislado de apps/web sin
+    el resto del monorepo, o un "5 vulnerabilidades" que en realidad no
+    pertenecen a este workspace.
+    
+    Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+    Claude-Session: https://claude.ai/code/session_01PF5QyVoZ1Z35Mi9Xt9ehd8
+
+ apps/web/README.md        | 27 +++++++++++++++++
+ docs/logs/fix-web-w04.log | 75 +++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 102 insertions(+)
+--- 533fbf3 ---
+commit 533fbf354f5b8361561926353c83ac217749b768
+Author: Javier Cámara Porte Petit <javiercamaraportepetit@Mac-mini-de-Javier.local>
+Date:   Sat Sep 5 19:52:19 2026 -0600
+
+    fix(web): W-10 objetivos táctiles móviles ≥44×44px
+    
+    El botón hamburguesa medía 40×40px (tamaño "icon" por defecto de Button) y
+    el primer link de navegación del drawer móvil 36px de alto (py-2),
+    ambos por debajo del objetivo de ≥44×44px. Reproducido con
+    Playwright/boundingBox() a 390×844 (docs/logs/fix-web-w10.log).
+    
+    Se sube el botón hamburguesa a h-11 w-11 (44px) y los links de
+    SidebarNav (compartidos entre sidebar de escritorio y drawer móvil) de
+    py-2 a py-3, que a text-sm da 44px de alto.
+    
+    Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+    Claude-Session: https://claude.ai/code/session_01PF5QyVoZ1Z35Mi9Xt9ehd8
+
+ apps/web/e2e/touch-targets.spec.ts            | 31 ++++++++++++
+ apps/web/src/components/layout/AppShell.tsx   |  4 +-
+ apps/web/src/components/layout/SidebarNav.tsx |  7 ++-
+ docs/logs/fix-web-w10.log                     | 72 +++++++++++++++++++++++++++
+ 4 files changed, 111 insertions(+), 3 deletions(-)
+--- ac6b632 ---
+commit ac6b632f8dbd746c3edfd19d246c9d362b6a8ab0
+Author: Javier Cámara Porte Petit <javiercamaraportepetit@Mac-mini-de-Javier.local>
+Date:   Sat Sep 5 19:54:40 2026 -0600
+
+    fix(web): W-13 vitest-axe corre sobre document.body, no el subárbol RTL
+    
+    AppShell.test.tsx y LoginPage.test.tsx corrían axe(container) — el
+    subárbol montado por Testing Library — por lo que las reglas de nivel de
+    documento (landmark-one-main, page-has-heading-one, region) que sí fallan
+    en el navegador real de /login (W-08) eran invisibles para estas pruebas.
+    
+    Se cambia a axe(document.body) en ambas. Verificado con una demostración
+    temporal (docs/logs/fix-web-w13.log, no forma parte del repo): con
+    LoginPage.tsx revertido a la versión sin <main>/<h1>, axe(container) no
+    detecta el problema pero axe(document.body) sí reporta "region" — mejora
+    real y parcial, honestamente documentada: jsdom no reproduce el cálculo de
+    visibilidad/layout que "landmark-one-main"/"page-has-heading-one" usan en
+    un navegador real incluso apuntando a document.body. Por eso la
+    verificación autoritativa de esas 3 reglas sigue siendo la suite
+    Playwright+axe (e2e/login-landmarks.spec.ts, W-14), y este cambio en
+    vitest-axe es un complemento de cobertura más rápida, no un reemplazo.
+    
+    Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+    Claude-Session: https://claude.ai/code/session_01PF5QyVoZ1Z35Mi9Xt9ehd8
+
+ apps/web/src/components/layout/AppShell.test.tsx |  8 +++--
+ apps/web/src/pages/LoginPage.test.tsx            |  9 +++--
+ docs/logs/fix-web-w13.log                        | 45 ++++++++++++++++++++++++
+ 3 files changed, 58 insertions(+), 4 deletions(-)
+--- 508c37d ---
+commit 508c37dc5214b4fc19a26295fdf7ae21093c7fc9
+Author: Javier Cámara Porte Petit <javiercamaraportepetit@Mac-mini-de-Javier.local>
+Date:   Sat Sep 5 20:04:18 2026 -0600
+
+    fix(web): W-14 suite Playwright+axe completa sobre las 24 pantallas (REQ-049/065)
+    
+    No existía ninguna suite E2E en apps/web; REQ-049/REQ-065 exigen
+    Playwright con axe sobre el portal. Se añade e2e/recorrido.spec.ts, que
+    cubre los recorridos esenciales sobre el build de producción servido por
+    `vite preview`:
+    
+    - login → shell (AppShell con landmarks reales)
+    - las 24 rutas de ALL_NAV_ITEMS (todos los grupos del sidebar), cada una
+      sin violaciones axe serious/critical (REQ-089)
+    - drawer móvil a 390×844 (abre, comparte SidebarNav, cierra con Escape,
+      sin scroll horizontal)
+    - tema oscuro real (clic en el ThemeSelector) sin violaciones serias
+    - Fuentes y frescura: los 5 estados de fuente
+    - Paquete descargable: arranca en "Borrador", nunca "Listo"
+    - las 24 rutas sin scroll horizontal a 390×844
+    
+    Se corrige además una causa real de flakiness que afectaba a toda la
+    suite (login-landmarks.spec.ts y skip-link.spec.ts fallaban de forma
+    intermitente en docs/logs/fix-web-e2e.log antes de este cambio): las
+    páginas se cargan con React.lazy()/Suspense, así que el evento "load" de
+    `page.goto()` no garantiza que el chunk de la ruta ya haya llegado — una
+    aserción justo después podía auditar la `LoadingScreen` en vez de la
+    página real. e2e/fixtures.ts envuelve `page.goto()` para esperar siempre a
+    `networkidle`, y todas las specs pasan a importar `test`/`expect` desde
+    ahí. eslint.config.js excluye `e2e/**` del bloque de reglas react-hooks
+    (que confundía el `use` de los fixtures de Playwright con un Hook de
+    React).
+    
+    Script `test:e2e` (`npm run build && playwright test`) verificado en
+    verde dos veces seguidas, con el paralelismo por defecto y con --workers=1
+    (docs/logs/fix-web-e2e.log): 44/44 pruebas.
+    
+    Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+    Claude-Session: https://claude.ai/code/session_01PF5QyVoZ1Z35Mi9Xt9ehd8
+
+ apps/web/e2e/ai-disclosure.spec.ts   |   2 +-
+ apps/web/e2e/contraste.spec.ts       |   2 +-
+ apps/web/e2e/fixtures.ts             |  30 +++++++++++
+ apps/web/e2e/heading-order.spec.ts   |   2 +-
+ apps/web/e2e/login-landmarks.spec.ts |   2 +-
+ apps/web/e2e/login-parity.spec.ts    |   2 +-
+ apps/web/e2e/recorrido.spec.ts       |  91 +++++++++++++++++++++++++++++++
+ apps/web/e2e/skip-link.spec.ts       |   2 +-
+ apps/web/e2e/touch-targets.spec.ts   |   2 +-
+ apps/web/eslint.config.js            |  16 ++++++
+ docs/logs/fix-web-e2e.log            | 100 +++++++++++++++++++++++++++++++++++
+ 11 files changed, 244 insertions(+), 7 deletions(-)
+--- 345ca9f ---
+commit 345ca9f2ab2862323f914f98689fe5fddbfd8722
+Author: Javier Cámara Porte Petit <javiercamaraportepetit@Mac-mini-de-Javier.local>
+Date:   Sat Sep 5 19:56:50 2026 -0600
+
+    fix(web): W-15 añade disclosure de IA (REQ-115) a los módulos que generarán contenido
+    
+    REQ-115 exige disclosure de uso de IA también en el "portal"; no existía
+    ningún texto de ese tipo en apps/web. Reproducido con Playwright
+    (docs/logs/fix-web-w15.log): Redacción, Revisión y Análisis de bases no
+    mostraban ningún aviso.
+    
+    Se añade <AiDisclosureNote/>, reutilizable, y un flag `disclosure` en
+    createModulePage() para anteponerlo al EmptyState de los módulos que
+    mostrarán contenido generado por IA en cuanto exista backend — se coloca
+    desde ahora, antes de que haya contenido real, en vez de después.
+    
+    Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+    Claude-Session: https://claude.ai/code/session_01PF5QyVoZ1Z35Mi9Xt9ehd8
+
+ apps/web/e2e/ai-disclosure.spec.ts                 |  15 +++
+ apps/web/src/components/AiDisclosureNote.test.tsx  |  12 ++
+ apps/web/src/components/AiDisclosureNote.tsx       |  26 +++++
+ apps/web/src/pages/createModulePage.tsx            |  10 +-
+ .../web/src/pages/evaluacion/AnalisisBasesPage.tsx |   1 +
+ apps/web/src/pages/preparacion/RedaccionPage.tsx   |   1 +
+ apps/web/src/pages/preparacion/RevisionPage.tsx    |   1 +
+ docs/logs/fix-web-w15.log                          | 122 +++++++++++++++++++++
+ 8 files changed, 187 insertions(+), 1 deletion(-)
+--- 7c37e23 ---
+commit 7c37e23b12c6dd833092be70228a9028a2b48a04
+Author: Javier Cámara Porte Petit <javiercamaraportepetit@Mac-mini-de-Javier.local>
+Date:   Sat Sep 5 19:58:52 2026 -0600
+
+    fix(web): W-16 fuerza en tipos que "listo" solo salga de una validación
+    
+    PackageStatusBadge aceptaba estado="listo" sin ninguna guarda propia: el
+    tipo lo permitía, así que la responsabilidad recaía enteramente en el
+    futuro integrador. Se añade derivarEstadoPaquete({ checklistCompleto,
+    firmasCompletas, anexosVigentes }) como única vía sancionada para producir
+    "listo" — devuelve "borrador" si falta cualquiera de las tres condiciones,
+    nunca por defecto. PaqueteDescargablePage usa esta función en vez de un
+    literal "borrador" suelto.
+    
+    Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+    Claude-Session: https://claude.ai/code/session_01PF5QyVoZ1Z35Mi9Xt9ehd8
+
+ .../components/ui/package-status-badge.test.tsx    | 23 +++++++++++++++++++++-
+ .../web/src/components/ui/package-status-badge.tsx | 21 ++++++++++++++++++++
+ .../src/pages/entrega/PaqueteDescargablePage.tsx   | 14 +++++++++----
+ docs/logs/fix-web-w16.log                          | 20 +++++++++++++++++++
+ 4 files changed, 73 insertions(+), 5 deletions(-)
+=== W-03: evaluacion package-lock.json (bloqueado?) ===
+-- lockfiles versionados --
+ninguno versionado
+-- README apps/web menciona lockfile? --
+176:del mismo lockfile — es una limitación conocida de `npm`, no de este código.
+189:lockfile compartido — ambos números son ciertos, pero miden árboles
+=== npm audit --workspace apps/web (worktree, tras W-01 fix) ===
+# npm audit report
+
+esbuild  <=0.24.2
+Severity: moderate
+esbuild enables any website to send any requests to the development server and read the response - https://github.com/advisories/GHSA-67mh-4wv8-2f99
+fix available via `npm audit fix --force`
+Will install vitest@4.1.11, which is a breaking change
+node_modules/vite-node/node_modules/esbuild
+node_modules/vitest/node_modules/esbuild
+  vite  <=6.4.2
+  Depends on vulnerable versions of esbuild
+  node_modules/vite-node/node_modules/vite
+  node_modules/vitest/node_modules/vite
+    @vitest/mocker  <=3.0.0-beta.4
+    Depends on vulnerable versions of vite
+    node_modules/vitest/node_modules/@vitest/mocker
+      vitest  <=3.2.5
+      Depends on vulnerable versions of @vitest/mocker
+      Depends on vulnerable versions of vite
+      Depends on vulnerable versions of vite-node
+      node_modules/vitest
+    vite-node  <=2.2.0-beta.2
+    Depends on vulnerable versions of vite
+    node_modules/vite-node
+
+
+
+5 vulnerabilities (3 moderate, 1 high, 1 critical)
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+EXIT: 1
+=== npm ls vitest ===
+atiende-licitaciones@0.1.0 /private/tmp/claude-501/-Users-javiercamaraportepetit/***/scratchpad/reverify-web
+├─┬ @atiende/agents@0.1.0 -> ./packages/agents
+│ ├─┬ @vitest/coverage-v8@2.1.9
+│ │ └── vitest@2.1.9 deduped
+│ └── vitest@2.1.9
+├─┬ @atiende/api@0.1.0 -> ./apps/api
+│ └── vitest@2.1.9 deduped
+├─┬ @atiende/db@0.1.0 -> ./packages/db
+│ └── vitest@2.1.9 deduped
+├─┬ @atiende/expediente@0.1.0 -> ./packages/expediente
+│ └── vitest@2.1.9 deduped
+├─┬ @atiende/sources@0.1.0 -> ./packages/sources
+│ └── vitest@2.1.9 deduped
+├─┬ @atiende/web@0.1.0 -> ./apps/web
+│ ├─┬ @vitest/coverage-v8@4.1.11
+│ │ └── vitest@4.1.11 deduped
+│ ├─┬ vitest-axe@0.1.0
+│ │ └── vitest@2.1.9 deduped
+│ └── vitest@4.1.11
+└─┬ @atiende/worker@0.1.0 -> ./apps/worker
+  └── vitest@2.1.9 deduped
+
+=== npm ls esbuild --all (recortado) ===
+atiende-licitaciones@0.1.0 /private/tmp/claude-501/-Users-javiercamaraportepetit/***/scratchpad/reverify-web
+├─┬ @atiende/agents@0.1.0 -> ./packages/agents
+│ └─┬ vitest@2.1.9
+│   ├─┬ vite-node@2.1.9
+│   │ └─┬ vite@5.4.21
+│   │   └── esbuild@0.21.5
+│   └─┬ vite@5.4.21
+│     └── esbuild@0.21.5
+├─┬ @atiende/api@0.1.0 -> ./apps/api
+│ └─┬ tsx@4.23.13
+│   └── esbuild@0.28.2
+└─┬ @atiende/web@0.1.0 -> ./apps/web
+  └─┬ vite@6.4.3
+    └── esbuild@0.25.12
+
+
+=== VERIFICACION EN CLON LIMPIO (git clone --no-local) ===
+dbfa67186f4b09ff2beae8f31468f51e58642b99 docs(sources): log final de validación ronda 1 (typecheck/lint/test/build/coverage + apps/worker)
+npm warn deprecated whatwg-encoding@3.1.1: Use @exodus/bytes instead for a more spec-conformant and faster implementation
+npm warn deprecated prom-client@15.1.3: prom-client has been replaced by @prometheus-io/client
+npm warn deprecated glob@10.5.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+npm warn deprecated eslint@9.39.5: This version is no longer supported. Please see https://eslint.org/version-support for other options.
+
+added 677 packages, and audited 685 packages in 28s
+
+215 packages are looking for funding
+  run `npm fund` for details
+
+6 vulnerabilities (3 moderate, 1 high, 2 critical)
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+EXIT npm install: 0
+=== npm run -w apps/web typecheck (clon limpio) ===
+
+> @atiende/web@0.1.0 typecheck
+> tsc -b --noEmit
+
+EXIT: 0
+=== npm run -w apps/web lint (clon limpio) ===
+
+> @atiende/web@0.1.0 lint
+> eslint .
+
+EXIT: 0
+=== npm run -w apps/web test (clon limpio) ===
+
+> @atiende/web@0.1.0 test
+> NODE_OPTIONS=--no-experimental-webstorage vitest run
+
+
+ RUN  v4.1.11 /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-limpio-web/apps/web
+
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-limpio-web/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-limpio-web/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-limpio-web/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-limpio-web/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-limpio-web/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-limpio-web/node_modules/axe-core/axe.js:17087:41)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-limpio-web/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-limpio-web/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-limpio-web/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-limpio-web/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-limpio-web/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-limpio-web/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-limpio-web/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-limpio-web/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-limpio-web/node_modules/axe-core/axe.js:17087:41)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-limpio-web/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-limpio-web/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-limpio-web/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+
+ Test Files  10 passed (10)
+      Tests  38 passed (38)
+   Start at  20:26:18
+   Duration  2.81s (transform 453ms, setup 1.32s, import 2.28s, tests 1.87s, environment 9.21s)
+
+EXIT: 0
+=== npm run -w apps/web build (clon limpio) ===
+
+> @atiende/web@0.1.0 build
+> tsc -b && vite build
+
+[36mvite v6.4.3 [32mbuilding for production...[36m[39m
+transforming...
+[32m✓[39m 1778 modules transformed.
+rendering chunks...
+computing gzip size...
+[2mdist/[22m[32mindex.html                                     [39m[1m[2m  1.07 kB[22m[1m[22m[2m │ gzip:  0.53 kB[22m
+[2mdist/[22m[2massets/[22m[35mLoginPage-BcYFrIpy.css                  [39m[1m[2m  0.19 kB[22m[1m[22m[2m │ gzip:  0.17 kB[22m
+[2mdist/[22m[2massets/[22m[35mindex-CcFMGUiw.css                      [39m[1m[2m 30.21 kB[22m[1m[22m[2m │ gzip:  6.50 kB[22m
+[2mdist/[22m[2massets/[22m[36mAgentesHerramientasPage-DHcjQb6m.js     [39m[1m[2m  0.48 kB[22m[1m[22m[2m │ gzip:  0.32 kB[22m
+[2mdist/[22m[2massets/[22m[36mOrganizacionesPage-De8JnSgT.js          [39m[1m[2m  0.49 kB[22m[1m[22m[2m │ gzip:  0.32 kB[22m
+[2mdist/[22m[2massets/[22m[36mUsuariosRolesPage-7EAyAPIF.js           [39m[1m[2m  0.49 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mGoNoGoPage-BEFq7c_S.js                  [39m[1m[2m  0.50 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mEntregasPage-Dg2Ci2i9.js                [39m[1m[2m  0.50 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mPanelPage-BxyuALS2.js                   [39m[1m[2m  0.50 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mRevisionPage-BIgjdTLz.js                [39m[1m[2m  0.51 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mRedaccionPage-BhnyBeWS.js               [39m[1m[2m  0.51 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mConfiguracionPage-CAzYLz6q.js           [39m[1m[2m  0.52 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mAuditoriaPage-C_uewM92.js               [39m[1m[2m  0.52 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mAnalisisBasesPage-C-zQvRYy.js           [39m[1m[2m  0.52 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mDescubrimientoPage-DXvOi1fK.js          [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mFirmantesAutorizadosPage-pIQE-zOv.js    [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mDocumentosVigenciasPage-BsHkNHpH.js     [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mMatchingPage-CPM4T-5E.js                [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.37 kB[22m
+[2mdist/[22m[2massets/[22m[36mCumplimientoDocumentalPage-BWASslfW.js  [39m[1m[2m  0.54 kB[22m[1m[22m[2m │ gzip:  0.36 kB[22m
+[2mdist/[22m[2massets/[22m[36mSeguimientoPage-CFwN_u_s.js             [39m[1m[2m  0.54 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mAprobacionesPage-F9jXPNwE.js            [39m[1m[2m  0.54 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mTarifasAprobadasPage-Czt6BQYl.js        [39m[1m[2m  0.55 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mExpedientePage-BPgi7MDy.js              [39m[1m[2m  0.55 kB[22m[1m[22m[2m │ gzip:  0.36 kB[22m
+[2mdist/[22m[2massets/[22m[36mPerfilCapacidadesPage-DsrzaAgQ.js       [39m[1m[2m  0.57 kB[22m[1m[22m[2m │ gzip:  0.38 kB[22m
+[2mdist/[22m[2massets/[22m[36msparkles-BWt83dUD.js                    [39m[1m[2m  0.68 kB[22m[1m[22m[2m │ gzip:  0.40 kB[22m
+[2mdist/[22m[2massets/[22m[36mcreateModulePage-C8A3xMp5.js            [39m[1m[2m  0.94 kB[22m[1m[22m[2m │ gzip:  0.56 kB[22m
+[2mdist/[22m[2massets/[22m[36mcard-pd69Dkuw.js                        [39m[1m[2m  1.09 kB[22m[1m[22m[2m │ gzip:  0.45 kB[22m
+[2mdist/[22m[2massets/[22m[36mNotFoundPage-Ht5hncr-.js                [39m[1m[2m  1.23 kB[22m[1m[22m[2m │ gzip:  0.70 kB[22m
+[2mdist/[22m[2massets/[22m[36mFuentesFrescuraPage-CIt80C8C.js         [39m[1m[2m  1.51 kB[22m[1m[22m[2m │ gzip:  0.77 kB[22m
+[2mdist/[22m[2massets/[22m[36mempty-state-7VUyQnqw.js                 [39m[1m[2m  1.78 kB[22m[1m[22m[2m │ gzip:  0.81 kB[22m
+[2mdist/[22m[2massets/[22m[36mPaqueteDescargablePage-pVuTcf1N.js      [39m[1m[2m  2.29 kB[22m[1m[22m[2m │ gzip:  1.23 kB[22m
+[2mdist/[22m[2massets/[22m[36mquery-Cr5JZM0v.js                       [39m[1m[2m 46.31 kB[22m[1m[22m[2m │ gzip: 14.39 kB[22m
+[2mdist/[22m[2massets/[22m[36mLoginPage-BBIFlupu.js                   [39m[1m[2m100.44 kB[22m[1m[22m[2m │ gzip: 28.41 kB[22m
+[2mdist/[22m[2massets/[22m[36mindex-D59hrryw.js                       [39m[1m[2m133.11 kB[22m[1m[22m[2m │ gzip: 41.88 kB[22m
+[2mdist/[22m[2massets/[22m[36mapp-platform-ba7btYbn.js                [39m[1m[2m239.43 kB[22m[1m[22m[2m │ gzip: 78.71 kB[22m
+[32m✓ built in 2.00s[39m
+EXIT: 0
+=== npm run -w apps/web test:e2e (clon limpio) ===
+
+> @atiende/web@0.1.0 test:e2e
+> npm run build && playwright test
+
+
+> @atiende/web@0.1.0 build
+> tsc -b && vite build
+
+[36mvite v6.4.3 [32mbuilding for production...[36m[39m
+transforming...
+[32m✓[39m 1778 modules transformed.
+rendering chunks...
+computing gzip size...
+[2mdist/[22m[32mindex.html                                     [39m[1m[2m  1.07 kB[22m[1m[22m[2m │ gzip:  0.53 kB[22m
+[2mdist/[22m[2massets/[22m[35mLoginPage-BcYFrIpy.css                  [39m[1m[2m  0.19 kB[22m[1m[22m[2m │ gzip:  0.17 kB[22m
+[2mdist/[22m[2massets/[22m[35mindex-CcFMGUiw.css                      [39m[1m[2m 30.21 kB[22m[1m[22m[2m │ gzip:  6.50 kB[22m
+[2mdist/[22m[2massets/[22m[36mAgentesHerramientasPage-DHcjQb6m.js     [39m[1m[2m  0.48 kB[22m[1m[22m[2m │ gzip:  0.32 kB[22m
+[2mdist/[22m[2massets/[22m[36mOrganizacionesPage-De8JnSgT.js          [39m[1m[2m  0.49 kB[22m[1m[22m[2m │ gzip:  0.32 kB[22m
+[2mdist/[22m[2massets/[22m[36mUsuariosRolesPage-7EAyAPIF.js           [39m[1m[2m  0.49 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mGoNoGoPage-BEFq7c_S.js                  [39m[1m[2m  0.50 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mEntregasPage-Dg2Ci2i9.js                [39m[1m[2m  0.50 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mPanelPage-BxyuALS2.js                   [39m[1m[2m  0.50 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mRevisionPage-BIgjdTLz.js                [39m[1m[2m  0.51 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mRedaccionPage-BhnyBeWS.js               [39m[1m[2m  0.51 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mConfiguracionPage-CAzYLz6q.js           [39m[1m[2m  0.52 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mAuditoriaPage-C_uewM92.js               [39m[1m[2m  0.52 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mAnalisisBasesPage-C-zQvRYy.js           [39m[1m[2m  0.52 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mDescubrimientoPage-DXvOi1fK.js          [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mFirmantesAutorizadosPage-pIQE-zOv.js    [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mDocumentosVigenciasPage-BsHkNHpH.js     [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mMatchingPage-CPM4T-5E.js                [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.37 kB[22m
+[2mdist/[22m[2massets/[22m[36mCumplimientoDocumentalPage-BWASslfW.js  [39m[1m[2m  0.54 kB[22m[1m[22m[2m │ gzip:  0.36 kB[22m
+[2mdist/[22m[2massets/[22m[36mSeguimientoPage-CFwN_u_s.js             [39m[1m[2m  0.54 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mAprobacionesPage-F9jXPNwE.js            [39m[1m[2m  0.54 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mTarifasAprobadasPage-Czt6BQYl.js        [39m[1m[2m  0.55 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mExpedientePage-BPgi7MDy.js              [39m[1m[2m  0.55 kB[22m[1m[22m[2m │ gzip:  0.36 kB[22m
+[2mdist/[22m[2massets/[22m[36mPerfilCapacidadesPage-DsrzaAgQ.js       [39m[1m[2m  0.57 kB[22m[1m[22m[2m │ gzip:  0.38 kB[22m
+[2mdist/[22m[2massets/[22m[36msparkles-BWt83dUD.js                    [39m[1m[2m  0.68 kB[22m[1m[22m[2m │ gzip:  0.40 kB[22m
+[2mdist/[22m[2massets/[22m[36mcreateModulePage-C8A3xMp5.js            [39m[1m[2m  0.94 kB[22m[1m[22m[2m │ gzip:  0.56 kB[22m
+[2mdist/[22m[2massets/[22m[36mcard-pd69Dkuw.js                        [39m[1m[2m  1.09 kB[22m[1m[22m[2m │ gzip:  0.45 kB[22m
+[2mdist/[22m[2massets/[22m[36mNotFoundPage-Ht5hncr-.js                [39m[1m[2m  1.23 kB[22m[1m[22m[2m │ gzip:  0.70 kB[22m
+[2mdist/[22m[2massets/[22m[36mFuentesFrescuraPage-CIt80C8C.js         [39m[1m[2m  1.51 kB[22m[1m[22m[2m │ gzip:  0.77 kB[22m
+[2mdist/[22m[2massets/[22m[36mempty-state-7VUyQnqw.js                 [39m[1m[2m  1.78 kB[22m[1m[22m[2m │ gzip:  0.81 kB[22m
+[2mdist/[22m[2massets/[22m[36mPaqueteDescargablePage-pVuTcf1N.js      [39m[1m[2m  2.29 kB[22m[1m[22m[2m │ gzip:  1.23 kB[22m
+[2mdist/[22m[2massets/[22m[36mquery-Cr5JZM0v.js                       [39m[1m[2m 46.31 kB[22m[1m[22m[2m │ gzip: 14.39 kB[22m
+[2mdist/[22m[2massets/[22m[36mLoginPage-BBIFlupu.js                   [39m[1m[2m100.44 kB[22m[1m[22m[2m │ gzip: 28.41 kB[22m
+[2mdist/[22m[2massets/[22m[36mindex-D59hrryw.js                       [39m[1m[2m133.11 kB[22m[1m[22m[2m │ gzip: 41.88 kB[22m
+[2mdist/[22m[2massets/[22m[36mapp-platform-ba7btYbn.js                [39m[1m[2m239.43 kB[22m[1m[22m[2m │ gzip: 78.71 kB[22m
+[32m✓ built in 1.23s[39m
+
+[2mRunning [22m44[2m tests using [22m5[2m workers[22m
+
+  [32m✓[39m  [2m 1 [22m[chromium] › e2e/ai-disclosure.spec.ts:10:5 › Disclosure de IA (W-15) › /preparacion/revision muestra el aviso de uso de IA[2m (1.2s)[22m
+  [32m✓[39m  [2m 2 [22m[chromium] › e2e/ai-disclosure.spec.ts:10:5 › Disclosure de IA (W-15) › /preparacion/redaccion muestra el aviso de uso de IA[2m (1.2s)[22m
+  [32m✓[39m  [2m 3 [22m[chromium] › e2e/ai-disclosure.spec.ts:10:5 › Disclosure de IA (W-15) › /evaluacion/analisis-bases muestra el aviso de uso de IA[2m (1.2s)[22m
+  [32m✓[39m  [2m 5 [22m[chromium] › e2e/contraste.spec.ts:22:3 › Contraste de color (W-05, W-06) › los badges de estado de fuente (CAPTCHA / cambio de interfaz) no tienen violaciones serias de contraste[2m (1.6s)[22m
+  [32m✓[39m  [2m 4 [22m[chromium] › e2e/contraste.spec.ts:8:3 › Contraste de color (W-05, W-06) › el wordmark en modo oscuro no tiene violaciones serias de contraste[2m (1.9s)[22m
+  [32m✓[39m  [2m 6 [22m[chromium] › e2e/heading-order.spec.ts:12:5 › Orden de encabezados (W-07) › /entrega/paquete-descargable no tiene salto de nivel de encabezado[2m (1.1s)[22m
+  [32m✓[39m  [2m 7 [22m[chromium] › e2e/heading-order.spec.ts:12:5 › Orden de encabezados (W-07) › /convocatorias/fuentes-frescura no tiene salto de nivel de encabezado[2m (1.2s)[22m
+  [32m✓[39m  [2m 8 [22m[chromium] › e2e/login-landmarks.spec.ts:8:1 › /login tiene landmark <main>, un <h1> real y ningún contenido fuera de landmarks (W-08)[2m (1.2s)[22m
+  [32m✓[39m  [2m 9 [22m[chromium] › e2e/login-parity.spec.ts:9:3 › Paridad visual del login (W-11) › escritorio: layout de pantalla partida con kicker, titular y lámina decorativa[2m (969ms)[22m
+  [32m✓[39m  [2m10 [22m[chromium] › e2e/login-parity.spec.ts:20:3 › Paridad visual del login (W-11) › móvil (390×844): la lámina decorativa se oculta y no hay scroll horizontal[2m (943ms)[22m
+  [32m✓[39m  [2m11 [22m[chromium] › e2e/login-parity.spec.ts:32:3 › Paridad visual del login (W-11) › mantiene contraseña + enlace mágico (divergencia deliberada: sin Google OAuth)[2m (949ms)[22m
+  [32m✓[39m  [2m13 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Panel (/panel) carga sin violaciones serious/critical[2m (1.5s)[22m
+  [32m✓[39m  [2m12 [22m[chromium] › e2e/recorrido.spec.ts:26:3 › Recorrido esencial (W-14) › login → shell: /login carga y navegar a /panel muestra el AppShell[2m (1.5s)[22m
+  [32m✓[39m  [2m14 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Perfil y capacidades (/empresa/perfil-capacidades) carga sin violaciones serious/critical[2m (1.5s)[22m
+  [32m✓[39m  [2m15 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Documentos y vigencias (/empresa/documentos-vigencias) carga sin violaciones serious/critical[2m (1.4s)[22m
+  [32m✓[39m  [2m16 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Firmantes autorizados (/empresa/firmantes-autorizados) carga sin violaciones serious/critical[2m (1.4s)[22m
+  [32m✓[39m  [2m17 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Tarifas aprobadas (/empresa/tarifas-aprobadas) carga sin violaciones serious/critical[2m (1.4s)[22m
+  [32m✓[39m  [2m18 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Descubrimiento (/convocatorias/descubrimiento) carga sin violaciones serious/critical[2m (1.4s)[22m
+  [32m✓[39m  [2m19 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Matching (/convocatorias/matching) carga sin violaciones serious/critical[2m (1.4s)[22m
+  [32m✓[39m  [2m20 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Fuentes y frescura (/convocatorias/fuentes-frescura) carga sin violaciones serious/critical[2m (1.5s)[22m
+  [32m✓[39m  [2m21 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Go/No-Go (/evaluacion/go-no-go) carga sin violaciones serious/critical[2m (1.3s)[22m
+  [32m✓[39m  [2m23 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Cumplimiento documental (/preparacion/cumplimiento-documental) carga sin violaciones serious/critical[2m (1.4s)[22m
+  [32m✓[39m  [2m22 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Análisis de bases (/evaluacion/analisis-bases) carga sin violaciones serious/critical[2m (1.4s)[22m
+  [32m✓[39m  [2m24 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Redacción (/preparacion/redaccion) carga sin violaciones serious/critical[2m (1.4s)[22m
+  [32m✓[39m  [2m25 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Revisión (/preparacion/revision) carga sin violaciones serious/critical[2m (1.3s)[22m
+  [32m✓[39m  [2m26 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Expediente (/preparacion/expediente) carga sin violaciones serious/critical[2m (1.3s)[22m
+  [32m✓[39m  [2m27 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Aprobaciones (/preparacion/aprobaciones) carga sin violaciones serious/critical[2m (1.4s)[22m
+  [32m✓[39m  [2m28 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Entregas (/entrega/entregas) carga sin violaciones serious/critical[2m (1.4s)[22m
+  [32m✓[39m  [2m29 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Paquete descargable (/entrega/paquete-descargable) carga sin violaciones serious/critical[2m (1.4s)[22m
+  [32m✓[39m  [2m30 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Seguimiento post-adjudicación (/entrega/seguimiento) carga sin violaciones serious/critical[2m (1.4s)[22m
+  [32m✓[39m  [2m31 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Organizaciones (/backoffice/organizaciones) carga sin violaciones serious/critical[2m (1.4s)[22m
+  [32m✓[39m  [2m32 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Usuarios y roles (/backoffice/usuarios-roles) carga sin violaciones serious/critical[2m (1.3s)[22m
+  [32m✓[39m  [2m33 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Agentes y herramientas (/backoffice/agentes-herramientas) carga sin violaciones serious/critical[2m (1.4s)[22m
+  [32m✓[39m  [2m34 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Auditoría / Trazabilidad (/backoffice/auditoria) carga sin violaciones serious/critical[2m (1.4s)[22m
+  [32m✓[39m  [2m35 [22m[chromium] › e2e/recorrido.spec.ts:36:5 › Recorrido esencial (W-14) › grupo del sidebar: Configuración (/configuracion) carga sin violaciones serious/critical[2m (1.4s)[22m
+  [32m✓[39m  [2m36 [22m[chromium] › e2e/recorrido.spec.ts:43:3 › Recorrido esencial (W-14) › drawer móvil (390×844): se abre, comparte SidebarNav y no hay scroll horizontal[2m (1.8s)[22m
+  [32m✓[39m  [2m38 [22m[chromium] › e2e/recorrido.spec.ts:66:3 › Recorrido esencial (W-14) › Fuentes y frescura: expone los 5 estados de fuente sin violaciones serious/critical[2m (1.4s)[22m
+  [32m✓[39m  [2m39 [22m[chromium] › e2e/recorrido.spec.ts:74:3 › Recorrido esencial (W-14) › Paquete descargable: arranca en "Borrador", nunca en "Listo", sin violaciones serious/critical[2m (1.4s)[22m
+  [32m✓[39m  [2m37 [22m[chromium] › e2e/recorrido.spec.ts:58:3 › Recorrido esencial (W-14) › tema oscuro: activa .dark en <html> y el panel sigue sin violaciones serious/critical[2m (1.7s)[22m
+  [32m✓[39m  [2m41 [22m[chromium] › e2e/skip-link.spec.ts:7:3 › Skip-link mueve el foco real (W-09) › en LoginPage, el skip-link mueve el foco al formulario (#login-form)[2m (989ms)[22m
+  [32m✓[39m  [2m42 [22m[chromium] › e2e/skip-link.spec.ts:26:3 › Skip-link mueve el foco real (W-09) › en AppShell, el skip-link mueve el foco al contenido principal (#main-content)[2m (958ms)[22m
+  [32m✓[39m  [2m43 [22m[chromium] › e2e/touch-targets.spec.ts:9:3 › Objetivos táctiles ≥44×44px (W-10) › el botón hamburguesa mide al menos 44×44px[2m (945ms)[22m
+  [32m✓[39m  [2m44 [22m[chromium] › e2e/touch-targets.spec.ts:20:3 › Objetivos táctiles ≥44×44px (W-10) › el primer link del drawer móvil mide al menos 44px de alto[2m (964ms)[22m
+  [32m✓[39m  [2m40 [22m[chromium] › e2e/recorrido.spec.ts:84:3 › Recorrido esencial (W-14) › todas las rutas del sidebar: sin scroll horizontal a 390×844[2m (12.8s)[22m
+
+[32m  44 passed[39m[2m (23.7s)[22m
+EXIT: 0
+=== npm audit --workspace apps/web (clon limpio verdadero) ===
+# npm audit report
+
+esbuild  <=0.24.2
+Severity: moderate
+esbuild enables any website to send any requests to the development server and read the response - https://github.com/advisories/GHSA-67mh-4wv8-2f99
+fix available via `npm audit fix --force`
+Will install vitest@4.1.11, which is a breaking change
+node_modules/vite-node/node_modules/esbuild
+node_modules/vitest/node_modules/esbuild
+  vite  <=6.4.2
+  Depends on vulnerable versions of esbuild
+  node_modules/vite-node/node_modules/vite
+  node_modules/vitest/node_modules/vite
+    @vitest/mocker  <=3.0.0-beta.4
+    Depends on vulnerable versions of vite
+    node_modules/vitest/node_modules/@vitest/mocker
+      vitest  <=3.2.5
+      Depends on vulnerable versions of @vitest/mocker
+      Depends on vulnerable versions of vite
+      Depends on vulnerable versions of vite-node
+      node_modules/vitest
+    vite-node  <=2.2.0-beta.2
+    Depends on vulnerable versions of vite
+    node_modules/vite-node
+
+
+
+5 vulnerabilities (3 moderate, 1 high, 1 critical)
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+EXIT: 1
