@@ -146,3 +146,4 @@
 2026-09-06 13:08  CI/VERCEL  B-06 facturación GitHub; Vercel: sesión del usuario (cuenta likidaai-8016), proyecto atiende-licitaciones enlazado; primer deploy desde apps/web falló (npm ci fuera del monorepo) → reconfigurado desde la raíz.
 2026-09-06 13:10  VERCEL  frontend desplegado en producción: https://atiende-licitaciones.vercel.app (proyecto likida/atiende-licitaciones, cuenta likidaai-8016); vercel.json en raíz; VITE_API_URL pendiente de host de API.
 2026-09-06 13:10  VERCEL  el alias responde 200 pero sirve «Login – Vercel»: Deployment Protection (Vercel Authentication) activa en el equipo likida → el sitio no es público hasta desactivarla (decisión del usuario, B-07).
+2026-09-06 13:10  DESPERTAR  CI diagnóstico (#97) 02d2cde: facturación GitHub confirmada en 6 runs; actionlint OK. En curso #91,#92,#93,#94,#96.
