@@ -1,0 +1,178 @@
+=== 2026-09-06T01:47:55Z Auditoría adversarial apps/worker — commit 069f6901a4267de866cdc84f441e7005f5e697f7 ===
+Worktree: git worktree add <scratchpad>/audit-worker 069f690 ; npm install (641 paquetes añadidos, 649 auditados; 5 vulnerabilidades preexistentes del monorepo no relacionadas con apps/worker).
+
+=== npm run -w apps/worker typecheck ===
+
+> @atiende/worker@0.1.0 typecheck
+> tsc --noEmit
+
+
+=== npm run -w apps/worker lint ===
+
+> @atiende/worker@0.1.0 lint
+> eslint src test
+
+
+=== npm run -w apps/worker test — reproduccion limpia (debe igualar docs/logs/worker-ronda2.log: 6 archivos / 36 tests) ===
+
+> @atiende/worker@0.1.0 test
+> vitest run
+
+
+ RUN  v2.1.9 /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-worker/apps/worker
+
+ ✓ test/ingest-client.test.ts (6 tests) 65ms
+ ✓ test/run-agent-handler.test.ts (3 tests) 4720ms
+   ✓ run_agent handler (esqueleto) > ejecuta con FakeProvider por defecto (sin OPENAI_API_KEY) y refleja el resultado en agent_runs 2082ms
+   ✓ run_agent handler (esqueleto) > sin agentRunId en el payload, igual ejecuta el AgentRunner sin fallar (uso "fire and forget") 1143ms
+   ✓ run_agent handler (esqueleto) > un rol sin permiso para el riesgo de la herramienta hace que la corrida termine "denied" -> el job falla explícitamente 1494ms
+ ✓ test/scheduler.test.ts (4 tests) 5734ms
+   ✓ Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150 > varios tick() dentro de la misma ventana encolan un solo job por fuente 2069ms
+   ✓ Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150 > avanzar a la siguiente ventana sí encola un nuevo job, sin duplicar el anterior 1094ms
+   ✓ Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150 > una fuente deshabilitada (enabled: false) nunca se encola 1375ms
+   ✓ Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150 > el job encolado ya trae sourceId en el payload para que discover_tenders sepa qué conector correr 1194ms
+ ✓ test/worker-shutdown.test.ts (4 tests) 6089ms
+   ✓ Worker: cierre ordenado (SIGTERM) > deja terminar el job en curso, libera el lock, y no reclama nuevos jobs tras stop() 2123ms
+   ✓ Worker: cierre ordenado (SIGTERM) > si el handler no respeta AbortSignal, stop() igual resuelve tras shutdownTimeoutMs (no cuelga para siempre) 1591ms
+   ✓ Worker: cierre ordenado (SIGTERM) > llamar stop() dos veces es seguro (idempotente) 1299ms
+   ✓ Worker: cierre ordenado (SIGTERM) > métricas: cuenta succeeded/retried/dead por tipo de job 1075ms
+ ✓ test/discover-tenders-handler.test.ts (6 tests) 7062ms
+   ✓ discover_tenders handler — A4: fuente inaccesible/no verificada nunca es "0 nuevas" silencioso > los 5 conectores reales de packages/sources hoy no tienen liveVerification.verified=true: se reporta not_configured explícito, nunca "ok" 2288ms
+   ✓ discover_tenders handler — A4: fuente inaccesible/no verificada nunca es "0 nuevas" silencioso > un conector que lanza error con "captcha" en el mensaje se clasifica como captcha_detected, no "ok" 1282ms
+   ✓ discover_tenders handler — A4: fuente inaccesible/no verificada nunca es "0 nuevas" silencioso > fuente sin conector registrado nunca produce "0 nuevas": falla explícito con not_configured 1273ms
+   ✓ discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay > convocatoria nueva de una fuente verificada: se ingiere vía HTTP y source_runs queda "ok" 1064ms
+   ✓ discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay > replay del mismo lote (misma corrida repetida) envía el mismo payload de ingesta — idempotente (A2) 584ms
+   ✓ discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay > una corrida sin registros nuevos NO llama al endpoint de ingesta pero sí queda "ok" (no confundir con fuente caída) 570ms
+ ✓ test/job-queue.test.ts (13 tests) 10826ms
+   ✓ JobQueue: reclamo atómico sin doble procesamiento > N workers > M jobs: cada job se reclama como máximo una vez 2144ms
+   ✓ JobQueue: reclamo atómico sin doble procesamiento > un job ya en running no es reclamado dos veces por workers adicionales 1087ms
+   ✓ JobQueue: reclamo atómico sin doble procesamiento > un job claimeado incrementa attempts y queda en running con locked_by 1419ms
+   ✓ JobQueue: reintentos con backoff exponencial + jitter > cada fallo reprograma next_run_at con backoff creciente hasta max_attempts, luego "dead" 1170ms
+   ✓ JobQueue: reintentos con backoff exponencial + jitter > el jitter mantiene el delay dentro del rango esperado (no determinista pero acotado) 738ms
+   ✓ JobQueue: lease expirado se recupera > un job running cuyo lease expiró es reclamable por otro worker 555ms
+   ✓ JobQueue: lease expirado se recupera > heartbeat extiende el lease y evita que otro worker lo recupere 548ms
+   ✓ JobQueue: cancelación > cancelar un job queued lo deja fuera de circulación (dead) y no se reclama 538ms
+   ✓ JobQueue: cancelación > cancelar un job running también lo detiene 519ms
+   ✓ JobQueue: idempotencia por jobKey > encolar dos veces con el mismo jobKey mientras el primero sigue activo no duplica 537ms
+   ✓ JobQueue: idempotencia por jobKey > una vez terminado (succeeded), un nuevo jobKey (otra ventana) sí encola 522ms
+   ✓ JobQueue: complete > complete limpia el lock y marca succeeded 523ms
+   ✓ JobQueue: complete > complete con el workerId equivocado no hace nada (protege contra confirmaciones cruzadas) 524ms
+
+ Test Files  6 passed (6)
+      Tests  36 passed (36)
+   Start at  19:47:57
+   Duration  11.16s (transform 446ms, setup 0ms, collect 854ms, tests 34.50s, environment 1ms, prepare 254ms)
+
+
+=== MUTACIÓN 1/5 — max_attempts tras 'crash' de proceso (claim() reclama indefinidamente, solo fail() dead-letra) ===
+Archivo temporal test/zz-audit-crash-attempts.test.ts (NO commiteado, solo para esta auditoría)
+
+ RUN  v2.1.9 /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-worker/apps/worker
+
+stdout | test/zz-audit-crash-attempts.test.ts > AUDITORIA WK: max_attempts tras crash (nunca se llama fail(), solo claim() reclama) > un job que "crashea" repetidamente (nunca completa/falla, solo se reclama tras lease expirado) supera max_attempts sin pasar a dead
+AUDIT_RESULT: attempts_final= 6 max_attempts= 3 status= running
+
+ ✓ test/zz-audit-crash-attempts.test.ts (1 test) 774ms
+   ✓ AUDITORIA WK: max_attempts tras crash (nunca se llama fail(), solo claim() reclama) > un job que "crashea" repetidamente (nunca completa/falla, solo se reclama tras lease expirado) supera max_attempts sin pasar a dead 774ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  19:48:15
+   Duration  1.04s (transform 34ms, setup 0ms, collect 41ms, tests 774ms, environment 0ms, prepare 26ms)
+
+
+=== MUTACIÓN 2/5 — fencing token ausente (heartbeat descartado, doble reclamo no detectado) ===
+Archivo temporal test/zz-audit-fencing.test.ts (NO commiteado, solo para esta auditoría)
+
+ RUN  v2.1.9 /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-worker/apps/worker
+
+stdout | test/zz-audit-fencing.test.ts > AUDITORIA WK: fencing token ausente en recuperación de lease > worker B recupera el lease mientras A sigue "vivo": A no se entera (heartbeat descartado) y complete()/fail() de A son no-op silencioso
+AUDIT_RESULT: doble_reclamo_confirmado=true, sin_fencing_token=true, heartbeat_ignorado_por_worker.process()=true
+
+ ✓ test/zz-audit-fencing.test.ts (1 test) 865ms
+   ✓ AUDITORIA WK: fencing token ausente en recuperación de lease > worker B recupera el lease mientras A sigue "vivo": A no se entera (heartbeat descartado) y complete()/fail() de A son no-op silencioso 864ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  19:48:26
+   Duration  1.13s (transform 40ms, setup 0ms, collect 48ms, tests 865ms, environment 0ms, prepare 39ms)
+
+
+=== MUTACIÓN 3/5 — source_runs no se escribe si el POST de ingesta falla tras un discover() exitoso ===
+Archivo temporal test/zz-audit-ingest-failure.test.ts (NO commiteado, solo para esta auditoría)
+
+ RUN  v2.1.9 /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-worker/apps/worker
+
+stdout | test/zz-audit-ingest-failure.test.ts > AUDITORIA WK: ingest falla tras discover exitoso > si ingestClient.ingest() lanza, ¿se registra source_runs igual (contrato README "siempre")?
+AUDIT_RESULT rows_in_source_runs= 0 []
+
+ ✓ test/zz-audit-ingest-failure.test.ts (1 test) 812ms
+   ✓ AUDITORIA WK: ingest falla tras discover exitoso > si ingestClient.ingest() lanza, ¿se registra source_runs igual (contrato README "siempre")? 812ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  19:48:28
+   Duration  1.14s (transform 74ms, setup 0ms, collect 102ms, tests 812ms, environment 0ms, prepare 43ms)
+
+
+=== MUTACIÓN 4/5 — dos Scheduler concurrentes (dos procesos worker) duplican job de la misma ventana ===
+Archivo temporal test/zz-audit-scheduler-race.test.ts (NO commiteado, solo para esta auditoría) — 5 corridas para descartar suerte
+AUDIT_RESULT: jobs_creados= 2 r1= { enqueued: 1, deduped: 0 } r2= { enqueued: 1, deduped: 0 }
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+AUDIT_RESULT: jobs_creados= 2 r1= { enqueued: 1, deduped: 0 } r2= { enqueued: 1, deduped: 0 }
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+AUDIT_RESULT: jobs_creados= 2 r1= { enqueued: 1, deduped: 0 } r2= { enqueued: 1, deduped: 0 }
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+AUDIT_RESULT: jobs_creados= 2 r1= { enqueued: 1, deduped: 0 } r2= { enqueued: 1, deduped: 0 }
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+AUDIT_RESULT: jobs_creados= 2 r1= { enqueued: 1, deduped: 0 } r2= { enqueued: 1, deduped: 0 }
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+
+=== MUTACIÓN 5/5 — romper dead-letter (fail() nunca marca 'dead': if (false && attempts>=maxAttempts)) — ¿la suite OFICIAL lo detecta? ===
+
+ RUN  v2.1.9 /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-worker/apps/worker
+
+ ❯ test/job-queue.test.ts (13 tests | 1 failed) 7399ms
+   ✓ JobQueue: reclamo atómico sin doble procesamiento > N workers > M jobs: cada job se reclama como máximo una vez 806ms
+   ✓ JobQueue: reclamo atómico sin doble procesamiento > un job ya en running no es reclamado dos veces por workers adicionales 548ms
+   ✓ JobQueue: reclamo atómico sin doble procesamiento > un job claimeado incrementa attempts y queda en running con locked_by 533ms
+   × JobQueue: reintentos con backoff exponencial + jitter > cada fallo reprograma next_run_at con backoff creciente hasta max_attempts, luego "dead" 547ms
+     → expected 'queued' to be 'dead' // Object.is equality
+   ✓ JobQueue: reintentos con backoff exponencial + jitter > el jitter mantiene el delay dentro del rango esperado (no determinista pero acotado) 541ms
+   ✓ JobQueue: lease expirado se recupera > un job running cuyo lease expiró es reclamable por otro worker 526ms
+   ✓ JobQueue: lease expirado se recupera > heartbeat extiende el lease y evita que otro worker lo recupere 544ms
+   ✓ JobQueue: cancelación > cancelar un job queued lo deja fuera de circulación (dead) y no se reclama 550ms
+   ✓ JobQueue: cancelación > cancelar un job running también lo detiene 542ms
+   ✓ JobQueue: idempotencia por jobKey > encolar dos veces con el mismo jobKey mientras el primero sigue activo no duplica 555ms
+   ✓ JobQueue: idempotencia por jobKey > una vez terminado (succeeded), un nuevo jobKey (otra ventana) sí encola 545ms
+   ✓ JobQueue: complete > complete limpia el lock y marca succeeded 583ms
+   ✓ JobQueue: complete > complete con el workerId equivocado no hace nada (protege contra confirmaciones cruzadas) 576ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/job-queue.test.ts > JobQueue: reintentos con backoff exponencial + jitter > cada fallo reprograma next_run_at con backoff creciente hasta max_attempts, luego "dead"
+AssertionError: expected 'queued' to be 'dead' // Object.is equality
+
+Expected: "dead"
+Received: "queued"
+
+ ❯ test/job-queue.test.ts:113:32
+    111|     expect(claim3!.attempts).toBe(3);
+    112|     const afterFail3 = await queue.fail(claim3!, 'w1', 'boom-final');
+    113|     expect(afterFail3!.status).toBe('dead');
+       |                                ^
+    114|     expect(afterFail3!.lastError).toBe('boom-final');
+    115|     expect(afterFail3!.lockedBy).toBeNull();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 12 passed (13)
+   Start at  19:48:49
+   Duration  7.67s (transform 46ms, setup 0ms, collect 55ms, tests 7.40s, environment 0ms, prepare 41ms)
+
