@@ -435,3 +435,30 @@ pendiente de integración real en `apps/api`" en vez de "Sin código / PENDIENTE
 
 - Capturas: `docs/auditoria-2/capturas-mail/{email-verification,new-tender-match,deadline-reminder,weekly-summary,backup-codes-generated}-{desktop,movil}.png`
 - Log de ejecución: `docs/logs/audit-mail.log`
+
+---
+
+## Estado reparación (corrector, post-auditoría)
+
+Agregado por el agente corrector Sonnet, ámbito exclusivo `packages/mail/**`
++ `docs/logs/fix-mail.log` + esta columna. Ciclo test rojo → arreglo → verde
+→ commit por hallazgo, un `git push origin main` tras cada commit. Evidencia
+de comandos reales (typecheck/lint/test/test:coverage/build, todo en verde
+al cierre) en `docs/logs/fix-mail.log`.
+
+| Hallazgo | Estado reparación | Commit / evidencia |
+| --- | --- | --- |
+| ML-01 (ALTA) | **CORREGIDO** | `SendRecordStore.reserve()`/`release()` (compare-and-set síncrono en `InMemorySendRecordStore`; interfaz lista para `INSERT ... ON CONFLICT DO NOTHING` en Postgres). `MailService.send()` reserva justo antes de tocar el `MailProvider`; quien pierde la carrera espera (acotado) el resultado de quien ganó. Test: `test/service/mail-service.test.ts` ("ML-01") — 10 `send()` disparados con `Promise.all` sobre la misma `messageKey` ahora llegan exactamente 1 vez al proveedor (antes: 10). Commit `fix(mail): ML-01 idempotencia atómica por messageKey bajo concurrencia real`. |
+| ML-02 (ALTA) | **CORREGIDO** | Nueva `service/list-unsubscribe.ts` (`buildListUnsubscribeHeaders`, pura): `List-Unsubscribe` (mailto + enlace firmado) + `List-Unsubscribe-Post: List-Unsubscribe=One-Click` para toda categoría NO obligatoria, pasadas como `OutboundEmail.headers` a los tres adaptadores (que ya sabían reenviar cabeceras arbitrarias). Corrige también el comentario de `EmailLayout.tsx` que citaba RFC 8058 para el enlace del cuerpo (mecanismo distinto). README documenta el endpoint `POST /api/correo/baja` de un clic que debe exponer `apps/api`. Tests: helper puro + `MailService` (obligatoria vs. no obligatoria) + un caso explícito por adaptador (Resend/Postmark/SMTP) verificando el formato de cabecera que cada uno espera. Commit `fix(mail): ML-02 cabeceras List-Unsubscribe/List-Unsubscribe-Post (RFC 8058)`. |
+| ML-03 (MEDIA) | **CORREGIDO** | `safeUrl` reescrito: parsea con `URL()` y compara el `hostname` EXACTO contra una lista blanca (`localhost`, `127.0.0.1`, dominio público opcional vía `MAIL_PUBLIC_APP_HOST`) — nunca por prefijo de cadena. `https://` de cualquier host se sigue dejando pasar sin cambios. Test: `test/security/safe-url.test.ts` — `http://localhost.evil.com/phish` y `http://localhost-mx.ejemplo.com/phish` ahora caen al fallback; `127.0.0.1`, `localhost` exacto y el dominio público por env se siguen aceptando. Commit `fix(mail): ML-03 safeUrl ancla el host de http:// por lista blanca exacta`. |
+| ML-04 (MEDIA) | **CORREGIDO** | `colors.faint` oscurecido de `#8291a3` (3.22:1/3.05:1) a `#637283` (4.92:1/4.67:1 sobre `surface`/`canvas`) — cumple WCAG AA de texto normal (≥4.5:1) en ambos fondos. Test: `test/theme/contrast.test.ts` ahora prueba `faint` contra `surface` Y `canvas` (antes solo `ink`/`body`/`muted`/`danger`). Commit `fix(mail): ML-04 colors.faint cumple contraste AA de texto normal (>=4.5:1)`. |
+| ML-05 (MEDIA) | **CORREGIDO** | Nueva `webhooks/replay-guard.ts` (`WebhookReplayGuard` + `InMemoryWebhookReplayGuard`, lista para una tabla/caché real con TTL en `apps/api`) y `verifyResendWebhookSignatureWithReplayGuard()`, que reclama cada `svix-id` una sola vez dentro de la ventana de tolerancia — el segundo envío responde `{ ok: false, reason: "replay" }` (409 en el handler HTTP), documentado en el README. Test: `test/webhooks/verify-signature.test.ts` — reenviar la misma petición firmada dos veces rechaza la segunda; firma inválida no "gasta" el guardia. Commit `fix(mail): ML-05 anti-replay de webhooks Svix por svix-id`. |
+| ML-06 (BAJA) | **NO CORREGIDO (documentado)** | `npm audit fix --dry-run` confirma que el único camino es `--force`, que instalaría `vitest@4.1.11` (salto de dos versiones mayores, "breaking change" según el propio npm) y, al ser `devDependency` compartida en el `node_modules` hoisted de los workspaces npm (un solo `package-lock.json` en la raíz), también reinstalaría `vitest`/`vite`/`esbuild` para `apps/api`/`apps/worker`/`apps/web` — fuera del ámbito exclusivo de este corrector y con riesgo real de romper esas suites, que no se pueden verificar desde aquí. 0 vulnerabilidades en runtime (`npm audit --omit=dev`). Documentado con el detalle completo en `README.md` (sección "`npm audit` de devDependencies (ML-06)"), con recomendación explícita para una ronda futura con ámbito de monorepo completo. Commit `docs(mail): ML-06 npm audit de devDependencies -- decision de NO forzar el upgrade`. |
+| ML-07 (MEDIA, trazabilidad) | **FUERA DE ÁMBITO (anotado)** | `docs/ACEPTACION.md` no está dentro de `packages/mail/**` — el ámbito exclusivo de este corrector no permite tocarlo. La actualización de las filas S4/S5/S6/S7/S12 y REQ-207 (de "Sin código/PENDIENTE" a "cubierto a nivel de librería, pendiente de integración real en `apps/api`") queda para el agente orquestador o un corrector con ámbito de documentación general. Sin cambios de este agente. |
+
+Verificación final (`docs/logs/fix-mail.log`): `npm run -w packages/mail
+typecheck` sin errores, `lint` sin errores, `test` 26 archivos/252 pruebas en
+verde, `test:coverage` 252 pruebas en verde con cobertura global 96.26%
+stmts / 85.17% ramas / 97.89% funciones / 96.26% líneas (por encima de los
+umbrales declarados en `vitest.config.ts`: ≥85/80/85/85), `build` sin
+errores.
