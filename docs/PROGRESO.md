@@ -221,3 +221,8 @@ Formato por entrada: requisito · acción · archivos/commit · prueba · result
 
 ## Micro-corrección API-15/WI-06 (2026-09-06 05:4x)
 - **Acción:** corrector #70. **Commits:** API-15 `fbf5771` (approve/reject de tarifas aceptan cuerpo vacío; 3 tests), WI-06 `9bd8b55` (guard síncrono con useRef antes de mutate; test de componente + E2E con doble clic físico real → 1 petición), log `5adeadf`. **Prueba:** apps/api 183 tests; apps/web 80 unit; E2E dirigido 11/11 (docs/logs/fix-api15-wi06.log). Reproducción pre-fix en worktree. **Estado:** REPARADO por el corrector; sin reverificación independiente adicional (BAJA no explotables; la barrera real es el servidor, ya reverificado). En tablero: EN_EVIDENCIA para esos dos ítems.
+
+## Tablero final e informe de estado (2026-09-06 05:5x)
+- **Tablero (#69, commit `e61156e`):** 186 criterios → 47 CUMPLIDO, 53 EN_EVIDENCIA, 77 PENDIENTE, 5 LÍMITE_ACEPTADO, 3 NO_APLICA, 1 BLOQUEADO_EXTERNO. Épicas cerradas con reverificación: E1, E3 (mecanismo), E4, E7, E9. **Inexactitud detectada por Fable:** E11 marcada "0% construido" pese a `apps/api/src/modules/expediente/post-award.routes.ts`, migración 0032 y `expediente-post-award.test.ts` → a reconciliar en la próxima pasada.
+- **Informe:** docs/INFORME-ESTADO.md (implementado/probado, pendiente ejecutable, bloqueos externos, no construido).
+- **Decisión del bucle:** NO se detiene: queda trabajo ejecutable (conexión web del expediente y back office, REQ-142, REQ-171, calendario oficial, 2FA, aviso de privacidad, guard 404). Ronda 5 despachada (#71 web, #72 api).
