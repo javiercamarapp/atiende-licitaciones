@@ -142,3 +142,4 @@
 2026-09-06 12:17  DESPERTAR  packages/mail (#88) completado (220 tests); auditor #95 despachado; en curso #91,#92,#93,#94.
 2026-09-06 12:27  INCIDENTE  429 masivo del servidor cortó #91,#92,#93,#94,#95 y descendientes; reanudaciones reintentadas (INC-08 ampliado).
 2026-09-06 12:32  CONTINUAR  usuario pide continuar; bucle rearmado; 5 agentes reanudados activos (#91 ya commiteó agentes de negocio 44ab74a).
+2026-09-06 12:46  GITHUB  repo privado javiercamarapp/atiende-licitaciones creado y main subido (480 commits); config de autoría → correo verificado; vercel.json preparado; Vercel sin sesión (usuario). B-05 reescritura de autoría pendiente de ventana sin agentes.
