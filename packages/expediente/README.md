@@ -91,6 +91,20 @@ npm run -w packages/expediente test
 npm run -w packages/expediente build
 ```
 
+## Limitaciones conocidas (riesgos residuales fuera de una librería pura)
+
+- **Autoaprobación entre cuentas distintas de la misma persona física
+  (EX-EXP-08, auditoría ronda 1)**: `ApprovalWorkflow` solo compara
+  `actorId` (un string opaco); dentro de una librería pura sin capa de
+  identidad no hay, ni puede haber, forma de detectar que dos `actorId`
+  distintos pertenecen al mismo humano (p. ej. la misma persona con dos
+  cuentas/roles activos sobre el mismo expediente). Esto NO se corrige aquí
+  — `apps/api`/la capa de identidad y organización debe implementar un
+  control adicional (p. ej. impedir que un mismo `userId` de identidad
+  tenga más de una cuenta/rol activo sobre el mismo expediente) antes de
+  confiar en la prohibición de autoaprobación de este paquete como control
+  único.
+
 ## Pendientes (fuera del alcance de este paquete puro)
 
 - Implementaciones reales de `CompanyDataResolver`/persistencia sobre
