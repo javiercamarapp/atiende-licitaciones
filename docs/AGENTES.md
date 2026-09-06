@@ -4,7 +4,7 @@ Regla: Fable (claude-fable-5-1) solo orquesta. Cada despacho usa `Agent(subagent
 
 | # | Fecha | Nombre/tarea | Modelo param | Evidencia de sesión | Estado |
 |---|-------|--------------|--------------|---------------------|--------|
-| 1 | 2026-09-05 | investigar-pdf-requisitos → /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/docs/REQUISITOS.md, ACEPTACION.md, investigacion/pdf-resumen.md | model="sonnet" | pendiente (ID al completar) | en curso |
+| 1 | 2026-09-05 | investigar-pdf-requisitos → /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/docs/REQUISITOS.md, ACEPTACION.md, investigacion/pdf-resumen.md | model="sonnet" | notificación de tarea completada (128 tool uses, 179k tokens subagente, 981 s; hasta 3 descendientes sonnet) | COMPLETADO: 140 REQ / 28 módulos |
 | 2 | 2026-09-05 | inventario-frontend-restaurantes → /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/docs/investigacion/frontend-restaurantes.md | model="sonnet" | notificación de tarea completada (24 tool uses, 117k tokens subagente, 293 s) | COMPLETADO |
 | 3 | 2026-09-05 | investigar-likida-arquitectura → /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/docs/investigacion/likida-arquitectura.md | model="sonnet" | notificación de tarea completada (62 tool uses, 249k tokens subagente, 837 s) | COMPLETADO |
 | 4 | 2026-09-05 | localizar-carpeta-empresas-agenticas → /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/docs/investigacion/ubicacion-empresas-agenticas.md | model="sonnet" | notificación de tarea completada (10 tool uses, 73k tokens subagente, 111 s) | COMPLETADO: NO ENCONTRADA |
