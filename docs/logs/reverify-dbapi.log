@@ -1,0 +1,260 @@
+Reverificación adversarial db+api (ronda 2) — log de comandos y salidas
+Fecha: 2026-09-05
+HEAD de trabajo (3 worktrees): 9cb38be
+HEAD del repo principal al escribir el informe: c96484a
+(sin commits relevantes a packages/db o apps/api entre ambos)
+
+Worktrees usados (creados y eliminados por el orquestador principal):
+  <scratch>/reverify-db    -> sub-agente "Reverify DB findings and RLS adversarial"
+  <scratch>/reverify-api   -> sub-agente "Reverify API findings and new modules"
+  <scratch>/reverify-regr  -> sub-agente "Regression suite and traceability check"
+
+================================================================
+§1. Setup (orquestador)
+================================================================
+$ git worktree add <scratch>/reverify-dbapi HEAD
+Preparing worktree (detached HEAD 9cb38be)
+HEAD is now at 9cb38be fix(agents): AG-21/AG-22 cierre de PARCIAL en no-fabrication y tool-registry
+
+$ git worktree add <scratch>/reverify-db HEAD
+$ git worktree add <scratch>/reverify-api HEAD
+$ git worktree add <scratch>/reverify-regr HEAD
+(3 worktrees preparados sobre el mismo HEAD 9cb38be)
+
+$ npm install   (en cada uno de los 4 worktrees, en paralelo)
+DB_INSTALL_OK
+API_INSTALL_OK
+REGR_INSTALL_OK
+(677 paquetes añadidos, 685 auditados; 6 vulnerabilidades en devDependencies,
+ 0 en producción — igual que ronda 1)
+
+================================================================
+§2. Sub-agente DB — packages/db (worktree reverify-db)
+================================================================
+
+--- Ancestría de commits citados en docs/auditoria-1/db-api.md ---
+$ git show --stat c1c0f1c   -> resuelve, 0019_fix_db01_security_definer_scope.sql
+$ git show --stat 62a77e0   -> resuelve, 0020_fix_db02_rate_validity.sql
+$ git show --stat 7922171   -> resuelve, 0021_fix_db03_rate_reapproval.sql
+$ git show --stat 8a17818   -> resuelve, packages/db/README.md (doc-only)
+$ git show --stat 0698544   -> resuelve, 0022_fix_db05_change_event_invalidation.sql
+$ git show --stat 5c0080c   -> resuelve, 0023_fix_db06_audit_log_hash_chain.sql
+$ git show --stat 6c87e2e   -> resuelve, apps/api/test/audit-db07-tenant-context-pattern.test.ts
+Los 7 hashes son commits reales y ancestrales, sin evidencia de squash/rebase
+que oculte contenido (git log --oneline --all los lista tal cual).
+
+--- Tests citados como evidencia ---
+$ npm run -w packages/db test -- audit-db01-security-definer-scope.test.ts
+  4 passed (4)
+$ npm run -w packages/db test -- audit-db02-rate-validity.test.ts
+  3 passed (3)
+$ npm run -w packages/db test -- audit-db03-rate-reapproval.test.ts
+  3 passed (3)
+$ npm run -w packages/db test -- audit-db05-change-event-invalidation.test.ts
+  4 passed (4)
+$ npm run -w packages/db test -- audit-db06-audit-log-hash-chain.test.ts
+  3 passed (3)
+
+--- Reataques (script temporal packages/db/test/zz-adversarial-reverify.test.ts, borrado al terminar) ---
+[DB-01 reataque] membership_role(1 arg) sin contexto -> NULL (no filtra)
+[DB-01 reataque] find_user_by_email con sesión activa -> excepción
+  find_user_by_email_not_allowed_in_session_context
+[DB-02 variante] tarifa approved, valid_until=hoy+5, tender.submission_deadline=hoy+60
+  -> INSERT en proposal_pricing_lines: insertedLine = true   (FALLA — ver DB-10)
+[DB-03 variante] UPDATE approved_rates SET unit_price=99999 como platform_admins (superadmin)
+  -> status revertido a 'draft' igual, sin excepción por rol (correcto, agnóstico de rol)
+[DB-04 variante] checklist_snapshot con items en n_a/skipped (no solo rojo/faltante)
+  -> INSERT en package_manifests status='ready': inserted = true (FALLA, ya documentada en README)
+[DB-05 variante] tender_change_event referenciando tender_version ANTERIOR (no la última)
+  -> invalidated_at se llenó igual (fail-closed, no filtra por versión)
+
+[DB-08 create_refresh_token] actor viewer orgA invoca directamente
+  select app.create_refresh_token(gen_random_uuid(), <victim_user_id>, <hash_elegido>, now()+'30 days')
+  -> forged = true (sin error) — token creado para OTRO user_id
+[DB-08 revoke_all_refresh_tokens] mismo actor invoca
+  select app.revoke_all_refresh_tokens(<victim_user_id>)
+  -> attacker-revoked-victim-sessions = true
+$ grep -rn revoke_all_refresh_tokens apps/api/src
+  (0 resultados — función sin caso de uso legítimo en la API)
+
+[DB-09 agent_run_context] sin ningún contexto de sesión (ctx={})
+  select * from app.agent_run_context(<agent_run_id_de_orgA>)
+  -> leak rows = [{ org_id: '87bd133d-...', actor_id: '5942bbdb-...' }]
+
+--- RLS ampliado (0011-0028), conteo ---
+rls-isolation.test.ts:                 140 ataques, 140 bloqueados, 0 fuga
+rls-roles.test.ts:                      12 ataques,  12 bloqueados, 0 fuga
+worker-role-and-job-proposals.test.ts:   6 ataques,   6 bloqueados, 0 fuga
+backoffice-extension.test.ts:            5 ataques,   5 bloqueados, 0 fuga
+idempotency-and-audit.test.ts:           4 ataques,   4 bloqueados, 0 fuga
+script propio ampliado:                  9 ataques,   6 bloqueados, 3 fuga (DB-08 x2, DB-09 x1)
+TOTAL ronda 2:                         176 ataques, 173 bloqueados, 3 fuga
+
+worker_role: confirmado NOLOGIN, NOSUPERUSER, NOBYPASSRLS (pg_roles).
+information_schema.role_table_grants(worker_role) = {jobs, source_runs, agent_runs}
+0 filas devueltas sin contexto en approved_rates/company_profiles/tenders/refresh_tokens.
+
+--- Migraciones ---
+$ npm run -w packages/db test -- migrate.test.ts   -> 2 aplicaciones, applied.length=0 en la 2a
+(script propio) 3a aplicación consecutiva -> applied.length=0
+$ npm run -w packages/db test -- migration-0026b-duplicate-jobs-safety-net.test.ts
+  2 passed (2) — escenario real: aplica hasta 0026, inserta 3 duplicados a mano,
+  aplica 0026b..0028, confirma 2/3 resueltos antes del índice único de 0027
+(script propio) INSERT duplicado (kind,jobKey) activo tras migración completa
+  -> rejects.toThrow() (23505)
+(script propio) UPDATE schema_migrations SET checksum='...' WHERE filename='0001_bootstrap.sql'
+  luego applyMigrations()
+  -> Error: La migración 0001_bootstrap.sql ya fue aplicada con un contenido distinto...
+
+--- Regresión packages/db ---
+$ npm run -w packages/db test
+  Test Files  15 passed (15)
+       Tests  130 passed (130)
+$ npm run -w packages/db typecheck   -> OK, sin errores
+$ npm run -w packages/db lint        -> OK, sin errores
+$ git status --porcelain   -> (vacío, tras borrar zz-adversarial-reverify.test.ts)
+$ git diff --stat          -> (vacío)
+
+================================================================
+§3. Sub-agente API — apps/api (worktree reverify-api)
+================================================================
+
+--- Suite completa (3 corridas, 1 bajo estrés de CPU artificial 8x `yes`) ---
+$ npm run -w apps/api test   (corrida 1)
+  Test Files  15 passed (15)
+       Tests  51 passed (51)
+$ npm run -w apps/api test   (corrida 2, ~16-31s)
+  51 passed (51)
+$ npm run -w apps/api test   (corrida 3, bajo estrés artificial de CPU)
+  51 passed (51)
+$ npm run -w apps/api typecheck   -> OK, 0 errores
+$ npm run -w apps/api lint        -> OK, 0 errores
+
+--- Timeouts de ci-local ---
+docs/PROGRESO.md:84 y docs/logs/ci-local.log (2026-09-06T02:15:27Z):
+  "apps/api:test 2 timeouts de 5s (tests de aislamiento/rol bajo carga
+  concurrente de otros agentes; a reverificar en aislamiento tras cerrar
+  ronda 2 de API)"
+Tests identificados:
+  1) test/matching-and-go-no-go.test.ts > "A5: dos organizaciones con
+     perfiles distintos no filtran datos entre sí en matching"
+  2) test/audit-api02-role-escalation.test.ts > "un owner SÍ puede promover
+     a otro miembro a owner"
+Reproducción en aislamiento (solo ese archivo, 3 corridas cada uno):
+  matching-and-go-no-go.test.ts:        690ms / 663ms / 706ms — todas pass
+  audit-api02-role-escalation.test.ts:  671ms / 684ms / 717ms — todas pass
+Veredicto: NO REPRODUCE. apps/api/vitest.config.ts ya sube testTimeout/
+hookTimeout a 20000ms y fija pool:'forks', maxForks:4 (comentario en el
+propio archivo cita este mismo historial).
+
+--- Reataques API-01..07 ---
+[API-01] reuso secuencial de refresh (10 trials) -> 401 en 10/10 (2o uso)
+[API-01] reuso tras logout explícito (10 trials) -> 401 en 10/10
+[API-01] 2 y hasta 10 /auth/refresh EN PARALELO con el mismo token (10 trials
+  x 10 paralelos = 100 intentos) -> exactamente 1 éxito por trial, 100/100
+  consistente (PGlite = conexión física única; no garantiza atomicidad real
+  contra pg.Pool({max:10}) de producción, ver API-09)
+[API-02] PATCH autopromoción a owner -> 403 (bloqueado, correcto)
+[API-02] PATCH degradar único owner -> 409 (bloqueado, org no queda huérfana)
+[API-08] POST /organizations/invitations con role:'owner', invitador=admin
+  -> 201; accept -> 200; rol final de memberships = 'owner' (FALLA)
+[API-03] /auth/register, 30 muestras c/lado (email existente vs nuevo)
+  -> ratio de medianas 1.006 (indistinguible, hashPassword corre siempre)
+[API-03] /auth/login, 15 muestras AISLADAS (app fresca por muestra, para
+  evitar contaminación del rate-limiter de 5/min):
+    email existente + password mala: mediana 27.18ms (rango 26.69-43.75ms)
+    email inexistente:                mediana  1.10ms (rango  0.98- 2.55ms)
+  -> ratio 24x, 0% overlap en 15/15 muestras
+  (nota: primer intento con 60 requests sobre la MISMA app dio resultados
+  falsos por contaminación del 429 del rate-limiter; corregido con app
+  aislada por muestra)
+[API-04] X-Org-Id inválido -> 400 (UUID_PATTERN en auth.plugin.ts:37-39)
+[API-05] headers de seguridad -> presentes (@fastify/helmet, app.ts:60)
+[API-06] /docs/json sin auth -> 401 (preHandler app.authenticate, app.ts:83)
+[API-07] token de invitación -> devuelto una vez en la respuesta, no persistido en claro
+
+--- Módulos nuevos (API-09..API-12) ---
+[API-09] revisión estática auth/routes.ts:126-159 (SELECT+UPDATE en
+  transacciones separadas, sin check de rowCount del UPDATE)
+[API-09] revisión estática agents/routes.ts:97-109,140-153 (UPDATE sin
+  AND authorization_status='pending')
+[API-09] 2 y 5 aprobaciones/tool_call en paralelo bajo PGlite -> 1 éxito,
+  100% consistente en 2/2 corridas (artefacto de conexión única, no
+  garantía; ver packages/db/src/driver.ts:70-112 sobre pg.Pool en prod)
+[API-10] job con org_id=null, retry por superadmin -> 200 status
+  failed->queued; audit_log: 0 filas antes y después (FALLA)
+[API-11] storage.ts / documentCreateSchema: sin validación de magic bytes;
+  verificado que el path en disco es 100% server-side (orgId UUID + sha256
+  del contenido) -> sin path traversal; hash sha256 no desincronizable
+[API-12] auth.plugin.ts:67-70, requirePlatformApiKey compara con !==, no
+  timingSafeEqual (canal de timing teórico, bajo riesgo real)
+
+--- Verificado correcto sin hallazgo ---
+Paginación GET /tenders: cursor de otra organización o corrupto -> sin fuga
+  cross-org (org_id siempre en el filtro, cursor corrupto ignorado)
+matching/go-no-go sobre tender de otra organización -> 404
+writer decidiendo go/no-go -> 403
+/admin/* usuario normal -> 403
+/metrics -> sin datos de tenant (solo método/ruta-patrón/status)
+request_id -> presente en 100% de respuestas de error problem+json
+Ingesta con API key de "otra organización" -> no aplica (PLATFORM_API_KEY
+  es secreto único de plataforma, no por-organización, por diseño)
+
+$ git status   -> nothing to commit, working tree clean (tras restaurar)
+
+================================================================
+§4. Sub-agente Regresión/Trazabilidad (worktree reverify-regr)
+================================================================
+
+$ npm run -w apps/worker typecheck   -> OK, sin salida, exit 0
+$ npm run -w apps/worker test
+  Test Files: 11 (8 activos + 3 db-proposals/*.pending.test.ts con describe.skip)
+  Tests: 60 (55 pass + 5 skip), 0 fail, duración 41.28s
+
+--- not_configured realmente ejercitado ---
+apps/worker/src/source-runs/source-run-status.ts:27 (declaración del tipo)
+apps/worker/test/discover-tenders-handler.test.ts:119
+  "los 5 conectores reales de packages/sources hoy no tienen
+  liveVerification.verified=true: se reporta not_configured explícito"
+  -> expect(rows[0].evidence.fineState).toBe('not_configured')  (línea 132)
+apps/worker/test/discover-tenders-handler.test.ts:152
+  "fuente sin conector registrado nunca produce '0 nuevas': falla explícito
+  con not_configured"  (línea 161)
+
+--- Gap de integración worker vs. migraciones 0026-0028 ---
+apps/worker/src/source-runs/source-run-status.ts:44-52 -> sigue proyectando
+  rate_limited/not_configured/ingest_failed a 'failed'
+apps/worker/src/queue/job-queue.ts:265-266 (cancel()) -> sigue usando
+  status='dead'; comentario "no hay estado cancelled en el enum" es FALSO
+  desde que se aplicó 0027
+git log confirma: 0026/0027/0028 en commit 2a7b809, 0026b en da36f65
+  (posteriores a la última entrada relevante de docs/PROGRESO.md)
+
+$ npm run -w apps/web typecheck   -> OK, sin salida, exit 0
+
+$ npm run -w packages/db test
+  Test Files  15 passed (15)
+       Tests  130 passed (130)   (duración 35.71s)
+$ npm run -w apps/api test
+  Test Files  15 passed (15)
+       Tests  51 passed (51)     (duración 29.27s, sin timeouts)
+
+--- Trazabilidad A1-A15: ver tabla en docs/auditoria-1/db-api-reverificacion.md §6 ---
+--- Trazabilidad E2/E3/E4/E5/E10: ver tabla en docs/auditoria-1/db-api-reverificacion.md §6 ---
+grep de "[x]"/✅/HECHO/COMPLETADO en BACKLOG.md, REQUISITOS.md, READMEs
+  -> 0 coincidencias de progreso pendiente marcado falsamente como hecho
+
+$ git status   -> clean (worktree restaurado)
+
+================================================================
+§5. Cierre (orquestador)
+================================================================
+Los 3 worktrees (reverify-db, reverify-api, reverify-regr) y el worktree de
+lectura inicial (reverify-dbapi) se eliminan tras compilar este informe:
+$ git worktree remove <scratch>/reverify-db
+$ git worktree remove <scratch>/reverify-api
+$ git worktree remove <scratch>/reverify-regr
+$ git worktree remove <scratch>/reverify-dbapi
+
+Ningún comando destructivo (git reset/checkout <commit>/stash/rebase) se
+ejecutó en el repositorio principal en ningún momento de esta reverificación.
