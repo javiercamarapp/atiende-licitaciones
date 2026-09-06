@@ -160,3 +160,4 @@
 2026-09-06 13:50  NOTIF  #101 auditoría Google 3847748: GO-01→D-09 (sin_acceso), GO-07/03→#104; E19 backlog.
 2026-09-06 15:15  DESPERTAR  INC-12: límite de sesión 429 cortó 5 agentes (reset 15:10); reanudando #94 #98 #100 #103 #104; docs D-09 commit pendiente.
 2026-09-06 15:29  USUARIO  «usa opus si se cae sonnet» → D-10; INC-13; relanzados #105–#109 con model=opus.
+2026-09-06 15:56  LATIDO  Opus produciendo: c778526 WK6-01, caee2fe WK6-02, 13ee279 R6-09, da18559 GO-07, c4a0cf9 GO-03; 5 agentes en curso.
