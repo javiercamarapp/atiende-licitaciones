@@ -142,6 +142,26 @@ determinista de patrones conocidos; **no sustituye** un clasificador
 semántico/LLM para intentos no cubiertos por los patrones, que debe
 añadirse en `apps/api` vía `addHook()`.
 
+### Límite conocido (AG-12)
+
+La suite de ">200 prompts" de arriba es una combinación cartesiana del
+**mismo vocabulario** que `DEFAULT_PATTERNS` — su ≥99% de detección es
+tautológico, no una medición independiente. `test/guardrails.test.ts`
+también incluye una suite separada de **≥30 casos independientes** del
+vocabulario del regex (eufemismos como "endulzarle la mano"/"un pequeño
+peaje", ofuscación ortográfica como "s0born0"/"s o b o r n o", inglés
+natural más allá de "bribe"/"kickback", contextos alternos como "cobrar"
+en vez de "precio/oferta/postura", e instrucciones partidas en 2 mensajes)
+que **reporta la tasa de detección real, sin inflarla**: en esta ronda fue
+**~3% (1/31)**, y **0% en los 3 casos partidos en 2 mensajes** (el
+guardrail no tiene memoria de intención entre llamadas a `check()`, por
+diseño). Esto confirma literalmente lo que el README ya admitía: esta capa
+es patrones deterministas conocidos, no un clasificador semántico. El
+hook de un clasificador LLM/juez calibrado (REQ-127) sigue pendiente en
+`apps/api`, fuera del alcance de este paquete puro — ninguna reparación de
+código en `packages/agents` puede cerrar esta brecha sin dejar de ser una
+capa determinista.
+
 ### NoFabricationPolicy (ampliación back office §6)
 
 Cualquier valor de precio, certificación, experiencia, referencia, firma o
