@@ -180,6 +180,14 @@ export class CompanyDataService {
     const field = `tarifa:${concept}`;
     const rate = this.resolver.getApprovedRates(companyId).find((r) => r.concept === concept);
     if (!rate) return { status: "missing", field };
+    // REQ-160/EX-EXP-07: `ApprovedRate.currency` es "MXN" solo a nivel de
+    // TIPOS de TypeScript; un adaptador real con JSON no tipado (p. ej.
+    // Postgres) podría colar otro valor sin que nada lo note. Se lanza un
+    // error explícito en vez de usar silenciosamente una tarifa en una
+    // moneda distinta.
+    if ((rate.currency as string) !== "MXN") {
+      throw new Error(`Tarifa "${concept}" tiene moneda "${rate.currency}", se esperaba "MXN". Verifique el adaptador de datos.`);
+    }
     if (rate.approvalStatus !== "aprobado") {
       return { status: "blocked", field, reason: "tarifa_no_aprobada", detail: `Tarifa "${concept}" en estado "${rate.approvalStatus}", no "aprobado".` };
     }

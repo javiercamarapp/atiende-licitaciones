@@ -52,13 +52,29 @@ export interface EconomicProposalResult {
 
 export interface EconomicProposalConfig {
   ivaRate: number; // p. ej. 0.16
+  /** Cota superior aceptada para `ivaRate` (por defecto `DEFAULT_MAX_IVA_RATE`); ajustable solo cuando el llamador lo justifique explícitamente. */
+  maxIvaRate?: number;
+}
+
+/** Cota superior por defecto para `ivaRate` (EX-EXP-07): cubre IVA general (16%) y tasas reducidas/especiales razonables, sin permitir errores de unidades (p. ej. "16" en vez de "0.16") o tasas absurdas (250%). */
+export const DEFAULT_MAX_IVA_RATE = 0.3;
+
+/** Valida que `ivaRate` sea una tasa fraccionaria razonable en `[0, maxRate]` (EX-EXP-07): rechaza negativos, tasas > 100% y errores de unidades clásicos (16 en vez de 0.16). */
+export function assertValidIvaRate(ivaRate: number, maxRate: number = DEFAULT_MAX_IVA_RATE): void {
+  if (!Number.isFinite(ivaRate) || ivaRate < 0 || ivaRate > maxRate) {
+    throw new Error(
+      `ivaRate fuera de rango válido [0, ${maxRate}]: ${ivaRate}. Verifique que no sea un error de unidades (p. ej. "16" en vez de "0.16") ni una tasa absurda.`,
+    );
+  }
 }
 
 export class EconomicProposalBuilder {
   constructor(
     private readonly companyData: CompanyDataService,
     private readonly config: EconomicProposalConfig,
-  ) {}
+  ) {
+    assertValidIvaRate(config.ivaRate, config.maxIvaRate ?? DEFAULT_MAX_IVA_RATE);
+  }
 
   build(companyId: string, requests: EconomicLineItemRequest[], asOfIso: string): EconomicProposalResult {
     const lineItems: EconomicLineItemResolved[] = [];

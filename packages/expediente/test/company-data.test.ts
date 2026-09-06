@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CompanyDataService, InMemoryCompanyDataResolver, isResolved } from "../src/company-data.js";
+import { CompanyDataService, InMemoryCompanyDataResolver, isResolved, type ApprovedRate } from "../src/company-data.js";
 
 const ASOF = "2026-10-20T12:00:00-06:00"; // fecha límite del acto (no "hoy")
 
@@ -117,5 +117,28 @@ describe("CompanyDataService (A8 precio no aprobado, REQ-029/REQ-157/REQ-164)", 
     const result = service.resolveApprovedRate("empresa-1", "consultoria_hora", ASOF);
     expect(result.status).toBe("blocked");
     if (result.status === "blocked") expect(result.reason).toBe("tarifa_vencida");
+  });
+});
+
+describe("CompanyDataService — EX-EXP-07: aserción runtime de moneda (REQ-160)", () => {
+  it("lanza un error explícito si una tarifa llega con currency distinta de 'MXN' (p. ej. JSON no tipado de Postgres)", () => {
+    // `ApprovedRate.currency` es "MXN" solo a nivel de TIPOS; un adaptador
+    // real con JSON no tipado podría colar otro valor. Se simula con un
+    // cast, exactamente el escenario que reprodujo la auditoría.
+    const rateWithWrongCurrency = {
+      id: "rate-1",
+      companyId: "empresa-1",
+      concept: "consultoria_hora",
+      unit: "hora",
+      unitPrice: "850.00",
+      currency: "USD",
+      approvalStatus: "aprobado",
+      validFrom: "2026-01-01T00:00:00-06:00",
+      validUntil: null,
+    } as unknown as ApprovedRate;
+
+    const resolver = new InMemoryCompanyDataResolver({ rates: [rateWithWrongCurrency] });
+    const service = new CompanyDataService(resolver);
+    expect(() => service.resolveApprovedRate("empresa-1", "consultoria_hora", ASOF)).toThrow(/MXN/);
   });
 });

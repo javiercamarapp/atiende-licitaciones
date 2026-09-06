@@ -118,3 +118,30 @@ describe("EconomicProposalBuilder (A8 precio no aprobado, REQ-157/REQ-164)", () 
     expect(result.totals).toBeNull();
   });
 });
+
+describe("EconomicProposalBuilder — EX-EXP-07: validación runtime de ivaRate (REQ-160)", () => {
+  it("rechaza un ivaRate de 250% (2.5) — probable error de unidades, no un IVA real", () => {
+    const service = new CompanyDataService(buildResolver());
+    expect(() => new EconomicProposalBuilder(service, { ivaRate: 2.5 })).toThrow(/ivaRate/);
+  });
+
+  it("rechaza un ivaRate de 16 (en vez de 0.16) — error de unidades clásico", () => {
+    const service = new CompanyDataService(buildResolver());
+    expect(() => new EconomicProposalBuilder(service, { ivaRate: 16 })).toThrow(/ivaRate/);
+  });
+
+  it("rechaza un ivaRate negativo", () => {
+    const service = new CompanyDataService(buildResolver());
+    expect(() => new EconomicProposalBuilder(service, { ivaRate: -0.1 })).toThrow(/ivaRate/);
+  });
+
+  it("acepta ivaRate dentro del rango razonable por defecto (p. ej. 0.16)", () => {
+    const service = new CompanyDataService(buildResolver());
+    expect(() => new EconomicProposalBuilder(service, { ivaRate: 0.16 })).not.toThrow();
+  });
+
+  it("permite ampliar el rango explícitamente vía maxIvaRate cuando el llamador lo justifique", () => {
+    const service = new CompanyDataService(buildResolver());
+    expect(() => new EconomicProposalBuilder(service, { ivaRate: 0.16, maxIvaRate: 0.5 })).not.toThrow();
+  });
+});
