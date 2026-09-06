@@ -1,0 +1,371 @@
+================================================================================
+apps/api — integración de @atiende/mail (REQ-181..195, Ampliación 2 §2)
+Agente: implementador (Opus, respaldo autorizado por el usuario)
+Fecha: 2026-09-06
+Ámbito: apps/api/src/lib/mail/**, app.ts, config.ts, types.ts, errors.ts,
+        lib/audit.ts, modules/auth/{routes,mail.routes}.ts, modules/mail/**,
+        modules/public/**, modules/organizations/{routes,schemas}.ts,
+        apps/api/test/**, packages/db/migrations/0086, packages/db/test/**
+NO tocado (otros agentes): modules/auth/google/**, expediente/post-award/
+        contracts/radar, apps/worker/**, apps/web/**
+================================================================================
+
+## 1. Punto de partida
+
+El trabajo parcial de un agente anterior (cortado 3 veces por 429) estaba SIN
+COMMITEAR: `app.ts`, `config.ts`, `types.ts`, `modules/auth/routes.ts`,
+`test/helpers.ts` y el directorio nuevo `src/lib/mail/` (env, recipients,
+send-transactional, triggers, pg-send-record-store, pg-suppression-store,
+pg-webhook-replay-guard). Las migraciones 0080-0085 de `packages/db` ya
+estaban commiteadas y en verde.
+
+Estado real al empezar: NO compilaba.
+
+  $ npm run -w apps/api typecheck
+  ../../packages/mail/src/index.ts(13,15): error TS6142: Module
+    './components/blocks' was resolved to '.../blocks.tsx', but '--jsx' is not set.
+  ... (34 errores TS6142 iguales, uno por cada .tsx de packages/mail)
+  src/modules/auth/routes.ts(157,7): error TS2304: Cannot find name 'sendEmailVerification'.
+  src/modules/auth/routes.ts(157,84): error TS7006: Parameter 'error' implicitly has an 'any' type.
+
+Causa: `@atiende/mail` se consume como FUENTE TypeScript (`"main":
+"./src/index.ts"`, igual que `@atiende/db`) y sus plantillas son `.tsx`
+(React Email); el `tsconfig.json` de apps/api no tenía `jsx`. Corregido con
+`"jsx": "react-jsx"` + `"jsxImportSource": "react"` (no afecta a
+`apps/api/src`, que no tiene ni un solo `.tsx`).
+
+Tras conectar el trigger de registro y la compuerta de login, la suite
+existente quedó en 8 fallos / 5 archivos:
+
+  Test Files  5 failed | 62 passed (67)
+       Tests  8 failed | 291 passed (299)
+
+  - ronda4-rate-limit-profile.test.ts (x3): "MAIL_LINK_SECRET no definido o
+    demasiado corto" -- `loadConfig` ahora lo exige.
+  - security-api13-auth-audit-log.test.ts, auth-and-orgs-flow.test.ts,
+    audit-api03-register-enumeration.test.ts: 403 en vez de 200 -- la
+    compuerta de correo verificado.
+  - security-api03-login-timing.test.ts: ratio 3.30x (umbral 1.5x) -- el
+    correo de verificación que dispara `/auth/register` en segundo plano
+    competía por CPU con las primeras mediciones de login del lado "email
+    existente". Corregido esperando `app.waitForPendingMail()` tras el
+    registro (en producción registro y login son peticiones separadas);
+    medición posterior: mediana existente=42.19ms, inexistente=40.33ms,
+    ratio=1.05x.
+
+## 2. Bug REAL encontrado por las pruebas nuevas (no en revisión)
+
+`send-transactional.ts` encolaba el job de reintento diferido con un INSERT
+directo en `jobs` como `app_role`. La política `ins_jobs`
+(0028_worker_role.sql) exige `worker_role`, superadmin, o membresía de la
+organización DUEÑA del job:
+
+  with check (current_user = 'worker_role' or app.is_superadmin()
+              or (org_id = app.current_org_id() and app.has_role(...)))
+
+Un correo de verificación de cuenta o de restablecimiento de contraseña no
+tiene organización NI sesión (se manda antes de que exista cualquiera de las
+dos), así que Postgres rechazaba el INSERT:
+
+  error: new row violates row-level security policy for table "jobs"
+
+y la excepción se tragaba en el `.catch` del envío en segundo plano.
+Resultado: justo los correos MÁS críticos eran los únicos que no dejaban
+rastro reintentable cuando el proveedor fallaba.
+
+Corregido con la migración 0086 (`app.enqueue_mail_retry`, SECURITY DEFINER
+acotada a `kind = 'mail_retry'` y a un payload con `messageKey`) en vez de
+relajar `ins_jobs`, que habría abierto la cola de trabajo entera a cualquier
+usuario autenticado. Regresión cubierta en
+`packages/db/test/req181-mail.test.ts` (el INSERT directo sigue fallando por
+RLS; la función sí encola) y en
+`apps/api/test/mail-provider-and-retry.test.ts`.
+
+## 3. Commits
+
+  96a4248  feat(api): REQ-181..195 integra @atiende/mail y cierra S4 (verificación de correo)
+  fb0e0ca  test(api): S5 recuperación de contraseña de punta a punta (REQ-181)
+  76c988b  feat(api): S6 la invitación a organización llega por correo (REQ-181)
+  c5705d1  test(api): S7 contacto público con anti-abuso (honeypot, longitudes, 429)
+  c84f736  feat(api): S12 la preferencia de notificación se APLICA al enviar (REQ-181)
+  069a952  test(api): webhook de correo con firma Svix, anti-replay y supresión (ML-05)
+  a0330b5  fix(db,api): S7/REQ-188 el job `mail_retry` lo bloqueaba la RLS de `jobs`
+
+(Los asuntos de los commits 2-4 citan las filas S que se creían aplicables
+al escribirlos; la correspondencia REAL con `docs/ACEPTACION.md`, corregida
+en `a0330b5` dentro del código, es la de la sección 5 de este registro.)
+
+## 4. Pruebas de integración añadidas (todas con CaptureProvider, 0 red)
+
+  apps/api/test/helpers/mail.ts                    utilidades compartidas
+  apps/api/test/mail-email-verification.test.ts    9 casos
+  apps/api/test/mail-password-reset.test.ts        8 casos
+  apps/api/test/mail-organization-invite.test.ts   6 casos
+  apps/api/test/mail-public-contact.test.ts        4 casos
+  apps/api/test/mail-unsubscribe-preferences.test.ts 8 casos
+  apps/api/test/mail-webhook.test.ts               9 casos
+  apps/api/test/mail-provider-and-retry.test.ts    5 casos
+                                                  ---------
+                                                   49 casos nuevos
+
+Adversariales incluidos: enlace reutilizado, firma manipulada, payload
+manipulado, enlace vencido, token de otra cuenta, invitación vencida en
+base, token de invitación interceptado por otro correo, enumeración por
+reenvío/forgot (respuesta idéntica byte a byte), 429 del tier `auth`,
+honeypot, webhook forjado con otro secreto, cuerpo alterado tras firmar,
+cabeceras Svix ausentes, timestamp fuera de ventana, replay exacto,
+proveedor desconocido, destinatario suspendido, y `fetch` global saboteado
+para probar que NADA sale a la red.
+
+## 5. Correspondencia con docs/ACEPTACION.md
+
+  S4  (render de cada plantilla + validación HTML)      -> packages/mail, NO es de apps/api
+  S5  (invitación con enlace firmado, rechazada al vencer) -> CUBIERTA
+  S6  (baja respetada salvo transaccionales de seguridad)  -> CUBIERTA
+  S7  (envío fallido reintenta vía job + historial)        -> CUBIERTA en apps/api;
+                                                              el handler `mail_retry` de
+                                                              apps/worker sigue PENDIENTE
+  S10 (contacto crea registro + correo interno)            -> CUBIERTA
+  S12 (0 red sin proveedor configurado)                    -> CUBIERTA
+
+  REQ-183, REQ-186, REQ-187, REQ-188 (lado api), REQ-189, REQ-190, REQ-196
+  quedan cubiertos por estas pruebas. REQ-181/182/184/185 son de
+  packages/mail. REQ-191..195, REQ-197..205 están fuera de este ámbito.
+
+## 6. Pendiente / bloqueado
+
+  - BLOQUEO EXTERNO: credenciales de un proveedor real (Resend/Postmark/SMTP
+    con dominio verificado SPF/DKIM) y `RESEND_WEBHOOK_SECRET`. Sin ellas el
+    sistema funciona íntegro con CaptureProvider y el webhook responde 503.
+  - apps/worker: handler del job `mail_retry` (contrato documentado en
+    `apps/api/src/lib/mail/send-transactional.ts`). Fuera de ámbito.
+  - Plantillas operativas (avisos de convocatoria, plazos, resumen semanal):
+    existen en packages/mail y ya respetan preferencias/supresión, pero quien
+    las dispara sería apps/worker.
+
+================================================================================
+## 7. Verificación final — salida REAL
+================================================================================
+
+--------------------------------------------------------------------------------
+PASADA 1
+--------------------------------------------------------------------------------
+$ npm run -w apps/api typecheck
+> @atiende/api@0.1.0 typecheck
+> tsc --noEmit
+EXIT=0
+$ npm run -w apps/api lint
+> @atiende/api@0.1.0 lint
+> eslint src test
+EXIT=0
+$ npm run -w apps/api test
+> @atiende/api@0.1.0 test
+> vitest run
+ ✓ test/google-oidc-login.test.ts (16 tests) 2974ms
+ ✓ test/expediente-contract-extraction.test.ts (6 tests) 7546ms
+ ✓ test/expediente-documents-and-matrix.test.ts (6 tests) 7902ms
+ ✓ test/expediente-proposal.test.ts (4 tests) 4640ms
+ ✓ test/expediente-renewal-radar.test.ts (8 tests) 11216ms
+ ✓ test/expediente-contract-lifecycle.test.ts (6 tests) 9753ms
+ ✓ test/expediente-inconformidad.test.ts (7 tests) 11183ms
+ ✓ test/security-r502-r503-twofa-brute-force.test.ts (9 tests) 19457ms
+ ✓ test/mail-email-verification.test.ts (9 tests) 21967ms
+ ✓ test/expediente-post-award.test.ts (6 tests) 15306ms
+ ✓ test/ronda4-admin-tool-calls.test.ts (8 tests) 20394ms
+ ✓ test/security-r501-calendar-holidays-effect.test.ts (5 tests) 14283ms
+ ✓ test/expediente-post-award-e2e-ronda6.test.ts (2 tests) 6791ms
+ ✓ test/security-r505-stepup-scope.test.ts (6 tests) 16247ms
+ ✓ test/expediente-e2e-flow.test.ts (1 test) 4395ms
+ ✓ test/security-r504-correlation-id-ingest.test.ts (4 tests) 12253ms
+ ✓ test/company-profile.test.ts (6 tests) 17106ms
+ ✓ test/mail-organization-invite.test.ts (6 tests) 16744ms
+ ✓ test/expediente-checklist-and-approval.test.ts (3 tests) 8986ms
+ ✓ test/mail-provider-and-retry.test.ts (5 tests) 13954ms
+ ✓ test/expediente-package-and-submission.test.ts (3 tests) 14948ms
+ ✓ test/tenders-and-ingest.test.ts (7 tests) 27453ms
+ ✓ test/ronda4-empty-body.test.ts (10 tests) 37576ms
+ ✓ test/security-req044-064-step-up-2fa.test.ts (7 tests) 37059ms
+ ✓ test/mail-unsubscribe-preferences.test.ts (8 tests) 34361ms
+ ✓ test/mail-password-reset.test.ts (8 tests) 31286ms
+ ✓ test/agent-persistence.test.ts (4 tests) 13144ms
+ ✓ test/security-go03-oidc-issuer-https.test.ts (8 tests) 6949ms
+ ✓ test/ronda4-audit-log.test.ts (10 tests) 36638ms
+ ✓ test/correlation-id-e2e.test.ts (2 tests) 8292ms
+ ✓ test/security-req142-provenance-binding.test.ts (2 tests) 12934ms
+ ✓ test/matching-and-go-no-go.test.ts (4 tests) 14594ms
+ ✓ test/security-ae01-asofiso-server-derived.test.ts (3 tests) 18533ms
+ ✓ test/auth-and-orgs-flow.test.ts (4 tests) 5570ms
+ ✓ test/mail-webhook.test.ts (9 tests) 38503ms
+ ✓ test/security-wi04-approved-rates-atomic.test.ts (4 tests) 15805ms
+ ✓ test/security-ae02-section-edit-invalidates-approval.test.ts (2 tests) 6646ms
+ ✓ test/security-api13-auth-audit-log.test.ts (5 tests) 13523ms
+ ✓ test/admin-backoffice.test.ts (6 tests) 16195ms
+ ✓ test/expediente-text-extraction.test.ts (7 tests) 422ms
+ ✓ test/security-r511-tool-call-stepup.test.ts (5 tests) 13215ms
+ ✓ test/ronda4-rate-limit-profile.test.ts (8 tests) 12409ms
+ ✓ test/security-api08-invite-owner-escalation.test.ts (4 tests) 11505ms
+ ✓ test/audit-api01-refresh-rotation.test.ts (4 tests) 3773ms
+ ✓ test/security-ae11-record-edit-blocks-self-approval.test.ts (1 test) 3284ms
+ ✓ test/security-ae09-payment-deadline-calendar-and-regime.test.ts (4 tests) 12739ms
+ ✓ test/security-api09-tool-calls-atomic.test.ts (2 tests) 9092ms
+ ✓ test/expediente-fallo-autopsy.test.ts (4 tests) 17466ms
+ ✓ test/security-db09-agent-run-context-cache.test.ts (2 tests) 16687ms
+ ✓ test/security-ae14-package-status-re-derived.test.ts (1 test) 10426ms
+ ✓ test/security-ae08-full-profile-hash.test.ts (2 tests) 9172ms
+ ✓ test/isolation-and-idempotency.test.ts (4 tests) 8078ms
+ ✓ test/security-ae03-ae05-magic-bytes-fullscan-zip.test.ts (7 tests) 31756ms
+ ✓ test/security-ae04-sanitize-extracted-text.test.ts (2 tests) 5347ms
+ ✓ test/mail-public-contact.test.ts (4 tests) 10992ms
+ ✓ test/audit-api02-role-escalation.test.ts (3 tests) 7068ms
+ ✓ test/ronda4-memberships.test.ts (4 tests) 13515ms
+ ✓ test/audit-db07-tenant-context-pattern.test.ts (1 test) 20ms
+ ✓ test/security-api10-audit-log-null-org.test.ts (2 tests) 8533ms
+ ✓ test/security-api11-file-magic-bytes.test.ts (4 tests) 14879ms
+ ✓ test/security-r506-r507-calendar-holiday-input-validation.test.ts (6 tests) 20855ms
+ ✓ test/ronda4-cors.test.ts (8 tests) 4603ms
+ ✓ test/security-wi01-csp-headers.test.ts (7 tests) 5167ms
+ ✓ test/security-api03-login-timing.test.ts (1 test) 77798ms
+ ✓ test/audit-api03-register-enumeration.test.ts (2 tests) 4016ms
+ ✓ test/security-ae15-body-limit.test.ts (2 tests) 4222ms
+ ✓ test/security-ae10-bounded-cache.test.ts (3 tests) 5ms
+ ✓ test/admin-calendar-holidays.test.ts (2 tests) 6355ms
+ ✓ test/legal-privacy-notice.test.ts (1 test) 3748ms
+ ✓ test/audit-api04-org-id-validation.test.ts (1 test) 3712ms
+ ✓ test/security-api12-platform-key-constant-time.test.ts (6 tests) 16006ms
+ ✓ test/rate-limit-and-health.test.ts (4 tests) 9244ms
+ ✓ test/audit-api06-docs-json-gate.test.ts (2 tests) 2331ms
+ ✓ test/audit-api05-security-headers.test.ts (1 test) 1847ms
+ Test Files  74 passed (74)
+      Tests  350 passed (350)
+   Start at  16:34:48
+   Duration  287.05s (transform 1.55s, setup 0ms, collect 91.25s, tests 1013.39s, environment 9ms, prepare 4.85s)
+EXIT=0
+
+--------------------------------------------------------------------------------
+PASADA 2 (idéntica) + packages/db
+--------------------------------------------------------------------------------
+$ npm run -w apps/api typecheck
+> @atiende/api@0.1.0 typecheck
+> tsc --noEmit
+EXIT=0
+$ npm run -w apps/api lint
+> @atiende/api@0.1.0 lint
+> eslint src test
+EXIT=0
+$ npm run -w apps/api test
+> @atiende/api@0.1.0 test
+> vitest run
+ ✓ test/google-oidc-login.test.ts (16 tests) 6779ms
+ ✓ test/expediente-contract-extraction.test.ts (6 tests) 29184ms
+ ✓ test/expediente-documents-and-matrix.test.ts (6 tests) 29487ms
+ ✓ test/expediente-proposal.test.ts (4 tests) 21069ms
+ ✓ test/expediente-renewal-radar.test.ts (8 tests) 49792ms
+ ✓ test/expediente-contract-lifecycle.test.ts (6 tests) 42521ms
+ ✓ test/expediente-inconformidad.test.ts (7 tests) 46836ms
+ ✓ test/security-r502-r503-twofa-brute-force.test.ts (9 tests) 72616ms
+ ✓ test/mail-email-verification.test.ts (9 tests) 82172ms
+ ✓ test/expediente-post-award.test.ts (6 tests) 56356ms
+ ✓ test/ronda4-admin-tool-calls.test.ts (8 tests) 68246ms
+ ✓ test/security-r501-calendar-holidays-effect.test.ts (5 tests) 39214ms
+ ✓ test/expediente-post-award-e2e-ronda6.test.ts (2 tests) 11936ms
+ ✓ test/security-r505-stepup-scope.test.ts (6 tests) 30792ms
+ ✓ test/security-r504-correlation-id-ingest.test.ts (4 tests) 21089ms
+ ✓ test/company-profile.test.ts (6 tests) 31125ms
+ ✓ test/expediente-e2e-flow.test.ts (1 test) 7046ms
+ ✓ test/mail-organization-invite.test.ts (6 tests) 28957ms
+ ✓ test/expediente-checklist-and-approval.test.ts (3 tests) 12404ms
+ ✓ test/mail-provider-and-retry.test.ts (5 tests) 17693ms
+ ✓ test/expediente-package-and-submission.test.ts (3 tests) 7834ms
+ ✓ test/tenders-and-ingest.test.ts (7 tests) 18087ms
+ ✓ test/ronda4-empty-body.test.ts (10 tests) 30063ms
+ ✓ test/security-req044-064-step-up-2fa.test.ts (7 tests) 16533ms
+ ✓ test/mail-unsubscribe-preferences.test.ts (8 tests) 17092ms
+ ✓ test/mail-password-reset.test.ts (8 tests) 17267ms
+ ✓ test/agent-persistence.test.ts (4 tests) 8175ms
+ ✓ test/ronda4-audit-log.test.ts (10 tests) 20186ms
+ ✓ test/security-go03-oidc-issuer-https.test.ts (8 tests) 3628ms
+ ✓ test/correlation-id-e2e.test.ts (2 tests) 3595ms
+ ✓ test/security-req142-provenance-binding.test.ts (2 tests) 3300ms
+ ✓ test/security-ae01-asofiso-server-derived.test.ts (3 tests) 4743ms
+ ✓ test/matching-and-go-no-go.test.ts (4 tests) 3731ms
+ ✓ test/mail-webhook.test.ts (9 tests) 13475ms
+ ✓ test/auth-and-orgs-flow.test.ts (4 tests) 2162ms
+ ✓ test/security-wi04-approved-rates-atomic.test.ts (4 tests) 6135ms
+ ✓ test/security-ae02-section-edit-invalidates-approval.test.ts (2 tests) 3661ms
+ ✓ test/security-api13-auth-audit-log.test.ts (5 tests) 7497ms
+ ✓ test/admin-backoffice.test.ts (6 tests) 8388ms
+ ✓ test/security-r511-tool-call-stepup.test.ts (5 tests) 6632ms
+ ✓ test/expediente-text-extraction.test.ts (7 tests) 273ms
+ ✓ test/ronda4-rate-limit-profile.test.ts (8 tests) 5809ms
+ ✓ test/audit-api01-refresh-rotation.test.ts (4 tests) 1893ms
+ ✓ test/security-api08-invite-owner-escalation.test.ts (4 tests) 5160ms
+ ✓ test/security-ae11-record-edit-blocks-self-approval.test.ts (1 test) 1666ms
+ ✓ test/security-ae09-payment-deadline-calendar-and-regime.test.ts (4 tests) 4567ms
+ ✓ test/security-api09-tool-calls-atomic.test.ts (2 tests) 2459ms
+ ✓ test/expediente-fallo-autopsy.test.ts (4 tests) 4251ms
+ ✓ test/security-db09-agent-run-context-cache.test.ts (2 tests) 2101ms
+ ✓ test/security-ae14-package-status-re-derived.test.ts (1 test) 1565ms
+ ✓ test/security-ae08-full-profile-hash.test.ts (2 tests) 2622ms
+ ✓ test/isolation-and-idempotency.test.ts (4 tests) 2921ms
+ ✓ test/security-ae03-ae05-magic-bytes-fullscan-zip.test.ts (7 tests) 7711ms
+ ✓ test/security-ae04-sanitize-extracted-text.test.ts (2 tests) 2370ms
+ ✓ test/mail-public-contact.test.ts (4 tests) 4176ms
+ ✓ test/audit-api02-role-escalation.test.ts (3 tests) 2887ms
+ ✓ test/ronda4-memberships.test.ts (4 tests) 4811ms
+ ✓ test/audit-db07-tenant-context-pattern.test.ts (1 test) 26ms
+ ✓ test/security-api10-audit-log-null-org.test.ts (2 tests) 2420ms
+ ✓ test/security-r506-r507-calendar-holiday-input-validation.test.ts (6 tests) 6498ms
+ ✓ test/security-api11-file-magic-bytes.test.ts (4 tests) 4352ms
+ ✓ test/ronda4-cors.test.ts (8 tests) 1455ms
+ ✓ test/security-wi01-csp-headers.test.ts (7 tests) 1515ms
+ ✓ test/security-api03-login-timing.test.ts (1 test) 21623ms
+ ✓ test/security-ae15-body-limit.test.ts (2 tests) 1640ms
+ ✓ test/audit-api03-register-enumeration.test.ts (2 tests) 1723ms
+ ✓ test/security-ae10-bounded-cache.test.ts (3 tests) 2ms
+ ✓ test/admin-calendar-holidays.test.ts (2 tests) 2584ms
+ ✓ test/legal-privacy-notice.test.ts (1 test) 1155ms
+ ✓ test/security-api12-platform-key-constant-time.test.ts (6 tests) 5654ms
+ ✓ test/audit-api04-org-id-validation.test.ts (1 test) 1146ms
+ ✓ test/rate-limit-and-health.test.ts (4 tests) 3426ms
+ ✓ test/audit-api06-docs-json-gate.test.ts (2 tests) 996ms
+ ✓ test/audit-api05-security-headers.test.ts (1 test) 937ms
+ Test Files  74 passed (74)
+      Tests  350 passed (350)
+   Start at  16:43:46
+   Duration  283.71s (transform 2.18s, setup 0ms, collect 78.64s, tests 1021.89s, environment 9ms, prepare 4.24s)
+EXIT=0
+$ npm run -w packages/db test
+> @atiende/db@0.1.0 test
+> vitest run
+ ✓ test/rls-ronda3-expediente.test.ts (3 tests) 3765ms
+ ✓ test/security-definer-audit.test.ts (5 tests) 3825ms
+ ✓ test/rls-ronda6-post-award.test.ts (7 tests) 3862ms
+ ✓ test/backoffice-extension.test.ts (5 tests) 3866ms
+ ✓ test/req172-google-oidc.test.ts (17 tests) 3914ms
+ ✓ test/req181-mail.test.ts (20 tests) 3915ms
+ ✓ test/ronda2-extensions.test.ts (8 tests) 3996ms
+ ✓ test/audit-db05-change-event-invalidation.test.ts (4 tests) 3306ms
+ ✓ test/security-db10-rate-validity-submission-deadline.test.ts (4 tests) 3303ms
+ ✓ test/rls-roles.test.ts (5 tests) 3298ms
+ ✓ test/security-db13-rate-validity-timezone.test.ts (3 tests) 3299ms
+ ✓ test/audit-db02-rate-validity.test.ts (3 tests) 3354ms
+ ✓ test/worker-role-and-job-proposals.test.ts (11 tests) 8142ms
+ ✓ test/security-r509-step-up-mandatory-scope.test.ts (3 tests) 8432ms
+ ✓ test/idempotency-and-audit.test.ts (4 tests) 5883ms
+ ✓ test/migration-0026b-duplicate-jobs-safety-net.test.ts (2 tests) 6209ms
+ ✓ test/audit-db03-rate-reapproval.test.ts (3 tests) 3208ms
+ ✓ test/security-api14-auth-audit-actor-match.test.ts (6 tests) 3366ms
+ ✓ test/jobs-locking.test.ts (2 tests) 3285ms
+ ✓ test/audit-db06-audit-log-hash-chain.test.ts (3 tests) 3273ms
+ ✓ test/audit-db01-security-definer-scope.test.ts (4 tests) 3439ms
+ ✓ test/calendar-holidays-rls.test.ts (2 tests) 3426ms
+ ✓ test/rls-isolation.test.ts (70 tests) 3782ms
+ ✓ test/org-bootstrap.test.ts (2 tests) 2319ms
+ ✓ test/security-db09-agent-run-context.test.ts (2 tests) 2117ms
+ ✓ test/org-members-function.test.ts (3 tests) 1767ms
+ ✓ test/migrate.test.ts (4 tests) 3467ms
+ Test Files  27 passed (27)
+      Tests  205 passed (205)
+   Start at  16:48:30
+   Duration  15.03s (transform 455ms, setup 0ms, collect 1.09s, tests 105.82s, environment 3ms, prepare 1.42s)
+EXIT=0

@@ -45,6 +45,15 @@ npm run -w apps/api test                 # integración con fastify.inject + PGl
 | `GOOGLE_REDIRECT_URI` | Solo para login con Google real | URI de callback EXACTA registrada en Google Cloud Console (ver "Configurar Google Cloud Console" abajo), p. ej. `https://api.atiende.mx/auth/google/callback`. |
 | `OIDC_ISSUER_URL` | No (`https://accounts.google.com`) | Issuer OIDC configurable (REQ-172): permite apuntar TODO el flujo (discovery, JWKS, token endpoint) a un proveedor OIDC distinto — usado por las pruebas automatizadas para apuntar a un proveedor OIDC FALSO local (`test/helpers/fake-oidc.ts`), nunca a la red real. **`https://` obligatorio** (GO-03, docs/auditoria-2/api-google.md): la API se niega a arrancar con un `OIDC_ISSUER_URL` que use `http://`, salvo la única excepción del proveedor OIDC falso en loopback (`127.0.0.1`/`localhost`/`[::1]`) y solo fuera de `NODE_ENV=production`. |
 
+| `MAIL_LINK_SECRET` | Sí | Llave HMAC que firma los enlaces de verificación de correo, invitación, restablecimiento de contraseña y baja de un clic (mín. 16 caracteres, `createLinkSigner` de `packages/mail`). **Rotarla invalida todos los enlaces ya enviados que aún no hayan vencido.** |
+| `PUBLIC_URL` | No (`https://app.atiende.mx`) | Base de esos enlaces: la URL de `apps/web` (la pantalla que abre quien recibe el correo), **nunca la de esta API**. |
+| `MAIL_FROM` | No (`soporte@atiende.mx`) | Correo de contacto que aparece en TODA plantilla (`BaseVariablesSchema.supportEmail`). |
+| `CONTACT_INBOX` | No (= `MAIL_FROM`) | Buzón interno que recibe el aviso de `POST /public/contact` (plantilla `contact-received`). |
+| `MAIL_PROVIDER` | No (`capture`) | `resend` \| `postmark` \| `smtp` \| `capture`. Sin ella (o con un valor desconocido) **nada sale a Internet**: el `CaptureProvider` guarda en memoria lo que se habría mandado. Las credenciales reales (`RESEND_API_KEY`, `POSTMARK_SERVER_TOKEN`, `SMTP_*`) son un **BLOQUEO EXTERNO** pendiente del usuario — ver `packages/mail/README.md`. |
+| `MAIL_CAPTURE_FILE` | No | Ruta JSONL donde el `CaptureProvider` también deja cada correo, para inspeccionarlo fuera del proceso. |
+| `RESEND_WEBHOOK_SECRET` | Solo para el webhook real | Secreto Svix del webhook de entrega/rebote. **Sin él, `POST /webhooks/mail/:provider` responde 503 y NUNCA aplica ningún efecto** (falla cerrado, mismo criterio que `PLATFORM_API_KEY`). |
+| `REQUIRE_EMAIL_VERIFICATION` | No (`true`) | Compuerta de verificación de correo en `POST /auth/login`. Cualquier valor distinto de `false` (literal) la deja ACTIVA. Ponerla en `false` **solo** mientras no haya proveedor de correo real configurado — si no, nadie podría entrar. |
+
 ## Cómo se conecta a un Postgres real en producción
 
 Define `DATABASE_URL=postgres://usuario:password@host:5432/basededatos`. El
@@ -110,6 +119,14 @@ Dos encabezados adicionales, transversales a toda la API:
 - `POST /auth/refresh` — rotación real: revoca el refresh token usado al
   emitir uno nuevo; reusar un token ya rotado responde 401.
 - `POST /auth/logout` — revoca el refresh token dado (idempotente).
+- `POST /auth/email/verify` — confirma el correo con los parámetros (`d`/`s`)
+  del enlace firmado (REQ-181..195, anónima).
+- `POST /auth/email/resend-verification` — reenvía el enlace (rate limit
+  5/min; respuesta 202 **idéntica** exista o no la cuenta).
+- `POST /auth/password/forgot` — solicita el enlace de restablecimiento
+  (rate limit 5/min; respuesta 202 idéntica exista o no la cuenta).
+- `POST /auth/password/reset` — restablece la contraseña con el enlace
+  firmado y revoca TODAS las sesiones del usuario.
 
 ### auth/google (REQ-172..180 — login con Google, OIDC)
 
@@ -320,6 +337,25 @@ consumidor de `requireStepUp`. Si la `tool_call` no existe, se responde
 
 ### me
 - `GET /me`.
+
+### mail (REQ-181..195 — preferencias y baja de un clic)
+- `GET /mail/preferences` / `PUT /mail/preferences` (con sesión) — centro de
+  preferencias de notificación del propio usuario.
+- `POST /mail/unsubscribe?d=&s=` — baja de un clic (RFC 8058), **sin sesión**:
+  la identidad sale de la firma HMAC del enlace. Acepta el cuerpo
+  `application/x-www-form-urlencoded` que manda el botón nativo de
+  Gmail/Yahoo (y lo descarta), y responde 200 sin HTML ni redirección.
+- `GET /mail/unsubscribe?d=&s=` — solo VALIDA el enlace, no aplica la baja
+  (un escáner de enlaces del proveedor de correo no debe dar de baja a
+  nadie).
+- `POST /webhooks/mail/:provider` — webhook de entrega/rebote/queja con
+  firma Svix + guardia de replay (ver "Correos transaccionales" abajo).
+
+### public (Ampliación 2 §2 — embudo de marketing)
+- `POST /public/contact` — formulario de contacto anónimo. Deja registro en
+  `contact_requests` y avisa por correo interno. Anti-abuso: rate limit del
+  tier `auth` por IP, honeypot (`website`) que descarta en silencio, y
+  longitudes acotadas.
 
 ### company (E2 — perfil de empresa)
 Roles: `viewer` solo lee; `writer`/`analyst`/`reviewer` escriben
@@ -826,6 +862,112 @@ solo, pasa establemente en <2s por caso).
   exige segundo factor antes de completar la sesión, usuario nuevo sin
   invitación → `sin_acceso`, y conflicto de identidad (REQ-180) al
   intentar vincular un segundo `subject` de Google al mismo email.
+
+## Correos transaccionales (REQ-181..195, `@atiende/mail`)
+
+`apps/api` no manda correo a mano: monta un **único** `MailService` de
+`packages/mail` (`app.mail`, armado en `src/lib/mail/env.ts` y decorado en
+`src/app.ts`) con las implementaciones REALES sobre Postgres del outbox
+(`PgSendRecordStore` → `mail_outbox`, migración 0080), de la lista de
+supresión (`PgSuppressionStore` → `mail_suppressions`, 0081) y del guardia
+de replay de webhooks (`PgWebhookReplayGuard` → `mail_webhook_events_seen`,
+0081) — nunca las variantes en memoria, que son solo para las pruebas
+unitarias de ese paquete.
+
+**Sin proveedor configurado no se manda correo real.** `MAIL_PROVIDER`
+ausente o desconocido degrada a `CaptureProvider`: el correo se renderiza y
+se guarda en memoria (y en `MAIL_CAPTURE_FILE` si se define), nunca sale a
+Internet. Toda la suite de integración de correo de `apps/api` corre así.
+
+### Los cinco flujos
+
+| Flujo | Ruta(s) | Plantilla |
+|---|---|---|
+| Verificación de correo | `POST /auth/register` (envío), `/auth/email/verify`, `/auth/email/resend-verification` | `email-verification` |
+| Recuperación de contraseña | `/auth/password/forgot`, `/auth/password/reset` | `password-reset` |
+| Invitación a organización | `POST /organizations/invitations` | `organization-invite` |
+| Contacto público (correo interno) | `POST /public/contact` | `contact-received` |
+| Baja / preferencias | `/mail/unsubscribe`, `/mail/preferences` | (afecta a toda plantilla opcional) |
+
+### Reglas que se repiten en todos
+
+- **Enlace firmado + token de un solo uso, no una sola cosa.** La firma HMAC
+  del enlace (`d`/`s`, `createLinkSigner`) garantiza que el payload no se
+  manipuló y que no venció; quien decide de verdad es el consumo ATÓMICO del
+  token hasheado en la base (`app.consume_email_verification_token` /
+  `app.reset_password_with_token`, 0084): un `UPDATE ... WHERE consumed_at IS
+  NULL AND expires_at > now() RETURNING` que, bajo concurrencia, como mucho
+  una petición gana. Un enlace válido REUTILIZADO falla ahí, no en la firma.
+- **El token en claro solo existe dentro del correo**: en base vive
+  `sha256(token)`.
+- **Enumeración imposible.** `/auth/email/resend-verification` y
+  `/auth/password/forgot` responden 202 con el MISMO cuerpo byte a byte
+  exista o no la cuenta, y el envío se dispara **sin `await`**
+  (`src/lib/mail/pending.ts`) para que tampoco la latencia los distinga —
+  el mismo criterio con el que API-03 cerró el oráculo de temporización de
+  `/auth/login` y `/auth/register`. Cualquier enlace inválido, vencido, ya
+  usado o de otra cuenta devuelve un ÚNICO 400 genérico.
+- **Rate limit del tier `auth`** (5/min por IP, el más estricto de la API) en
+  las cuatro rutas anónimas de correo y en `POST /public/contact`.
+- **`audit_log` de cada evento**: `auth.email_verification_sent`,
+  `auth.email_verified`, `auth.password_reset_requested`,
+  `auth.password_reset_completed` (vía `app.record_auth_event`, 0084), más
+  un `auth.login_failed` con `motivo: "email_no_verificado"` cuando la
+  compuerta bloquea un login.
+
+### La compuerta de `POST /auth/login`
+
+Se evalúa **después** de validar la contraseña, no antes: llegar ahí ya
+prueba que quien pide es el dueño de la cuenta, así que responder 403
+"confirma tu correo" no le dice nada a un tercero. Invertir el orden
+convertiría ese 403 en un oráculo de existencia de cuentas sin necesidad de
+acertar la contraseña. `REQUIRE_EMAIL_VERIFICATION=false` la apaga para un
+despliegue que todavía no tiene proveedor de correo.
+
+### Envíos en segundo plano
+
+Registro, invitación y contacto disparan el correo sin esperarlo. Un `void
+promise` suelto tumbaría el proceso ante un rechazo sin `catch` y podría
+dejar el outbox a medias al cerrar; `PendingMailTracker`
+(`src/lib/mail/pending.ts`) captura el error (log, nunca la respuesta) y
+expone `app.waitForPendingMail()`, que usa el hook `onClose` para el cierre
+ordenado y las pruebas para no depender de un `sleep`.
+
+### Preferencias y supresión
+
+`sendTransactionalMail` carga `notification_preferences` (0082) y se las pasa
+a `MailService` **solo cuando puede cambiar algo**: plantilla opcional, un
+solo destinatario y un `userId` con forma de UUID (una invitación o el buzón
+interno no son filas de `users`). Ausencia de fila = todo activado (lista de
+EXCLUSIÓN, no de opt-in). La supresión es distinta y más fuerte: una
+dirección que rebotó o se quejó no recibe **nada**, ni siquiera una plantilla
+obligatoria — es el canal el que está roto, no la categoría.
+
+### Webhook del proveedor
+
+`POST /webhooks/mail/:provider` verifica la firma Svix sobre el cuerpo
+**crudo** (por eso este plugin registra su propio parser de
+`application/json` que entrega el texto tal cual — encapsulado, el resto de
+la API conserva el de Fastify), y la compone con el guardia de replay por
+`svix-id` (ML-05). Respuestas: 503 sin secreto configurado, 401 por firma
+inválida/cabeceras ausentes/timestamp fuera de ventana (un solo mensaje, sin
+decir cuál de los tres), 409 ante un reenvío exacto ya procesado, 202 en el
+resto. Un rebote (`email.bounced`) o una queja (`email.complained`) suprime
+la dirección automáticamente.
+
+### Pendiente de este bloque
+
+- **Credenciales de un proveedor real** (dominio verificado con SPF/DKIM en
+  Resend/Postmark, o un SMTP transaccional) — BLOQUEO EXTERNO del usuario.
+  Los tres adaptadores están completos y probados con mocks de red en
+  `packages/mail`.
+- El handler `mail_retry` de `apps/worker` (contrato documentado en
+  `src/lib/mail/send-transactional.ts`): hoy `apps/api` encola el job cuando
+  `MailService` agota sus reintentos, pero `apps/worker` está fuera del
+  alcance de este cambio y todavía no lo consume.
+- Las plantillas operativas del catálogo (avisos de convocatoria, plazos,
+  resumen semanal) existen en `packages/mail` y ya respetan preferencias y
+  supresión, pero quien las dispara sería `apps/worker`, no esta API.
 
 ## Pendiente / fuera de alcance de esta ronda
 
