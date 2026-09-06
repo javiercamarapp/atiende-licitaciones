@@ -3,7 +3,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { createComprasMxConnector } from "../../src/connectors/compras-mx/compras-mx-connector.js";
-import { mapComprasMxApiRecords, parseComprasMxHistoricoCsv } from "../../src/connectors/compras-mx/comprasmx-mapper.js";
+import {
+  mapComprasMxApiRecordToTenderRecord,
+  mapComprasMxApiRecords,
+  parseComprasMxHistoricoCsv,
+} from "../../src/connectors/compras-mx/comprasmx-mapper.js";
 import { HttpClient } from "../../src/http/http-client.js";
 import type { ConnectorContext } from "../../src/connectors/types.js";
 
@@ -23,6 +27,39 @@ describe("ComprasMX: mapeo del API inferido (esquema no confirmado en vivo, ver 
     expect(records[0].state).toBe("Ciudad de México");
     expect(records[0].status).toBe("published");
     expect(records[1].procedureType).toBe("invitacion_restringida");
+  });
+});
+
+describe("ComprasMX: mapeo de estatus/tipo de procedimiento (cobertura de ramas, SR-08)", () => {
+  function record(overrides: Record<string, unknown> = {}) {
+    return mapComprasMxApiRecordToTenderRecord(
+      {
+        codigo_expediente: "COV-1",
+        titulo_expediente: "Cobertura de ramas",
+        ...overrides,
+      },
+      { fetchedAt: new Date("2026-01-01T00:00:00Z") },
+    );
+  }
+
+  it("mapea cada variante conocida de estatus a su TenderStatus correspondiente", () => {
+    expect(record({ estatus: "En periodo de aclaraciones" })?.status).toBe("clarification");
+    expect(record({ estatus: "Convocatoria cerrada" })?.status).toBe("closed_for_submission");
+    expect(record({ estatus: "Fallo emitido" })?.status).toBe("awarded");
+    expect(record({ estatus: "Procedimiento cancelado" })?.status).toBe("cancelled");
+    expect(record({ estatus: "Declarada desierta" })?.status).toBe("void");
+    expect(record({ estatus: "Algo no catalogado" })?.status).toBe("unknown");
+    expect(record({})?.status).toBe("unknown");
+  });
+
+  it("mapProcedureType cae a 'otro' cuando el tipo de contratación no coincide con ningún alias conocido", () => {
+    expect(record({ tipo_contratacion: "Acuerdo marco" })?.procedureType).toBe("otro");
+    expect(record({})?.procedureType).toBe("otro");
+  });
+
+  it("devuelve null si falta el título o el identificador del expediente", () => {
+    expect(mapComprasMxApiRecordToTenderRecord({ titulo_expediente: "Sin id" }, { fetchedAt: new Date() })).toBeNull();
+    expect(mapComprasMxApiRecordToTenderRecord({ codigo_expediente: "SIN-TITULO" }, { fetchedAt: new Date() })).toBeNull();
   });
 });
 
