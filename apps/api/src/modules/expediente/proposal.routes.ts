@@ -142,7 +142,7 @@ export async function expedienteProposalRoutes(app: FastifyInstance): Promise<vo
               entity: 'proposal_approvals',
               entityId: proposal.rows[0].id as string,
               after: { sectionKey: request.params.sectionKey, invalidatedApprovalIds: change.invalidatedApprovalIds },
-              requestId: request.id,
+              requestId: request.id, correlationId: request.correlationId,
             });
           }
         }
@@ -164,7 +164,7 @@ export async function expedienteProposalRoutes(app: FastifyInstance): Promise<vo
           actorRole: request.orgRole!,
           scopeRef: `seccion:${request.params.sectionKey}`,
         });
-        await recordAudit(tx, { orgId, actorId: userId, action: 'proposal_section.edit', entity: 'proposal_sections', entityId: existing.rows[0].id as string, before: existing.rows[0], after: updated.rows[0], requestId: request.id });
+        await recordAudit(tx, { orgId, actorId: userId, action: 'proposal_section.edit', entity: 'proposal_sections', entityId: existing.rows[0].id as string, before: existing.rows[0], after: updated.rows[0], requestId: request.id, correlationId: request.correlationId });
         return updated.rows[0];
       });
       return mapSectionRow(row);
@@ -246,8 +246,10 @@ export async function expedienteProposalRoutes(app: FastifyInstance): Promise<vo
           },
         };
         const updated = await tx.query<Record<string, unknown>>(
-          `update proposals set generation_report = $1::jsonb, version = version + 1, invalidated_at = null, invalidated_reason = null where id = $2 and org_id = $3 returning *`,
-          [JSON.stringify(generationReport), proposal.id, orgId]
+          // REQ-171: cada VERSIÓN nueva de la propuesta (version = version + 1)
+          // queda etiquetada con el correlation_id del request que la generó.
+          `update proposals set generation_report = $1::jsonb, version = version + 1, correlation_id = $4, invalidated_at = null, invalidated_reason = null where id = $2 and org_id = $3 returning *`,
+          [JSON.stringify(generationReport), proposal.id, orgId, request.correlationId ?? null]
         );
 
         // Coordinación packages/expediente (docs/auditoria-1/expediente-cierre.md):
@@ -275,12 +277,12 @@ export async function expedienteProposalRoutes(app: FastifyInstance): Promise<vo
               entity: 'proposal_approvals',
               entityId: proposal.id as string,
               after: { changedRequirementIds, invalidatedApprovalIds: change.invalidatedApprovalIds },
-              requestId: request.id,
+              requestId: request.id, correlationId: request.correlationId,
             });
           }
         }
 
-        await recordAudit(tx, { orgId, actorId: userId, action: 'proposal.technical.generate', entity: 'proposals', entityId: proposal.id as string, after: { blockers: result.blockers.length, sections: result.sections.length }, requestId: request.id });
+        await recordAudit(tx, { orgId, actorId: userId, action: 'proposal.technical.generate', entity: 'proposals', entityId: proposal.id as string, after: { blockers: result.blockers.length, sections: result.sections.length }, requestId: request.id, correlationId: request.correlationId });
         return updated.rows[0];
       });
       return mapProposalRow(row);
@@ -339,10 +341,11 @@ export async function expedienteProposalRoutes(app: FastifyInstance): Promise<vo
           economic: { usedRateConcepts, blockedLineItems: result.blockedLineItems, totals: result.totals, generatedAt: nowIso() },
         };
         const updated = await tx.query<Record<string, unknown>>(
-          `update proposals set generation_report = $1::jsonb, economic_totals = $2::jsonb, version = version + 1, invalidated_at = null, invalidated_reason = null where id = $3 and org_id = $4 returning *`,
-          [JSON.stringify(generationReport), result.totals ? JSON.stringify(result.totals) : null, proposal.id, orgId]
+          // REQ-171: ídem generación técnica -- correlation_id de la versión.
+          `update proposals set generation_report = $1::jsonb, economic_totals = $2::jsonb, version = version + 1, correlation_id = $5, invalidated_at = null, invalidated_reason = null where id = $3 and org_id = $4 returning *`,
+          [JSON.stringify(generationReport), result.totals ? JSON.stringify(result.totals) : null, proposal.id, orgId, request.correlationId ?? null]
         );
-        await recordAudit(tx, { orgId, actorId: userId, action: 'proposal.economic.generate', entity: 'proposals', entityId: proposal.id as string, after: { blockedLineItems: result.blockedLineItems.length, hasTotals: result.totals !== null }, requestId: request.id });
+        await recordAudit(tx, { orgId, actorId: userId, action: 'proposal.economic.generate', entity: 'proposals', entityId: proposal.id as string, after: { blockedLineItems: result.blockedLineItems.length, hasTotals: result.totals !== null }, requestId: request.id, correlationId: request.correlationId });
         return updated.rows[0];
       });
       return mapProposalRow(row);

@@ -139,7 +139,7 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
             action: 'tool_call.approve',
             entity: 'tool_calls',
             entityId: request.params.id,
-            requestId: request.id,
+            requestId: request.id, correlationId: request.correlationId,
           });
           return { kind: 'ok' as const, row: updated.rows[0] };
         });
@@ -194,7 +194,7 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
             action: 'tool_call.deny',
             entity: 'tool_calls',
             entityId: request.params.id,
-            requestId: request.id,
+            requestId: request.id, correlationId: request.correlationId,
           });
           return { kind: 'ok' as const, row: updated.rows[0] };
         });

@@ -117,16 +117,20 @@ export async function expedientePackageRoutes(app: FastifyInstance): Promise<voi
           checklist,
           approvals: workflow.listApprovals(),
           currentInputsHash: sealed,
+          // REQ-171: se propaga al manifiesto DENTRO del ZIP (aditivo, ver
+          // `packages/expediente/src/package-assembler.ts`), además de la
+          // columna `correlation_id` de `package_manifests` abajo.
+          correlationId: request.correlationId ?? null,
         });
 
         const storageRef = await writePackageZip(app.config.storageDir, orgId, proposal.id as string, result.zip);
         await tx.query(
-          `insert into package_manifests (id, org_id, proposal_id, status, manifest, checklist_snapshot, generated_by, storage_ref, inputs_hash)
-           values ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8, $9)`,
-          [randomUUID(), orgId, proposal.id, result.manifest.status, JSON.stringify(result.manifest), JSON.stringify(checklist), userId, storageRef, sealed.hash]
+          `insert into package_manifests (id, org_id, proposal_id, status, manifest, checklist_snapshot, generated_by, storage_ref, inputs_hash, correlation_id)
+           values ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8, $9, $10)`,
+          [randomUUID(), orgId, proposal.id, result.manifest.status, JSON.stringify(result.manifest), JSON.stringify(checklist), userId, storageRef, sealed.hash, request.correlationId ?? null]
         );
 
-        await recordAudit(tx, { orgId, actorId: userId, action: 'package.assemble', entity: 'package_manifests', entityId: proposal.id as string, after: { status: result.manifest.status, draftReasons: result.manifest.draftReasons }, requestId: request.id });
+        await recordAudit(tx, { orgId, actorId: userId, action: 'package.assemble', entity: 'package_manifests', entityId: proposal.id as string, after: { status: result.manifest.status, draftReasons: result.manifest.draftReasons }, requestId: request.id, correlationId: request.correlationId });
 
         return { manifest: result.manifest, zip: result.zip };
       });

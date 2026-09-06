@@ -149,7 +149,7 @@ export async function expedienteChecklistRoutes(app: FastifyInstance): Promise<v
           );
         }
 
-        await recordAudit(tx, { orgId, actorId: userId, action: 'checklist.run', entity: 'compliance_items', entityId: proposal.id as string, after: { overallStatus: result.overallStatus }, requestId: request.id });
+        await recordAudit(tx, { orgId, actorId: userId, action: 'checklist.run', entity: 'compliance_items', entityId: proposal.id as string, after: { overallStatus: result.overallStatus }, requestId: request.id, correlationId: request.correlationId });
 
         return { overallStatus: result.overallStatus, items: result.items.map((i) => ({ id: randomUUID(), dimension: i.dimension, result: i.status, label: i.detail, notes: i.detail, evidenceRef: evidenceToString(i.evidence), checkedAt: nowIso() })) };
       });

@@ -68,6 +68,17 @@ export interface PackageManifest {
    * este ensamblaje no incluye una propuesta técnica).
    */
   notApplicableRequirements: { requirementId: string; reason: string }[];
+  /**
+   * REQ-171 (ronda 5, `apps/api`): id de correlación de negocio del request
+   * que ensambló este paquete, para que la traza "convocatoria -> matriz ->
+   * propuesta -> paquete -> archivo" quede legible incluso leyendo
+   * `manifest.json` DENTRO del ZIP (no solo la fila `package_manifests` de
+   * la base de datos, que ya lo guarda por separado). Campo ADITIVO y
+   * opcional: `undefined`/`null` para cualquier paquete ensamblado sin un
+   * correlation_id conocido (p. ej. pruebas de `packages/expediente` que no
+   * pasan por `apps/api`) -- nunca se fabrica un valor.
+   */
+  correlationId?: string | null;
 }
 
 export interface AssembleInput {
@@ -75,6 +86,8 @@ export interface AssembleInput {
   documents: PackageDocumentInput[];
   checklist: ChecklistReport;
   approvals: Approval[];
+  /** REQ-171: ver `PackageManifest.correlationId`. Opcional -- se propaga tal cual si se declara. */
+  correlationId?: string | null;
   /**
    * `HashedInputs` sellado (EX-EXP-17) con el hash ACTUAL de los insumos
    * cubiertos por el alcance "expediente" (p. ej.
@@ -314,6 +327,7 @@ export class PackageAssembler {
       notice: USER_RESPONSIBILITY_NOTICE,
       watermark: status === "draft" ? "BORRADOR" : null,
       notApplicableRequirements: input.notApplicableRequirements ?? [],
+      correlationId: input.correlationId ?? null,
     };
   }
 

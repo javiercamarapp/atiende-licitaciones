@@ -158,7 +158,7 @@ export async function expedienteDocumentsRoutes(app: FastifyInstance): Promise<v
           entity: 'tender_documents',
           entityId: id,
           after: { filename: request.body.filename, documentKind: request.body.documentKind, textExtractionStatus: extraction.status },
-          requestId: request.id,
+          requestId: request.id, correlationId: request.correlationId,
         });
         return inserted.rows[0];
       });
@@ -270,7 +270,7 @@ export async function expedienteDocumentsRoutes(app: FastifyInstance): Promise<v
           entity: 'requirement_items',
           entityId: request.params.tenderId,
           after: { itemsCreated, conflictsCreated, documentsUsed: docs.length },
-          requestId: request.id,
+          requestId: request.id, correlationId: request.correlationId,
         });
 
         return { itemsCreated, conflictsCreated, documentsUsed: docs.length, documentsSkipped };
@@ -328,7 +328,7 @@ export async function expedienteDocumentsRoutes(app: FastifyInstance): Promise<v
            where id = $4 and org_id = $5 returning *`,
           [b.matrixStatus ?? null, 'assignedTo' in b, b.assignedTo ?? null, request.params.id, orgId]
         );
-        await recordAudit(tx, { orgId, actorId: userId, action: 'requirement_item.update', entity: 'requirement_items', entityId: request.params.id, before: before.rows[0], after: updated.rows[0], requestId: request.id });
+        await recordAudit(tx, { orgId, actorId: userId, action: 'requirement_item.update', entity: 'requirement_items', entityId: request.params.id, before: before.rows[0], after: updated.rows[0], requestId: request.id, correlationId: request.correlationId });
         return updated.rows[0];
       });
       if (!row) throw new NotFoundError('Requisito no encontrado');
@@ -371,7 +371,7 @@ export async function expedienteDocumentsRoutes(app: FastifyInstance): Promise<v
           [userId, request.body.resolutionNotes, request.params.id, orgId, request.params.tenderId]
         );
         if (updated.rows.length === 0) return null;
-        await recordAudit(tx, { orgId, actorId: userId, action: 'requirement_conflict.resolve', entity: 'requirement_conflicts', entityId: request.params.id, after: updated.rows[0], requestId: request.id });
+        await recordAudit(tx, { orgId, actorId: userId, action: 'requirement_conflict.resolve', entity: 'requirement_conflicts', entityId: request.params.id, after: updated.rows[0], requestId: request.id, correlationId: request.correlationId });
         return updated.rows[0];
       });
       if (!row) throw new NotFoundError('Conflicto no encontrado');

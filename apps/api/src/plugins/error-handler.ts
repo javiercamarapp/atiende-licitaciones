@@ -9,11 +9,13 @@ interface ProblemJson {
   status: number;
   detail?: unknown;
   requestId: string;
+  correlationId?: string;
 }
 
 async function errorHandlerImpl(app: FastifyInstance): Promise<void> {
   app.setErrorHandler((err: unknown, request: FastifyRequest, reply: FastifyReply) => {
     const requestId = request.id;
+    const correlationId = request.correlationId;
 
     if (err instanceof AppError) {
       const problem: ProblemJson = {
@@ -22,6 +24,7 @@ async function errorHandlerImpl(app: FastifyInstance): Promise<void> {
         status: err.statusCode,
         detail: err.detail,
         requestId,
+        correlationId,
       };
       reply.code(err.statusCode).type('application/problem+json').send(problem);
       return;
@@ -34,6 +37,7 @@ async function errorHandlerImpl(app: FastifyInstance): Promise<void> {
         status: 422,
         detail: err.validation,
         requestId,
+        correlationId,
       };
       reply.code(422).type('application/problem+json').send(problem);
       return;
@@ -65,6 +69,7 @@ async function errorHandlerImpl(app: FastifyInstance): Promise<void> {
       title: `Ruta no encontrada: ${request.method} ${request.url}`,
       status: 404,
       requestId: request.id,
+      correlationId: request.correlationId,
     };
     reply.code(404).type('application/problem+json').send(problem);
   });

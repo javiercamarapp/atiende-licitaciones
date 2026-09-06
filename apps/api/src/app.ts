@@ -10,6 +10,7 @@ import type { AppConfig } from './config.js';
 import { authPlugin } from './plugins/auth.plugin.js';
 import { superadminPlugin } from './plugins/superadmin.plugin.js';
 import { errorHandlerPlugin } from './plugins/error-handler.js';
+import { correlationIdPlugin } from './plugins/correlation-id.plugin.js';
 import { metricsPlugin } from './plugins/metrics.plugin.js';
 import { healthRoutes } from './modules/health/routes.js';
 import { authRoutes } from './modules/auth/routes.js';
@@ -71,6 +72,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   }
 
   await app.register(errorHandlerPlugin);
+  await app.register(correlationIdPlugin);
   await app.register(authPlugin);
   await app.register(superadminPlugin);
   await app.register(metricsPlugin);
@@ -149,8 +151,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     origin: options.config.corsOrigins.length > 0 ? options.config.corsOrigins : false,
     credentials: true,
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Org-Id', 'Idempotency-Key', 'X-Request-Id'],
-    exposedHeaders: ['retry-after', 'x-ratelimit-limit', 'x-ratelimit-remaining', 'x-ratelimit-reset', 'x-request-id'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Org-Id', 'Idempotency-Key', 'X-Request-Id', 'X-Correlation-Id', 'X-Step-Up'],
+    exposedHeaders: ['retry-after', 'x-ratelimit-limit', 'x-ratelimit-remaining', 'x-ratelimit-reset', 'x-request-id', 'x-correlation-id'],
   });
 
   await app.register(swagger, {

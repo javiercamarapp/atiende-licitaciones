@@ -16,12 +16,16 @@ export const auditLogEntrySchema = z.object({
   before: z.unknown().nullable(),
   after: z.unknown().nullable(),
   requestId: z.string().nullable(),
+  /** REQ-171: id de correlación de negocio (ver `plugins/correlation-id.plugin.ts`); `null` para eventos anteriores a esta ronda o sin correlación conocida. */
+  correlationId: z.string().nullable(),
   createdAt: isoTimestamp,
 });
 
 export const auditLogListQuerySchema = z.object({
   entity: z.string().optional(),
   actorId: z.string().uuid().optional(),
+  /** REQ-171: filtra la bitácora por id de correlación -- reconstruye la traza completa de un flujo (convocatoria -> matriz -> propuesta -> paquete -> archivo). */
+  correlationId: z.string().optional(),
   // Strings ISO libres (no `z.string().datetime()` a secas para admitir
   // tanto fecha-hora completa como fecha simple "AAAA-MM-DD"); se valida
   // con `new Date(...)` en el handler y se rechaza con 400 explícito si no

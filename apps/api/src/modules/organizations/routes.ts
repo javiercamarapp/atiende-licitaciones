@@ -77,7 +77,7 @@ export async function organizationRoutes(app: FastifyInstance): Promise<void> {
             entity: 'organization',
             entityId: orgId,
             after: { name, slug },
-            requestId: request.id,
+            requestId: request.id, correlationId: request.correlationId,
           });
         });
       } catch (err) {
@@ -171,7 +171,7 @@ export async function organizationRoutes(app: FastifyInstance): Promise<void> {
           entity: 'invitation',
           entityId: invitationId,
           after: { email, role },
-          requestId: request.id,
+          requestId: request.id, correlationId: request.correlationId,
         });
         return { statusCode: 201, body: { id: invitationId, email, role, status: 'pending', token } };
       };
@@ -259,7 +259,7 @@ export async function organizationRoutes(app: FastifyInstance): Promise<void> {
             entityId: targetUserId,
             before: before.rows[0] ?? null,
             after: { role },
-            requestId: request.id,
+            requestId: request.id, correlationId: request.correlationId,
           });
         }
         return res.rowCount;
@@ -310,7 +310,7 @@ export async function organizationRoutes(app: FastifyInstance): Promise<void> {
             entity: 'membership',
             entityId: targetUserId,
             before: before.rows[0] ?? null,
-            requestId: request.id,
+            requestId: request.id, correlationId: request.correlationId,
           });
         }
         return res.rowCount;
@@ -372,7 +372,7 @@ export async function organizationRoutes(app: FastifyInstance): Promise<void> {
           entity: 'invitation',
           entityId: null,
           after: { role: result.role },
-          requestId: request.id,
+          requestId: request.id, correlationId: request.correlationId,
         });
       });
 

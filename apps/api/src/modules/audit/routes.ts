@@ -35,6 +35,7 @@ function mapAuditLogRow(r: Record<string, unknown>): any {
     before: r.before ?? null,
     after: r.after ?? null,
     requestId: r.request_id,
+    correlationId: r.correlation_id ?? null,
     createdAt: r.created_at,
   };
 }
@@ -68,7 +69,7 @@ export async function auditLogRoutes(app: FastifyInstance): Promise<void> {
       if (!request.orgRole || !AUDIT_LOG_READ_ROLES.includes(request.orgRole)) {
         throw new ForbiddenError('Solo reviewer/admin/owner pueden leer la bitácora de auditoría de esta organización');
       }
-      const { entity, actorId, cursor, limit } = request.query;
+      const { entity, actorId, correlationId, cursor, limit } = request.query;
       const createdFrom = parseDateFilter(request.query.createdFrom, 'createdFrom');
       const createdTo = parseDateFilter(request.query.createdTo, 'createdTo');
       const pageSize = parsePageSize(limit);
@@ -83,6 +84,10 @@ export async function auditLogRoutes(app: FastifyInstance): Promise<void> {
       if (actorId) {
         params.push(actorId);
         conditions.push(`actor_id = $${params.length}`);
+      }
+      if (correlationId) {
+        params.push(correlationId);
+        conditions.push(`correlation_id = $${params.length}`);
       }
       if (createdFrom) {
         params.push(createdFrom.toISOString());

@@ -138,7 +138,7 @@ export async function companyRoutes(app: FastifyInstance): Promise<void> {
           entity: 'company_profiles',
           entityId: profileId,
           after: b,
-          requestId: request.id,
+          requestId: request.id, correlationId: request.correlationId,
         });
 
         return upserted.rows[0];
@@ -446,7 +446,7 @@ export async function companyRoutes(app: FastifyInstance): Promise<void> {
           entity: 'company_documents',
           entityId: id,
           after: { documentType: request.body.documentType, sha256: stored.sha256, status },
-          requestId: request.id,
+          requestId: request.id, correlationId: request.correlationId,
         });
         return inserted.rows[0];
       });
@@ -484,7 +484,7 @@ export async function companyRoutes(app: FastifyInstance): Promise<void> {
             entity: 'company_documents',
             entityId: request.params.id,
             before: before.rows[0] ?? null,
-            requestId: request.id,
+            requestId: request.id, correlationId: request.correlationId,
           });
         }
         return res.rowCount;
@@ -559,7 +559,7 @@ export async function companyRoutes(app: FastifyInstance): Promise<void> {
             entity: 'approved_rates',
             entityId: id,
             after: b,
-            requestId: request.id,
+            requestId: request.id, correlationId: request.correlationId,
           });
           return inserted.rows[0];
         });
@@ -632,7 +632,7 @@ export async function companyRoutes(app: FastifyInstance): Promise<void> {
             entityId: request.params.id,
             before: { status: 'draft' },
             after: { status: 'approved' },
-            requestId: request.id,
+            requestId: request.id, correlationId: request.correlationId,
           });
           return { kind: 'ok' as const, row: updated.rows[0] };
         });
@@ -681,7 +681,7 @@ export async function companyRoutes(app: FastifyInstance): Promise<void> {
             entityId: request.params.id,
             before: { status: 'draft' },
             after: { status: 'archived' },
-            requestId: request.id,
+            requestId: request.id, correlationId: request.correlationId,
           });
           return { kind: 'ok' as const, row: updated.rows[0] };
         });

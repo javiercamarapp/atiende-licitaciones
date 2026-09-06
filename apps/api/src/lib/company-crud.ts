@@ -108,7 +108,7 @@ export function registerSimpleCrud<TCreate, TUpdate>(
           entity: opts.entity,
           entityId: id,
           after: columns,
-          requestId: request.id,
+          requestId: request.id, correlationId: request.correlationId,
         });
         return inserted.rows[0];
       });
@@ -164,7 +164,7 @@ export function registerSimpleCrud<TCreate, TUpdate>(
           entityId: id,
           before: before.rows[0] ?? null,
           after: columns,
-          requestId: request.id,
+          requestId: request.id, correlationId: request.correlationId,
         });
         return updated.rows[0];
       });
@@ -201,7 +201,7 @@ export function registerSimpleCrud<TCreate, TUpdate>(
             entity: opts.entity,
             entityId: id,
             before: before.rows[0] ?? null,
-            requestId: request.id,
+            requestId: request.id, correlationId: request.correlationId,
           });
         }
         return res.rowCount;

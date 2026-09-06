@@ -17,13 +17,22 @@ export interface AuditEntry {
   before?: unknown;
   after?: unknown;
   requestId?: string | null;
+  /**
+   * REQ-171: id de correlación de negocio (ver
+   * `plugins/correlation-id.plugin.ts`) -- distinto de `requestId`
+   * (técnico, por request HTTP). Se propaga a `audit_log.correlation_id`
+   * (migración 0056) para que `GET /audit-log?correlationId=` reconstruya
+   * la traza completa de un flujo que puede abarcar varias requests
+   * (convocatoria -> matriz -> propuesta -> paquete -> archivo).
+   */
+  correlationId?: string | null;
 }
 
 /** Inserta una entrada de auditoría dentro de la misma transacción de la mutación. */
 export async function recordAudit(tx: DbExecutor, entry: AuditEntry): Promise<void> {
   await tx.query(
-    `insert into audit_log (org_id, actor_id, action, entity, entity_id, before, after, request_id)
-     values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8)`,
+    `insert into audit_log (org_id, actor_id, action, entity, entity_id, before, after, request_id, correlation_id)
+     values ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9)`,
     [
       entry.orgId,
       entry.actorId,
@@ -33,6 +42,7 @@ export async function recordAudit(tx: DbExecutor, entry: AuditEntry): Promise<vo
       entry.before !== undefined ? JSON.stringify(entry.before) : null,
       entry.after !== undefined ? JSON.stringify(entry.after) : null,
       entry.requestId ?? null,
+      entry.correlationId ?? null,
     ]
   );
 }

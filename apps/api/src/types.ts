@@ -20,5 +20,7 @@ declare module 'fastify' {
     orgId?: string;
     orgRole?: OrgRole;
     isSuperadmin?: boolean;
+    /** REQ-171: id de correlación de negocio (heredado de `X-Correlation-Id` o generado), ver `plugins/correlation-id.plugin.ts`. */
+    correlationId?: string;
   }
 }

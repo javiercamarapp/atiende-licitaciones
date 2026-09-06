@@ -74,7 +74,7 @@ export async function expedienteSubmissionRoutes(app: FastifyInstance): Promise<
           entity: 'submissions',
           entityId: id,
           after: { submittedAt: request.body.submittedAt, hasAcknowledgement: ackStorageRef !== null, declaredByUser: true },
-          requestId: request.id,
+          requestId: request.id, correlationId: request.correlationId,
         });
         return inserted.rows[0];
       });

@@ -67,7 +67,7 @@ export async function expedienteApprovalRoutes(app: FastifyInstance): Promise<vo
 
         await appendApprovalEvent(tx, { orgId, proposalId: proposal.id as string, kind: 'request_review', actorId: userId, actorRole: request.orgRole!, scopeRef: request.body.scopeRef });
         await tx.query("update proposals set status = 'in_review' where id = $1 and org_id = $2", [proposal.id, orgId]);
-        await recordAudit(tx, { orgId, actorId: userId, action: 'approval.request_review', entity: 'proposals', entityId: proposal.id as string, after: { scopeRef: request.body.scopeRef }, requestId: request.id });
+        await recordAudit(tx, { orgId, actorId: userId, action: 'approval.request_review', entity: 'proposals', entityId: proposal.id as string, after: { scopeRef: request.body.scopeRef }, requestId: request.id, correlationId: request.correlationId });
 
         const { usedCompanyDocumentIds, usedRateConcepts } = await collectUsedInputs(tx, orgId, proposal.id as string);
         const sealed = await getCurrentSealedInputs(tx, { orgId, tenderId: request.params.tenderId, usedCompanyDocumentIds, usedRateConcepts });
@@ -141,7 +141,7 @@ export async function expedienteApprovalRoutes(app: FastifyInstance): Promise<vo
           entity: 'proposal_approvals',
           entityId: proposal.id as string,
           after: { scope: request.body.scope, scopeRef: request.body.scopeRef },
-          requestId: request.id,
+          requestId: request.id, correlationId: request.correlationId,
         });
 
         return {
@@ -180,7 +180,7 @@ export async function expedienteApprovalRoutes(app: FastifyInstance): Promise<vo
           request.orgRole,
           request.body.text,
         ]);
-        await recordAudit(tx, { orgId, actorId: userId, action: 'approval.comment', entity: 'proposal_comments', entityId: proposal.id as string, after: { scopeRef: request.body.scopeRef }, requestId: request.id });
+        await recordAudit(tx, { orgId, actorId: userId, action: 'approval.comment', entity: 'proposal_comments', entityId: proposal.id as string, after: { scopeRef: request.body.scopeRef }, requestId: request.id, correlationId: request.correlationId });
 
         const { usedCompanyDocumentIds, usedRateConcepts } = await collectUsedInputs(tx, orgId, proposal.id as string);
         const sealed = await getCurrentSealedInputs(tx, { orgId, tenderId: request.params.tenderId, usedCompanyDocumentIds, usedRateConcepts });

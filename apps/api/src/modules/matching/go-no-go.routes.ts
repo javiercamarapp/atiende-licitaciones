@@ -96,7 +96,7 @@ export async function goNoGoRoutes(app: FastifyInstance): Promise<void> {
           entity: 'go_no_go_decisions',
           entityId: id,
           after: { decision, reasons },
-          requestId: request.id,
+          requestId: request.id, correlationId: request.correlationId,
         });
         return inserted.rows[0];
       });
