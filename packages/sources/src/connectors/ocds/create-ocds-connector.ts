@@ -51,13 +51,17 @@ export function createOcdsConnector(config: OcdsConnectorConfig): SourceConnecto
         assertLegitimateResponseBody(bodyText, { url, expected: "json" });
         const json = JSON.parse(bodyText);
         const fetchedAt = ctx.now?.() ?? new Date();
-        const records = mapOcdsPackageToTenderRecords(json, {
+        const { records, dropped } = mapOcdsPackageToTenderRecords(json, {
           source: config.id,
           sourceUrl: url,
           fetchedAt,
           httpStatus: response.status,
           defaultState: config.defaultState,
         });
+        // SR-24: ningún release descartado (esquema OCDS inválido, o sin bloque `tender`) desaparece en silencio --
+        // se reenvía al pipeline vía `ctx.reportDropped` para que quede en `errores`/`dropped` y cuente hacia el
+        // umbral de tasa de descarte (`dropRateThreshold`), igual que ya hace `createComprasMxConnector` (SR-21).
+        for (const info of dropped) ctx.reportDropped?.(info);
 
         const nextCursor = config.extractNextCursor?.(json);
 

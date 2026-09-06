@@ -1,0 +1,27 @@
+<!--
+  Fixture SR-23: interstitial JS GENÉRICO (sin marcador de ningún vendor
+  conocido -- no matchea `CHALLENGE_MARKERS`) que preserva intacto el
+  `<title>`/`id` del sitio real de DOF mientras reemplaza el contenido útil
+  por un mensaje de espera y una redirección por script. Confirmado como
+  vector real por la reverificación adversarial de cierre: con los
+  marcadores de PLANTILLA fija de la ronda anterior (`DOF_MINIMAL_CONTENT_MARKERS`),
+  este cuerpo SÍ matcheaba el título/id esperado y pasaba como legítimo
+  (`health.state="ok"`, `coverage.emptyResult=true`) -- la misma violación de
+  REQ-148 que SR-20 debía cerrar. Con `detectInterstitialShellMarker` (SR-23)
+  el `<script>` de redirección (`setTimeout` + `location.replace`) debe
+  detectarse y clasificarse como `InterfaceChangedError`, sin importar que el
+  cascarón conserve el título/id reales.
+-->
+<html>
+<head><title>DOF - Diario Oficial de la Federación</title></head>
+<body>
+<div id="DivDetalleNota">
+<p>Verificando su navegador, por favor espere unos segundos...</p>
+</div>
+<script>
+  setTimeout(function () {
+    window.location.replace("/nota_detalle.php?codigo=5797937&fecha=04/09/2026&continue=1");
+  }, 4000);
+</script>
+</body>
+</html>

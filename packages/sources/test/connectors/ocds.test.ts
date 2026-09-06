@@ -8,6 +8,9 @@ import { createOcdsShcpConnector } from "../../src/connectors/ocds-shcp/ocds-shc
 import { HttpClient } from "../../src/http/http-client.js";
 import { CaptchaDetectedError } from "../../src/http/response-classifier.js";
 import type { ConnectorContext } from "../../src/connectors/types.js";
+import { DiscoveryPipeline } from "../../src/pipeline/discovery-pipeline.js";
+import { InMemoryCheckpointStore } from "../../src/pipeline/checkpoint.js";
+import { InMemoryTenderRepository } from "../../src/pipeline/repository.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const fixturesDir = path.join(__dirname, "..", "fixtures", "ocds-shcp");
@@ -17,11 +20,14 @@ function readFixture(name: string): unknown {
 }
 
 describe("mapOcdsPackageToTenderRecords", () => {
-  it("mapea releases OCDS 1.1 con tag 'tender' e ignora los que no traen bloque tender", () => {
+  it("mapea releases OCDS 1.1 con tag 'tender' y reporta en dropped[] los que no traen bloque tender (SR-24)", () => {
     const pkg = readFixture("release-package-page1.json");
-    const records = mapOcdsPackageToTenderRecords(pkg, { source: "ocds-shcp", sourceUrl: "https://example.gob.mx/ocds", fetchedAt: new Date("2026-08-20T00:00:00Z") });
+    const { records, dropped } = mapOcdsPackageToTenderRecords(pkg, { source: "ocds-shcp", sourceUrl: "https://example.gob.mx/ocds", fetchedAt: new Date("2026-08-20T00:00:00Z") });
 
-    expect(records).toHaveLength(2); // el tercer release (tag "contract", sin bloque tender) se ignora
+    expect(records).toHaveLength(2); // el tercer release (tag "contract", sin bloque tender) se reporta en dropped, no se mapea
+    // SR-24: el descarte del release sin `tender` ya NO desaparece en silencio -- queda en dropped[] con su motivo.
+    expect(dropped).toHaveLength(1);
+    expect(dropped[0]).toMatchObject({ index: 2, reason: expect.stringMatching(/tender/i) });
 
     const [first, second] = records;
     expect(first.externalId).toBe("LA-050GYN003-E1-2026");
@@ -46,7 +52,80 @@ describe("mapOcdsPackageToTenderRecords", () => {
     const pkg = readFixture("release-package-page1.json");
     const a = mapOcdsPackageToTenderRecords(pkg, { source: "ocds-shcp", fetchedAt: new Date() });
     const b = mapOcdsPackageToTenderRecords(pkg, { source: "ocds-shcp", fetchedAt: new Date() });
-    expect(a[0].snapshot.rawHash).toBe(b[0].snapshot.rawHash);
+    expect(a.records[0].snapshot.rawHash).toBe(b.records[0].snapshot.rawHash);
+  });
+});
+
+describe("SR-24 (ALTA, residual de SR-21): ningún release se descarta en silencio, ni siquiera un release inválido (no solo el filtro 'sin tender')", () => {
+  it("mapOcdsPackageToTenderRecords reporta en dropped[] un release que no cumple el esquema OCDS (ocid ausente), sin perder los releases válidos", () => {
+    const pkg = {
+      releases: [
+        { ocid: "ocds-1", id: "r1", tender: { id: "LA-1-2026", title: "Válido" } },
+        { id: "r2-sin-ocid", tender: { id: "LA-2-2026", title: "Inválido: falta ocid" } },
+      ],
+    };
+    const { records, dropped } = mapOcdsPackageToTenderRecords(pkg, { source: "ocds-shcp", fetchedAt: new Date("2026-09-06T00:00:00Z") });
+
+    expect(records).toHaveLength(1);
+    expect(records[0].externalId).toBe("LA-1-2026");
+    expect(dropped).toHaveLength(1);
+    expect(dropped[0]).toMatchObject({ index: 1, reason: expect.stringMatching(/esquema/i) });
+  });
+
+  it("createOcdsShcpConnector + DiscoveryPipeline: un release package con 80% de releases sin 'tender' se reclasifica interface_changed (fin de la reverificación adversarial de cierre)", async () => {
+    const pkg = {
+      releases: [
+        { ocid: "ocds-1", id: "r1", tender: { id: "LA-1-2026", title: "Único release con tender" } },
+        { ocid: "ocds-2", id: "r2", tag: ["contract"], awards: [{ id: "a1" }] },
+        { ocid: "ocds-3", id: "r3", tag: ["contract"], awards: [{ id: "a2" }] },
+        { ocid: "ocds-4", id: "r4", tag: ["contract"], awards: [{ id: "a3" }] },
+        { ocid: "ocds-5", id: "r5", tag: ["contract"], awards: [{ id: "a4" }] },
+      ],
+    };
+    const fetchImpl = async () => new Response(JSON.stringify(pkg), { status: 200 });
+    const http = new HttpClient({ userAgent: "TestBot/1.0", fetchImpl: fetchImpl as unknown as typeof fetch, minIntervalMsPerHost: 0 });
+    const connector = createOcdsShcpConnector();
+    const pipeline = new DiscoveryPipeline({
+      connectors: [connector],
+      repository: new InMemoryTenderRepository(),
+      checkpoints: new InMemoryCheckpointStore(),
+      http,
+    });
+
+    const result = await pipeline.run();
+    const stats = result.bySource["ocds-shcp"];
+
+    // Antes de esta ronda (SR-24): dropped:[], errores:[], health.state="ok" -- el 80% de descarte era invisible.
+    expect(stats.dropped).toHaveLength(4);
+    expect(stats.dropped.every((d) => /tender/i.test(d.reason))).toBe(true);
+    expect(stats.errores.some((e) => /descartado/i.test(e.message))).toBe(true);
+    expect(stats.health.state).toBe("interface_changed");
+    expect(stats.nuevos).toBe(1);
+  });
+
+  it("createOcdsShcpConnector + DiscoveryPipeline: una tasa de descarte baja (< 20%) mantiene 'ok' con el descarte visible en dropped[]", async () => {
+    const pkg = {
+      releases: [
+        ...Array.from({ length: 9 }, (_, i) => ({ ocid: `ocds-${i}`, id: `r${i}`, tender: { id: `LA-${i}-2026`, title: `Válido ${i}` } })),
+        { ocid: "ocds-sin-tender", id: "r-sin-tender", tag: ["contract"] },
+      ] as unknown[],
+    };
+    const fetchImpl = async () => new Response(JSON.stringify(pkg), { status: 200 });
+    const http = new HttpClient({ userAgent: "TestBot/1.0", fetchImpl: fetchImpl as unknown as typeof fetch, minIntervalMsPerHost: 0 });
+    const connector = createOcdsShcpConnector();
+    const pipeline = new DiscoveryPipeline({
+      connectors: [connector],
+      repository: new InMemoryTenderRepository(),
+      checkpoints: new InMemoryCheckpointStore(),
+      http,
+    });
+
+    const result = await pipeline.run();
+    const stats = result.bySource["ocds-shcp"];
+
+    expect(stats.dropped).toHaveLength(1); // 1/10 = 10% < 20%
+    expect(stats.health.state).toBe("ok");
+    expect(stats.nuevos).toBe(9);
   });
 });
 

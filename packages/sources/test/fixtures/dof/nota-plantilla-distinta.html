@@ -1,0 +1,25 @@
+<!--
+  Fixture SR-23: nota con contenido de negocio real (misma forma de aviso
+  que nota-avisos-licitaciones.html) pero con una plantilla HTML DISTINTA
+  (título/id de contenedor distintos, simulando un rediseño del sitio o una
+  sub-plantilla distinta para cierto tipo de aviso). Antes de esta ronda,
+  `DOF_MINIMAL_CONTENT_MARKERS` (marcadores de plantilla fija: título exacto
+  "DOF - Diario Oficial de la Federación" + id "DivDetalleNota") rechazaba
+  esta nota como `InterfaceChangedError` a pesar de tener contenido real
+  (falso positivo confirmado por la reverificación adversarial de cierre).
+  Con los marcadores SEMÁNTICOS de esta ronda (contenido, no plantilla) debe
+  aceptarse sin lanzar.
+-->
+<html>
+<head><title>D.O.F. - Diario Oficial</title></head>
+<body>
+<div id="contenedorNota">
+<p>SECRETARÍA DE SALUD.-Convocatoria número LA-012NAY001-E15-2026 relativa a la licitación pública nacional para la
+adquisición de equipo médico de diagnóstico por imagen.</p>
+<p>Objeto de la licitación: Adquisición de equipo médico de diagnóstico por imagen para hospitales de tercer nivel.</p>
+<p>Junta de aclaraciones: 10/09/2026, 10:00 horas.</p>
+<p>Presentación y apertura de proposiciones: 20/09/2026, 11:00 horas.</p>
+<p>Fallo: 30/09/2026.</p>
+</div>
+</body>
+</html>

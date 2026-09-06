@@ -93,13 +93,15 @@ export function createStatePortalConnector(config: StatePortalConnectorConfig = 
         assertLegitimateResponseBody(bodyText, { url: url.toString(), expected: "json" });
         const json = JSON.parse(bodyText);
         const fetchedAt = ctx.now?.() ?? new Date();
-        const records = mapOcdsPackageToTenderRecords(json, {
+        const { records, dropped } = mapOcdsPackageToTenderRecords(json, {
           source: "state-portal",
           sourceUrl: url.toString(),
           fetchedAt,
           httpStatus: response.status,
           defaultState: portal.state,
         });
+        // SR-24: ver create-ocds-connector.ts -- ningún release descartado desaparece en silencio.
+        for (const info of dropped) ctx.reportDropped?.(info);
         for (const record of records) {
           if (params.limit !== undefined && yielded >= params.limit) return;
           yield record;

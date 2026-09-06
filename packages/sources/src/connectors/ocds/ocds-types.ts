@@ -96,6 +96,17 @@ export type OcdsRelease = z.infer<typeof OcdsReleaseSchema>;
  * releases. `{"releases": []}` explícito sigue siendo válido (colección
  * presente y vacía); la ausencia de la llave (o un valor no-array) ahora
  * lanza `ZodError` -> `interface_changed`.
+ *
+ * SR-24 (residual de SR-21, ver `docs/auditoria-1/sources-cierre-final.md`):
+ * cada elemento de `releases` se valida como `z.unknown()` aquí (en vez de
+ * `OcdsReleaseSchema` directamente) a propósito -- `mapOcdsPackageToTenderRecords`
+ * (`ocds-mapper.ts`) hace el `OcdsReleaseSchema.safeParse()` POR RELEASE, para
+ * poder reportar un release individual inválido en `dropped[]` (vía
+ * `ConnectorContext.reportDropped`) en vez de que UN release malformado
+ * tumbe el `release package` COMPLETO con un `ZodError` (perdiendo todos los
+ * releases válidos de la misma página, el mismo antipatrón que SR-16
+ * corrigió para el CSV histórico de ComprasMX). La llave `releases` en sí
+ * sigue siendo obligatoria y debe ser un array (SR-19 arriba no cambia).
  */
 export const OcdsReleasePackageSchema = z.object({
   uri: optionalNullish(z.string()),
@@ -103,6 +114,6 @@ export const OcdsReleasePackageSchema = z.object({
   publishedDate: optionalNullish(z.string()),
   publisher: optionalNullish(z.object({ name: optionalNullish(z.string()) })),
   license: optionalNullish(z.string()),
-  releases: z.array(OcdsReleaseSchema),
+  releases: z.array(z.unknown()),
 });
 export type OcdsReleasePackage = z.infer<typeof OcdsReleasePackageSchema>;

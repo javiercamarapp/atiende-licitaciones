@@ -1,7 +1,7 @@
 import type { ConnectorContext, DiscoverParams, SourceConnector } from "../types.js";
 import { SourceNotConfiguredError } from "../types.js";
 import { assertLegitimateResponseBody } from "../../http/response-classifier.js";
-import { extractDofNoticesFromText, mapDofNoticeToTenderRecord } from "./dof-mapper.js";
+import { extractDofNoticesFromText, mapDofNoticeToTenderRecord, mapDofNoticeToTenderRecordSafe } from "./dof-mapper.js";
 
 export interface DofConnectorConfig {
   baseUrl?: string;
@@ -12,18 +12,29 @@ export interface DofConnectorConfig {
 const DEFAULT_BASE_URL = "https://dof.gob.mx";
 
 /**
- * Marcadores estructurales mínimos de una nota REAL del DOF (SR-20, residual
- * de la ronda 2): el título de la plantilla pública ("DOF - Diario Oficial
- * de la Federación", ver `test/fixtures/dof/nota-avisos-licitaciones.html`)
- * y el `id` del contenedor de la nota (`DivDetalleNota`). Se pasan a
- * `assertLegitimateResponseBody` para que un login genérico o un vendor de
- * bot-protection sin marcador de captcha reconocido (Akamai, Imperva) no
- * pase silenciosamente solo por ser HTML -- un HTML que SÍ trae alguno de
- * estos marcadores se sigue aceptando como nota legítima.
+ * Marcadores SEMÁNTICOS de una nota REAL del DOF con convocatorias (SR-23,
+ * residual de SR-20 -- ver `docs/auditoria-1/sources-cierre-final.md`): a
+ * diferencia de los marcadores de PLANTILLA fijos que usaba la ronda
+ * anterior (título exacto "DOF - Diario Oficial de la Federación", `id`
+ * "DivDetalleNota"), estos patrones describen el CONTENIDO que una nota real
+ * con convocatorias trae -- la palabra "convocatoria"/"licitación pública",
+ * o el patrón de número de procedimiento mexicano
+ * (`LA-050GYN003-E1-2026`/`LO-016B00003-E22-2026`, visto en los fixtures
+ * reales de DOF/SHCP: prefijo de 2 letras, guion, clave de dependencia,
+ * guion, expediente, guion, año). Una nota con una plantilla HTML distinta
+ * (año de rediseño del sitio, sub-plantilla distinta) pero contenido real
+ * sigue pasando -- ya no depende de que el título/id coincidan byte a byte
+ * con la muestra usada para construir el marcador. Se pasan a
+ * `assertLegitimateResponseBody` junto con `detectInterstitialShellMarker`
+ * (interno) para que ni un login genérico/vendor sin marcador de captcha
+ * reconocido NI un interstitial que preserva el título/id del sitio real
+ * (confirmado como vector real por la reverificación de cierre) pasen
+ * silenciosamente solo por tener forma de HTML.
  */
-const DOF_MINIMAL_CONTENT_MARKERS: ReadonlyArray<RegExp> = [
-  /diario oficial de la federaci[oó]n/i,
-  /DivDetalleNota/i,
+const DOF_SEMANTIC_CONTENT_MARKERS: ReadonlyArray<RegExp> = [
+  /convocatoria/i,
+  /licitaci[oó]n\s+p[uú]blica/i,
+  /\b(?:LA|IA|IO|LO)-[0-9A-Z]{3,}-[A-Z0-9]{2,}-\d{4}\b/,
 ];
 
 function stripHtml(html: string): string {
@@ -100,18 +111,28 @@ export function createDofConnector(config: DofConnectorConfig = {}): SourceConne
           throw new Error(`DOF respondió ${response.status} en ${url}`);
         }
         const html = await response.text();
-        // SR-14: un 200 real puede traer un cuerpo de captcha/bot-challenge (el propio README lo documenta como
-        // real para PDN-S6/Zenedge); sin esta validación, `extractDofNoticesFromText` simplemente no encontraría
-        // avisos y la corrida se reportaría como "ok"/"0 nuevas" -- indistinguible de una corrida real sin novedades.
-        assertLegitimateResponseBody(html, { url, expected: "text", minimalContentMarkers: DOF_MINIMAL_CONTENT_MARKERS });
+        // SR-14/SR-23: un 200 real puede traer un cuerpo de captcha/bot-challenge de un vendor conocido (el propio
+        // README lo documenta como real para PDN-S6/Zenedge), o un interstitial genérico que preserva el cascarón
+        // HTML del sitio real (confirmado como vector real por la reverificación de cierre); sin esta validación,
+        // `extractDofNoticesFromText` simplemente no encontraría avisos y la corrida se reportaría como "ok"/"0
+        // nuevas" -- indistinguible de una corrida real sin novedades.
+        assertLegitimateResponseBody(html, { url, expected: "text", semanticContentMarkers: DOF_SEMANTIC_CONTENT_MARKERS });
         const text = stripHtml(html);
         const fechaMatch = html.match(/fecha=(\d{2}\/\d{2}\/\d{4})/);
         const fecha = fechaMatch?.[1] ?? "";
-        const notices = extractDofNoticesFromText(text, codigo, fecha);
+        const { notices, dropped } = extractDofNoticesFromText(text, codigo, fecha);
+        // SR-24 (residual de SR-21, generalizado a DOF): ningún bloque/aviso descartado desaparece en silencio --
+        // se reenvía a `ctx.reportDropped` para que cuente hacia `errores`/`dropped` y el umbral de tasa de descarte.
+        for (const info of dropped) ctx.reportDropped?.(info);
         const fetchedAt = ctx.now?.() ?? new Date();
         for (const notice of notices) {
           if (params.limit !== undefined && yielded >= params.limit) return;
-          yield mapDofNoticeToTenderRecord(notice, html, { sourceUrl: url, fetchedAt, httpStatus: response.status });
+          const mapped = mapDofNoticeToTenderRecordSafe(notice, html, { sourceUrl: url, fetchedAt, httpStatus: response.status });
+          if ("dropped" in mapped) {
+            ctx.reportDropped?.(mapped.dropped);
+            continue;
+          }
+          yield mapped.record;
           yielded += 1;
         }
       }
@@ -124,11 +145,11 @@ export function createDofConnector(config: DofConnectorConfig = {}): SourceConne
       if (response.status === 404) return null;
       if (!response.ok) throw new Error(`DOF respondió ${response.status} en ${url}`);
       const html = await response.text();
-      assertLegitimateResponseBody(html, { url, expected: "text", minimalContentMarkers: DOF_MINIMAL_CONTENT_MARKERS });
+      assertLegitimateResponseBody(html, { url, expected: "text", semanticContentMarkers: DOF_SEMANTIC_CONTENT_MARKERS });
       const text = stripHtml(html);
       const fechaMatch = html.match(/fecha=(\d{2}\/\d{2}\/\d{4})/);
       const fecha = fechaMatch?.[1] ?? "";
-      const notices = extractDofNoticesFromText(text, codigo, fecha);
+      const { notices } = extractDofNoticesFromText(text, codigo, fecha);
       const fetchedAt = ctx.now?.() ?? new Date();
       const match = notices.find((n) => `${n.codigo}:${n.numeroConvocatoria ?? n.titulo.slice(0, 40)}` === externalId);
       if (!match) return null;

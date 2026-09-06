@@ -2,7 +2,8 @@ import { hashRawPayload } from "../../util/hash.js";
 import { fromMexicoCityNaive } from "../../util/timezone.js";
 import type { ClassifierScheme, ProcedureType, SourceId, TenderRecord, TenderStatus } from "../../types/tender-record.js";
 import { parseTenderRecord } from "../../types/tender-record.js";
-import { OcdsReleasePackageSchema, type OcdsRelease } from "./ocds-types.js";
+import type { DroppedRecordInfo } from "../types.js";
+import { OcdsReleasePackageSchema, OcdsReleaseSchema, type OcdsRelease } from "./ocds-types.js";
 
 /**
  * Convierte una fecha OCDS a `Date` pasando por `fromMexicoCityNaive()`
@@ -126,17 +127,83 @@ export function mapOcdsReleaseToTenderRecord(release: OcdsRelease, rawPackage: u
   return parseTenderRecord(raw);
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * SR-24 (ALTA, residual de SR-21 -- ver `docs/auditoria-1/sources-cierre-final.md`):
+ * antes de esta ronda, `mapOcdsPackageToTenderRecords` devolvía solo
+ * `TenderRecord[]`, descartando en silencio (sin ninguna entrada en
+ * `errors[]`/`dropped[]`, sin cambiar `health.state`) cualquier release sin
+ * bloque `tender` -- confirmado end-to-end: un release package con 80% de
+ * sus releases sin `tender` (simulando un cambio de interfaz real donde el
+ * campo se movió/renombró) producía `health.state="ok"`, `dropped:[]`,
+ * porque `create-ocds-connector.ts` (compartido por SHCP/PDN-S6/portales
+ * estatales) nunca invocaba `ctx.reportDropped` -- a diferencia de
+ * `mapComprasMxApiRecords`, que sí lo hace desde la ronda de SR-21. Mismo
+ * patrón `{records, dropped}` que esa función, para que
+ * `createOcdsConnector`/`createStatePortalConnector` reenvíen cada entrada a
+ * `ctx.reportDropped()` y el umbral de tasa de descarte (`dropRateThreshold`)
+ * proteja también a estas 3 fuentes.
+ */
+export interface OcdsPackageMapResult {
+  records: TenderRecord[];
+  dropped: DroppedRecordInfo[];
+}
+
 /**
  * Parsea un release package OCDS 1.1 completo (JSON crudo ya deserializado)
- * y produce todos los `TenderRecord` válidos que contiene, ignorando
- * releases sin bloque `tender` (p.ej. releases de solo award/contract).
+ * y produce todos los `TenderRecord` válidos que contiene. Cada release se
+ * valida INDIVIDUALMENTE (`OcdsReleaseSchema.safeParse`, SR-24): un release
+ * que no cumple el esquema esperado se reporta en `dropped[]` con el motivo
+ * del `ZodError` en vez de tumbar el release package COMPLETO (el mismo
+ * antipatrón que SR-16 corrigió para el CSV histórico de ComprasMX). Un
+ * release válido pero sin bloque `tender` (p.ej. un release de solo
+ * adjudicación/contrato -- filtro por diseño, no un error de datos) también
+ * se reporta en `dropped[]`: filtrar sigue siendo la decisión correcta, pero
+ * hacerlo SIN reportarlo es indistinguible de un cambio de interfaz real
+ * donde el campo `tender` se movió/renombró (SR-24).
  */
-export function mapOcdsPackageToTenderRecords(rawPackageJson: unknown, options: OcdsMapOptions): TenderRecord[] {
+export function mapOcdsPackageToTenderRecords(rawPackageJson: unknown, options: OcdsMapOptions): OcdsPackageMapResult {
   const pkg = OcdsReleasePackageSchema.parse(rawPackageJson);
   const records: TenderRecord[] = [];
-  for (const release of pkg.releases) {
+  const dropped: DroppedRecordInfo[] = [];
+
+  pkg.releases.forEach((rawRelease, index) => {
+    const parsed = OcdsReleaseSchema.safeParse(rawRelease);
+    if (!parsed.success) {
+      dropped.push({
+        index,
+        reason: `Release no cumple el esquema OCDS esperado: ${parsed.error.message}`,
+        fields: isPlainObject(rawRelease) ? rawRelease : undefined,
+      });
+      return;
+    }
+    const release = parsed.data;
+
+    if (!release.tender) {
+      dropped.push({
+        index,
+        externalId: release.ocid,
+        reason:
+          "Release OCDS sin bloque 'tender' (filtrado por diseño: solo adjudicación/contrato, no es una convocatoria -- " +
+          "reportado para que una tasa alta de este filtro, indicio de un cambio de interfaz real, no pase inadvertida)",
+        fields: { ocid: release.ocid, id: release.id, tag: release.tag },
+      });
+      return;
+    }
+
     const record = mapOcdsReleaseToTenderRecord(release, rawPackageJson, options);
-    if (record) records.push(record);
-  }
-  return records;
+    if (!record) {
+      // Defensivo: no debería ocurrir dado que `release.tender` ya se validó arriba, pero se reporta igual en
+      // vez de descartar en silencio si `mapOcdsReleaseToTenderRecord` cambiara su criterio (mismo patrón que
+      // `mapComprasMxApiRecords`).
+      dropped.push({ index, externalId: release.ocid, reason: "Release descartado por mapOcdsReleaseToTenderRecord (motivo no determinado por el llamador)" });
+      return;
+    }
+    records.push(record);
+  });
+
+  return { records, dropped };
 }

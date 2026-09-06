@@ -123,9 +123,12 @@ describe("SR-13: esquemas OCDS toleran `null` explícito (patrón común de APIs
       ],
     };
 
-    const records = mapOcdsPackageToTenderRecords(rawPackage, { source: "ocds-shcp", fetchedAt: new Date("2026-08-01T00:00:00Z") });
+    const { records, dropped } = mapOcdsPackageToTenderRecords(rawPackage, { source: "ocds-shcp", fetchedAt: new Date("2026-08-01T00:00:00Z") });
     expect(records).toHaveLength(1);
     expect(records[0].contractingEntity).toBe("Entidad de prueba");
     expect(records[0].currency).toBe("MXN");
+    // SR-24: el release sin tender (null) ya no desaparece en silencio -- queda reportado en dropped[].
+    expect(dropped).toHaveLength(1);
+    expect(dropped[0]).toMatchObject({ index: 0, externalId: "ocid-1", reason: expect.stringMatching(/tender/i) });
   });
 });
