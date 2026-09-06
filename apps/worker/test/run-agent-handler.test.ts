@@ -386,23 +386,30 @@ describe('run_agent handler (esqueleto)', () => {
   });
 
   /**
-   * WK6-02 (docs/auditoria-2/worker-agentes.md, ALTA): antes de esta ronda,
-   * `run.correlationId`/`ToolCallTrace.correlationId` (el identificador de
-   * NEGOCIO, p. ej. `tenderId`) se calculaba en memoria pero nunca se
-   * reflejaba en `agent_runs.output` ni en el log del job — se perdía al
-   * terminar la corrida, haciendo imposible el criterio de REQ-171
-   * ("consulta de auditoría reconstruye la cadena completa... a partir de
-   * un solo correlation_id") con una sola consulta. Este test corre TRES
-   * corridas de agentes nombrados distintos (analista_convocatorias,
-   * analista_bases, redactor_borrador) que representan, en la vida real,
-   * los pasos sucesivos de UN MISMO expediente (convocatoria -> matriz de
-   * requisitos -> borrador de propuesta), todas con el MISMO
-   * `correlationId` de negocio (`tenderId`), y confirma que una única
-   * consulta SQL por ese `correlation_id` (`output->>'correlationId'`, sin
-   * columna nueva -- el esquema JSONB ya existente de `agent_runs.output`)
-   * reconstruye la cadena completa en el orden correcto.
+   * WK6-02 (docs/auditoria-2/worker-agentes.md, ALTA) + E20 (docs/BACKLOG.md,
+   * cierre): antes de esta ronda, `run.correlationId`/
+   * `ToolCallTrace.correlationId` (el identificador de NEGOCIO, p. ej. el
+   * `tenderId`) se calculaba en memoria pero nunca se reflejaba en
+   * `agent_runs.output` ni en el log del job — se perdía al terminar la
+   * corrida, haciendo imposible el criterio de REQ-171 ("consulta de
+   * auditoría reconstruye la cadena completa... a partir de un solo
+   * correlation_id") con una sola consulta. `updateAgentRunRow` ahora
+   * también escribe la columna dedicada `agent_runs.correlation_id`
+   * (existe desde `packages/db/migrations/0017_ronda2_extensions.sql`, con
+   * su propio índice; el backfill de filas viejas que solo la tenían en el
+   * JSONB vive en `0088_e20_agent_runs_correlation_id.sql`) — la consulta
+   * de auditoría de REQ-171 pasa de `output->>'correlationId' = $1` a
+   * `correlation_id = $1` (indexada). Este test corre TRES corridas de
+   * agentes nombrados distintos (analista_convocatorias, analista_bases,
+   * redactor_borrador) que representan, en la vida real, los pasos
+   * sucesivos de UN MISMO expediente (convocatoria -> matriz de requisitos
+   * -> borrador de propuesta), todas con el MISMO `correlationId` de
+   * negocio (`tenderId`), y confirma que una única consulta SQL por la
+   * COLUMNA reconstruye la cadena completa en el orden correcto (y que
+   * `output->>'correlationId'` sigue coincidiendo, por compatibilidad
+   * hacia atrás con cualquier lector que todavía consulte el JSONB).
    */
-  it('WK6-02: correlationId de negocio persiste en agent_runs.output (y en cada tool_call) — una sola consulta reconstruye convocatoria -> matriz -> propuesta', async () => {
+  it('WK6-02/E20: correlationId de negocio persiste en agent_runs.correlation_id (columna) y en output (y en cada tool_call) — una sola consulta por columna reconstruye convocatoria -> matriz -> propuesta', async () => {
     const { orgId, userId } = await seedOrgAndUser(db, 'wk602-trace');
     await applyProposal06(db);
 
@@ -460,14 +467,21 @@ describe('run_agent handler (esqueleto)', () => {
     await runNamedAgent('analista_bases', { tenderId });
     await runNamedAgent('redactor_borrador', { tenderId, sectionKeys: ['experiencia'] });
 
-    // El criterio verificable de REQ-171: UNA sola consulta por correlation_id
-    // reconstruye la cadena completa, en orden.
+    // El criterio verificable de REQ-171/E20: UNA sola consulta por la
+    // COLUMNA `correlation_id` (indexada, no ya contra el JSONB) reconstruye
+    // la cadena completa, en orden.
     const { rows: chain } = await db.query<{
       agent_name: string;
+      correlation_id: string | null;
       output: { correlationId: string | null; richStatus: string; toolCalls: { correlationId: string | null }[] };
-    }>(`select agent_name, output from agent_runs where output->>'correlationId' = $1 order by created_at asc`, [tenderId]);
+    }>(`select agent_name, correlation_id, output from agent_runs where correlation_id = $1 order by created_at asc`, [
+      tenderId,
+    ]);
 
     expect(chain.map((r) => r.agent_name)).toEqual(['analista_convocatorias', 'analista_bases', 'redactor_borrador']);
+    expect(chain.every((r) => r.correlation_id === tenderId)).toBe(true);
+    // Compatibilidad hacia atrás: `output->>'correlationId'` sigue
+    // coincidiendo (nada dejó de escribirse ahí).
     expect(chain.every((r) => r.output.correlationId === tenderId)).toBe(true);
     expect(chain.every((r) => r.output.richStatus === 'completed')).toBe(true);
     // Cada tool_call individual dentro de cada corrida también lleva el

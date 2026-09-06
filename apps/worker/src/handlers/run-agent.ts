@@ -293,22 +293,21 @@ async function updateAgentRunRow(
     error: run.error ?? null,
     completedSteps: run.completedSteps,
     totalSteps: run.totalSteps,
-    // WK6-02 (docs/auditoria-2/worker-agentes.md, ALTA): antes de esta ronda
-    // `run.correlationId` (el identificador de NEGOCIO, p. ej. `tenderId` —
-    // ver `RunAgentPayload.correlationId`) se calculaba y se guardaba en
-    // memoria (`AgentRun.correlationId`/`ToolCallTrace.correlationId`,
-    // packages/agents) pero nunca se reflejaba en ningún lugar durable de
-    // este worker: se perdía al terminar el job. `agent_runs` (packages/db/
-    // migrations/0004_agents.sql) no tiene una columna dedicada
-    // `correlation_id` — persistirlo aquí, en `output` (esquema JSONB YA
-    // EXISTENTE, sin requerir una migración nueva fuera de este ámbito),
-    // es lo mínimo para que una consulta de auditoría por `correlation_id`
-    // (REQ-171: "reconstruye la cadena completa... a partir de un solo
-    // correlation_id") pueda encontrar esta corrida con
-    // `agent_runs.output->>'correlationId' = $1`, en vez de tener que
-    // adivinar a partir de `input.context.tenderId` (que, como documenta el
-    // hallazgo, solo existe para corridas abiertas por el propio worker vía
-    // `enqueueAgentRun`, nunca para las de un humano vía apps/api).
+    // WK6-02 (docs/auditoria-2/worker-agentes.md, ALTA) + E20 (docs/BACKLOG.md):
+    // antes de esta ronda `run.correlationId` (el identificador de NEGOCIO,
+    // p. ej. `tenderId` — ver `RunAgentPayload.correlationId`) se calculaba
+    // y se guardaba en memoria (`AgentRun.correlationId`/
+    // `ToolCallTrace.correlationId`, packages/agents) pero solo se
+    // persistía aquí, en `output` (JSONB) — nunca en la columna dedicada
+    // `agent_runs.correlation_id`, que YA EXISTE desde
+    // `packages/db/migrations/0017_ronda2_extensions.sql` (con su propio
+    // índice `ix_agent_runs_correlation`) pero que esta función nunca
+    // escribía. `output->>'correlationId'` se conserva por compatibilidad
+    // hacia atrás (nada lo borra), pero la consulta de auditoría de
+    // REQ-171 ya no necesita ir contra el JSONB — ver la columna real más
+    // abajo en el propio `UPDATE` (`packages/db/migrations/
+    // 0088_e20_agent_runs_correlation_id.sql` backfillea las filas viejas
+    // que solo la tenían en `output`).
     correlationId: run.correlationId ?? null,
     // Ronda 6: persistencia de "propuesta para revisión" usando el esquema
     // YA EXISTENTE (agent_runs.output jsonb) — sin requerir el grant de
@@ -341,11 +340,15 @@ async function updateAgentRunRow(
     // "RLS bloqueó el UPDATE" (actorId sin membresía de escritura activa
     // en esa org) — ambos casos son, desde la perspectiva de este job, la
     // misma condición de fallo: "no se pudo actualizar de forma segura".
+    // E20 (docs/BACKLOG.md): `correlation_id` (columna real, no solo el
+    // JSONB de `output` de arriba) se escribe en el MISMO UPDATE que cierra
+    // la corrida — `run.correlationId ?? null` es idéntico al valor que ya
+    // va dentro de `output`, así que ambos quedan siempre consistentes.
     const { rowCount } = await tx.query(
       `update agent_runs
-       set status = $2, output = $3::jsonb, finished_at = $4
+       set status = $2, output = $3::jsonb, finished_at = $4, correlation_id = $6
        where id = $1 and org_id = $5::uuid`,
-      [agentRunId, status, output, finishedAt, organizationId],
+      [agentRunId, status, output, finishedAt, organizationId, run.correlationId ?? null],
     );
 
     if (rowCount === 0) {
