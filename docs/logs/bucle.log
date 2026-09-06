@@ -173,3 +173,4 @@
 2026-09-06 17:01  NOTIF  #114 reverificación r6+wk6 (a9f91e9): R6-11 ALTA, R6-10/12/13 MEDIA, WK6-04 MEDIA → #117 API; WK6-04 en cola tras #116.
 2026-09-06 17:17  NOTIF  #113 web r8a cerrada (E2E 137/137); despacho #118 web r8b, #119 pase aceptación/tablero; E21 backlog; en curso #115 #116 #117.
 2026-09-06 17:19  NOTA  #118 y #119 despachados con Opus (D-10) tras 2 bloqueos del clasificador; en curso #115 #116 #117 #118 #119.
+2026-09-06 17:29  NOTIF  #115 auditoría mail-api: AM-01/02/03 ALTA → #120; AM-04 tras #116; en curso #116 #117 #118 #119 #120.
