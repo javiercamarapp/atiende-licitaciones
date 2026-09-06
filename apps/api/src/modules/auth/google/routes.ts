@@ -168,6 +168,15 @@ async function resolveGoogleIdentityOnce(
         throw new GoogleRejectionError(403, 'account_inactive', 'Esta cuenta está desactivada.', row.user_id);
       }
       userId = row.user_id;
+      // GO-10 (docs/auditoria-2/api-google.md): a diferencia de las otras dos
+      // ramas (vinculación por email y usuario nuevo), esta rama de LOGIN
+      // REPETIDO nunca fijaba `app.current_user_id` -- `app.find_identity_by_subject`
+      // es SECURITY DEFINER/pre-sesión y ya devolvió el `user_id` verificado,
+      // así que es seguro fijar el contexto AQUÍ, antes de las consultas que
+      // dependen de él más abajo (`app.my_organizations()`, RLS de
+      // `user_totp_secrets`): sin esto, ambas ven 0 filas y el usuario recibe
+      // `sin_acceso` con su 2FA sin exigir (bypass, REQ-176).
+      await tx.query("select set_config('app.current_user_id', $1, true)", [userId]);
     } else {
       // 2) REQ-173: vinculación automática por email verificado con una
       // cuenta existente (email+contraseña, u otra ya creada antes).

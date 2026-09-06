@@ -327,3 +327,84 @@ porque excede el encargo (GO-03/GO-07) y su arreglo cambiaria respuestas
 docs/auditoria-2/api-google.md.
 
 === FIN ===
+
+===================================================================
+GO-10 (ALTA) -- REPARACION, corrector posterior (agente Sonnet corrector)
+===================================================================
+Ambito exclusivo: apps/api/src/modules/auth/google/** y sus pruebas.
+Fecha: 2026-09-06.
+
+1) TESTS ROJOS PRIMERO (antes del arreglo), 2 pruebas nuevas agregadas a
+   test/google-oidc-login.test.ts:
+   - "GO-10: login repetido con Google (identidad ya vinculada) devuelve
+     ok con las organizaciones del usuario"
+   - "GO-10: login repetido con Google también exige 2FA si está enrolado
+     y verificado (REQ-176, sin bypass)"
+
+   $ npm run -w apps/api test -- google-oidc-login -t "GO-10"
+
+   FAIL  GO-10: login repetido con Google (identidad ya vinculada) ...
+         AssertionError: expected 'sin_acceso' to be 'ok'
+   FAIL  GO-10: login repetido con Google también exige 2FA ...
+         AssertionError: expected 'sin_acceso' to be 'requires_2fa'
+
+   Tests  2 failed | 14 skipped (16)
+
+   Confirma en vivo (no por lectura) el hallazgo GO-10 tal como lo dejó
+   el corrector anterior: la rama `bySubject` responde `sin_acceso` con
+   organización real y NO exige 2FA con 2FA enrolado+verificado.
+
+2) ARREGLO MINIMO (modules/auth/google/routes.ts, resolveGoogleIdentityOnce,
+   rama `bySubject`): se agrega
+     await tx.query("select set_config('app.current_user_id', $1, true)", [userId]);
+   inmediatamente después de `userId = row.user_id;` -- mismo patrón que
+   ya usaban las ramas de vinculación por email y de usuario nuevo. Se
+   revisaron ambas ramas: ya fijaban el contexto correctamente antes de
+   este cambio (no tenían el mismo defecto); no requirieron arreglo.
+
+3) TYPECHECK + LINT (apps/api), tras el arreglo:
+
+   $ npm run -w apps/api typecheck
+   > tsc --noEmit
+   exit=0 (limpio)
+
+   $ npm run -w apps/api lint
+   > eslint src test
+   exit=0 (limpio)
+
+4) SUITE GOOGLE (test/google-oidc-login.test.ts, 16 tests: 14 previas +
+   2 nuevas de GO-10), DOS pasadas:
+
+   $ npm run -w apps/api test -- google-oidc-login
+   pasada 1 -> 16/16 verdes, exit=0
+   pasada 2 -> 16/16 verdes, exit=0
+
+5) SUITE AUTH (auth-and-orgs-flow.test.ts,
+   security-api13-auth-audit-log.test.ts -- las que matchea el patrón
+   "auth" en apps/api/test), DOS pasadas:
+
+   $ npm run -w apps/api test -- auth
+   pasada 1 -> 9/9 verdes, exit=0
+   pasada 2 -> 9/9 verdes, exit=0
+
+   Ningún fallo por la compuerta de verificación de correo (REQ-181..195,
+   EmailNotVerifiedError) esta vez -- el cambio de ese otro agente ya
+   estaba completo en el árbol durante ambas pasadas.
+
+6) DOCUMENTACION actualizada:
+   - apps/api/README.md: fila `OIDC_ISSUER_URL` ahora documenta el
+     requisito `https://` obligatorio y la excepción de loopback SOLO
+     fuera de producción (GO-03), que faltaba reflejar en el README pese
+     a que env.ts ya lo exigía.
+   - docs/auditoria-2/api-google.md: fila GO-10 (ALTA) añadida a la tabla
+     "Estado de reparación" como REPARADO; sección de detalle GO-10
+     actualizada de "candidato, no reparado" a "REPARADO", explicando por
+     qué el arreglo NO contradice D-09.
+
+RESULTADO: GO-10 reparado. Login repetido con Google (bySubject) ahora
+fija app.current_user_id antes de app.my_organizations() y de la lectura
+de user_totp_secrets -- devuelve `ok` con las organizaciones reales del
+usuario y exige 2FA si está enrolado y verificado, igual que la rama de
+vinculación por email.
+
+=== FIN GO-10 ===

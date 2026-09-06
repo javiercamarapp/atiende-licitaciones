@@ -355,8 +355,9 @@ salidas: `docs/logs/fix-api-google.log`.
 | GO-07 — `23505`/unique_violation sin capturar | MODERADA (robustez) | **REPARADO** (commit `fix(api): GO-07 …`). `resolveGoogleIdentity` reintenta una vez la resolución completa en una transacción nueva —espejo del manejo que `/auth/register` ya tenía para esta misma carrera—, de modo que el perdedor encuentra la fila del ganador y **se vincula/inicia sesión con normalidad** en vez de terminar en 500; si la carrera persistiera, responde un **409 controlado y auditado** (`reason: identity_race_unresolved`), sin filtrar el error de Postgres ni traza alguna. Pruebas: 3 nuevas en `apps/api/test/google-oidc-login.test.ts` (14/14), verificadas fallando con **500** sin el arreglo. **No** cambia la compuerta `sin_acceso` (D-09). |
 | GO-08 — conteo de tests 274 vs 278 | INFORMATIVA | **NO REPARADO — no es un hallazgo de Google**, nota de contexto. |
 | GO-09 — sin endpoint de desvinculación de Google | INFORMATIVA | **NO REPARADO — no lo exige ningún REQ vigente**; nota de diseño para cuando se construya. |
+| GO-10 — login repetido con Google no fija `app.current_user_id` (bypass de 2FA) | ALTA | **REPARADO** (commit `fix(api): GO-10 …`). La rama `bySubject` de `resolveGoogleIdentityOnce` ahora fija `set_config('app.current_user_id', ...)` en cuanto resuelve el `user_id` verificado por `app.find_identity_by_subject` — mismo patrón que las otras dos ramas —, antes de consultar `app.my_organizations()` (0041) y la política RLS `sel_user_totp_secrets` (0057). Un login repetido con organización ahora devuelve `status: "ok"` con sus organizaciones (antes `sin_acceso`) y exige el segundo factor si está enrolado y verificado (antes bypass, REQ-176). **No** cambia la compuerta `sin_acceso` de D-09 (que solo rige cuenta NUEVA sin invitación). Pruebas: 2 nuevas en `apps/api/test/google-oidc-login.test.ts` (16/16), verificadas fallando (`sin_acceso` en vez de `ok`/`requires_2fa`) sin el arreglo. Se revisaron las ramas de vinculación por email y de usuario nuevo: ambas ya fijaban el contexto correctamente (sin el mismo defecto). |
 
-### GO-10 (candidato) — hallazgo NUEVO observado al reparar GO-07, **no reparado**
+### GO-10 — hallazgo NUEVO observado al reparar GO-07, **REPARADO**
 
 En la rama de **login repetido** de `resolveGoogleIdentityOnce`
 (`modules/auth/google/routes.ts`, rama `bySubject`: la identidad de Google ya
@@ -382,10 +383,15 @@ instrumentó el caso "login repetido de un usuario CON organización" y la
 respuesta observada fue `status = sin_acceso` (sonda temporal, no
 commiteada).
 
-**No reparado aquí**: excede el encargo del corrector (GO-03/GO-07) y su
-arreglo cambiaría respuestas `sin_acceso` → `ok`, precisamente el
-comportamiento congelado por **D-09**. Requiere decisión explícita antes de
-tocarlo.
+**Reparado**: se fija `set_config('app.current_user_id', $1, true)` en la
+rama `bySubject` inmediatamente después de resolver `userId` (mismo patrón
+que las ramas de vinculación por email y usuario nuevo), antes de las
+consultas de `app.my_organizations()`/`user_totp_secrets` que dependen de
+ese contexto. Esto **no** contradice D-09: D-09 solo congela el
+comportamiento de cuenta NUEVA sin invitación (`sin_acceso`); el login
+REPETIDO de una identidad ya vinculada con organización debe devolver `ok`
+por definición del propio REQ-173/REQ-176, y el defecto era justamente que
+no lo hacía. Ver fila GO-10 en la tabla de arriba y `docs/logs/fix-api-google.log`.
 
 ---
 

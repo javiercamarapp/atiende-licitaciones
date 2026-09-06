@@ -336,6 +336,105 @@ describe('REQ-172..180: login con Google (OIDC falso)', () => {
     expect(loginAudit.rows.length).toBeGreaterThan(0);
   });
 
+  it('GO-10: login repetido con Google (identidad ya vinculada) devuelve ok con las organizaciones del usuario', async () => {
+    const owner = await registerAndLogin(app, 'go10-repetido@example.com');
+    const org = await createOrgFor(app, owner, 'Org GO-10', `org-go10-${Date.now()}`);
+
+    // Primer login con Google: vincula por email (rama `byEmail`, que SÍ fija
+    // `app.current_user_id` -- no tiene el defecto de GO-10).
+    const first = await startFlow();
+    const code1 = provider.issueAuthorizationCode({
+      sub: 'google-sub-go10-repetido',
+      email: 'go10-repetido@example.com',
+      emailVerified: true,
+      aud: GOOGLE_CLIENT_ID,
+      nonce: first.nonce,
+      codeChallenge: first.codeChallenge,
+    });
+    const res1 = await callback(code1, first.state);
+    expect(res1.statusCode).toBe(200);
+    expect(res1.json().status).toBe('ok');
+
+    // Segundo login con Google, MISMO subject: rama `bySubject` (login
+    // repetido) -- la que GO-10 encontró sin fijar el contexto de usuario.
+    const second = await startFlow();
+    const code2 = provider.issueAuthorizationCode({
+      sub: 'google-sub-go10-repetido',
+      email: 'go10-repetido@example.com',
+      emailVerified: true,
+      aud: GOOGLE_CLIENT_ID,
+      nonce: second.nonce,
+      codeChallenge: second.codeChallenge,
+    });
+    const res2 = await callback(code2, second.state);
+    expect(res2.statusCode).toBe(200);
+    const body2 = res2.json();
+    // GO-10: sin el arreglo, `app.my_organizations()` corre sin
+    // `app.current_user_id()` fijado y devuelve 0 filas -> `sin_acceso`
+    // pese a que el usuario SÍ pertenece a una organización.
+    expect(body2.status).toBe('ok');
+
+    const orgs = await app.inject({ method: 'GET', url: '/organizations', headers: { authorization: `Bearer ${body2.accessToken}` } });
+    expect(orgs.statusCode).toBe(200);
+    expect(orgs.json()).toHaveLength(1);
+    expect(orgs.json()[0].id).toBe(org.id);
+  });
+
+  it('GO-10: login repetido con Google también exige 2FA si está enrolado y verificado (REQ-176, sin bypass)', async () => {
+    const user = await registerAndLogin(app, 'go10-2fa@example.com');
+    const org = await createOrgFor(app, user, 'Org GO-10 2FA', `org-go10-2fa-${Date.now()}`);
+    const { backupCodes } = await enrollTwoFactorFull(app, user.accessToken, { orgId: org.id, purpose: 'company.rate_approval' });
+
+    // Primer login con Google: vincula por email (rama `byEmail`, ya exige
+    // 2FA correctamente -- ver test "usuario con 2FA activo" arriba).
+    const first = await startFlow();
+    const code1 = provider.issueAuthorizationCode({
+      sub: 'google-sub-go10-2fa',
+      email: 'go10-2fa@example.com',
+      emailVerified: true,
+      aud: GOOGLE_CLIENT_ID,
+      nonce: first.nonce,
+      codeChallenge: first.codeChallenge,
+    });
+    const res1 = await callback(code1, first.state);
+    expect(res1.statusCode).toBe(200);
+    expect(res1.json().status).toBe('requires_2fa');
+    const verify1 = await app.inject({
+      method: 'POST',
+      url: '/auth/google/verify-2fa',
+      payload: { pendingToken: res1.json().pendingToken, code: backupCodes[0] },
+    });
+    expect(verify1.statusCode).toBe(200);
+    expect(verify1.json().status).toBe('ok');
+
+    // Segundo login con Google, MISMO subject: rama `bySubject`. GO-10: sin
+    // el arreglo, `sel_user_totp_secrets` (RLS, 0057) corre sin
+    // `app.current_user_id()` fijado, ve 0 filas y `requiresTwoFactor` queda
+    // en `false` -- bypass del segundo factor.
+    const second = await startFlow();
+    const code2 = provider.issueAuthorizationCode({
+      sub: 'google-sub-go10-2fa',
+      email: 'go10-2fa@example.com',
+      emailVerified: true,
+      aud: GOOGLE_CLIENT_ID,
+      nonce: second.nonce,
+      codeChallenge: second.codeChallenge,
+    });
+    const res2 = await callback(code2, second.state);
+    expect(res2.statusCode).toBe(200);
+    const body2 = res2.json();
+    expect(body2.status).toBe('requires_2fa');
+    expect(body2.accessToken).toBeUndefined();
+
+    const verify2 = await app.inject({
+      method: 'POST',
+      url: '/auth/google/verify-2fa',
+      payload: { pendingToken: body2.pendingToken, code: backupCodes[1] },
+    });
+    expect(verify2.statusCode).toBe(200);
+    expect(verify2.json().status).toBe('ok');
+  });
+
   it('usuario nuevo sin invitación pendiente: compuerta sin_acceso (sin organización automática) (REQ-172/174/180)', async () => {
     const { state, nonce, codeChallenge } = await startFlow();
     const code = provider.issueAuthorizationCode({
