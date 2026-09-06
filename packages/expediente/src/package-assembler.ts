@@ -11,7 +11,7 @@
 import JSZip from "jszip";
 import type { ChecklistReport } from "./integrity-checklist.js";
 import type { Approval } from "./approval-workflow.js";
-import { isoNow, sha256Hex } from "./types.js";
+import { isoNow, sha256Bytes } from "./types.js";
 import { requireValidHashedInputs, type HashedInputs } from "./proposal-version.js";
 
 export const USER_RESPONSIBILITY_NOTICE =
@@ -34,8 +34,17 @@ export interface PackageManifestDocumentEntry {
   label: string;
   required: boolean;
   present: boolean;
+  /** sha256 hex de los BYTES REALES del archivo (AE-06) — coincide con `sha256sum` sobre el archivo extraído del ZIP. `null` si el documento no está presente. */
   sha256: string | null;
   version: number | null;
+  /**
+   * Nombre de entrada SANEADO (AE-07) con el que este documento aparece
+   * dentro del ZIP (sin el prefijo `BORRADOR_`, que se antepone igual para
+   * todas las entradas cuando `status === "draft"`). Nunca es el
+   * `PackageDocumentInput.filename` crudo del llamador: ver
+   * `sanitizeEntryFilename`/`buildSafeEntryFilenames`.
+   */
+  filename: string;
 }
 
 export interface PackageManifest {
@@ -107,6 +116,118 @@ export interface AssembleResult {
   suggestedFileName: string;
 }
 
+/** Longitud máxima de un nombre de entrada de ZIP saneado (AE-07): acota nombres de usuario arbitrariamente largos. */
+const MAX_ENTRY_FILENAME_LENGTH = 200;
+/**
+ * Elimina caracteres de control (incluyendo NUL, 0x00-0x1F y 0x7F) de
+ * `name` — nunca válidos en un nombre de entrada de ZIP. Se recorre
+ * carácter a carácter (en vez de una regex con un rango de control, que
+ * `eslint(no-control-regex)` marca como sospechosa) para evitar cualquier
+ * ambigüedad sobre qué se está excluyendo.
+ */
+function stripControlChars(name: string): string {
+  let out = "";
+  for (const ch of name) {
+    const code = ch.codePointAt(0) ?? 0;
+    if (code >= 0x20 && code !== 0x7f) out += ch;
+  }
+  return out;
+}
+
+/**
+ * Sanea un `filename` de ENTRADA antes de usarlo como nombre de entrada
+ * dentro del ZIP (AE-07, Zip Slip): `PackageAssembler.assemble()` escribía
+ * `zip.file(`${prefix}${doc.filename}`, doc.content)` sin sanear
+ * `filename` — un valor con `../` o una ruta absoluta sobrevivía literal
+ * como nombre de entrada del ZIP (Zip Slip clásico: un extractor ingenuo
+ * que respete rutas relativas podría escribir fuera del directorio de
+ * destino). Hoy `apps/api` solo pasa un `filename` fijo generado por el
+ * servidor (`${section_key}.txt`), así que el ataque no es alcanzable vía
+ * la integración actual — pero la librería debe ser segura POR SÍ MISMA
+ * ante cualquier llamador futuro que sí pase un nombre de usuario sin
+ * sanear primero.
+ *
+ * Reglas (fail-safe, nunca lanza — un nombre inválido cae al `fallback`):
+ *  1. Se descarta cualquier componente de ruta: solo sobrevive el último
+ *     segmento tras el separador `/` o `\` (así `"../../etc/passwd"` queda
+ *     en `"passwd"` y `"C:\\x"` en `"x"` — ni siquiera hace falta detectar
+ *     `".."` explícitamente para la mayoría de los casos, pero se limpia
+ *     igual por defensa en profundidad, p. ej. `"..".repeat(n)` sin
+ *     separador).
+ *  2. Se eliminan caracteres de control (incluido NUL) y cualquier `".."`
+ *     residual.
+ *  3. Se reemplaza `:` (separador de unidad en Windows, o *stream* NTFS
+ *     alterno) por `_`.
+ *  4. Si el resultado queda vacío (o es solo `"."`), se usa `fallback`
+ *     (determinista, basado en `documentId`).
+ *  5. Se acota a `MAX_ENTRY_FILENAME_LENGTH`, preservando la extensión
+ *     cuando es razonablemente corta.
+ */
+function sanitizeEntryFilename(rawFilename: string, fallback: string): string {
+  const lastSlash = Math.max(rawFilename.lastIndexOf("/"), rawFilename.lastIndexOf("\\"));
+  let name = lastSlash >= 0 ? rawFilename.slice(lastSlash + 1) : rawFilename;
+
+  name = stripControlChars(name).split("..").join("");
+  name = name.replace(/:/g, "_");
+  name = name.trim();
+
+  if (name.length === 0 || name === ".") {
+    name = fallback;
+  }
+
+  if (name.length > MAX_ENTRY_FILENAME_LENGTH) {
+    const dot = name.lastIndexOf(".");
+    const hasShortExtension = dot > 0 && name.length - dot <= 20;
+    if (hasShortExtension) {
+      const ext = name.slice(dot);
+      name = name.slice(0, MAX_ENTRY_FILENAME_LENGTH - ext.length) + ext;
+    } else {
+      name = name.slice(0, MAX_ENTRY_FILENAME_LENGTH);
+    }
+  }
+
+  return name;
+}
+
+/**
+ * Calcula, en el mismo orden que `documents`, un nombre de entrada de ZIP
+ * SANEADO y sin colisiones para cada documento (AE-07). Las colisiones
+ * (dos `filename` de entrada que sanean al mismo nombre — p. ej. dos rutas
+ * distintas que solo difieren en el directorio, descartado por
+ * `sanitizeEntryFilename`) se resuelven con un sufijo DETERMINISTA
+ * derivado del propio `documentId` — nunca aleatorio ni dependiente del
+ * orden de inserción en un `Set`/`Map`, para que el mismo `AssembleInput`
+ * produzca siempre el mismo ZIP byte a byte.
+ */
+function buildSafeEntryFilenames(documents: PackageDocumentInput[]): string[] {
+  const used = new Set<string>();
+  const result: string[] = [];
+
+  for (const doc of documents) {
+    const fallback = `${sanitizeEntryFilename(doc.documentId, "documento") || "documento"}.bin`;
+    const base = sanitizeEntryFilename(doc.filename, fallback);
+
+    let candidate = base;
+    if (used.has(candidate)) {
+      const dot = base.lastIndexOf(".");
+      const stem = dot > 0 ? base.slice(0, dot) : base;
+      const ext = dot > 0 ? base.slice(dot) : "";
+      const idSuffix = sanitizeEntryFilename(doc.documentId, "doc");
+      candidate = `${stem}__${idSuffix}${ext}`;
+      let n = 2;
+      while (used.has(candidate)) {
+        candidate = `${stem}__${idSuffix}_${n}${ext}`;
+        n++;
+      }
+    }
+
+    used.add(candidate);
+    result.push(candidate);
+  }
+
+  return result;
+}
+
 export class PackageAssembler {
   /** Construye el manifiesto sin generar el ZIP; útil para pruebas/inspección. */
   buildManifest(input: AssembleInput): PackageManifest {
@@ -117,7 +238,12 @@ export class PackageAssembler {
     // de insumos mutados tras sellarse.
     const { hash: currentInputsHash } = requireValidHashedInputs(input.currentInputsHash, "AssembleInput.currentInputsHash (buildManifest())");
     const missing: string[] = [];
-    const documents: PackageManifestDocumentEntry[] = input.documents.map((doc) => {
+    // AE-07: nombres de entrada de ZIP saneados y sin colisiones, calculados
+    // UNA vez y reutilizados tanto en el manifiesto como al escribir el ZIP
+    // en `assemble()`, para que `verifyManifest` siempre encuentre la
+    // entrada correcta.
+    const safeFilenames = buildSafeEntryFilenames(input.documents);
+    const documents: PackageManifestDocumentEntry[] = input.documents.map((doc, i) => {
       const present = doc.content !== undefined && doc.content !== null;
       if (doc.required && !present) missing.push(doc.documentId);
       return {
@@ -125,8 +251,12 @@ export class PackageAssembler {
         label: doc.label,
         required: doc.required,
         present,
-        sha256: present ? sha256Hex(typeof doc.content === "string" ? doc.content : Array.from(doc.content as Uint8Array)) : null,
+        // AE-06: sha256 de los BYTES REALES del contenido (nunca de su
+        // representación JSON) — coincide con `sha256sum` sobre el archivo
+        // extraído del ZIP.
+        sha256: present ? sha256Bytes(doc.content as Uint8Array | string) : null,
         version: doc.version ?? null,
+        filename: safeFilenames[i],
       };
     });
 
@@ -208,9 +338,13 @@ export class PackageAssembler {
       );
     }
 
-    for (const doc of input.documents) {
+    // AE-07: se escribe con el nombre de entrada SANEADO ya calculado en
+    // `manifest.documents[i].filename` (mismo orden que `input.documents`),
+    // nunca con `doc.filename` crudo del llamador.
+    for (let i = 0; i < input.documents.length; i++) {
+      const doc = input.documents[i];
       if (doc.content === undefined || doc.content === null) continue;
-      zip.file(`${prefix}${doc.filename}`, doc.content);
+      zip.file(`${prefix}${manifest.documents[i].filename}`, doc.content);
     }
 
     const zipBuffer = await zip.generateAsync({ type: "uint8array" });
@@ -218,4 +352,60 @@ export class PackageAssembler {
 
     return { manifest, zip: zipBuffer, suggestedFileName };
   }
+}
+
+export interface ManifestVerificationMismatch {
+  documentId: string;
+  expectedSha256: string;
+  actualSha256: string;
+}
+
+export interface ManifestVerificationResult {
+  ok: boolean;
+  /** Documentos cuyo sha256 del manifiesto NO coincide con el sha256 real de los bytes extraídos del ZIP. */
+  mismatches: ManifestVerificationMismatch[];
+  /** Documentos que el manifiesto marca `present: true` pero cuya entrada no existe en el ZIP. */
+  missingFromZip: string[];
+}
+
+/**
+ * Verifica de forma INDEPENDIENTE (AE-06) que el `sha256` de cada documento
+ * `present` en el manifiesto de un ZIP producido por `assemble()` coincide
+ * con el sha256 REAL de los bytes de la entrada extraída — el mismo cálculo
+ * que obtendría un usuario corriendo `sha256sum` sobre el archivo
+ * extraído. Recalcula el hash desde cero con `sha256Bytes` sobre los bytes
+ * releídos del propio ZIP; nunca confía en ningún valor ya calculado por
+ * `assemble()`.
+ *
+ * No lanza ante una discrepancia: fail-visible, no fail-closed — devuelve
+ * `ok: false` con el detalle exacto (`mismatches`/`missingFromZip`) para que
+ * el llamador decida qué hacer (p. ej. rechazar la descarga, alertar).
+ */
+export async function verifyManifest(zip: Uint8Array): Promise<ManifestVerificationResult> {
+  const loaded = await JSZip.loadAsync(zip);
+  const manifestFile = loaded.file("manifiesto.json") ?? loaded.file("BORRADOR_manifiesto.json");
+  if (!manifestFile) {
+    throw new Error("verifyManifest: el ZIP no contiene manifiesto.json ni BORRADOR_manifiesto.json.");
+  }
+  const manifest = JSON.parse(await manifestFile.async("string")) as PackageManifest;
+  const prefix = manifest.status === "draft" ? "BORRADOR_" : "";
+
+  const mismatches: ManifestVerificationMismatch[] = [];
+  const missingFromZip: string[] = [];
+
+  for (const doc of manifest.documents) {
+    if (!doc.present || doc.sha256 === null) continue;
+    const entry = loaded.file(`${prefix}${doc.filename}`);
+    if (!entry) {
+      missingFromZip.push(doc.documentId);
+      continue;
+    }
+    const bytes = await entry.async("uint8array");
+    const actualSha256 = sha256Bytes(bytes);
+    if (actualSha256 !== doc.sha256) {
+      mismatches.push({ documentId: doc.documentId, expectedSha256: doc.sha256, actualSha256 });
+    }
+  }
+
+  return { ok: mismatches.length === 0 && missingFromZip.length === 0, mismatches, missingFromZip };
 }

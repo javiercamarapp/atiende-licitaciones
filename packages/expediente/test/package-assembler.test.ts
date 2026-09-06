@@ -1,6 +1,7 @@
+import { createHash } from "node:crypto";
 import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
-import { PackageAssembler, USER_RESPONSIBILITY_NOTICE, type AssembleInput } from "../src/package-assembler.js";
+import { PackageAssembler, USER_RESPONSIBILITY_NOTICE, verifyManifest, type AssembleInput } from "../src/package-assembler.js";
 import type { ChecklistReport } from "../src/integrity-checklist.js";
 import type { Approval } from "../src/approval-workflow.js";
 import { fakeHashedInputs } from "./helpers/hashed-inputs.js";
@@ -224,5 +225,162 @@ describe("PackageAssembler — EX-EXP-17: currentInputsHash exige un HashedInput
     const forged: import("../src/proposal-version.js").HashedInputs = { inputs: HASH_1.inputs, hash: HASH_1.hash };
     const assembler = new PackageAssembler();
     expect(() => assembler.buildManifest(baseInput({ currentInputsHash: forged }))).toThrow(/InvalidInputsHashError|sello interno/);
+  });
+});
+
+/**
+ * AE-06 (auditoría ronda 2, `docs/auditoria-2/api-expediente.md`): el
+ * `sha256` de cada documento en el manifiesto debe coincidir con el sha256
+ * REAL de los bytes del archivo — el mismo cálculo que un usuario obtiene
+ * corriendo `sha256sum` sobre el archivo extraído del ZIP. Antes de esta
+ * corrección, el manifiesto hasheaba `JSON.stringify(contenido)`, nunca los
+ * bytes reales.
+ */
+describe("PackageAssembler — AE-06: sha256 del manifiesto sobre BYTES REALES, no JSON", () => {
+  it("el sha256 de un documento en el manifiesto coincide con sha256 de node:crypto calculado directamente sobre los bytes UTF-8 del contenido", async () => {
+    const assembler = new PackageAssembler();
+    const content = "contenido técnico";
+    const { manifest } = await assembler.assemble(baseInput({ documents: [{ documentId: "tecnica", label: "Propuesta técnica", required: true, filename: "tecnica.pdf", content, version: 1 }] }));
+
+    const expected = createHash("sha256").update(Buffer.from(content, "utf8")).digest("hex");
+    const entry = manifest.documents.find((d) => d.documentId === "tecnica")!;
+    expect(entry.sha256).toBe(expected);
+  });
+
+  it("el sha256 de un documento binario (Uint8Array) coincide con sha256 de node:crypto sobre esos bytes exactos", async () => {
+    const assembler = new PackageAssembler();
+    const bytes = new Uint8Array([0, 1, 2, 250, 251, 252, 253, 254, 255]);
+    const { manifest } = await assembler.assemble(baseInput({ documents: [{ documentId: "bin", label: "Binario", required: true, filename: "datos.bin", content: bytes, version: 1 }] }));
+
+    const expected = createHash("sha256").update(Buffer.from(bytes)).digest("hex");
+    const entry = manifest.documents.find((d) => d.documentId === "bin")!;
+    expect(entry.sha256).toBe(expected);
+  });
+
+  it("verifyManifest(zip) confirma que el sha256 del manifiesto coincide con los bytes REALES releídos del ZIP (caso íntegro)", async () => {
+    const assembler = new PackageAssembler();
+    const { zip } = await assembler.assemble(baseInput());
+
+    const result = await verifyManifest(zip);
+    expect(result.ok).toBe(true);
+    expect(result.mismatches).toHaveLength(0);
+    expect(result.missingFromZip).toHaveLength(0);
+  });
+
+  it("verifyManifest(zip) detecta la alteración de UN SOLO BYTE del contenido de un documento dentro del ZIP", async () => {
+    const assembler = new PackageAssembler();
+    const { zip } = await assembler.assemble(baseInput());
+
+    // Se reabre el ZIP y se corrompe un solo byte del archivo "tecnica.pdf"
+    // (contenido original: "contenido técnico"), dejando el manifiesto
+    // intacto -- exactamente el escenario que `verifyManifest` debe
+    // detectar: alguien (o algo) alteró el contenido después de calcular el
+    // manifiesto.
+    const loaded = await JSZip.loadAsync(zip);
+    const original = await loaded.file("tecnica.pdf")!.async("uint8array");
+    const corrupted = Uint8Array.from(original);
+    corrupted[0] = corrupted[0] ^ 0xff; // voltea el primer byte
+    loaded.file("tecnica.pdf", corrupted);
+    const corruptedZip = await loaded.generateAsync({ type: "uint8array" });
+
+    const result = await verifyManifest(corruptedZip);
+    expect(result.ok).toBe(false);
+    expect(result.mismatches).toHaveLength(1);
+    expect(result.mismatches[0].documentId).toBe("tecnica");
+    expect(result.mismatches[0].expectedSha256).not.toBe(result.mismatches[0].actualSha256);
+  });
+
+  it("verifyManifest(zip) reporta missingFromZip si un documento 'present' en el manifiesto no tiene entrada real en el ZIP", async () => {
+    const assembler = new PackageAssembler();
+    const { zip } = await assembler.assemble(baseInput());
+
+    const loaded = await JSZip.loadAsync(zip);
+    loaded.remove("tecnica.pdf");
+    const strippedZip = await loaded.generateAsync({ type: "uint8array" });
+
+    const result = await verifyManifest(strippedZip);
+    expect(result.ok).toBe(false);
+    expect(result.missingFromZip).toContain("tecnica");
+  });
+});
+
+/**
+ * AE-07 (auditoría ronda 2): `assemble()` escribía
+ * `zip.file(`${prefix}${doc.filename}`, doc.content)` sin sanear
+ * `filename` -- un `filename` con `../`, ruta absoluta o separadores de
+ * Windows sobrevivía literal como nombre de entrada del ZIP (Zip Slip
+ * latente). Hoy `apps/api` solo pasa nombres fijos generados por el
+ * servidor, pero la librería debe sanear igual por defensa en profundidad
+ * ante cualquier llamador futuro.
+ */
+describe("PackageAssembler — AE-07: nombres de entrada de ZIP saneados (Zip Slip)", () => {
+  it("un filename con '../../etc/passwd' nunca produce una entrada de ZIP con '..' ni con '/'", async () => {
+    const assembler = new PackageAssembler();
+    const { zip } = await assembler.assemble(
+      baseInput({ documents: [{ documentId: "malicioso", label: "Doc", required: true, filename: "../../etc/passwd", content: "x", version: 1 }] }),
+    );
+
+    const loaded = await JSZip.loadAsync(zip);
+    const fileNames = Object.keys(loaded.files);
+    for (const name of fileNames) {
+      expect(name).not.toContain("..");
+      expect(name).not.toContain("/etc/");
+    }
+    // El contenido debe seguir siendo recuperable bajo algún nombre seguro derivado del último segmento ("passwd").
+    expect(fileNames.some((f) => f.endsWith("passwd"))).toBe(true);
+  });
+
+  it("un filename con separadores de Windows ('C:\\\\x') nunca produce una entrada con ':' ni '\\\\'", async () => {
+    const assembler = new PackageAssembler();
+    const { zip } = await assembler.assemble(
+      baseInput({ documents: [{ documentId: "windows", label: "Doc", required: true, filename: "C:\\x", content: "y", version: 1 }] }),
+    );
+
+    const loaded = await JSZip.loadAsync(zip);
+    const fileNames = Object.keys(loaded.files);
+    for (const name of fileNames) {
+      expect(name).not.toContain(":");
+      expect(name).not.toContain("\\");
+    }
+    const content = await loaded.file(fileNames.find((f) => f.endsWith("x"))!)!.async("string");
+    expect(content).toBe("y");
+  });
+
+  it("un filename de 500 caracteres se acota a una longitud razonable en el nombre de entrada del ZIP", async () => {
+    const assembler = new PackageAssembler();
+    const longName = `${"a".repeat(500)}.pdf`;
+    const { zip, manifest } = await assembler.assemble(
+      baseInput({ documents: [{ documentId: "largo", label: "Doc", required: true, filename: longName, content: "z", version: 1 }] }),
+    );
+
+    const entry = manifest.documents.find((d) => d.documentId === "largo")!;
+    expect(entry.filename.length).toBeLessThan(longName.length);
+    expect(entry.filename.length).toBeLessThanOrEqual(200);
+
+    const loaded = await JSZip.loadAsync(zip);
+    expect(Object.keys(loaded.files)).toContain(entry.filename);
+  });
+
+  it("dos documentos cuyos filenames sanean al MISMO nombre reciben entradas distintas en el ZIP, sin perder contenido (colisión con sufijo determinista)", async () => {
+    const assembler = new PackageAssembler();
+    const documents = [
+      { documentId: "doc-a", label: "A", required: true, filename: "../carpeta1/reporte.pdf", content: "contenido-A", version: 1 },
+      { documentId: "doc-b", label: "B", required: true, filename: "..\\carpeta2\\reporte.pdf", content: "contenido-B", version: 1 },
+    ];
+    const { zip, manifest } = await assembler.assemble(baseInput({ documents }));
+
+    const filenames = manifest.documents.map((d) => d.filename);
+    expect(new Set(filenames).size).toBe(filenames.length); // sin colisiones en el manifiesto
+
+    const loaded = await JSZip.loadAsync(zip);
+    const entryA = manifest.documents.find((d) => d.documentId === "doc-a")!;
+    const entryB = manifest.documents.find((d) => d.documentId === "doc-b")!;
+    expect(entryA.filename).not.toBe(entryB.filename);
+    expect(await loaded.file(entryA.filename)!.async("string")).toBe("contenido-A");
+    expect(await loaded.file(entryB.filename)!.async("string")).toBe("contenido-B");
+
+    // Determinismo: repetir el ensamblaje con el mismo input produce exactamente los mismos nombres.
+    const second = await assembler.assemble(baseInput({ documents }));
+    expect(second.manifest.documents.map((d) => d.filename)).toEqual(filenames);
   });
 });

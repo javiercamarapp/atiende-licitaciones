@@ -201,6 +201,35 @@ export function sha256Hex(value: unknown): string {
   return createHash("sha256").update(stableStringify(value), "utf8").digest("hex");
 }
 
+/**
+ * Calcula el sha256 hex de los BYTES REALES de `content` (AE-06, auditoría
+ * ronda 2 `docs/auditoria-2/api-expediente.md`): a diferencia de
+ * `sha256Hex` (pensada para hashear valores/objetos de negocio arbitrarios
+ * vía su representación JSON canónica — `ExpedienteInputs`, aprobaciones,
+ * etc.), esta función hashea directamente los bytes crudos del contenido de
+ * un ARCHIVO: un `string` se codifica en UTF-8 sin comillas ni escapes
+ * añadidos por `JSON.stringify`, y un `Uint8Array` se hashea byte a byte,
+ * sin pasar por ninguna serialización intermedia. Antes de esta corrección,
+ * `PackageAssembler` usaba `sha256Hex` también para el sha256 de cada
+ * documento del manifiesto — es decir, hasheaba `JSON.stringify(contenido)`
+ * (o `JSON.stringify(Array.from(bytes))` para binarios), NUNCA los bytes
+ * reales del archivo. El resultado no coincidía con lo que un usuario
+ * obtiene corriendo `sha256sum` sobre el archivo extraído del ZIP —
+ * rompiendo la verificabilidad independiente que el manifiesto pretende
+ * ofrecer (REQ-035/REQ-161). `sha256Bytes` es la función correcta para
+ * cualquier hash que deba coincidir con el hash real de un archivo; ver
+ * `verifyManifest` en `package-assembler.ts`.
+ */
+export function sha256Bytes(content: Uint8Array | string): string {
+  const hash = createHash("sha256");
+  if (typeof content === "string") {
+    hash.update(content, "utf8");
+  } else {
+    hash.update(content);
+  }
+  return hash.digest("hex");
+}
+
 /** JSON.stringify con claves ordenadas para que el mismo objeto lógico siempre produzca el mismo hash. */
 export function stableStringify(value: unknown): string {
   return JSON.stringify(sortKeysDeep(value));
