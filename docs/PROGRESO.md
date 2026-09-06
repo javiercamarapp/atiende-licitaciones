@@ -244,3 +244,6 @@ Formato por entrada: requisito · acción · archivos/commit · prueba · result
 
 ## Reverificación R5-09/R5-10 — apps/api (2026-09-06 09:0x)
 - **Acción:** reverificador #77, commit `f6f0170`. **Resultado:** R5-09 CERRADO (8 ataques: sin org/purpose 400, enum 400, cross-org/cross-purpose/reutilización/expirada 403; migración 0062 sobre sesiones genéricas reales; concurrencia: exactamente una de dos usos simultáneos del mismo token), R5-10 CERRADO (ip/UA en los 4 caminos; sin secretos en logs; X-Forwarded-For no confiable por trustProxy=false). Tests adaptados sin debilitar aserciones. **Nuevos:** R5-11 (approve/deny de tool_calls no exigen step-up pese a tener propósito en el enum) → corrector #78; R5-12 (comentario obsoleto en apps/web) → auditoría web.
+
+## Corrección R5-11 — apps/api (2026-09-06 09:2x)
+- **Acción:** corrector #78, commit `428797f`: `requireStepUp` en approve/deny de tool_calls (org: `tool_call.approval`; admin cross-org: `admin.action`, resolviendo org por la fila); superadmin sin 2FA → 403; tests nuevos y existentes adaptados sin debilitar aserciones. **Prueba:** api 59 archivos / 238 tests (docs/logs/fix-api-r5-11.log). **Siguiente:** verificación puntual junto con la auditoría del frontend de ronda 5 cuando #71 cierre.
