@@ -165,7 +165,12 @@ test.describe.serial("Expediente — flujo completo real (ronda 5)", () => {
     await selectTender(page, seed.tender!.title);
 
     await page.getByRole("button", { name: "Agregar mapeo" }).click();
-    await page.getByRole("combobox", { name: "Requisito" }).click();
+    // `{ exact: true }`: RedaccionPage.tsx también tiene un combobox
+    // "Requisito relacionado" (sección económica) -- el `name` de
+    // Playwright hace match por subcadena por defecto, así que sin
+    // `exact` ambos calzan y rompe en "strict mode" cuando los dos están
+    // en el DOM a la vez.
+    await page.getByRole("combobox", { name: "Requisito", exact: true }).click();
     await page.getByRole("option", { name: new RegExp(`representante legal ${runId}`) }).click();
 
     await page.getByRole("combobox", { name: "Tipo de fuente" }).click();
