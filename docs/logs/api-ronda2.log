@@ -1,0 +1,246 @@
+=== docs/logs/api-ronda2.log ===
+Generado: 2026-09-06T02:39:20Z
+Repo: atiende-licitaciones-staging (node v25.6.1, npm 11.12.1)
+
+########################################
+# npm run -w apps/api typecheck
+########################################
+
+> @atiende/api@0.1.0 typecheck
+> tsc --noEmit
+
+
+########################################
+# npm run -w apps/api lint
+########################################
+
+> @atiende/api@0.1.0 lint
+> eslint src test
+
+
+########################################
+# npm run -w apps/api test
+########################################
+
+> @atiende/api@0.1.0 test
+> vitest run
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/api[39m
+
+ [32m✓[39m test/matching-and-go-no-go.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 3725[2mms[22m[39m
+   [33m[2m✓[22m[39m matching y go/no-go (E5)[2m > [22mA5: dos organizaciones con perfiles distintos no filtran datos entre sí en matching [33m1116[2mms[22m[39m
+ [32m✓[39m test/agent-persistence.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 5409[2mms[22m[39m
+   [33m[2m✓[22m[39m persistencia de packages/agents (RunStore/ToolCallStore sobre Postgres)[2m > [22mPgRunStore: createRun/getRun/updateRun persisten y sobreviven una relectura real (no solo en memoria) [33m2400[2mms[22m[39m
+   [33m[2m✓[22m[39m persistencia de packages/agents (RunStore/ToolCallStore sobre Postgres)[2m > [22mPgToolCallStore: recordToolCall/listToolCalls persisten trazas reales por paso [33m951[2mms[22m[39m
+   [33m[2m✓[22m[39m persistencia de packages/agents (RunStore/ToolCallStore sobre Postgres)[2m > [22maprobación de tool_calls pendientes: writer no puede aprobar; owner sí, y queda en audit_log [33m1071[2mms[22m[39m
+   [33m[2m✓[22m[39m persistencia de packages/agents (RunStore/ToolCallStore sobre Postgres)[2m > [22mGET /agents/runs y /agents/tool-calls no filtran entre organizaciones [33m986[2mms[22m[39m
+ [32m✓[39m test/auth-and-orgs-flow.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 1500[2mms[22m[39m
+ [32m✓[39m test/company-profile.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 7582[2mms[22m[39m
+   [33m[2m✓[22m[39m perfil de empresa (E2)[2m > [22mPUT /company/profile (owner) crea el perfil con procedencia por campo; viewer no puede escribirlo [33m2576[2mms[22m[39m
+   [33m[2m✓[22m[39m perfil de empresa (E2)[2m > [22mwriter puede crear una capability (rol de escritura); viewer no puede [33m1223[2mms[22m[39m
+   [33m[2m✓[22m[39m perfil de empresa (E2)[2m > [22mexperiencia sin evidenceRef queda marcada verifiable=false (REQ-143) [33m1076[2mms[22m[39m
+   [33m[2m✓[22m[39m perfil de empresa (E2)[2m > [22mcompany_documents: documento vencido se refleja con status expired (REQ-023, A7) [33m805[2mms[22m[39m
+   [33m[2m✓[22m[39m perfil de empresa (E2)[2m > [22mA8: approved_rates -- writer propone (draft), solo owner/admin aprueban; tarifa no aprobada no es utilizable [33m1039[2mms[22m[39m
+   [33m[2m✓[22m[39m perfil de empresa (E2)[2m > [22mA5/aislamiento: capabilities de una organización no son visibles para otra [33m862[2mms[22m[39m
+ [32m✓[39m test/tenders-and-ingest.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 7946[2mms[22m[39m
+   [33m[2m✓[22m[39m convocatorias e ingesta interna (E3/E4)[2m > [22mPOST /internal/tenders/ingest sin X-Platform-Api-Key es rechazado (401/403) [33m2351[2mms[22m[39m
+   [33m[2m✓[22m[39m convocatorias e ingesta interna (E3/E4)[2m > [22mA1: nueva publicación crea la convocatoria y una versión inicial [33m1182[2mms[22m[39m
+   [33m[2m✓[22m[39m convocatorias e ingesta interna (E3/E4)[2m > [22mA2: reingestar exactamente la misma versión es un no-op idempotente (0 filas nuevas) [33m956[2mms[22m[39m
+   [33m[2m✓[22m[39m convocatorias e ingesta interna (E3/E4)[2m > [22mA3: una modificación con nueva versión de origen adelanta el plazo, crea evento e invalida dependientes [33m980[2mms[22m[39m
+   [33m[2m✓[22m[39m convocatorias e ingesta interna (E3/E4)[2m > [22mlista de convocatorias no filtra entre organizaciones (aislamiento por org_id) [33m859[2mms[22m[39m
+   [33m[2m✓[22m[39m convocatorias e ingesta interna (E3/E4)[2m > [22mviewer no puede escribir en go/no-go pero sí lee tenders (viewer solo lee) [33m874[2mms[22m[39m
+   [33m[2m✓[22m[39m convocatorias e ingesta interna (E3/E4)[2m > [22mGET /tenders/sources/freshness responde para cualquier usuario autenticado (sin X-Org-Id) [33m743[2mms[22m[39m
+ [32m✓[39m test/audit-db07-tenant-context-pattern.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/admin-backoffice.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 6027[2mms[22m[39m
+   [33m[2m✓[22m[39m back office / superadmin (E10)[2m > [22mun usuario normal recibe 403 en cualquier ruta /admin/*; superadmin ve datos reales [33m1379[2mms[22m[39m
+   [33m[2m✓[22m[39m back office / superadmin (E10)[2m > [22mGET /admin/connectors/freshness expone el estado explícito de source_runs (nunca lista vacía silenciosa, A4) [33m841[2mms[22m[39m
+   [33m[2m✓[22m[39m back office / superadmin (E10)[2m > [22mjobs: listar y reintentar un job fallido lo regresa a queued [33m800[2mms[22m[39m
+   [33m[2m✓[22m[39m back office / superadmin (E10)[2m > [22mcostos por organización: agregado real desde agent_runs, marcado explícitamente como estimado [33m893[2mms[22m[39m
+   [33m[2m✓[22m[39m back office / superadmin (E10)[2m > [22mincidentes: crear y resolver; un usuario normal no puede [33m961[2mms[22m[39m
+   [33m[2m✓[22m[39m back office / superadmin (E10)[2m > [22maprobaciones pendientes: el back office ve tool_calls pendientes de TODAS las organizaciones [33m1152[2mms[22m[39m
+ [32m✓[39m test/isolation-and-idempotency.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 2752[2mms[22m[39m
+ [32m✓[39m test/audit-api01-refresh-rotation.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 1769[2mms[22m[39m
+ [32m✓[39m test/audit-api02-role-escalation.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 2583[2mms[22m[39m
+   [33m[2m✓[22m[39m API-02: escalada de rol y protección del último owner[2m > [22mun owner SÍ puede promover a otro miembro a owner [33m969[2mms[22m[39m
+ [32m✓[39m test/audit-api03-register-enumeration.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 1252[2mms[22m[39m
+ [32m✓[39m test/audit-api04-org-id-validation.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 1222[2mms[22m[39m
+ [32m✓[39m test/audit-api06-docs-json-gate.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 975[2mms[22m[39m
+ [32m✓[39m test/rate-limit-and-health.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 2920[2mms[22m[39m
+   [33m[2m✓[22m[39m salud (healthz/readyz)[2m > [22mGET /healthz siempre responde 200 sin tocar la base de datos [33m588[2mms[22m[39m
+   [33m[2m✓[22m[39m salud (healthz/readyz)[2m > [22mGET /readyz responde 200 con la base de datos disponible [33m626[2mms[22m[39m
+   [33m[2m✓[22m[39m salud (healthz/readyz)[2m > [22mGET /readyz responde 503 si la base de datos no está disponible [33m543[2mms[22m[39m
+ [32m✓[39m test/audit-api05-security-headers.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 818[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m15 passed[39m[22m[90m (15)[39m
+[2m      Tests [22m [1m[32m51 passed[39m[22m[90m (51)[39m
+[2m   Start at [22m 20:39:28
+[2m   Duration [22m 15.05s[2m (transform 250ms, setup 0ms, collect 2.69s, tests 46.48s, environment 1ms, prepare 500ms)[22m
+
+
+########################################
+# npm run -w packages/db test
+########################################
+
+> @atiende/db@0.1.0 test
+> vitest run
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/packages/db[39m
+
+ [32m✓[39m test/backoffice-extension.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 12358[2mms[22m[39m
+ [32m✓[39m test/audit-db05-change-event-invalidation.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 12331[2mms[22m[39m
+ [32m✓[39m test/audit-db02-rate-validity.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 12492[2mms[22m[39m
+ [32m✓[39m test/audit-db01-security-definer-scope.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 12980[2mms[22m[39m
+ [32m✓[39m test/ronda2-extensions.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 13270[2mms[22m[39m
+ [32m✓[39m test/rls-roles.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 13308[2mms[22m[39m
+ [32m✓[39m test/jobs-locking.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 13681[2mms[22m[39m
+ [32m✓[39m test/idempotency-and-audit.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 19466[2mms[22m[39m
+ [32m✓[39m test/audit-db03-rate-reapproval.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 7485[2mms[22m[39m
+ [32m✓[39m test/audit-db06-audit-log-hash-chain.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 8073[2mms[22m[39m
+ [32m✓[39m test/org-bootstrap.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 8164[2mms[22m[39m
+ [32m✓[39m test/rls-isolation.test.ts [2m([22m[2m70 tests[22m[2m)[22m[33m 9459[2mms[22m[39m
+ [32m✓[39m test/worker-role-and-job-proposals.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 22927[2mms[22m[39m
+ [32m✓[39m test/migrate.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 13379[2mms[22m[39m
+   [33m[2m✓[22m[39m migraciones[2m > [22maplican todas sin error y quedan registradas en schema_migrations [33m8698[2mms[22m[39m
+   [33m[2m✓[22m[39m migraciones[2m > [22mse pueden aplicar dos veces sin error (idempotente): la segunda vez no repite nada [33m2697[2mms[22m[39m
+   [33m[2m✓[22m[39m migraciones[2m > [22mensureMigrationsTable es idempotente [33m1088[2mms[22m[39m
+   [33m[2m✓[22m[39m migraciones[2m > [22mcrea todas las tablas de dominio esperadas [33m894[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m14 passed[39m[22m[90m (14)[39m
+[2m      Tests [22m [1m[32m128 passed[39m[22m[90m (128)[39m
+[2m   Start at [22m 20:39:53
+[2m   Duration [22m 28.23s[2m (transform 422ms, setup 0ms, collect 1.85s, tests 179.37s, environment 2ms, prepare 1.84s)[22m
+
+
+########################################
+# npm run -w packages/db typecheck
+########################################
+
+> @atiende/db@0.1.0 typecheck
+> tsc --noEmit
+
+
+########################################
+# npm run -w packages/db lint
+########################################
+
+> @atiende/db@0.1.0 lint
+> eslint src test
+
+
+########################################
+# Verificación /docs/json (OpenAPI regenerado, requiere auth)
+########################################
+58 rutas documentadas en /docs/json (incluye /admin/*, verificado tras estabilizar node_modules — ver nota abajo).
+
+NOTA operativa: durante la verificación final se detectó una inestabilidad
+transitoria del node_modules COMPARTIDO entre agentes (npm install de otro
+proceso dejó @fastify/swagger físicamente ausente en disco mientras
+package-lock.json seguía declarándolo instalado). Se resolvió con
+'npm install --workspace apps/api @fastify/swagger@9.4.0 --no-save' y se
+reverificó /docs/json (58 rutas, incluidas las 8 de /admin/*) de forma
+estable en 3 corridas consecutivas antes de cerrar esta ronda.
+
+########################################
+# Re-ejecución final completa (post-estabilización de node_modules)
+########################################
+
+--- npm run -w apps/api typecheck lint test ---
+
+> @atiende/api@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @atiende/api@0.1.0 lint
+> eslint src test
+
+
+> @atiende/api@0.1.0 test
+> vitest run
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/api[39m
+
+ [32m✓[39m test/matching-and-go-no-go.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 4115[2mms[22m[39m
+   [33m[2m✓[22m[39m matching y go/no-go (E5)[2m > [22mA5: dos organizaciones con perfiles distintos no filtran datos entre sí en matching [33m1180[2mms[22m[39m
+ [32m✓[39m test/agent-persistence.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 5764[2mms[22m[39m
+   [33m[2m✓[22m[39m persistencia de packages/agents (RunStore/ToolCallStore sobre Postgres)[2m > [22mPgRunStore: createRun/getRun/updateRun persisten y sobreviven una relectura real (no solo en memoria) [33m2159[2mms[22m[39m
+   [33m[2m✓[22m[39m persistencia de packages/agents (RunStore/ToolCallStore sobre Postgres)[2m > [22mPgToolCallStore: recordToolCall/listToolCalls persisten trazas reales por paso [33m1669[2mms[22m[39m
+   [33m[2m✓[22m[39m persistencia de packages/agents (RunStore/ToolCallStore sobre Postgres)[2m > [22maprobación de tool_calls pendientes: writer no puede aprobar; owner sí, y queda en audit_log [33m927[2mms[22m[39m
+   [33m[2m✓[22m[39m persistencia de packages/agents (RunStore/ToolCallStore sobre Postgres)[2m > [22mGET /agents/runs y /agents/tool-calls no filtran entre organizaciones [33m1008[2mms[22m[39m
+ [32m✓[39m test/auth-and-orgs-flow.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 1581[2mms[22m[39m
+ [32m✓[39m test/company-profile.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 7777[2mms[22m[39m
+   [33m[2m✓[22m[39m perfil de empresa (E2)[2m > [22mPUT /company/profile (owner) crea el perfil con procedencia por campo; viewer no puede escribirlo [33m2427[2mms[22m[39m
+   [33m[2m✓[22m[39m perfil de empresa (E2)[2m > [22mwriter puede crear una capability (rol de escritura); viewer no puede [33m1587[2mms[22m[39m
+   [33m[2m✓[22m[39m perfil de empresa (E2)[2m > [22mexperiencia sin evidenceRef queda marcada verifiable=false (REQ-143) [33m870[2mms[22m[39m
+   [33m[2m✓[22m[39m perfil de empresa (E2)[2m > [22mcompany_documents: documento vencido se refleja con status expired (REQ-023, A7) [33m1057[2mms[22m[39m
+   [33m[2m✓[22m[39m perfil de empresa (E2)[2m > [22mA8: approved_rates -- writer propone (draft), solo owner/admin aprueban; tarifa no aprobada no es utilizable [33m955[2mms[22m[39m
+   [33m[2m✓[22m[39m perfil de empresa (E2)[2m > [22mA5/aislamiento: capabilities de una organización no son visibles para otra [33m880[2mms[22m[39m
+ [32m✓[39m test/tenders-and-ingest.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 8290[2mms[22m[39m
+   [33m[2m✓[22m[39m convocatorias e ingesta interna (E3/E4)[2m > [22mPOST /internal/tenders/ingest sin X-Platform-Api-Key es rechazado (401/403) [33m1993[2mms[22m[39m
+   [33m[2m✓[22m[39m convocatorias e ingesta interna (E3/E4)[2m > [22mA1: nueva publicación crea la convocatoria y una versión inicial [33m1825[2mms[22m[39m
+   [33m[2m✓[22m[39m convocatorias e ingesta interna (E3/E4)[2m > [22mA2: reingestar exactamente la misma versión es un no-op idempotente (0 filas nuevas) [33m822[2mms[22m[39m
+   [33m[2m✓[22m[39m convocatorias e ingesta interna (E3/E4)[2m > [22mA3: una modificación con nueva versión de origen adelanta el plazo, crea evento e invalida dependientes [33m1055[2mms[22m[39m
+   [33m[2m✓[22m[39m convocatorias e ingesta interna (E3/E4)[2m > [22mlista de convocatorias no filtra entre organizaciones (aislamiento por org_id) [33m896[2mms[22m[39m
+   [33m[2m✓[22m[39m convocatorias e ingesta interna (E3/E4)[2m > [22mviewer no puede escribir en go/no-go pero sí lee tenders (viewer solo lee) [33m970[2mms[22m[39m
+   [33m[2m✓[22m[39m convocatorias e ingesta interna (E3/E4)[2m > [22mGET /tenders/sources/freshness responde para cualquier usuario autenticado (sin X-Org-Id) [33m729[2mms[22m[39m
+ [32m✓[39m test/audit-db07-tenant-context-pattern.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m test/audit-api01-refresh-rotation.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 1715[2mms[22m[39m
+ [32m✓[39m test/admin-backoffice.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 6327[2mms[22m[39m
+   [33m[2m✓[22m[39m back office / superadmin (E10)[2m > [22mun usuario normal recibe 403 en cualquier ruta /admin/*; superadmin ve datos reales [33m1485[2mms[22m[39m
+   [33m[2m✓[22m[39m back office / superadmin (E10)[2m > [22mGET /admin/connectors/freshness expone el estado explícito de source_runs (nunca lista vacía silenciosa, A4) [33m902[2mms[22m[39m
+   [33m[2m✓[22m[39m back office / superadmin (E10)[2m > [22mjobs: listar y reintentar un job fallido lo regresa a queued [33m826[2mms[22m[39m
+   [33m[2m✓[22m[39m back office / superadmin (E10)[2m > [22mcostos por organización: agregado real desde agent_runs, marcado explícitamente como estimado [33m861[2mms[22m[39m
+   [33m[2m✓[22m[39m back office / superadmin (E10)[2m > [22mincidentes: crear y resolver; un usuario normal no puede [33m1134[2mms[22m[39m
+   [33m[2m✓[22m[39m back office / superadmin (E10)[2m > [22maprobaciones pendientes: el back office ve tool_calls pendientes de TODAS las organizaciones [33m1118[2mms[22m[39m
+ [32m✓[39m test/audit-api02-role-escalation.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 2817[2mms[22m[39m
+   [33m[2m✓[22m[39m API-02: escalada de rol y protección del último owner[2m > [22mun owner SÍ puede promover a otro miembro a owner [33m1050[2mms[22m[39m
+ [32m✓[39m test/isolation-and-idempotency.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 2863[2mms[22m[39m
+ [32m✓[39m test/audit-api03-register-enumeration.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 1730[2mms[22m[39m
+ [32m✓[39m test/audit-api04-org-id-validation.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 1703[2mms[22m[39m
+ [32m✓[39m test/audit-api06-docs-json-gate.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 1693[2mms[22m[39m
+ [32m✓[39m test/rate-limit-and-health.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 3414[2mms[22m[39m
+   [33m[2m✓[22m[39m salud (healthz/readyz)[2m > [22mGET /healthz siempre responde 200 sin tocar la base de datos [33m642[2mms[22m[39m
+   [33m[2m✓[22m[39m salud (healthz/readyz)[2m > [22mGET /readyz responde 200 con la base de datos disponible [33m563[2mms[22m[39m
+   [33m[2m✓[22m[39m salud (healthz/readyz)[2m > [22mGET /readyz responde 503 si la base de datos no está disponible [33m561[2mms[22m[39m
+ [32m✓[39m test/audit-api05-security-headers.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 863[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m15 passed[39m[22m[90m (15)[39m
+[2m      Tests [22m [1m[32m51 passed[39m[22m[90m (51)[39m
+[2m   Start at [22m 20:48:35
+[2m   Duration [22m 16.19s[2m (transform 255ms, setup 0ms, collect 2.68s, tests 50.66s, environment 1ms, prepare 479ms)[22m
+
+
+--- npm run -w packages/db test ---
+
+> @atiende/db@0.1.0 test
+> vitest run
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/packages/db[39m
+
+ [32m✓[39m test/audit-db05-change-event-invalidation.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 4978[2mms[22m[39m
+ [32m✓[39m test/ronda2-extensions.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 5897[2mms[22m[39m
+ [32m✓[39m test/rls-roles.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 5797[2mms[22m[39m
+ [32m✓[39m test/jobs-locking.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 5960[2mms[22m[39m
+ [32m✓[39m test/audit-db02-rate-validity.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 6035[2mms[22m[39m
+ [32m✓[39m test/backoffice-extension.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 6136[2mms[22m[39m
+ [32m✓[39m test/audit-db01-security-definer-scope.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 6123[2mms[22m[39m
+ [32m✓[39m test/idempotency-and-audit.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 8567[2mms[22m[39m
+ [32m✓[39m test/audit-db06-audit-log-hash-chain.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 3568[2mms[22m[39m
+ [32m✓[39m test/org-bootstrap.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 3196[2mms[22m[39m
+ [32m✓[39m test/audit-db03-rate-reapproval.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 3318[2mms[22m[39m
+ [32m✓[39m test/rls-isolation.test.ts [2m([22m[2m70 tests[22m[2m)[22m[33m 3433[2mms[22m[39m
+ [32m✓[39m test/worker-role-and-job-proposals.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 9835[2mms[22m[39m
+ [32m✓[39m test/migrate.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 4770[2mms[22m[39m
+   [33m[2m✓[22m[39m migraciones[2m > [22maplican todas sin error y quedan registradas en schema_migrations [33m3113[2mms[22m[39m
+   [33m[2m✓[22m[39m migraciones[2m > [22mse pueden aplicar dos veces sin error (idempotente): la segunda vez no repite nada [33m651[2mms[22m[39m
+   [33m[2m✓[22m[39m migraciones[2m > [22mensureMigrationsTable es idempotente [33m455[2mms[22m[39m
+   [33m[2m✓[22m[39m migraciones[2m > [22mcrea todas las tablas de dominio esperadas [33m551[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m14 passed[39m[22m[90m (14)[39m
+[2m      Tests [22m [1m[32m128 passed[39m[22m[90m (128)[39m
+[2m   Start at [22m 20:48:52
+[2m   Duration [22m 11.42s[2m (transform 211ms, setup 0ms, collect 666ms, tests 77.61s, environment 1ms, prepare 1.05s)[22m
+

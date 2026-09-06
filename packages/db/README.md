@@ -104,6 +104,9 @@ await withTenantContext(db, { orgId, userId }, async (tx) => {
 | 0007–0009 | Funciones de RLS (`app.has_role`, `app.is_superadmin`, `app.apply_org_rls`), políticas RLS de todas las tablas, índices adicionales. |
 | 0010 | Funciones de soporte para la API (login sin contexto previo, resolución de organización desde `X-Org-Id`, listado de "mis organizaciones"). |
 | 0011–0016 | Ampliación back office (ver `docs/AMPLIACION-BACKOFFICE.md`): perfil de empresa y procedencia por campo, versionado de convocatorias e invalidación de dependientes, `source_runs` (plataforma), catálogo de precios aprobados con enforcement por trigger, aprobaciones de propuesta y manifiesto de paquete final. |
+| 0017–0018 | Ronda 2 (apps/api): `refresh_tokens` + revocación real, `app.accept_invitation`, propuesta de tarifas por rol de escritura, columnas para persistencia de `packages/agents` sobre `agent_runs`/`tool_calls`, tabla `incidents` (E10), `app.source_freshness()` (frescura agregada para tenants). |
+| 0019–0025 | Correcciones de la auditoría `docs/auditoria-1/db-api.md` (DB-01 a DB-07, ver esa tabla para el detalle de cada una): alcance de funciones SECURITY DEFINER, vigencia/reaprobación de tarifas, invalidación automática por trigger de `tender_change_events`, cadena de hashes de `audit_log`, rol `reviewer` habilitado para Go/No-Go, función de resolución de contexto para la persistencia de `packages/agents`. |
+| 0026–0028 | Propuestas de `apps/worker` incorporadas (WK-04/07/08, `apps/worker/db-proposals/`): `source_run_status` ampliado (`rate_limited`/`not_configured`/`ingest_failed`), índice único de deduplicación de `jobs` activos + estado `cancelled`, rol `worker_role` (NOLOGIN, grants mínimos sobre jobs/source_runs/agent_runs, sujeto a RLS real vía políticas adicionales basadas en `current_user`). |
 
 El runner (`src/migrate.ts`) aplica los archivos en orden alfabético,
 registra cada uno en `schema_migrations` y **lanza un error explícito** si
