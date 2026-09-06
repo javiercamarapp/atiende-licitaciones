@@ -137,3 +137,4 @@
 2026-09-06 11:41  RONDA6  #91 worker ronda K (run_agent real) despachado; en curso #84,#85,#86,#88,#90.
 2026-09-06 11:48  DESPERTAR  referencias salida a promoción (#86) 489d7c0; #88 alineado a Resend/outbox/supresión; en curso #84,#85,#88,#90,#91.
 2026-09-06 11:51  DESPERTAR  infra (#90) e6b9c80 completada (validación estática); en curso #84,#85,#88,#91.
+2026-09-06 12:07  DESPERTAR  api ronda 6 (#85) completada (0065-0070; INC-11); despachados #92 Google OIDC y #93 auditoría; en curso #84,#88,#91.
