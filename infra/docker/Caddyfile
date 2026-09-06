@@ -1,0 +1,63 @@
+# Caddyfile — reverse proxy de borde para producción de Atiende Licitaciones.
+#
+# Arquitectura de dominios (ver infra/README.md § "Dominios y DNS"):
+#   - {$WEB_DOMAIN}  -> back office estático (apps/web, servido por nginx).
+#   - {$API_DOMAIN}  -> API HTTP real (apps/api).
+# Dos dominios (o subdominios) en vez de un único origen con rutas /api/*
+# a propósito: apps/web ya usa `import.meta.env.VITE_API_URL` (horneado en
+# build, ver apps/web/Dockerfile) para apuntar a un origen ABSOLUTO de la
+# API — un subdominio propio es el patrón más simple de mantener sin tener
+# que enumerar aquí, y mantener sincronizada, la lista completa de rutas
+# reales de apps/api (crece en cada ronda, ver apps/api/README.md). El
+# cross-origin resultante lo resuelve `CORS_ORIGINS` en apps/api (ver
+# infra/env/.env.prod.example) — apps/api YA declara `methods`/
+# `allowedHeaders`/`exposedHeaders` explícitos en su CORS (ver
+# apps/api/src/app.ts), así que esto no depende de configuración por
+# defecto frágil.
+#
+# TLS automático: Caddy gestiona certificados Let's Encrypt/ZeroSSL solo
+# con que {$WEB_DOMAIN}/{$API_DOMAIN} resuelvan por DNS a este host y los
+# puertos 80/443 estén expuestos a Internet (ver infra/README.md
+# "Despliegue paso a paso" — requiere DNS real, fuera del alcance de lo que
+# se puede verificar en este entorno).
+#
+# ACME_EMAIL: dirección de contacto para avisos de Let's Encrypt
+# (expiración/problemas de renovación) — variable de entorno, ver
+# infra/env/.env.prod.example.
+{
+	email {$ACME_EMAIL}
+}
+
+{$WEB_DOMAIN} {
+	encode gzip zstd
+
+	# Cabeceras de seguridad de borde (defensa en profundidad, además de las
+	# que ya sirve nginx en apps/web -- ver infra/docker/nginx.web.conf).
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+	}
+
+	reverse_proxy web:8080
+
+	log {
+		output stdout
+		format json
+	}
+}
+
+{$API_DOMAIN} {
+	encode gzip zstd
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+	}
+
+	reverse_proxy api:3000
+
+	log {
+		output stdout
+		format json
+	}
+}

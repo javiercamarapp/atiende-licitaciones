@@ -1,0 +1,61 @@
+# .dockerignore raíz — aplica a CUALQUIER build cuyo contexto sea la raíz
+# del repo (apps/api/Dockerfile, apps/worker/Dockerfile, apps/web/Dockerfile
+# se construyen así, ver infra/compose/docker-compose*.yml). Reduce el
+# contexto enviado al daemon de Docker y evita filtrar secretos/artefactos
+# locales dentro de una imagen.
+
+# Dependencias (cada Dockerfile hace su propio `npm ci` dentro del build).
+node_modules/
+**/node_modules/
+
+# Artefactos de build/test locales (los Dockerfiles corren su propio build
+# o ejecutan directo desde src/ vía tsx, ver apps/api/Dockerfile).
+dist/
+**/dist/
+coverage/
+**/coverage/
+playwright-report/
+**/playwright-report/
+test-results/
+**/test-results/
+*.tsbuildinfo
+**/*.tsbuildinfo
+
+# PGlite embebido (desarrollo/tests) y datos locales de STORAGE_DIR.
+.pglite/
+**/.pglite/
+.data/
+**/.data/
+
+# Secretos / entorno local — NUNCA deben entrar a una imagen.
+.env
+.env.*
+!.env.example
+!**/.env.example
+!infra/env/.env.prod.example
+
+# Control de versiones y editor.
+.git/
+.gitignore
+.vscode/
+.idea/
+*.swp
+
+# Logs (no son necesarios dentro de la imagen; docs/logs/*.log se preserva
+# en el repo pero no debe copiarse a un contenedor).
+*.log
+!infra/**/*.log
+
+# Documentación general del repo (raíz) — NO excluye apps/api/docs/, que
+# apps/api/Dockerfile SÍ necesita copiar de verdad (sirve
+# apps/api/docs/legal/privacy-notice.md en GET /legal/privacy-notice, ver
+# apps/api/src/modules/legal/routes.ts). Patrones anclados con "/" inicial
+# a propósito -- un patrón "docs/" sin anclar excluiría TAMBIÉN
+# apps/api/docs/ a cualquier profundidad, rompiendo ese build.
+/docs/
+/README.md
+/apps/*/README.md
+/packages/*/README.md
+
+# Configuración de este propio Codex/CLI, si existiera localmente.
+.claude/

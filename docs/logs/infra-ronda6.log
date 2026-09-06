@@ -1,0 +1,206 @@
+Ronda 6 — Infraestructura de despliegue (Dockerfiles, Compose, backups, runbook)
+Fecha: 2026-09-06
+Agente: implementador de infraestructura (Sonnet), ámbito exclusivo infra/**,
+apps/{api,worker,web}/Dockerfile, .dockerignore raíz, docs/OPERACION.md
+(solo sección añadida), este log.
+
+ENTORNO: sin Docker/docker-compose/nginx/caddy instalados en esta máquina
+(verificado: `docker --version`, `docker-compose --version`, `which nginx
+caddy` -> "command not found" / "not found"). Por instrucción explícita,
+NO se despliega nada ni se gasta dinero: todo lo de abajo es validación de
+sintaxis/estructura + lectura de código real, nunca una ejecución end-to-end
+de los contenedores.
+
+== HALLAZGO REAL, VERIFICADO ANTES DE DISEÑAR LOS DOCKERFILES ==
+
+`docs/OPERACION.md` §1 (previo a esta ronda) documenta el arranque de
+apps/api/apps/worker como `node dist/index.js` tras `tsc`. Se verificó que
+esto NO funciona de forma autónoma en este árbol:
+
+  $ npm run build --workspace=apps/api   # (con el árbol de trabajo actual,
+                                          #  con cambios en curso de otro
+                                          #  agente) falló por un archivo
+                                          #  faltante ajeno a esta ronda de
+                                          #  infra (contract.routes.ts ->
+                                          #  contract-extraction.ts, ya
+                                          #  resuelto por ese otro agente
+                                          #  durante esta misma sesión).
+
+  $ JWT_SECRET=... TOTP_ENCRYPTION_KEY=... node apps/api/dist/src/index.js
+  Error [ERR_MODULE_NOT_FOUND]: Cannot find module
+  '.../packages/db/src/driver.js' imported from
+  '.../packages/db/src/index.ts'
+
+Causa raíz (leyendo el código, no supuesta): packages/db, packages/agents,
+packages/expediente y packages/sources declaran en su package.json
+"main"/"exports" -> "./src/index.ts" (TypeScript SIN compilar; packages/db
+ni siquiera tiene script `build`). `node` plano no puede resolver TS ni el
+import relativo `.js` que apunta, en realidad, a un `.ts`.
+
+Se probó la alternativa real que SÍ funciona:
+
+  $ JWT_SECRET=... TOTP_ENCRYPTION_KEY=... npx tsx apps/api/src/index.ts
+  # resolvió @atiende/db correctamente (a diferencia de `node` plano); el
+  # único error que quedó en ese momento fue un archivo de código de
+  # apps/api que faltaba en el árbol de trabajo (ajeno a esta ronda de
+  # infraestructura, y ya resuelto por otro agente concurrente durante
+  # esta misma sesión).
+
+Consecuencia de diseño: apps/api/Dockerfile y apps/worker/Dockerfile
+ejecutan el código fuente con `tsx` (mismo runner que ya usa este repo en
+CI para scripts/db-postgres-migrate.mjs contra Postgres real, ver
+.github/workflows/quality.yml) en vez de `node dist/*.js`. Documentado en
+extenso dentro de cada Dockerfile y en infra/README.md "Limitaciones
+conocidas". No se tocó ningún package.json/tsconfig para "arreglarlo de
+raíz" (fuera del ámbito de esta ronda).
+
+Se confirmó además (grep de `fileURLToPath`/`readFileSync` en
+apps/api/src) que `GET /legal/privacy-notice` lee
+apps/api/docs/legal/privacy-notice.md en tiempo de ejecución -> se agregó
+`COPY apps/api/docs apps/api/docs` a apps/api/Dockerfile (sin este COPY,
+ese endpoint habría lanzado 500 en producción real).
+
+== VALIDADO EN ESTE ENTORNO (con evidencia de comando) ==
+
+1. Dockerfiles (apps/api/Dockerfile, apps/worker/Dockerfile,
+   apps/web/Dockerfile):
+   `npx dockerfile-utils lint <archivo>` -> exit 0, sin hallazgos, en los
+   tres archivos (se corrió dos veces: versión inicial de
+   apps/web/Dockerfile con `sed` sobre nginx.conf de la imagen base, y la
+   versión final tras reescribirlo -- ver siguiente punto).
+
+2. apps/web/Dockerfile — cambio de diseño durante esta misma ronda: la
+   primera versión parcheaba con `sed` el `nginx.conf` que trae la imagen
+   base `nginx:1.27-alpine` (comentar `user nginx;`, mover pid/temp paths
+   a /tmp) para poder correr como no-root. Se descartó esa versión porque
+   no se puede verificar en este entorno si el `sed` de BusyBox (Alpine)
+   soporta la inserción multilínea usada, y una imagen base nueva podría
+   cambiar el texto exacto que el `sed` busca, rompiendo el build en
+   silencio. Se reemplazó por infra/docker/nginx.conf, un archivo propio
+   completo (copiado con COPY, no generado con sed) — 100% revisable línea
+   por línea sin depender de qué trae la imagen base ni del dialecto de
+   `sed` disponible en tiempo de build.
+
+3. docker-compose.prod.yml / docker-compose.dev.yml: parseo YAML real con
+   el paquete `yaml` (ya presente en node_modules del repo) vía
+   `YAML.parse(...)` -> ambos archivos parsean sin error; se imprimieron
+   las claves de nivel superior y la lista de `services` de cada uno para
+   confirmar la estructura esperada (postgres/migrate/api/worker/web/caddy
+   y postgres/adminer respectivamente). NO se pudo correr `docker compose
+   config` (valida además contra el esquema real de Compose, resuelve
+   `${VAR}`, detecta banderas desconocidas) por no haber `docker`/
+   `docker-compose` instalados -- BLOQUEADO_EXTERNO.
+
+4. Scripts de shell (infra/scripts/backup-postgres.sh,
+   restore-postgres.sh, healthcheck.sh):
+   - `bash -n <script>` -> sin errores de sintaxis, los tres.
+   - `shellcheck <script>` (binario real v0.11.0, descargado vía
+     `npx --yes shellcheck` en este entorno con acceso a red) -> 0
+     hallazgos, los tres. `chmod +x` aplicado a los tres.
+   - rotate-secrets.md es documentación (Markdown), no un script
+     ejecutable — revisado a mano, sin bloques de código con errores de
+     sintaxis obvios (comandos `docker compose`/`psql` de un solo uso, sin
+     necesidad de `bash -n`).
+
+5. `.dockerignore` raíz: se detectó y corrigió un error propio durante
+   esta misma ronda antes de darlo por terminado: el patrón inicial
+   `docs/` (sin anclar) habría excluido TAMBIÉN `apps/api/docs/` a
+   cualquier profundidad (regla de matching de dockerignore/gitignore:
+   patrón con un único "/" al final, sin "/" inicial, matchea a cualquier
+   profundidad) — habría roto `COPY apps/api/docs apps/api/docs` en
+   apps/api/Dockerfile en silencio (contexto sin ese directorio -> COPY
+   falla en build time, se habría detectado en el primer build real, pero
+   se corrigió aquí antes por revisión manual del propio `.dockerignore`
+   línea por línea). Se cambió a `/docs/`, `/README.md`, `/apps/*/README.md`,
+   `/packages/*/README.md` (anclados a la raíz).
+
+6. Lectura de código real (no supuesta) para evitar activos faltantes en
+   las imágenes:
+   `grep -rn "fileURLToPath|readFileSync|new URL(" apps/api/src
+   apps/worker/src --include="*.ts"` (excluyendo *.test.ts) -> el único
+   activo de archivo fuera de código fuente que lee apps/api en tiempo de
+   ejecución es apps/api/docs/legal/privacy-notice.md (ya cubierto, punto
+   anterior); apps/worker no lee ningún archivo estático propio.
+
+7. Dependencias nativas: se revisó package-lock.json (`python3 -c
+   "import json..."` buscando bcrypt/sharp/canvas/argon2/sqlite3`) -> sin
+   coincidencias. Confirma que `node:22-alpine` sin build-essential/python3
+   es suficiente (no hace falta node-gyp) para `npm ci` de este repo.
+
+8. CSP/cabeceras de seguridad de apps/web: se leyó
+   apps/web/src/lib/security/csp.ts (fuente única de verdad, también usada
+   por apps/web/vite.config.ts) y se replicaron las MISMAS directivas en
+   infra/docker/nginx.web.conf (Content-Security-Policy, X-Content-Type-
+   Options, X-Frame-Options, Referrer-Policy, Permissions-Policy) — no se
+   inventaron cabeceras nuevas ni se omitió ninguna de las existentes.
+
+9. CORS de apps/api: se leyó apps/api/src/app.ts (registro de
+   `@fastify/cors`) para confirmar que el bug histórico de
+   `methods: GET,HEAD,POST` (documentado en apps/web/vite.config.ts como
+   hallazgo de la ronda 3 de apps/web) YA está corregido en el código
+   actual (methods incluye PUT/PATCH/DELETE/OPTIONS explícitos) — la
+   arquitectura de dos dominios (WEB_DOMAIN/API_DOMAIN) elegida en
+   infra/docker/Caddyfile depende de que ese CORS real funcione
+   cross-origin, y se verificó que sí antes de diseñarla así.
+
+== NO VALIDADO / BLOQUEADO_EXTERNO (sin Docker en esta máquina) ==
+
+- `docker build` real de las tres imágenes (no se puede confirmar que
+  `npm ci` + la copia de directorios produzca un build exitoso de
+  extremo a extremo; el diseño se basa en lectura de código +
+  `dockerfile-utils lint`, no en una ejecución real).
+- `docker compose up` del stack completo (orden de arranque real vía
+  `depends_on`/healthchecks, resolución real de `${VAR}` de Compose,
+  arranque real de Caddy y emisión de un certificado TLS -- esto último
+  requeriría además un dominio real con DNS apuntando a un host público,
+  imposible de probar aquí).
+- Ejecución real de infra/scripts/backup-postgres.sh /
+  restore-postgres.sh contra un Postgres real (se validó solo sintaxis
+  shellcheck/bash -n, no una corrida real de pg_dump/pg_restore).
+- Arranque real de apps/api/apps/worker vía `tsx` DENTRO de un contenedor
+  Docker (se probó el equivalente en el host directamente con
+  `npx tsx apps/api/src/index.ts`, no dentro de la imagen construida).
+- `nginx -t` real de infra/docker/nginx.conf / nginx.web.conf (no hay
+  binario de nginx en este entorno) -- se revisaron a mano contra la
+  sintaxis estándar de nginx, sin verificación automática.
+- hadolint no estaba disponible ni instalable sin red pesada para esta
+  sesión (se usó `dockerfile-utils` de npm en su lugar, sí disponible vía
+  npx).
+
+== ARCHIVOS TOCADOS EN ESTA RONDA (ámbito respetado) ==
+
+Nuevos, bajo infra/**:
+  infra/README.md
+  infra/compose/docker-compose.prod.yml
+  infra/compose/docker-compose.dev.yml
+  infra/docker/Caddyfile
+  infra/docker/nginx.conf
+  infra/docker/nginx.web.conf
+  infra/env/.env.prod.example
+  infra/scripts/backup-postgres.sh
+  infra/scripts/restore-postgres.sh
+  infra/scripts/healthcheck.sh
+  infra/scripts/rotate-secrets.md
+
+Nuevos, Dockerfiles (único cambio permitido dentro de apps/*):
+  apps/api/Dockerfile
+  apps/worker/Dockerfile
+  apps/web/Dockerfile
+
+Nuevo, raíz:
+  .dockerignore
+
+Modificado, solo AÑADIENDO una sección nueva al final (§11 "Despliegue en
+producción (Docker Compose, infra/)"), sin tocar ninguna línea existente:
+  docs/OPERACION.md
+
+Este log:
+  docs/logs/infra-ronda6.log
+
+No se tocó ningún archivo de apps/*/src, apps/*/test, packages/*/src, ni
+ningún otro archivo fuera de la lista de arriba (verificado con
+`git status --short` antes de commitear: los únicos cambios de esta ronda
+son los listados; el resto de archivos modificados/nuevos en el árbol de
+trabajo pertenecen a otro agente trabajando en paralelo en esta misma
+sesión, sobre features de aplicación ajenas a esta ronda de
+infraestructura).

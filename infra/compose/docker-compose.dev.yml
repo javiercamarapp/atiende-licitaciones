@@ -1,0 +1,61 @@
+# Compose de DESARROLLO — Atiende Licitaciones.
+#
+# El día a día de este repo NO necesita Docker (ver README.md raíz: PGlite
+# embebido corre en el mismo proceso de Node para `dev`/`test` de
+# apps/api/apps/worker/packages/db). Este archivo existe para el caso
+# concreto en el que se quiere reproducir localmente el comportamiento de
+# Postgres REAL (no PGlite) sin desplegar nada -- p. ej. antes de escribir
+# una migración nueva, para reproducir un hallazgo que solo aparece contra
+# `pg` real (ver packages/db/README.md "Límites conocidos de PGlite"), o
+# para ensayar `infra/scripts/backup-postgres.sh`/`restore-postgres.sh`.
+#
+# Uso:
+#   docker compose -f infra/compose/docker-compose.dev.yml up -d
+#   DATABASE_URL=postgres://atiende:atiende_dev@localhost:5433/atiende_dev \
+#     npx tsx scripts/db-postgres-migrate.mjs
+#   # o exporta esa misma DATABASE_URL en apps/api/.env / apps/worker/.env
+#   # y arranca `npm run -w apps/api dev` / `npm run -w apps/worker dev`
+#   # normalmente (SKIP_MIGRATIONS=false por defecto: las aplica solo).
+#
+# Puerto 5433 (no el 5432 por defecto) a propósito: evita chocar con un
+# Postgres que ya pudiera estar corriendo en el host de quien desarrolla.
+#
+# Credenciales de ejemplo, NO secretas (uso local exclusivamente) — no
+# reutilizar estos valores fuera de una máquina de desarrollo.
+
+name: atiende-licitaciones-dev
+
+volumes:
+  pgdata-dev:
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: atiende
+      POSTGRES_PASSWORD: atiende_dev
+      POSTGRES_DB: atiende_dev
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata-dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U atiende -d atiende_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  # Cliente web opcional para inspeccionar la base de datos de desarrollo a
+  # ojo (tablas/RLS/datos de un seed) sin instalar psql/una GUI aparte.
+  # Nunca se expone en infra/compose/docker-compose.prod.yml -- solo tiene
+  # sentido en desarrollo local.
+  adminer:
+    image: adminer:4-standalone
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy

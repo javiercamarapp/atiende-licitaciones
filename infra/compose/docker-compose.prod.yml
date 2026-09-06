@@ -1,0 +1,172 @@
+# Compose de PRODUCCIÓN — Atiende Licitaciones.
+#
+# Uso (ver infra/README.md para el paso a paso completo de salida a
+# producción — dominio/DNS/TLS/primer superadmin/backups/rollback):
+#
+#   cd infra/compose
+#   cp ../env/.env.prod.example .env   # completa TODOS los valores reales
+#   docker compose -f docker-compose.prod.yml build
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# El archivo `.env` en ESTE directorio (infra/compose/.env, gitignored —
+# nunca commitear el real) es el que `docker compose` usa para sustituir
+# ${VARIABLE} en este YAML; cada servicio, además, declara explícitamente
+# qué variables recibe como entorno real dentro del contenedor (docker
+# compose NO inyecta automáticamente todo `.env` a cada contenedor, solo lo
+# usa para resolver este archivo).
+#
+# Arquitectura: caddy (borde, TLS automático) -> web (nginx, estático) y
+# api (Fastify) por dominios separados (ver infra/docker/Caddyfile) ->
+# postgres (con volumen persistente) <- worker (cola de jobs) y api.
+# `migrate` es un servicio de UN SOLO USO que aplica
+# packages/db/migrations/*.sql contra Postgres real antes de que arranquen
+# api/worker (con SKIP_MIGRATIONS=true en ambos, para no competir con este
+# servicio — ver docs/OPERACION.md §2 "nunca ambos [api y worker] a la vez
+# de forma descoordinada la primera vez").
+#
+# LIMITACIÓN CONOCIDA (documentada, no oculta): `apps/api` usa STORAGE_DIR
+# en disco local (`api_storage`, ver abajo) para archivos subidos — con una
+# sola réplica de `api` esto es correcto; escalar `api` horizontalmente
+# exigiría mover STORAGE_DIR a almacenamiento compartido (S3/objeto remoto),
+# fuera del alcance de esta ronda de infraestructura (ver
+# apps/api/README.md "Pendiente").
+
+name: atiende-licitaciones
+
+networks:
+  atiende:
+    driver: bridge
+
+volumes:
+  pgdata:
+  api_storage:
+  caddy_data:
+  caddy_config:
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [atiende]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    # Sin `ports:` publicado al host a propósito: solo api/worker/migrate
+    # (en la misma red `atiende`) necesitan llegar a Postgres. Para
+    # inspección manual usa `docker compose exec postgres psql ...` o el
+    # túnel puntual documentado en infra/README.md, no un puerto abierto
+    # permanente.
+
+  # Servicio de UN SOLO USO: aplica TODAS las migraciones de packages/db
+  # contra Postgres real (mismo script que usa .github/workflows/quality.yml
+  # en CI, ver scripts/db-postgres-migrate.mjs) y termina. `restart: "no"`
+  # a propósito -- si falla, NO debe reintentarse solo (ver
+  # docs/OPERACION.md §2: reintentar `applyMigrations` es idempotente y
+  # seguro, pero un fallo real de migración exige diagnóstico humano antes
+  # de reintentar, no un bucle de reinicio automático).
+  migrate:
+    image: atiende/api:${IMAGE_TAG:-local}
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+    command: ["node_modules/.bin/tsx", "scripts/db-postgres-migrate.mjs"]
+    restart: "no"
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [atiende]
+
+  api:
+    image: atiende/api:${IMAGE_TAG:-local}
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: "3000"
+      NODE_ENV: production
+      # Las migraciones ya las aplicó el servicio `migrate` de arriba.
+      SKIP_MIGRATIONS: "true"
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      JWT_SECRET: ${JWT_SECRET}
+      STORAGE_DIR: /app/data/storage
+      CORS_ORIGINS: https://${WEB_DOMAIN}
+      PLATFORM_API_KEY: ${PLATFORM_API_KEY}
+      RATE_LIMIT_PROFILE: ${RATE_LIMIT_PROFILE:-}
+      TOTP_ENCRYPTION_KEY: ${TOTP_ENCRYPTION_KEY}
+      STEP_UP_WINDOW_MINUTES: ${STEP_UP_WINDOW_MINUTES:-5}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+    volumes:
+      - api_storage:/app/data/storage
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks: [atiende]
+
+  worker:
+    image: atiende/worker:${IMAGE_TAG:-local}
+    build:
+      context: ../..
+      dockerfile: apps/worker/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      SKIP_MIGRATIONS: "true"
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      WORKER_ID: ${WORKER_ID:-}
+      WORKER_POLL_INTERVAL_MS: ${WORKER_POLL_INTERVAL_MS:-1000}
+      WORKER_LEASE_SECONDS: ${WORKER_LEASE_SECONDS:-60}
+      WORKER_HEARTBEAT_INTERVAL_MS: ${WORKER_HEARTBEAT_INTERVAL_MS:-15000}
+      WORKER_SHUTDOWN_TIMEOUT_MS: ${WORKER_SHUTDOWN_TIMEOUT_MS:-30000}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      WORKER_SCHEDULE_JSON: ${WORKER_SCHEDULE_JSON:-}
+      API_BASE_URL: http://api:3000
+      PLATFORM_API_KEY: ${PLATFORM_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      api:
+        condition: service_started
+    networks: [atiende]
+
+  web:
+    image: atiende/web:${IMAGE_TAG:-local}
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_URL: https://${API_DOMAIN}
+    restart: unless-stopped
+    networks: [atiende]
+
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      WEB_DOMAIN: ${WEB_DOMAIN}
+      API_DOMAIN: ${API_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    volumes:
+      - ../docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+      - api
+    networks: [atiende]

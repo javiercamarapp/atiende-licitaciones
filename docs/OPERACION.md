@@ -330,3 +330,121 @@ más específico:
 - **WhatsApp (REQ-090) no implementado** en este alcance.
 - **Sin respaldo/restauración probados** (ver §8: es un procedimiento de
   referencia, no verificado con una corrida real en este repo).
+
+## 11. Despliegue en producción (Docker Compose, `infra/`)
+
+**Nota de alcance de esta sección**: se agrega completa en una ronda de
+infraestructura posterior a la introducción de este documento (§0, arriba)
+— esa introducción afirma "no hay ... pipeline de despliegue commiteado en
+este repo"; eso queda desactualizado para lo que describe esta sección
+(Dockerfiles + Docker Compose SÍ existen ahora, en `infra/` y
+`apps/*/Dockerfile`). No se editó la introducción a propósito (el alcance
+de esta ronda es solo AÑADIR esta sección, no modificar texto existente).
+Sigue siendo cierto que no hay Kubernetes/Terraform en este repo.
+
+Documentación completa y con más detalle operativo (arquitectura,
+variables, scripts, troubleshooting de cada paso) en `infra/README.md` —
+esta sección es el resumen de runbook, alineado al resto de este
+documento.
+
+### 11.1 Qué hay
+
+- `apps/api/Dockerfile`, `apps/worker/Dockerfile`, `apps/web/Dockerfile`:
+  imágenes multi-etapa, `node:22-alpine` (api/worker) o `nginx:1.27-alpine`
+  (web estático), usuario no-root.
+- `infra/compose/docker-compose.prod.yml`: `postgres` (16, con volumen +
+  healthcheck) + `migrate` (servicio de un solo uso que aplica
+  `packages/db/migrations/*.sql` contra Postgres real antes de que
+  arranquen `api`/`worker`) + `api` + `worker` + `web` + `caddy` (reverse
+  proxy de borde, TLS automático Let's Encrypt/ZeroSSL, dos dominios:
+  `$WEB_DOMAIN`/`$API_DOMAIN`).
+- `infra/compose/docker-compose.dev.yml`: Postgres real (puerto 5433) +
+  Adminer, para reproducir localmente comportamiento que PGlite no cubre
+  (ver `packages/db/README.md` "Límites conocidos de PGlite") — el día a
+  día de desarrollo sigue sin necesitar Docker (PGlite embebido, ver
+  `README.md` raíz).
+- `infra/env/.env.prod.example`: TODAS las variables de producción
+  documentadas (activas hoy y reservadas para `docs/AMPLIACION-2-SALIDA.md`
+  — Google OAuth, correo transaccional, aún no implementadas en código).
+- `infra/scripts/`: `backup-postgres.sh`, `restore-postgres.sh`,
+  `healthcheck.sh`, `rotate-secrets.md`.
+
+### 11.2 Paso a paso (primera vez)
+
+1. DNS: `$WEB_DOMAIN`/`$API_DOMAIN` apuntando a la IP del host (puertos
+   80/443 accesibles desde Internet).
+2. `cp infra/env/.env.prod.example infra/compose/.env` y completa cada
+   variable (secretos con `openssl rand -base64 48`; nunca commitear este
+   archivo).
+3. `cd infra/compose && docker compose -f docker-compose.prod.yml build`.
+4. `docker compose -f docker-compose.prod.yml up -d` — orden real forzado
+   por `depends_on`/healthchecks: `postgres` sano → `migrate` (aplica
+   migraciones, termina) → `api`/`worker` → `web`/`caddy`.
+5. Verifica: `docker compose ... ps`, `bash ../scripts/healthcheck.sh
+   https://$API_DOMAIN`, `curl -I https://$WEB_DOMAIN`.
+6. **Primer superadmin** (no existe endpoint de auto-promoción, por
+   diseño — ver §3 arriba y `packages/db/README.md`): registra una cuenta
+   normal desde `$WEB_DOMAIN`, luego
+   `insert into platform_admins (user_id) select id from users where
+   lower(email) = lower('correo@tudominio.mx');` directo contra Postgres
+   (`docker compose exec postgres psql ...`, ver `infra/README.md` para
+   el comando completo).
+7. Programa `infra/scripts/backup-postgres.sh` (cron/systemd timer).
+
+Despliegues posteriores (no el primero): `build` → `run --rm migrate`
+(idempotente, ver §2) → `up -d api worker web`.
+
+### 11.3 Migraciones, backups, monitoreo, rollback
+
+- **Migraciones**: mismo runner y las mismas reglas de §2 de este
+  documento (idempotente, nunca editar una ya aplicada) — el servicio
+  `migrate` solo automatiza CUÁNDO se corre (antes de `api`/`worker`), no
+  cambia el mecanismo.
+- **Backups**: `infra/scripts/backup-postgres.sh` (`pg_dump --format=custom`
+  + retención por días + cifrado GPG opcional); `restore-postgres.sh`
+  hace `pg_restore --clean --if-exists` + reaplica migraciones
+  pendientes. Ninguno de los dos se ha ejercitado contra un backup real en
+  este repositorio (igual que §8 ya documentaba) — pruébalos en staging
+  antes de un incidente real.
+- **Monitoreo**: `GET /metrics` sigue sin autenticación propia (§4) —
+  revisa si `$API_DOMAIN` necesita una regla adicional en
+  `infra/docker/Caddyfile` antes de exponerlo públicamente sin
+  restricción. `infra/scripts/healthcheck.sh` como probe externo
+  programable, complementario al `HEALTHCHECK` nativo de
+  `apps/api/Dockerfile` (ese solo reinicia el proceso local).
+- **Rollback**: sin "down migrations" (igual que §2) — un rollback de
+  código a una imagen anterior (`IMAGE_TAG`) es seguro solo si la base de
+  datos no tiene ya migraciones incompatibles con esa versión; si las
+  tiene, la vía real es restaurar un backup previo a esas migraciones, no
+  solo cambiar la imagen. Detalle completo en `infra/README.md`
+  "Rollback".
+- **Rotación de secretos**: `infra/scripts/rotate-secrets.md` documenta el
+  mecanismo específico de Docker Compose para cada secreto de §7 (qué
+  servicios recrear, en qué orden) — la política de qué invalida cada uno
+  sigue siendo la de §7, no cambia.
+
+### 11.4 Checklist de go-live
+
+Ver `infra/README.md` "Checklist de go-live" (DNS propagado, `.env`
+completo con secretos generados, build sin errores, los 6 servicios
+arriba con `migrate` en `Exited (0)`, healthcheck OK, TLS emitido,
+superadmin creado, CORS verificado desde el navegador real, backup de
+prueba restaurado en staging, monitoreo programado, `/metrics` revisado,
+runbook de rollback leído, rotación de secretos leída).
+
+### 11.5 Qué requiere decisión/credenciales del usuario
+
+Ningún agente puede resolver esto sin acceso a las cuentas reales (igual
+que documenta `docs/AMPLIACION-2-SALIDA.md` § "Bloqueos externos
+previstos"):
+
+- **Hosting** (dónde corre el host Docker) y **dominio** (registro + DNS).
+- **Base de datos gestionada** (opcional, alternativa al contenedor
+  `postgres` de este compose).
+- **Proveedor de correo transaccional** + dominio remitente con SPF/DKIM
+  (bloqueante solo para `docs/AMPLIACION-2-SALIDA.md` punto 2, no para
+  este despliegue de infraestructura en sí — ese código no existe
+  todavía).
+- **Credenciales OAuth de Google** (bloqueante solo para
+  `docs/AMPLIACION-2-SALIDA.md` punto 1, mismo caso que el anterior).
+- **Sentry** (u otro backend de errores), opcional.
