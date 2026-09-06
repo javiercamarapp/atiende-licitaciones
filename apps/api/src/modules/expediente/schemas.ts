@@ -257,14 +257,33 @@ export const followupCreateSchema = z.object({
   amount: z.number().optional(),
   notes: z.string().optional(),
   reminderLeadDays: z.number().int().min(0).default(3),
-  /** Para kind='pago': fecha ISO (YYYY-MM-DD) en que se verificó la factura; el plazo se calcula (17 días hábiles, LAASSP Art. 73) en vez de que el llamador declare `dueDate` a mano. */
+  /** Para kind='pago': fecha ISO (YYYY-MM-DD) en que se verificó la factura; el plazo se calcula (17 días hábiles, LAASSP Art. 73, o 20 días naturales bajo el régimen abrogado según REQ-050) en vez de que el llamador declare `dueDate` a mano. */
   invoiceVerifiedOn: z.string().optional(),
+  /**
+   * AE-09 (docs/auditoria-2/api-expediente.md, MEDIA): días "YYYY-MM-DD"
+   * adicionales a excluir del cómputo de días HÁBILES (kind='pago' bajo el
+   * régimen vigente), más allá de sábados/domingos -- este proyecto no trae
+   * un calendario oficial completo de días inhábiles mexicanos codificado
+   * (ver `calendarNote` en la respuesta), así que el llamador puede
+   * declararlos explícitamente cuando los conozca.
+   */
+  holidays: z.array(z.string()).default([]),
 });
 
 export const followupUpdateSchema = z.object({
   status: z.enum(['pending', 'in_progress', 'done', 'overdue', 'cancelled']).optional(),
   notes: z.string().optional(),
   dueDate: z.string().nullable().optional(),
+});
+
+export const legalRegimeSchema = z.object({
+  law: z.string(),
+  article: z.string(),
+  dofDate: z.string(),
+  effectiveDate: z.string(),
+  unit: z.enum(['dias_habiles', 'dias_naturales']),
+  days: z.number(),
+  reason: z.string(),
 });
 
 export const followupSchema = z.object({
@@ -280,4 +299,8 @@ export const followupSchema = z.object({
   reminderLeadDays: z.number(),
   jobId: z.string().uuid().nullable(),
   createdAt: isoTimestamp,
+  /** AE-09: solo para kind='pago' -- advertencia explícita de la limitación del calendario de días hábiles usado (ver CALENDAR_LIMITATION_NOTE en lib/expediente/business-days.ts). */
+  calendarNote: z.string().nullable(),
+  /** AE-09/REQ-050: solo para kind='pago' -- régimen legal aplicado, versionado por fecha de convocatoria. */
+  legalRegime: legalRegimeSchema.nullable(),
 });

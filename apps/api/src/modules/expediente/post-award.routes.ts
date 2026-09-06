@@ -17,9 +17,11 @@ import { recordAudit } from '../../lib/audit.js';
 import { NotFoundError, ValidationAppError } from '../../lib/errors.js';
 import { withTx, requireTender } from '../../lib/expediente/context.js';
 import { computePaymentDeadline } from '../../lib/expediente/business-days.js';
+import { timestampToIso } from '../../lib/expediente/dates.js';
 import { followupCreateSchema, followupUpdateSchema, followupSchema } from './schemas.js';
 
 function mapFollowupRow(r: Record<string, unknown>): any {
+  const metadata = (r.metadata as Record<string, unknown> | null) ?? {};
   return {
     id: r.id,
     tenderId: r.tender_id,
@@ -33,6 +35,9 @@ function mapFollowupRow(r: Record<string, unknown>): any {
     reminderLeadDays: r.reminder_lead_days,
     jobId: r.job_id,
     createdAt: r.created_at,
+    // AE-09: solo presentes para kind='pago' (ver computePaymentDeadline).
+    calendarNote: (metadata.calendarNote as string | undefined) ?? null,
+    legalRegime: (metadata.legalRegime as Record<string, unknown> | undefined) ?? null,
   };
 }
 
@@ -62,17 +67,23 @@ export async function expedientePostAwardRoutes(app: FastifyInstance): Promise<v
 
       let dueDate = request.body.dueDate ?? null;
       let legalReference: string | null = null;
-      if (request.body.kind === 'pago') {
-        if (!request.body.invoiceVerifiedOn) {
-          throw new ValidationAppError({ invoiceVerifiedOn: 'Obligatorio para kind="pago": fecha en que se verificó la factura, para calcular el plazo de 17 días hábiles (LAASSP Art. 73).' });
-        }
-        const deadline = computePaymentDeadline(request.body.invoiceVerifiedOn);
-        dueDate = deadline.dueDate;
-        legalReference = deadline.legalReference;
-      }
+      let metadata: Record<string, unknown> = {};
 
       const row = await withTx(app.db, orgId, userId, async (tx) => {
-        await requireTender(tx, orgId, request.params.tenderId);
+        const tender = await requireTender(tx, orgId, request.params.tenderId);
+        if (request.body.kind === 'pago') {
+          if (!request.body.invoiceVerifiedOn) {
+            throw new ValidationAppError({ invoiceVerifiedOn: 'Obligatorio para kind="pago": fecha en que se verificó la factura, para calcular el plazo de pago (LAASSP Art. 73/Art. 51, según REQ-050).' });
+          }
+          // REQ-050/AE-09: el régimen legal (17 días hábiles vs. 20 días
+          // naturales) se decide por la fecha de PUBLICACIÓN de la
+          // convocatoria (tender.published_at), nunca fija a la ley nueva.
+          const deadline = computePaymentDeadline(request.body.invoiceVerifiedOn, timestampToIso(tender.published_at as string | Date | null), request.body.holidays);
+          dueDate = deadline.dueDate;
+          legalReference = deadline.legalReference;
+          metadata = { calendarNote: deadline.calendarNote, legalRegime: deadline.legalRegime, holidays: request.body.holidays };
+        }
+
         const id = randomUUID();
 
         // Recordatorio encolado como `jobs` (SIN envío externo, ver
@@ -97,9 +108,9 @@ export async function expedientePostAwardRoutes(app: FastifyInstance): Promise<v
         }
 
         const inserted = await tx.query<Record<string, unknown>>(
-          `insert into post_award_followups (id, org_id, tender_id, kind, label, due_date, amount, notes, legal_reference, reminder_lead_days, job_id)
-           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) returning *`,
-          [id, orgId, request.params.tenderId, request.body.kind, request.body.label, dueDate, request.body.amount ?? null, request.body.notes ?? null, legalReference, request.body.reminderLeadDays, jobId]
+          `insert into post_award_followups (id, org_id, tender_id, kind, label, due_date, amount, notes, legal_reference, reminder_lead_days, job_id, metadata)
+           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb) returning *`,
+          [id, orgId, request.params.tenderId, request.body.kind, request.body.label, dueDate, request.body.amount ?? null, request.body.notes ?? null, legalReference, request.body.reminderLeadDays, jobId, JSON.stringify(metadata)]
         );
         await recordAudit(tx, { orgId, actorId: userId, action: 'post_award_followup.create', entity: 'post_award_followups', entityId: id, after: { kind: request.body.kind, dueDate, legalReference }, requestId: request.id });
         return inserted.rows[0];
