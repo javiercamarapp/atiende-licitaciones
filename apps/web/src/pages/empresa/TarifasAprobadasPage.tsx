@@ -16,7 +16,21 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { toast } from "@/components/ui/sonner";
 import { useAuth, describeApiError } from "@/hooks/useAuth";
 import { useRates, useProposeRate, useApproveRate, useRejectRate } from "@/hooks/useCompany";
+import { ApiError } from "@/lib/api/http";
 import { MEMBERSHIP_ADMIN_ROLES, WRITE_ROLES, type Rate } from "@/lib/api/schemas";
+
+// WI-04 (docs/auditoria-2/web-integrado.md): un 409 real de la API significa
+// que la tarifa ya cambió de estado entre que se pintó la fila y que se
+// hizo clic (otra persona la decidió primero, o un doble clic que sí llegó
+// a red antes de que el primero deshabilitara el botón) — se distingue de
+// cualquier otro error con un mensaje honesto y específico, y se refresca
+// la lista para que la UI deje de mostrar el estado ya obsoleto.
+function describeRateActionError(err: unknown): string {
+  if (err instanceof ApiError && err.status === 409) {
+    return "Esta tarifa ya cambió de estado (alguien más la aprobó o rechazó, o el cambio ya se había aplicado). Se actualizó la lista con el estado real.";
+  }
+  return describeApiError(err);
+}
 
 const RATE_STATUS_CONFIG: Record<Rate["status"], { label: string; variant: "success" | "secondary" | "outline" }> = {
   draft: { label: "Propuesta (borrador)", variant: "secondary" },
@@ -163,38 +177,53 @@ export default function TarifasAprobadasPage() {
                           {canApprove && (
                             <TableCell>
                               {rate.status === "draft" ? (
-                                <div className="flex gap-1.5">
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="outline"
-                                    className="gap-1"
-                                    onClick={() =>
-                                      approveRate.mutate(rate.id, {
-                                        onSuccess: () => toast.success("Tarifa aprobada."),
-                                        onError: (err) => toast.error(describeApiError(err)),
-                                      })
-                                    }
-                                  >
-                                    <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                                    Aprobar
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="ghost"
-                                    className="gap-1"
-                                    onClick={() =>
-                                      rejectRate.mutate(rate.id, {
-                                        onSuccess: () => toast.success("Tarifa rechazada."),
-                                        onError: (err) => toast.error(describeApiError(err)),
-                                      })
-                                    }
-                                  >
-                                    <X className="h-3.5 w-3.5" aria-hidden="true" />
-                                    Rechazar
-                                  </Button>
-                                </div>
+                                (() => {
+                                  // WI-04: deshabilitado por FILA (no toda la
+                                  // tabla) mientras SU propia tarifa tiene una
+                                  // decisión en curso — `mutation.variables`
+                                  // guarda el id pasado a `mutate()`, así que
+                                  // otra fila puede seguir operando en
+                                  // paralelo sin bloquearse por esta.
+                                  const isThisRatePending =
+                                    (approveRate.isPending && approveRate.variables === rate.id) ||
+                                    (rejectRate.isPending && rejectRate.variables === rate.id);
+                                  return (
+                                    <div className="flex gap-1.5">
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        className="gap-1"
+                                        disabled={isThisRatePending}
+                                        onClick={() =>
+                                          approveRate.mutate(rate.id, {
+                                            onSuccess: () => toast.success("Tarifa aprobada."),
+                                            onError: (err) => toast.error(describeRateActionError(err)),
+                                          })
+                                        }
+                                      >
+                                        <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                                        {approveRate.isPending && approveRate.variables === rate.id ? "Aprobando…" : "Aprobar"}
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="ghost"
+                                        className="gap-1"
+                                        disabled={isThisRatePending}
+                                        onClick={() =>
+                                          rejectRate.mutate(rate.id, {
+                                            onSuccess: () => toast.success("Tarifa rechazada."),
+                                            onError: (err) => toast.error(describeRateActionError(err)),
+                                          })
+                                        }
+                                      >
+                                        <X className="h-3.5 w-3.5" aria-hidden="true" />
+                                        {rejectRate.isPending && rejectRate.variables === rate.id ? "Rechazando…" : "Rechazar"}
+                                      </Button>
+                                    </div>
+                                  );
+                                })()
                               ) : (
                                 <span className="text-xs text-muted-foreground">—</span>
                               )}

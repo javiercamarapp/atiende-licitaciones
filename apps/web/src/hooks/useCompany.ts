@@ -135,7 +135,22 @@ export function useApproveRate() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.approveRate(currentOrgId!, id),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["company", "rates", currentOrgId] }),
+    // WI-04 (docs/auditoria-2/web-integrado.md): `onSettled` async + `await`
+    // mantiene `isPending` en `true` hasta que el refetch de
+    // ["company","rates",currentOrgId] termina de traer el estado real
+    // (react-query espera cualquier Promise devuelta por `onSettled` antes
+    // de asentar la mutación) — sin esto, `isPending` volvía a `false` en
+    // cuanto la petición HTTP resolvía (con éxito O CON ERROR), mientras la
+    // fila todavía mostraba `status: "draft"` (dato aún no refrescado): una
+    // ventana real en la que un segundo clic (Aprobar de nuevo, o Rechazar)
+    // podía dispararse contra la misma tarifa ya decidida. `onSettled` (no
+    // solo `onSuccess`) porque un 409 real de la API (alguien más decidió
+    // primero) también significa que el estado en caché ya está obsoleto —
+    // hay que refrescarlo igual para que la fila deje de mostrar acciones
+    // sobre un estado que ya no existe.
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["company", "rates", currentOrgId] });
+    },
   });
 }
 
@@ -144,6 +159,8 @@ export function useRejectRate() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.rejectRate(currentOrgId!, id),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["company", "rates", currentOrgId] }),
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["company", "rates", currentOrgId] });
+    },
   });
 }
