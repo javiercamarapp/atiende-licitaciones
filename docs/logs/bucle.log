@@ -178,3 +178,4 @@
 2026-09-06 17:39  NOTIF  #119 pase trazabilidad 0edf2f8 (57/101/65/6/5/3); despacho #122 auditoría web, #123 auditoría infra; E22; en curso #117 #118 #120 #121 #122 #123.
 2026-09-06 17:44  USUARIO  «como vamos, aun no esta vercel» → verificado: sitio público 200 con bundle actual (B-07 cerrado); falta backend en producción → B-08 (decisión de hosting).
 2026-09-06 17:46  USUARIO  «supabase el backend y vercel deploy» → D-11; despacho #124.
+2026-09-06 17:49  NOTIF  #117 api r6b cerrada (R6-09..14); Supabase CLI listado en background; en curso #118 #120 #121 #122 #123 #124.

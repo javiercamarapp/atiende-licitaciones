@@ -356,3 +356,6 @@ Formato por entrada: requisito · acción · archivos/commit · prueba · result
 
 ## Decisión de hosting (2026-09-06 18:1x)
 - **Acción:** el usuario preguntó por Vercel; verificado en vivo: el sitio es público (200, bundle actual, despliegue automático desde GitHub) → B-07 cerrado. Lo que falta es el backend (B-08). El usuario decidió Supabase + Vercel (D-11). Implementador #124 despachado; el usuario debe crear el proyecto Supabase y el segundo proyecto Vercel según docs/despliegue-supabase-vercel.md cuando exista.
+
+## Corrección — api ronda 6b (2026-09-06 18:2x)
+- **Acción:** #117 (Sonnet) cerró R6-09..R6-14: la bomba de PDF de 20.000 páginas pasa de 52,8 s a menos de 2 s con estado explícito; alertas de renovación paginadas por keyset; test determinista del UPDATE condicionado; retry determinista de TOTP en helpers; criterio estructural del radar exige LIMIT. 359/359 en la segunda pasada. **Siguiente:** reverificación r6b junto con Google y AM cuando cierre #120.
