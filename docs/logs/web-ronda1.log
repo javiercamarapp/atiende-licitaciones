@@ -1,901 +1,37 @@
+# Log ronda 1 — apps/web (Atiende Licitaciones)
+# Generado: 2026-09-06T00:54:15Z
+# Node: v25.6.1  npm: 11.12.1
+
+=== $ npm install (raíz del workspace) ===
+
+added 64 packages, and audited 622 packages in 4s
+
+199 packages are looking for funding
+  run `npm fund` for details
+
+5 vulnerabilities (3 moderate, 1 high, 1 critical)
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+--- EXIT CODE: 0 ---
+
 === $ npm run -w apps/web typecheck ===
 
 > @atiende/web@0.1.0 typecheck
 > tsc -b --noEmit
 
-EXIT CODE: 0
+--- EXIT CODE: 0 ---
 
 === $ npm run -w apps/web lint ===
 
 > @atiende/web@0.1.0 lint
 > eslint .
 
-[0m[0m
-[0m[4m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/components/ui/badge.tsx[24m[0m
-[0m  [2m31:17[22m  [33mwarning[39m  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  [2mreact-refresh/only-export-components[22m[0m
-[0m[0m
-[0m[4m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/components/ui/button.tsx[24m[0m
-[0m  [2m52:18[22m  [33mwarning[39m  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  [2mreact-refresh/only-export-components[22m[0m
-[0m[0m
-[0m[4m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/components/ui/card.tsx[24m[0m
-[0m  [2m20:5[22m  [31merror[39m  Headings must have content and the content must be accessible by a screen reader  [2mjsx-a11y/heading-has-content[22m[0m
-[0m[0m
-[0m[4m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/components/ui/form.tsx[24m[0m
-[0m  [2m130:10[22m  [33mwarning[39m  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  [2mreact-refresh/only-export-components[22m[0m
-[0m[0m
-[0m[4m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/components/ui/sonner.tsx[24m[0m
-[0m  [2m27:19[22m  [33mwarning[39m  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  [2mreact-refresh/only-export-components[22m[0m
-[0m[0m
-[0m[4m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/pages/ConfiguracionPage.tsx[24m[0m
-[0m  [2m4:16[22m  [33mwarning[39m  Fast refresh can't handle anonymous components. Add a name to your export  [2mreact-refresh/only-export-components[22m[0m
-[0m[0m
-[0m[4m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/pages/PanelPage.tsx[24m[0m
-[0m  [2m4:16[22m  [33mwarning[39m  Fast refresh can't handle anonymous components. Add a name to your export  [2mreact-refresh/only-export-components[22m[0m
-[0m[0m
-[0m[4m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/pages/backoffice/AgentesHerramientasPage.tsx[24m[0m
-[0m  [2m4:16[22m  [33mwarning[39m  Fast refresh can't handle anonymous components. Add a name to your export  [2mreact-refresh/only-export-components[22m[0m
-[0m[0m
-[0m[4m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/pages/backoffice/AuditoriaPage.tsx[24m[0m
-[0m  [2m4:16[22m  [33mwarning[39m  Fast refresh can't handle anonymous components. Add a name to your export  [2mreact-refresh/only-export-components[22m[0m
-[0m[0m
-[0m[4m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/pages/backoffice/OrganizacionesPage.tsx[24m[0m
-[0m  [2m4:16[22m  [33mwarning[39m  Fast refresh can't handle anonymous components. Add a name to your export  [2mreact-refresh/only-export-components[22m[0m
-[0m[0m
-[0m[4m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/pages/backoffice/UsuariosRolesPage.tsx[24m[0m
-[0m  [2m4:16[22m  [33mwarning[39m  Fast refresh can't handle anonymous components. Add a name to your export  [2mreact-refresh/only-export-components[22m[0m
-[0m[0m
-[0m[4m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/pages/convocatorias/DescubrimientoPage.tsx[24m[0m
-[0m  [2m4:16[22m  [33mwarning[39m  Fast refresh can't handle anonymous components. Add a name to your export  [2mreact-refresh/only-export-components[22m[0m
-[0m[0m
-[0m[4m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/pages/convocatorias/MatchingPage.tsx[24m[0m
-[0m  [2m4:16[22m  [33mwarning[39m  Fast refresh can't handle anonymous components. Add a name to your export  [2mreact-refresh/only-export-components[22m[0m
-[0m[0m
-[0m[4m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/pages/entrega/EntregasPage.tsx[24m[0m
-[0m  [2m4:16[22m  [33mwarning[39m  Fast refresh can't handle anonymous components. Add a name to your export  [2mreact-refresh/only-export-components[22m[0m
-[0m[0m
-[0m[4m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/pages/entrega/SeguimientoPage.tsx[24m[0m
-[0m  [2m4:16[22m  [33mwarning[39m  Fast refresh can't handle anonymous components. Add a name to your export  [2mreact-refresh/only-export-components[22m[0m
-[0m[0m
-[0m[4m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/pages/evaluacion/AnalisisBasesPage.tsx[24m[0m
-[0m  [2m4:16[22m  [33mwarning[39m  Fast refresh can't handle anonymous components. Add a name to your export  [2mreact-refresh/only-export-components[22m[0m
-[0m[0m
-[0m[4m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/pages/evaluacion/GoNoGoPage.tsx[24m[0m
-[0m  [2m4:16[22m  [33mwarning[39m  Fast refresh can't handle anonymous components. Add a name to your export  [2mreact-refresh/only-export-components[22m[0m
-[0m[0m
-[0m[4m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/pages/preparacion/CumplimientoDocumentalPage.tsx[24m[0m
-[0m  [2m4:16[22m  [33mwarning[39m  Fast refresh can't handle anonymous components. Add a name to your export  [2mreact-refresh/only-export-components[22m[0m
-[0m[0m
-[0m[4m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/pages/preparacion/RedaccionPage.tsx[24m[0m
-[0m  [2m4:16[22m  [33mwarning[39m  Fast refresh can't handle anonymous components. Add a name to your export  [2mreact-refresh/only-export-components[22m[0m
-[0m[0m
-[0m[4m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/pages/preparacion/RevisionPage.tsx[24m[0m
-[0m  [2m4:16[22m  [33mwarning[39m  Fast refresh can't handle anonymous components. Add a name to your export  [2mreact-refresh/only-export-components[22m[0m
-[0m[0m
-[0m[31m[1m✖ 20 problems (1 error, 19 warnings)[22m[39m[0m
-[0m[31m[1m[22m[39m[0m
-npm error Lifecycle script `lint` failed with error:
-npm error code 1
-npm error path /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web
-npm error workspace @atiende/web@0.1.0
-npm error location /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web
-npm error command failed
-npm error command sh -c eslint .
-EXIT CODE: 1
-
-=== $ npm run -w apps/web lint (re-run) ===
-
-> @atiende/web@0.1.0 lint
-> eslint .
-
-EXIT CODE: 0
+--- EXIT CODE: 0 ---
 
 === $ npm run -w apps/web test ===
-
-> @atiende/web@0.1.0 test
-> vitest run
-
-
- RUN  v4.1.11 /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web
-
-(node:47428) Warning: `--localstorage-file` was provided without a valid path
-(Use `node --trace-warnings ...` to show where the warning was created)
- ❯ src/components/ThemeSelector.test.tsx (2 tests | 2 failed) 4ms
-     × es un radiogroup accesible con las tres opciones 2ms
-     × agrega la clase .dark al elegir tema oscuro y la quita al elegir claro 0ms
- ❯ src/components/ui/empty-state.test.tsx (4 tests | 4 failed) 46ms
-     × muestra título y descripción, y ejecuta la acción al hacer click 19ms
-     × no renderiza un botón de acción si no se pasa onAction 2ms
-     × muestra el mensaje real del error y permite reintentar 21ms
-     × expone un status accesible para lectores de pantalla 2ms
-Error: Uncaught [TypeError: window.localStorage.getItem is not a function]
-    at reportException (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/helpers/runtime-script-errors.js:66:24)
-    at innerInvokeEventListeners (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:353:9)
-    at invokeEventListeners (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:286:3)
-    at HTMLUnknownElementImpl._dispatch (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:233:9)
-    at HTMLUnknownElementImpl.dispatchEvent (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:104:17)
-    at HTMLUnknownElement.dispatchEvent (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/EventTarget.js:241:34)
-    at Object.invokeGuardedCallbackDev (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-dom/cjs/react-dom.development.js:4213:16)
-    at invokeGuardedCallback (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-dom/cjs/react-dom.development.js:4277:31)
-    at reportUncaughtErrorInDEV (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-dom/cjs/react-dom.development.js:22877:5)
-    at captureCommitPhaseError (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-dom/cjs/react-dom.development.js:27165:5) TypeError: window.localStorage.getItem is not a function
-    at leerTema [90m(/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/[39msrc/components/ThemeSelector.tsx:11:33[90m)[39m
-    at [90m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/[39msrc/components/ThemeSelector.tsx:30:15
-    at commitHookEffectListMount (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:23189:26)
-    at commitPassiveMountOnFiber (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:24970:11)
-    at commitPassiveMountEffects_complete (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:24930:9)
-    at commitPassiveMountEffects_begin (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:24917:7)
-    at commitPassiveMountEffects (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:24905:3)
-    at flushPassiveEffectsImpl (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:27078:3)
-    at flushPassiveEffects (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:27023:14)
-    at performSyncWorkOnRoot (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:26115:3)
-Error: Uncaught [TypeError: window.localStorage.getItem is not a function]
-    at reportException (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/helpers/runtime-script-errors.js:66:24)
-    at innerInvokeEventListeners (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:353:9)
-    at invokeEventListeners (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:286:3)
-    at HTMLUnknownElementImpl._dispatch (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:233:9)
-    at HTMLUnknownElementImpl.dispatchEvent (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:104:17)
-    at HTMLUnknownElement.dispatchEvent (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/EventTarget.js:241:34)
-    at Object.invokeGuardedCallbackDev (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-dom/cjs/react-dom.development.js:4213:16)
-    at invokeGuardedCallback (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-dom/cjs/react-dom.development.js:4277:31)
-    at reportUncaughtErrorInDEV (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-dom/cjs/react-dom.development.js:22877:5)
-    at captureCommitPhaseError (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-dom/cjs/react-dom.development.js:27165:5) TypeError: window.localStorage.getItem is not a function
-    at leerTema [90m(/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/[39msrc/components/ThemeSelector.tsx:11:33[90m)[39m
-    at [90m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/[39msrc/components/ThemeSelector.tsx:30:15
-    at commitHookEffectListMount (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:23189:26)
-    at commitPassiveMountOnFiber (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:24970:11)
-    at commitPassiveMountEffects_complete (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:24930:9)
-    at commitPassiveMountEffects_begin (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:24917:7)
-    at commitPassiveMountEffects (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:24905:3)
-    at flushPassiveEffectsImpl (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:27078:3)
-    at flushPassiveEffects (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:27023:14)
-    at performSyncWorkOnRoot (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:26115:3)
-Error: Uncaught [TypeError: window.localStorage.getItem is not a function]
-    at reportException (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/helpers/runtime-script-errors.js:66:24)
-    at innerInvokeEventListeners (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:353:9)
-    at invokeEventListeners (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:286:3)
-    at HTMLUnknownElementImpl._dispatch (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:233:9)
-    at HTMLUnknownElementImpl.dispatchEvent (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:104:17)
-    at HTMLUnknownElement.dispatchEvent (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/EventTarget.js:241:34)
-    at Object.invokeGuardedCallbackDev (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-dom/cjs/react-dom.development.js:4213:16)
-    at invokeGuardedCallback (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-dom/cjs/react-dom.development.js:4277:31)
-    at reportUncaughtErrorInDEV (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-dom/cjs/react-dom.development.js:22877:5)
-    at captureCommitPhaseError (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-dom/cjs/react-dom.development.js:27165:5) TypeError: window.localStorage.getItem is not a function
-    at leerTema [90m(/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/[39msrc/components/ThemeSelector.tsx:11:33[90m)[39m
-    at [90m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/[39msrc/components/ThemeSelector.tsx:30:15
-    at commitHookEffectListMount (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:23189:26)
-    at commitPassiveMountOnFiber (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:24970:11)
-    at commitPassiveMountEffects_complete (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:24930:9)
-    at commitPassiveMountEffects_begin (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:24917:7)
-    at commitPassiveMountEffects (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:24905:3)
-    at flushPassiveEffectsImpl (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:27078:3)
-    at flushPassiveEffects (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:27023:14)
-    at performSyncWorkOnRoot (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:26115:3)
-Error: Uncaught [TypeError: window.localStorage.getItem is not a function]
-    at reportException (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/helpers/runtime-script-errors.js:66:24)
-    at innerInvokeEventListeners (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:353:9)
-    at invokeEventListeners (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:286:3)
-    at HTMLUnknownElementImpl._dispatch (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:233:9)
-    at HTMLUnknownElementImpl.dispatchEvent (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:104:17)
-    at HTMLUnknownElement.dispatchEvent (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/EventTarget.js:241:34)
-    at Object.invokeGuardedCallbackDev (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-dom/cjs/react-dom.development.js:4213:16)
-    at invokeGuardedCallback (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-dom/cjs/react-dom.development.js:4277:31)
-    at reportUncaughtErrorInDEV (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-dom/cjs/react-dom.development.js:22877:5)
-    at captureCommitPhaseError (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-dom/cjs/react-dom.development.js:27165:5) TypeError: window.localStorage.getItem is not a function
-    at leerTema [90m(/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/[39msrc/components/ThemeSelector.tsx:11:33[90m)[39m
-    at [90m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/[39msrc/components/ThemeSelector.tsx:30:15
-    at commitHookEffectListMount (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:23189:26)
-    at commitPassiveMountOnFiber (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:24970:11)
-    at commitPassiveMountEffects_complete (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:24930:9)
-    at commitPassiveMountEffects_begin (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:24917:7)
-    at commitPassiveMountEffects (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:24905:3)
-    at flushPassiveEffectsImpl (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:27078:3)
-    at flushPassiveEffects (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:27023:14)
-    at performSyncWorkOnRoot (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:26115:3)
-Error: Uncaught [TypeError: window.localStorage.getItem is not a function]
-    at reportException (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/helpers/runtime-script-errors.js:66:24)
-    at innerInvokeEventListeners (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:353:9)
-    at invokeEventListeners (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:286:3)
-    at HTMLUnknownElementImpl._dispatch (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:233:9)
-    at HTMLUnknownElementImpl.dispatchEvent (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/events/EventTarget-impl.js:104:17)
-    at HTMLUnknownElement.dispatchEvent (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/EventTarget.js:241:34)
-    at Object.invokeGuardedCallbackDev (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-dom/cjs/react-dom.development.js:4213:16)
-    at invokeGuardedCallback (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-dom/cjs/react-dom.development.js:4277:31)
-    at reportUncaughtErrorInDEV (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-dom/cjs/react-dom.development.js:22877:5)
-    at captureCommitPhaseError (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-dom/cjs/react-dom.development.js:27165:5) TypeError: window.localStorage.getItem is not a function
-    at leerTema [90m(/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/[39msrc/components/ThemeSelector.tsx:11:33[90m)[39m
-    at [90m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/[39msrc/components/ThemeSelector.tsx:30:15
-    at commitHookEffectListMount (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:23189:26)
-    at commitPassiveMountOnFiber (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:24970:11)
-    at commitPassiveMountEffects_complete (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:24930:9)
-    at commitPassiveMountEffects_begin (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:24917:7)
-    at commitPassiveMountEffects (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:24905:3)
-    at flushPassiveEffectsImpl (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:27078:3)
-    at flushPassiveEffects (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:27023:14)
-    at performSyncWorkOnRoot (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/[4mreact-dom[24m/cjs/react-dom.development.js:26115:3)
-(node:47425) Warning: `--localstorage-file` was provided without a valid path
-(Use `node --trace-warnings ...` to show where the warning was created)
-stderr | src/components/layout/AppShell.test.tsx > AppShell / sidebar > muestra todos los items de navegación con su enlace correcto
-The above error occurred in the <ThemeSelector> component:
-
-    at ThemeSelector (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/components/ThemeSelector.tsx:35:63)
-    at div
-    at header
-    at div
-    at div
-    at AppShell (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/components/layout/AppShell.tsx:18:81)
-    at RenderedRoute (file:///Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-router/dist/development/chunk-BV7QT456.mjs:6309:26)
-    at Routes (file:///Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-router/dist/development/chunk-BV7QT456.mjs:7195:3)
-    at Router (file:///Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-router/dist/development/chunk-BV7QT456.mjs:7134:13)
-    at MemoryRouter (file:///Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-router/dist/development/chunk-BV7QT456.mjs:7044:3)
-    at Provider (file:///Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/@radix-ui/react-context/dist/index.mjs:38:15)
-    at TooltipProvider (file:///Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/@radix-ui/react-tooltip/dist/index.mjs:32:5)
-    at QueryClientProvider (file:///Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js:12:32)
-    at Wrapper (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/test/utils.tsx:18:24)
-
-Consider adding an error boundary to your tree to customize error handling behavior.
-Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
-
-stderr | src/components/layout/AppShell.test.tsx > AppShell / sidebar > tiene landmarks de header, navegación y contenido principal
-The above error occurred in the <ThemeSelector> component:
-
-    at ThemeSelector (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/components/ThemeSelector.tsx:35:63)
-    at div
-    at header
-    at div
-    at div
-    at AppShell (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/components/layout/AppShell.tsx:18:81)
-    at RenderedRoute (file:///Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-router/dist/development/chunk-BV7QT456.mjs:6309:26)
-    at Routes (file:///Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-router/dist/development/chunk-BV7QT456.mjs:7195:3)
-    at Router (file:///Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-router/dist/development/chunk-BV7QT456.mjs:7134:13)
-    at MemoryRouter (file:///Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-router/dist/development/chunk-BV7QT456.mjs:7044:3)
-    at Provider (file:///Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/@radix-ui/react-context/dist/index.mjs:38:15)
-    at TooltipProvider (file:///Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/@radix-ui/react-tooltip/dist/index.mjs:32:5)
-    at QueryClientProvider (file:///Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js:12:32)
-    at Wrapper (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/test/utils.tsx:18:24)
-
-Consider adding an error boundary to your tree to customize error handling behavior.
-Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
-
-stderr | src/components/layout/AppShell.test.tsx > AppShell / sidebar > incluye un skip-link al contenido principal
-The above error occurred in the <ThemeSelector> component:
-
-    at ThemeSelector (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/components/ThemeSelector.tsx:35:63)
-    at div
-    at header
-    at div
-    at div
-    at AppShell (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/components/layout/AppShell.tsx:18:81)
-    at RenderedRoute (file:///Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-router/dist/development/chunk-BV7QT456.mjs:6309:26)
-    at Routes (file:///Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-router/dist/development/chunk-BV7QT456.mjs:7195:3)
-    at Router (file:///Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-router/dist/development/chunk-BV7QT456.mjs:7134:13)
-    at MemoryRouter (file:///Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-router/dist/development/chunk-BV7QT456.mjs:7044:3)
-    at Provider (file:///Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/@radix-ui/react-context/dist/index.mjs:38:15)
-    at TooltipProvider (file:///Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/@radix-ui/react-tooltip/dist/index.mjs:32:5)
-    at QueryClientProvider (file:///Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js:12:32)
-    at Wrapper (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/test/utils.tsx:18:24)
-
-Consider adding an error boundary to your tree to customize error handling behavior.
-Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
-
-stderr | src/components/layout/AppShell.test.tsx > AppShell / sidebar > abre y cierra el drawer móvil de forma accesible
-The above error occurred in the <ThemeSelector> component:
-
-    at ThemeSelector (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/components/ThemeSelector.tsx:35:63)
-    at div
-    at header
-    at div
-    at div
-    at AppShell (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/components/layout/AppShell.tsx:18:81)
-    at RenderedRoute (file:///Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-router/dist/development/chunk-BV7QT456.mjs:6309:26)
-    at Routes (file:///Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-router/dist/development/chunk-BV7QT456.mjs:7195:3)
-    at Router (file:///Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-router/dist/development/chunk-BV7QT456.mjs:7134:13)
-    at MemoryRouter (file:///Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-router/dist/development/chunk-BV7QT456.mjs:7044:3)
-    at Provider (file:///Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/@radix-ui/react-context/dist/index.mjs:38:15)
-    at TooltipProvider (file:///Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/@radix-ui/react-tooltip/dist/index.mjs:32:5)
-    at QueryClientProvider (file:///Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js:12:32)
-    at Wrapper (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/test/utils.tsx:18:24)
-
-Consider adding an error boundary to your tree to customize error handling behavior.
-Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
-
-stderr | src/components/layout/AppShell.test.tsx > AppShell / sidebar > no tiene violaciones de accesibilidad detectables por axe
-The above error occurred in the <ThemeSelector> component:
-
-    at ThemeSelector (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/components/ThemeSelector.tsx:35:63)
-    at div
-    at header
-    at div
-    at div
-    at AppShell (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/components/layout/AppShell.tsx:18:81)
-    at RenderedRoute (file:///Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-router/dist/development/chunk-BV7QT456.mjs:6309:26)
-    at Routes (file:///Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-router/dist/development/chunk-BV7QT456.mjs:7195:3)
-    at Router (file:///Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-router/dist/development/chunk-BV7QT456.mjs:7134:13)
-    at MemoryRouter (file:///Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/react-router/dist/development/chunk-BV7QT456.mjs:7044:3)
-    at Provider (file:///Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/@radix-ui/react-context/dist/index.mjs:38:15)
-    at TooltipProvider (file:///Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/@radix-ui/react-tooltip/dist/index.mjs:32:5)
-    at QueryClientProvider (file:///Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js:12:32)
-    at Wrapper (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/test/utils.tsx:18:24)
-
-Consider adding an error boundary to your tree to customize error handling behavior.
-Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
-
- ❯ src/components/layout/AppShell.test.tsx (5 tests | 5 failed) 71ms
-     × muestra todos los items de navegación con su enlace correcto 38ms
-     × tiene landmarks de header, navegación y contenido principal 9ms
-     × incluye un skip-link al contenido principal 7ms
-     × abre y cierra el drawer móvil de forma accesible 8ms
-     × no tiene violaciones de accesibilidad detectables por axe 7ms
-Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
-    at module.exports (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
-    at HTMLCanvasElementImpl.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
-    at HTMLCanvasElement.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
-    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17088:49
-    at Object.get (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:11246:23)
-    at _isIconLigature (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17087:41)
-    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28725:54
-    at Array.some (<anonymous>)
-    at hasRealTextChildren (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28724:35)
-    at Rule.colorContrastMatches [as matches] (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
- ❯ src/pages/LoginPage.test.tsx (4 tests | 3 failed) 184ms
-     × valida el formulario de contraseña con zod antes de enviar 71ms
-     × rechaza un correo con formato inválido 47ms
-     × valida el formulario de enlace mágico con zod 27ms
-
-⎯⎯⎯⎯⎯⎯ Failed Tests 14 ⎯⎯⎯⎯⎯⎯⎯
-
- FAIL  src/components/ThemeSelector.test.tsx > ThemeSelector > es un radiogroup accesible con las tres opciones
- FAIL  src/components/ThemeSelector.test.tsx > ThemeSelector > agrega la clase .dark al elegir tema oscuro y la quita al elegir claro
-TypeError: window.localStorage.clear is not a function
- ❯ src/components/ThemeSelector.test.tsx:9:25
-      7| describe("ThemeSelector", () => {
-      8|   beforeEach(() => {
-      9|     window.localStorage.clear();
-       |                         ^
-     10|     document.documentElement.classList.remove("dark");
-     11|   });
-
-⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/16]⎯
-
- FAIL  src/components/ThemeSelector.test.tsx > ThemeSelector > es un radiogroup accesible con las tres opciones
- FAIL  src/components/ThemeSelector.test.tsx > ThemeSelector > agrega la clase .dark al elegir tema oscuro y la quita al elegir claro
-TypeError: window.localStorage.clear is not a function
- ❯ src/components/ThemeSelector.test.tsx:14:25
-     12|
-     13|   afterEach(() => {
-     14|     window.localStorage.clear();
-       |                         ^
-     15|     document.documentElement.classList.remove("dark");
-     16|   });
-
-⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/16]⎯
-
- FAIL  src/pages/LoginPage.test.tsx > LoginPage > valida el formulario de contraseña con zod antes de enviar
-Error: Invalid Chai property: toBeInTheDocument
- ❯ src/pages/LoginPage.test.tsx:16:36
-     14|     await user.click(screen.getByRole("button", { name: "Iniciar sesió…
-     15|
-     16|     expect(await screen.findByText("Ingresa tu correo electrónico.")).…
-       |                                    ^
-     17|     expect(screen.getByText("La contraseña debe tener al menos 8 carac…
-     18|   });
-
-⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/16]⎯
-
- FAIL  src/pages/LoginPage.test.tsx > LoginPage > rechaza un correo con formato inválido
-TestingLibraryElementError: Found multiple elements with the text of: Contraseña
-
-Here are the matching elements:
-
-Ignored nodes: comments, script, style
-[36m<div[39m
-  [33maria-labelledby[39m=[32m"radix-:r5:-trigger-password"[39m
-  [33mclass[39m=[32m"mt-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"[39m
-  [33mdata-orientation[39m=[32m"horizontal"[39m
-  [33mdata-state[39m=[32m"active"[39m
-  [33mid[39m=[32m"radix-:r5:-content-password"[39m
-  [33mrole[39m=[32m"tabpanel"[39m
-  [33mstyle[39m=[32m"animation-duration: 0s;"[39m
-  [33mtabindex[39m=[32m"0"[39m
-[36m>[39m
-  [36m<form[39m
-    [33mclass[39m=[32m"space-y-4"[39m
-    [33mnovalidate[39m=[32m""[39m
-  [36m>[39m
-    [36m<div[39m
-      [33mclass[39m=[32m"space-y-2"[39m
-    [36m>[39m
-      [36m<label[39m
-        [33mclass[39m=[32m"text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"[39m
-        [33mfor[39m=[32m":r8:-form-item"[39m
-      [36m>[39m
-        [0mCorreo electrónico[0m
-      [36m</label>[39m
-      [36m<input[39m
-        [33maria-describedby[39m=[32m":r8:-form-item-description"[39m
-        [33maria-invalid[39m=[32m"false"[39m
-        [33mautocomplete[39m=[32m"email"[39m
-        [33mclass[39m=[32m"flex h-10 w-full rounded-xl border border-input bg-card px-3.5 py-2 text-sm text-foreground shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"[39m
-        [33mid[39m=[32m":r8:-form-item"[39m
-        [33mname[39m=[32m"email"[39m
-        [33mplaceholder[39m=[32m"tu@empresa.com"[39m
-        [33mtype[39m=[32m"email"[39m
-        [33mvalue[39m=[32m"no-es-un-correo"[39m
-      [36m/>[39m
-    [36m</div>[39m
-    [36m<div[39m
-      [33mclass[39m=[32m"space-y-2"[39m
-    [36m>[39m
-      [36m<label[39m
-        [33mclass[39m=[32m"text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"[39m
-        [33mfor[39m=[32m":r9:-form-item"[39m
-      [36m>[39m
-        [0mContraseña[0m
-      [36m</label>[39m
-      [36m<input[39m
-        [33maria-describedby[39m=[32m":r9:-form-item-description"[39m
-        [33maria-invalid[39m=[32m"false"[39m
-        [33mautocomplete[39m=[32m"current-password"[39m
-        [33mclass[39m=[32m"flex h-10 w-full rounded-xl border border-input bg-card px-3.5 py-2 text-sm text-foreground shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"[39m
-        [33mid[39m=[32m":r9:-form-item"[39m
-        [33mname[39m=[32m"password"[39m
-        [33mplaceholder[39m=[32m"••••••••"[39m
-        [33mtype[39m=[32m"password"[39m
-        [33mvalue[39m=[32m""[39m
-      [36m/>[39m
-    [36m</div>[39m
-    [36m<button[39m
-      [33mclass[39m=[32m"inline-flex items-center justify-center whitespace-nowrap rounded-full text-sm font-semibold tracking-[0.005em] ring-offset-background transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 shadow-card motion-safe:hover:-translate-y-px h-10 px-5 py-2 w-full gap-2"[39m
-      [33mtype[39m=[32m"submit"[39m
-    [36m>[39m
-      [36m<svg[39m
-        [33maria-hidden[39m=[32m"true"[39m
-        [33mclass[39m=[32m"lucide lucide-lock h-4 w-4"[39m
-        [33mfill[39m=[32m"none"[39m
-        [33mheight[39m=[32m"24"[39m
-        [33mstroke[39m=[32m"currentColor"[39m
-        [33mstroke-linecap[39m=[32m"round"[39m
-        [33mstroke-linejoin[39m=[32m"round"[39m
-        [33mstroke-width[39m=[32m"2"[39m
-        [33mviewBox[39m=[32m"0 0 24 24"[39m
-        [33mwidth[39m=[32m"24"[39m
-        [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
-      [36m>[39m
-        [36m<rect[39m
-          [33mheight[39m=[32m"11"[39m
-          [33mrx[39m=[32m"2"[39m
-          [33mry[39m=[32m"2"[39m
-          [33mwidth[39m=[32m"18"[39m
-          [33mx[39m=[32m"3"[39m
-          [33my[39m=[32m"11"[39m
-        [36m/>[39m
-        [36m<path[39m
-          [33md[39m=[32m"M7 11V7a5 5 0 0 1 10 0v4"[39m
-        [36m/>[39m
-      [36m</svg>[39m
-      [0mIniciar sesión[0m
-    [36m</button>[39m
-  [36m</form>[39m
-[36m</div>[39m
-
-Ignored nodes: comments, script, style
-[36m<input[39m
-  [33maria-describedby[39m=[32m":r9:-form-item-description"[39m
-  [33maria-invalid[39m=[32m"false"[39m
-  [33mautocomplete[39m=[32m"current-password"[39m
-  [33mclass[39m=[32m"flex h-10 w-full rounded-xl border border-input bg-card px-3.5 py-2 text-sm text-foreground shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"[39m
-  [33mid[39m=[32m":r9:-form-item"[39m
-  [33mname[39m=[32m"password"[39m
-  [33mplaceholder[39m=[32m"••••••••"[39m
-  [33mtype[39m=[32m"password"[39m
-  [33mvalue[39m=[32m""[39m
-[36m/>[39m
-
-(If this is intentional, then use the `*AllBy*` variant of the query (like `queryAllByText`, `getAllByText`, or `findAllByText`)).
-
-Ignored nodes: comments, script, style
-[36m<body>[39m
-  [36m<div>[39m
-    [36m<div[39m
-      [33mclass[39m=[32m"flex min-h-screen items-center justify-center bg-background p-4"[39m
-    [36m>[39m
-      [36m<a[39m
-        [33mclass[39m=[32m"skip-link"[39m
-        [33mhref[39m=[32m"#login-form"[39m
-      [36m>[39m
-        [0mSaltar al formulario de acceso[0m
-      [36m</a>[39m
-      [36m<div[39m
-        [33mclass[39m=[32m"rounded-2xl border border-border bg-card text-card-foreground shadow-card w-full max-w-md"[39m
-      [36m>[39m
-        [36m<div[39m
-          [33mclass[39m=[32m"flex flex-col space-y-1.5 p-6 items-center text-center"[39m
-        [36m>[39m
-          [36m<span[39m
-            [33mclass[39m=[32m"inline-flex items-center gap-2 mb-2"[39m
-          [36m>[39m
-            [36m<svg[39m
-              [33maria-label[39m=[32m"Atiende"[39m
-              [33mclass[39m=[32m"h-7 w-auto "[39m
-              [33mfill[39m=[32m"none"[39m
-              [33mrole[39m=[32m"img"[39m
-              [33mviewBox[39m=[32m"0 0 40 32"[39m
-              [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
-            [36m>[39m
-              [36m<rect[39m
-                [33mclass[39m=[32m"atiende-linea atiende-linea-1"[39m
-                [33mfill[39m=[32m"#7DD3FC"[39m
-                [33mheight[39m=[32m"4"[39m
-                [33mrx[39m=[32m"2"[39m
-                [33mwidth[39m=[32m"13"[39m
-                [33mx[39m=[32m"0"[39m
-                [33my[39m=[32m"4"[39m
-              [36m/>[39m
-              [36m<rect[39m
-                [33mclass[39m=[32m"atiende-linea atiende-linea-2"[39m
-                [33mfill[39m=[32m"#7DD3FC"[39m
-                [33mheight[39m=[32m"4"[39m
-                [33mrx[39m=[32m"2"[39m
-                [33mwidth[39m=[32m"13"[39m
-                [33mx[39m=[32m"4"[39m
-                [33my[39m=[32m"12"[39m
-              [36m/>[39m
-              [36m<rect[39m
-                [33mclass[39m=[32m"atiende-linea atiende-linea-3"[39m
-                [33mfill[39m=[32m"#7DD3FC"[39m
-                [33mheight[39m=[32m"4"[39m
-                [33mrx[39m=[32m"2"[39m
-                [33mwidth[39m=[32m"13"[39m
-                [33mx[39m=[32m"0"[39m
-                [33my[39m=[32m"20"[39m
-              [36m/>[39m
-              [36m<circle[39m
-                [33mcx[39m=[32m"26"[39m
-                [33mcy[39m=[32m"6"[39m
-                [33mfill[39m=[32m"#38BDF8"[39m
-                [33mr[39m=[32m"5"[39m
-              [36m/>[39m
-              [36m<path[39m
-                [33md[39m=[32m"M14 32 L20 20 Q22 16 27 16 L31 16 Q34 16 36 13 L38 10"[39m
-                [33mfill[39m=[32m"none"[39m
-                [33mstroke[39m=[32m"#1D4ED8"[39m
-                [33mstroke-linecap[39m=[32m"round"[39m
-                [33mstroke-linejoin[39m=[32m"round"[39m
-                [33mstroke-width[39m=[32m"7"[39m
-              [36m/>[39m
-            [36m</svg>[39m
-            [36m<span[39m
-              [33mclass[39m=[32m"font-display text-2xl font-bold tracking-tight"[39m
-              [33mstyle[39m=[32m"color: rgb(29, 78, 216);"[39m
-            [36m>[39m
-              [0matiende[0m
-            [36m</span>[39m
-          [36m</span>[39m
-          [36m<h3[39m
-            [33mclass[39m=[32m"font-display text-xl font-semibold leading-none tracking-tight"[39m
-          [36m>[39m
-            [0mAccede a tu panel de licitaciones[0m
-          [36m</h3>[39m
-          [36m<p[39m
-            [33mclass[39m=[32m"text-sm text-muted-foreground"[39m
-          [36m>[39m
-            [0mGestiona convocatorias, evaluaciones y entregas en un solo lugar.[0m
-          [36m</p>[39m
-        [36m</div>[39m
-        [36m<div[39m
-          [33mclass[39m=[32m"p-6 pt-0"[39m
-        [36m>[39m
-          [36m<div[39m
-            [33mdata-orientation[39m=[32m"horizontal"[39m
-            [33mdir[39m=[32m"ltr"[39m
-            [33mid[39m=[32m"login-form"[39m
-          [36m>[39m
-            [36m<div[39m
-              [33maria-orientation[39m=[32m"horizontal"[39m
-              [33mclass[39m=[32m"h-10 items-center justify-center rounded-full bg-muted p-1 text-muted-foreground mb-4 grid w-full grid-cols-2"[39m
-              [33mdata-orientation[39m=[32m"horizontal"[39m
-              [33mrole[39m=[32m"tablist"[39m
-              [33mstyle[39m=[32m"outline: none;"[39m
-              [33mtabindex[39m=[32m"0"[39m
-            [36m>[39m
-              [36m<button[39m
-                [33maria-controls[39m=[32m"radix-:r5:-content-password"[39m
-                [33maria-selected[39m=[32m"true"[39m
-                [33mclass[39m=[32m"inline-flex items-center justify-center whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm gap-1.5"[39m
-                [33mdata-orientation[39m=[32m"horizontal"[39m
-                [33mdata-radix-collection-item[39m=[32m""[39m
-                [33mdata-state[39m=[32m"active"[39m
-                [33mid[39m=[32m"radix-:r5:-trigger-password"[39m
-                [33mrole[39m=[32m"tab"[39m
-                [33mtabindex[39m=[32m"-1"[39m
-                [33mtype[39m=[32m"button"[39m
-              [36m>[39m
-                [36m<svg[39m
-                  [33maria-hidden[39m=[32m"true"[39m
-                  [33mclass[39m=[32m"lucide lucide-lock h-3.5 w-3.5"[39m
-                  [33mfill[39m=[32m"none"[39m
-                  [33mheight[39m=[32m"24"[39m
-                  [33mstroke[39m=[32m"currentColor"[39m
-                  [33mstroke-linecap[39m=[32m"round"[39m
-                  [33mstroke-linejoin[39m=[32m"round"[39m
-                  [33mstroke-width[39m=[32m"2"[39m
-                  [33mviewBox[39m=[32m"0 0 24 24"[39m
-                  [33mwidth[39m=[32m"24"[39m
-                  [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
-                [36m>[39m
-                  [36m<rect[39m
-                    [33mheight[39m=[32m"11"[39m
-                    [33mrx[39m=[32m"2"[39m
-                    [33mry[39m=[32m"2"[39m
-                    [33mwidth[39m=[32m"18"[39m
-                    [33mx[39m=[32m"3"[39m
-                    [33my[39m=[32m"11"[39m
-                  [36m/>[39m
-                  [36m<path[39m
-                    [33md[39m=[32m"M7 11V7a5 5 0 0 1 10 0v4"[39m
-                  [36m/>[39m
-                [36m</svg>[39m
-                [0mContraseña[0m
-              [36m</button>[39m
-              [36m<button[39m
-                [33maria-controls[39m=[32m"radix-:r5:-content-magic-link"[39m
-                [33maria-selected[39m=[32m"false"[39m
-                [33mclass[39m=[32m"inline-flex items-center justify-center whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm gap-1.5"[39m
-                [33mdata-orientation[39m=[32m"horizontal"[39m
-                [33mdata-radix-collection-item[39m=[32m""[39m
-                [33mdata-state[39m=[32m"inactive"[39m
-                [33mid[39m=[32m"radix-:r5:-trigger-magic-link"[39m
-                [33mrole[39m=[32m"tab"[39m
-                [33mtabindex[39m=[32m"-1"[39m
-                [33mtype[39m=[32m"button"[39m
-              [36m>[39m
-                [36m<svg[39m
-                  [33maria-hidden[39m=[32m"true"[39m
-                  [33mclass[39m=[32m"lucide lucide-mail h-3.5 w-3.5"[39m
-                  [33mfill[39m=[32m"none"[39m
-                  [33mheight[39m=[32m"24"[39m
-                  [33mstroke[39m=[32m"currentColor"[39m
-                  [33mstroke-linecap[39m=[32m"round"[39m
-                  [33mstroke-linejoin[39m=[32m"round"[39m
-                  [33mstroke-width[39m=[32m"2"[39m
-                  [33mviewBox[39m=[32m"0 0 24 24"[39m
-                  [33mwidth[39m=[32m"24"[39m
-                  [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
-                [36m>[39m
-                  [36m<rect[39m
-                    [33mheight[39m=[32m"16"[39m
-                    [33mrx[39m=[32m"2"[39m
-                    [33mwidth[39m=[32m"20"[39m
-                    [33mx[39m=[32m"2"[39m
-                    [33my[39m=[32m"4"[39m
-                  [36m/>[39m
-                  [36m<path[39m
-                    [33md[39m=[32m"m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"[39m
-                  [36m/>[39m
-                [36m</svg>[39m
-                [0mEnlace mágico[0m
-              [36m</button>[39m
-            [36m</div>[39m
-            [36m<div[39m
-              [33maria-labelledby[39m=[32m"radix-:r5:-trigger-password"[39m
-              [33mclass[39m=[32m"mt-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"[39m
-              [33mdata-orientation[39m=[32m"horizontal"[39m
-              [33mdata-state[39m=[32m"active"[39m
-              [33mid[39m=[32m"radix-:r5:-content-password"[39m
-              [33mrole[39m=[32m"tabpanel"[39m
-              [33mstyle[39m=[32m"animation-duration: 0s;"[39m
-              [33mtabindex[39m=[32m"0"[39m
-            [36m>[39m
-              [36m<form[39m
-                [33mclass[39m=[32m"space-y-4"[39m
-                [33mnovalidate[39m=[32m""[39m
-              [36m>[39m
-                [36m<div[39m
-                  [33mclass[39m=[32m"space-y-2"[39m
-                [36m>[39m
-                  [36m<label[39m
-                    [33mclass[39m=[32m"text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"[39m
-                    [33mfor[39m=[32m":r8:-form-item"[39m
-                  [36m>[39m
-                    [0mCorreo electrónico[0m
-                  [36m</label>[39m
-                  [36m<input[39m
-                    [33maria-describedby[39m=[32m":r8:-form-item-description"[39m
-                    [33maria-invalid[39m=[32m"false"[39m
-                    [33mautocomplete[39m=[32m"email"[39m
-                    [33mclass[39m=[32m"flex h-10 w-full rounded-xl border border-input bg-card px-3.5 py-2 text-sm text-foreground shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"[39m
-                    [33mid[39m=[32m":r8:-form-item"[39m
-                    [33mname[39m=[32m"email"[39m
-                    [33mplaceholder[39m=[32m"tu@empresa.com"[39m
-                    [33mtype[39m=[32m"email"[39m
-                    [33mvalue[39m=[32m"no-es-un-correo"[39m
-                  [36m/>[39m
-                [36m</div>[39m
-                [36m<div[39m
-                  [33mclass[39m=[32m"space-y-2"[39m
-                [36m>[39m
-                  [36m<label[39m
-                    [33mclass[39m=[32m"text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"[39m
-                    [33mfor[39m=[32m":r9:-form-item"[39m
-                  [36m>[39m
-                    [0mContraseña[0m
-                  [36m</label>[39m
-                  [36m<input[39m
-                    [33maria-describedby[39m=[32m":r9:-form-item-description"[39m
-                    [33maria-invalid[39m=[32m"false"[39m
-                    [33mautocomplete[39m=[32m"current-password"[39m
-                    [33mclass[39m=[32m"flex h-10 w-full rounded-xl border border-input bg-card px-3.5 py-2 text-sm text-foreground shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"[39m
-                    [33mid[39m=[32m":r9:-form-item"[39m
-                    [33mname[39m=[32m"password"[39m
-                    [33mplaceholder[39m=[32m"••••••••"[39m
-                    [33mtype[39m=[32m"password"[39m
-                    [33mvalue[39m=[32m""[39m
-                  [36m/>[39m
-                [36m</div>[39m
-                [36m<button[39m
-                  [33mclass[39m=[32m"inline-flex items-center justify-center whitespace-nowrap rounded-full text-sm font-semibold tracking-[0.005em] ring-offset-background transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 shadow-card motion-safe:hover:-translate-y-px h-10 px-5 py-2 w-full gap-2"[39m
-                  [33mtype[39m=[32m"submit"[39m
-                [36m>[39m
-                  [36m<svg[39m
-                    [33maria-hidden[39m=[32m"true"[39m
-                    [33mclass[39m=[32m"lucide lucide-lock h-4 w-4"[39m
-                    [33mfill[39m=[32m"none"[39m
-                    [33mheight[39m=[32m"24"[39m
-                    [33mstroke[39m=[32m"currentColor"[39m
-                    [33mstroke-linecap[39m=[32m"round"[39m
-                    [33mstroke-linejoin[39m=[32m"round"[39m
-                    [33mstroke-width[39m=[32m"2"[39m
-                    [33mviewBox[39m=[32m"0 0 24 24"[39m
-                    [33mwidth[39m=[32m"24"[39m
-                    [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
-                  [36m>[39m
-                    [36m<rect[39m
-                      [33mheight[39m=[32m"11"[39m
-                      [33mrx[39m=[32m"2"[39m
-                      [33mry[39m=[32m"2"[39m
-                      [33mwidth[39m=[32m"18"[39m
-                      [33mx[39m=[32m"3"[39m
-                      [33my[39m=[32m"11"[39m
-                    [36m/>[39m
-                    [36m<path[39m
-                      [33md[39m=[32m"M7 11V7a5 5 0 0 1 10 0v4"[39m
-                    [36m/>[39m
-                  [36m</svg>[39m
-                  [0mIniciar sesión[0m
-                [36m</button>[39m
-              [36m</form>[39m
-            [36m</div>[39m
-            [36m<div[39m
-              [33maria-labelledby[39m=[32m"radix-:r5:-trigger-magic-link"[39m
-              [33mclass[39m=[32m"mt-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"[39m
-              [33mdata-orientation[39m=[32m"horizontal"[39m
-              [33mdata-state[39m=[32m"inactive"[39m
-              [33mhidden[39m=[32m""[39m
-              [33mid[39m=[32m"radix-:r5:-content-magic-link"[39m
-              [33mrole[39m=[32m"tabpanel"[39m
-              [33mtabindex[39m=[32m"0"[39m
-            [36m/>[39m
-          [36m</div>[39m
-        [36m</div>[39m
-      [36m</div>[39m
-    [36m</div>[39m
-  [36m</div>[39m
-[36m</body>[39m
- ❯ Object.getElementError ../../node_modules/@testing-library/dom/dist/config.js:37:19
- ❯ getElementError ../../node_modules/@testing-library/dom/dist/query-helpers.js:20:35
- ❯ getMultipleElementsFoundError ../../node_modules/@testing-library/dom/dist/query-helpers.js:23:10
- ❯ ../../node_modules/@testing-library/dom/dist/query-helpers.js:55:13
- ❯ getByLabelText ../../node_modules/@testing-library/dom/dist/query-helpers.js:95:19
- ❯ src/pages/LoginPage.test.tsx:25:28
-     23|
-     24|     await user.type(screen.getByLabelText("Correo electrónico"), "no-e…
-     25|     await user.type(screen.getByLabelText("Contraseña"), "12345678");
-       |                            ^
-     26|     await user.click(screen.getByRole("button", { name: "Iniciar sesió…
-     27|
-
-⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/16]⎯
-
- FAIL  src/pages/LoginPage.test.tsx > LoginPage > valida el formulario de enlace mágico con zod
-Error: Invalid Chai property: toBeInTheDocument
- ❯ src/pages/LoginPage.test.tsx:38:36
-     36|     await user.click(screen.getByRole("button", { name: "Enviar enlace…
-     37|
-     38|     expect(await screen.findByText("Ingresa tu correo electrónico.")).…
-       |                                    ^
-     39|   });
-     40|
-
-⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/16]⎯
-
- FAIL  src/components/layout/AppShell.test.tsx > AppShell / sidebar > muestra todos los items de navegación con su enlace correcto
- FAIL  src/components/layout/AppShell.test.tsx > AppShell / sidebar > tiene landmarks de header, navegación y contenido principal
- FAIL  src/components/layout/AppShell.test.tsx > AppShell / sidebar > incluye un skip-link al contenido principal
- FAIL  src/components/layout/AppShell.test.tsx > AppShell / sidebar > abre y cierra el drawer móvil de forma accesible
- FAIL  src/components/layout/AppShell.test.tsx > AppShell / sidebar > no tiene violaciones de accesibilidad detectables por axe
-TypeError: window.localStorage.getItem is not a function
- ❯ leerTema src/components/ThemeSelector.tsx:11:33
-      9|
-     10| function leerTema(): Tema {
-     11|   const v = window.localStorage.getItem(KEY);
-       |                                 ^
-     12|   return v === "oscuro" || v === "sistema" ? v : "claro";
-     13| }
- ❯ src/components/ThemeSelector.tsx:30:15
- ❯ commitHookEffectListMount ../../node_modules/react-dom/cjs/react-dom.development.js:23189:26
- ❯ commitPassiveMountOnFiber ../../node_modules/react-dom/cjs/react-dom.development.js:24970:11
- ❯ commitPassiveMountEffects_complete ../../node_modules/react-dom/cjs/react-dom.development.js:24930:9
- ❯ commitPassiveMountEffects_begin ../../node_modules/react-dom/cjs/react-dom.development.js:24917:7
- ❯ commitPassiveMountEffects ../../node_modules/react-dom/cjs/react-dom.development.js:24905:3
- ❯ flushPassiveEffectsImpl ../../node_modules/react-dom/cjs/react-dom.development.js:27078:3
- ❯ flushPassiveEffects ../../node_modules/react-dom/cjs/react-dom.development.js:27023:14
- ❯ performSyncWorkOnRoot ../../node_modules/react-dom/cjs/react-dom.development.js:26115:3
-
-⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/16]⎯
-
- FAIL  src/components/ui/empty-state.test.tsx > EmptyState > muestra título y descripción, y ejecuta la acción al hacer click
-Error: Invalid Chai property: toBeInTheDocument
- ❯ src/components/ui/empty-state.test.tsx:22:29
-     20|     );
-     21|
-     22|     expect(screen.getByText("Aún no hay convocatorias descubiertas")).…
-       |                             ^
-     23|     expect(screen.getByText("Configura una fuente para empezar.")).toB…
-     24|     await user.click(screen.getByRole("button", { name: "Configurar fu…
-
-⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/16]⎯
-
- FAIL  src/components/ui/empty-state.test.tsx > EmptyState > no renderiza un botón de acción si no se pasa onAction
-Error: Invalid Chai property: toBeInTheDocument
- ❯ src/components/ui/empty-state.test.tsx:30:45
-     28|   it("no renderiza un botón de acción si no se pasa onAction", () => {
-     29|     render(<EmptyState title="Sin datos" />);
-     30|     expect(screen.queryByRole("button")).not.toBeInTheDocument();
-       |                                             ^
-     31|   });
-     32| });
-
-⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/16]⎯
-
- FAIL  src/components/ui/empty-state.test.tsx > ErrorState > muestra el mensaje real del error y permite reintentar
-Error: Invalid Chai property: toHaveTextContent
- ❯ src/components/ui/empty-state.test.tsx:40:29
-     38|     render(<ErrorState message="No se pudo conectar con el servidor: t…
-     39|
-     40|     expect(screen.getByRole("alert")).toHaveTextContent("No se pudo co…
-       |                             ^
-     41|     await user.click(screen.getByRole("button", { name: "Reintentar" }…
-     42|     expect(onRetry).toHaveBeenCalledTimes(1);
-
-⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/16]⎯
-
- FAIL  src/components/ui/empty-state.test.tsx > LoadingState > expone un status accesible para lectores de pantalla
-Error: Invalid Chai property: toBeInTheDocument
- ❯ src/components/ui/empty-state.test.tsx:49:73
-     47|   it("expone un status accesible para lectores de pantalla", () => {
-     48|     render(<LoadingState label="Cargando convocatorias…" />);
-     49|     expect(screen.getByRole("status", { name: "Cargando convocatorias……
-       |                                                                         ^
-     50|   });
-     51| });
-
-⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/16]⎯
-
-
- Test Files  4 failed (4)
-      Tests  14 failed | 1 passed (15)
-   Start at  18:47:04
-   Duration  1.02s (transform 195ms, setup 510ms, import 747ms, tests 305ms, environment 1.16s)
-
-npm error Lifecycle script `test` failed with error:
-npm error code 1
-npm error path /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web
-npm error workspace @atiende/web@0.1.0
-npm error location /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web
-npm error command failed
-npm error command sh -c vitest run
-EXIT CODE: 1
-
-=== $ npm run -w apps/web test (re-run) ===
 
 > @atiende/web@0.1.0 test
 > NODE_OPTIONS=--no-experimental-webstorage vitest run
@@ -926,9 +62,165 @@ Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installi
     at hasRealTextChildren (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28724:35)
     at Rule.colorContrastMatches [as matches] (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
 
- Test Files  4 passed (4)
-      Tests  15 passed (15)
-   Start at  18:50:52
-   Duration  1.58s (transform 399ms, setup 831ms, import 1.11s, tests 670ms, environment 2.05s)
+ Test Files  8 passed (8)
+      Tests  29 passed (29)
+   Start at  18:54:21
+   Duration  1.41s (transform 472ms, setup 1.15s, import 1.31s, tests 829ms, environment 3.28s)
 
-EXIT CODE: 0
+--- EXIT CODE: 0 ---
+
+=== $ npm run -w apps/web test:coverage ===
+
+> @atiende/web@0.1.0 test:coverage
+> NODE_OPTIONS=--no-experimental-webstorage vitest run --coverage
+
+
+ RUN  v4.1.11 /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web
+      Coverage enabled with v8
+
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17087:41)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17087:41)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+
+ Test Files  8 passed (8)
+      Tests  29 passed (29)
+   Start at  18:54:23
+   Duration  1.50s (transform 256ms, setup 791ms, import 1.19s, tests 1.06s, environment 2.38s)
+
+ % Coverage report from v8
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-------------------|---------|----------|---------|---------|-------------------
+[31;1mAll files         [0m | [31;1m   48.1[0m | [33;1m   57.85[0m | [31;1m  44.44[0m | [33;1m  51.23[0m | [31;1m                 [0m 
+[31;1m src              [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m                 [0m 
+[31;1m  App.tsx         [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m11-84            [0m 
+[32;1m src/components   [0m | [32;1m  92.85[0m | [33;1m      75[0m | [32;1m   90.9[0m | [32;1m  96.15[0m | [31;1m                 [0m 
+[32;1m  AtiendeLogo.tsx [0m | [32;1m    100[0m | [32;1m   88.88[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m17               [0m 
+[32;1m  ...eSelector.tsx[0m | [32;1m   92.3[0m | [33;1m   63.63[0m | [32;1m  88.88[0m | [32;1m  95.83[0m | [31;1m35               [0m 
+[32;1m ...ponents/layout[0m | [32;1m  80.55[0m | [32;1m   81.81[0m | [33;1m   64.7[0m | [32;1m  84.37[0m | [31;1m                 [0m 
+[33;1m  AppShell.tsx    [0m | [33;1m     75[0m | [32;1m     100[0m | [33;1m  66.66[0m | [33;1m     75[0m | [31;1m45               [0m 
+[32;1m  ...nSwitcher.tsx[0m | [32;1m  83.33[0m | [32;1m     100[0m | [33;1m     50[0m | [32;1m  83.33[0m | [31;1m36               [0m 
+[32;1m  SidebarNav.tsx  [0m | [32;1m     80[0m | [33;1m   66.66[0m | [33;1m  63.63[0m | [32;1m  85.71[0m | [31;1m42,56,70         [0m 
+[33;1m src/components/ui[0m | [33;1m  56.42[0m | [33;1m   58.82[0m | [31;1m   49.2[0m | [33;1m  56.13[0m | [31;1m                 [0m 
+[32;1m  button.tsx      [0m | [32;1m    100[0m | [33;1m   66.66[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m47               [0m 
+[32;1m  card.tsx        [0m | [32;1m  94.44[0m | [32;1m     100[0m | [32;1m  83.33[0m | [32;1m  94.11[0m | [31;1m37               [0m 
+[31;1m  dialog.tsx      [0m | [31;1m      0[0m | [32;1m     100[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m7-75             [0m 
+[31;1m  ...down-menu.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m7-145            [0m 
+[32;1m  form.tsx        [0m | [32;1m  89.18[0m | [33;1m   78.57[0m | [32;1m  85.71[0m | [32;1m  88.88[0m | [31;1m45,48,111-112    [0m 
+[31;1m  scroll-area.tsx [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m6-36             [0m 
+[32;1m  select.tsx      [0m | [32;1m  86.66[0m | [32;1m     100[0m | [33;1m     50[0m | [32;1m  86.66[0m | [31;1m55,77            [0m 
+[31;1m  separator.tsx   [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m6-22             [0m 
+[32;1m  sheet.tsx       [0m | [32;1m     95[0m | [32;1m     100[0m | [32;1m     80[0m | [32;1m  94.73[0m | [31;1m85               [0m 
+[33;1m  sonner.tsx      [0m | [33;1m     50[0m | [32;1m     100[0m | [31;1m      0[0m | [33;1m     50[0m | [31;1m10               [0m 
+[31;1m  table.tsx       [0m | [31;1m      0[0m | [32;1m     100[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m5-62             [0m 
+[32;1m  tooltip.tsx     [0m | [32;1m  83.33[0m | [31;1m       0[0m | [31;1m      0[0m | [32;1m  83.33[0m | [31;1m13               [0m 
+[31;1m src/hooks        [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m                 [0m 
+[31;1m  use-mobile.ts   [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m3-19             [0m 
+[31;1m src/lib          [0m | [31;1m   40.9[0m | [31;1m       0[0m | [33;1m  57.14[0m | [31;1m     45[0m | [31;1m                 [0m 
+[31;1m  api.ts          [0m | [31;1m  38.09[0m | [31;1m       0[0m | [33;1m     50[0m | [31;1m   42.1[0m | [31;1m28-79            [0m 
+[31;1m src/pages        [0m | [31;1m   43.9[0m | [31;1m   35.71[0m | [31;1m  46.15[0m | [31;1m   43.9[0m | [31;1m                 [0m 
+[31;1m  ...acionPage.tsx[0m | [31;1m      0[0m | [32;1m     100[0m | [32;1m    100[0m | [31;1m      0[0m | [31;1m4                [0m 
+[33;1m  LoginPage.tsx   [0m | [33;1m  51.42[0m | [31;1m   35.71[0m | [33;1m     60[0m | [33;1m  51.42[0m | [31;1m...98-106,111,134[0m 
+[31;1m  NotFoundPage.tsx[0m | [31;1m      0[0m | [32;1m     100[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m7                [0m 
+[31;1m  PanelPage.tsx   [0m | [31;1m      0[0m | [32;1m     100[0m | [32;1m    100[0m | [31;1m      0[0m | [31;1m4                [0m 
+[31;1m  ...odulePage.tsx[0m | [31;1m      0[0m | [32;1m     100[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m22-30            [0m 
+[31;1m ...ges/backoffice[0m | [31;1m      0[0m | [32;1m     100[0m | [32;1m    100[0m | [31;1m      0[0m | [31;1m                 [0m 
+[31;1m  ...entasPage.tsx[0m | [31;1m      0[0m | [32;1m     100[0m | [32;1m    100[0m | [31;1m      0[0m | [31;1m4                [0m 
+[31;1m  ...toriaPage.tsx[0m | [31;1m      0[0m | [32;1m     100[0m | [32;1m    100[0m | [31;1m      0[0m | [31;1m4                [0m 
+[31;1m  ...ionesPage.tsx[0m | [31;1m      0[0m | [32;1m     100[0m | [32;1m    100[0m | [31;1m      0[0m | [31;1m4                [0m 
+[31;1m  ...RolesPage.tsx[0m | [31;1m      0[0m | [32;1m     100[0m | [32;1m    100[0m | [31;1m      0[0m | [31;1m4                [0m 
+[33;1m .../convocatorias[0m | [33;1m     60[0m | [32;1m     100[0m | [32;1m    100[0m | [33;1m     60[0m | [31;1m                 [0m 
+[31;1m  ...ientoPage.tsx[0m | [31;1m      0[0m | [32;1m     100[0m | [32;1m    100[0m | [31;1m      0[0m | [31;1m4                [0m 
+[31;1m  MatchingPage.tsx[0m | [31;1m      0[0m | [32;1m     100[0m | [32;1m    100[0m | [31;1m      0[0m | [31;1m4                [0m 
+[31;1m src/pages/empresa[0m | [31;1m      0[0m | [32;1m     100[0m | [32;1m    100[0m | [31;1m      0[0m | [31;1m                 [0m 
+[31;1m  ...nciasPage.tsx[0m | [31;1m      0[0m | [32;1m     100[0m | [32;1m    100[0m | [31;1m      0[0m | [31;1m4                [0m 
+[31;1m  ...zadosPage.tsx[0m | [31;1m      0[0m | [32;1m     100[0m | [32;1m    100[0m | [31;1m      0[0m | [31;1m4                [0m 
+[31;1m  ...dadesPage.tsx[0m | [31;1m      0[0m | [32;1m     100[0m | [32;1m    100[0m | [31;1m      0[0m | [31;1m4                [0m 
+[31;1m  ...badasPage.tsx[0m | [31;1m      0[0m | [32;1m     100[0m | [32;1m    100[0m | [31;1m      0[0m | [31;1m4                [0m 
+[33;1m src/pages/entrega[0m | [33;1m     50[0m | [32;1m     100[0m | [32;1m    100[0m | [33;1m     50[0m | [31;1m                 [0m 
+[31;1m  EntregasPage.tsx[0m | [31;1m      0[0m | [32;1m     100[0m | [32;1m    100[0m | [31;1m      0[0m | [31;1m4                [0m 
+[31;1m  ...ientoPage.tsx[0m | [31;1m      0[0m | [32;1m     100[0m | [32;1m    100[0m | [31;1m      0[0m | [31;1m4                [0m 
+[31;1m ...ges/evaluacion[0m | [31;1m      0[0m | [32;1m     100[0m | [32;1m    100[0m | [31;1m      0[0m | [31;1m                 [0m 
+[31;1m  ...BasesPage.tsx[0m | [31;1m      0[0m | [32;1m     100[0m | [32;1m    100[0m | [31;1m      0[0m | [31;1m4                [0m 
+[31;1m  GoNoGoPage.tsx  [0m | [31;1m      0[0m | [32;1m     100[0m | [32;1m    100[0m | [31;1m      0[0m | [31;1m4                [0m 
+[31;1m ...es/preparacion[0m | [31;1m      0[0m | [32;1m     100[0m | [32;1m    100[0m | [31;1m      0[0m | [31;1m                 [0m 
+[31;1m  ...ionesPage.tsx[0m | [31;1m      0[0m | [32;1m     100[0m | [32;1m    100[0m | [31;1m      0[0m | [31;1m4                [0m 
+[31;1m  ...entalPage.tsx[0m | [31;1m      0[0m | [32;1m     100[0m | [32;1m    100[0m | [31;1m      0[0m | [31;1m4                [0m 
+[31;1m  ...ientePage.tsx[0m | [31;1m      0[0m | [32;1m     100[0m | [32;1m    100[0m | [31;1m      0[0m | [31;1m4                [0m 
+[31;1m  ...ccionPage.tsx[0m | [31;1m      0[0m | [32;1m     100[0m | [32;1m    100[0m | [31;1m      0[0m | [31;1m4                [0m 
+[31;1m  RevisionPage.tsx[0m | [31;1m      0[0m | [32;1m     100[0m | [32;1m    100[0m | [31;1m      0[0m | [31;1m4                [0m 
+-------------------|---------|----------|---------|---------|-------------------
+
+=============================== Coverage summary ===============================
+[31;1mStatements   : 48.1% ( 216/449 )[0m
+[33;1mBranches     : 57.85% ( 70/121 )[0m
+[31;1mFunctions    : 44.44% ( 68/153 )[0m
+[33;1mLines        : 51.23% ( 208/406 )[0m
+================================================================================
+--- EXIT CODE: 0 ---
+
+=== $ npm run -w apps/web build ===
+
+> @atiende/web@0.1.0 build
+> tsc -b && vite build
+
+[36mvite v6.4.3 [32mbuilding for production...[36m[39m
+transforming...
+[32m✓[39m 1775 modules transformed.
+rendering chunks...
+computing gzip size...
+[2mdist/[22m[32mindex.html                                     [39m[1m[2m  1.07 kB[22m[1m[22m[2m │ gzip:  0.53 kB[22m
+[2mdist/[22m[2massets/[22m[35mindex-cKUGOZv8.css                      [39m[1m[2m 28.87 kB[22m[1m[22m[2m │ gzip:  6.16 kB[22m
+[2mdist/[22m[2massets/[22m[36mcreateModulePage-XcExIua4.js            [39m[1m[2m  0.35 kB[22m[1m[22m[2m │ gzip:  0.24 kB[22m
+[2mdist/[22m[2massets/[22m[36mAgentesHerramientasPage-CA01NLDJ.js     [39m[1m[2m  0.46 kB[22m[1m[22m[2m │ gzip:  0.31 kB[22m
+[2mdist/[22m[2massets/[22m[36mOrganizacionesPage-B8mZxSIC.js          [39m[1m[2m  0.46 kB[22m[1m[22m[2m │ gzip:  0.31 kB[22m
+[2mdist/[22m[2massets/[22m[36mRevisionPage-j0Uc-Jno.js                [39m[1m[2m  0.46 kB[22m[1m[22m[2m │ gzip:  0.32 kB[22m
+[2mdist/[22m[2massets/[22m[36mRedaccionPage-Cfr3NvE5.js               [39m[1m[2m  0.46 kB[22m[1m[22m[2m │ gzip:  0.32 kB[22m
+[2mdist/[22m[2massets/[22m[36mUsuariosRolesPage-hbgG6T5K.js           [39m[1m[2m  0.46 kB[22m[1m[22m[2m │ gzip:  0.32 kB[22m
+[2mdist/[22m[2massets/[22m[36mGoNoGoPage-CCQ9Tp35.js                  [39m[1m[2m  0.47 kB[22m[1m[22m[2m │ gzip:  0.32 kB[22m
+[2mdist/[22m[2massets/[22m[36mEntregasPage-Cb8VeFyP.js                [39m[1m[2m  0.47 kB[22m[1m[22m[2m │ gzip:  0.32 kB[22m
+[2mdist/[22m[2massets/[22m[36mPanelPage-BPH7IG3p.js                   [39m[1m[2m  0.47 kB[22m[1m[22m[2m │ gzip:  0.33 kB[22m
+[2mdist/[22m[2massets/[22m[36mAnalisisBasesPage-C-NwMdWQ.js           [39m[1m[2m  0.48 kB[22m[1m[22m[2m │ gzip:  0.33 kB[22m
+[2mdist/[22m[2massets/[22m[36mConfiguracionPage-BXUuIAO-.js           [39m[1m[2m  0.49 kB[22m[1m[22m[2m │ gzip:  0.32 kB[22m
+[2mdist/[22m[2massets/[22m[36mAuditoriaPage-ldpd6xr7.js               [39m[1m[2m  0.49 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mDescubrimientoPage-CsQigh3C.js          [39m[1m[2m  0.50 kB[22m[1m[22m[2m │ gzip:  0.33 kB[22m
+[2mdist/[22m[2massets/[22m[36mMatchingPage-Cqv9BM82.js                [39m[1m[2m  0.50 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mDocumentosVigenciasPage-mqY4kwFX.js     [39m[1m[2m  0.50 kB[22m[1m[22m[2m │ gzip:  0.32 kB[22m
+[2mdist/[22m[2massets/[22m[36mFirmantesAutorizadosPage-BFQ7rvO1.js    [39m[1m[2m  0.51 kB[22m[1m[22m[2m │ gzip:  0.33 kB[22m
+[2mdist/[22m[2massets/[22m[36mCumplimientoDocumentalPage-B7hLTdCw.js  [39m[1m[2m  0.51 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mSeguimientoPage-BvR9dzus.js             [39m[1m[2m  0.51 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mAprobacionesPage-Dvp17ADc.js            [39m[1m[2m  0.51 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mTarifasAprobadasPage-CcYmD-QL.js        [39m[1m[2m  0.51 kB[22m[1m[22m[2m │ gzip:  0.33 kB[22m
+[2mdist/[22m[2massets/[22m[36mExpedientePage-q7BH8NPA.js              [39m[1m[2m  0.52 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mPerfilCapacidadesPage-B8H4B7j5.js       [39m[1m[2m  0.54 kB[22m[1m[22m[2m │ gzip:  0.36 kB[22m
+[2mdist/[22m[2massets/[22m[36mcard-CcnTx2HJ.js                        [39m[1m[2m  1.06 kB[22m[1m[22m[2m │ gzip:  0.41 kB[22m
+[2mdist/[22m[2massets/[22m[36mNotFoundPage-DCdjpJ9W.js                [39m[1m[2m  1.23 kB[22m[1m[22m[2m │ gzip:  0.70 kB[22m
+[2mdist/[22m[2massets/[22m[36mFuentesFrescuraPage-BHJ_Bfa3.js         [39m[1m[2m  1.50 kB[22m[1m[22m[2m │ gzip:  0.77 kB[22m
+[2mdist/[22m[2massets/[22m[36mempty-state-DozKjhax.js                 [39m[1m[2m  1.78 kB[22m[1m[22m[2m │ gzip:  0.81 kB[22m
+[2mdist/[22m[2massets/[22m[36mPaqueteDescargablePage-1GSVZ9n_.js      [39m[1m[2m  2.12 kB[22m[1m[22m[2m │ gzip:  1.17 kB[22m
+[2mdist/[22m[2massets/[22m[36mquery-Cr5JZM0v.js                       [39m[1m[2m 46.31 kB[22m[1m[22m[2m │ gzip: 14.39 kB[22m
+[2mdist/[22m[2massets/[22m[36mLoginPage-CagtehrZ.js                   [39m[1m[2m 99.89 kB[22m[1m[22m[2m │ gzip: 28.20 kB[22m
+[2mdist/[22m[2massets/[22m[36mindex-BmMIcpFh.js                       [39m[1m[2m132.74 kB[22m[1m[22m[2m │ gzip: 41.76 kB[22m
+[2mdist/[22m[2massets/[22m[36mapp-platform-ba7btYbn.js                [39m[1m[2m239.43 kB[22m[1m[22m[2m │ gzip: 78.71 kB[22m
+[32m✓ built in 1.11s[39m
+--- EXIT CODE: 0 ---
+
