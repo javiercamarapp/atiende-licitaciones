@@ -81,7 +81,7 @@ describe("TechnicalProposalBuilder — EX-EXP-03: requisito obligatorio sin evid
     expect(section!.blockers[0].field).toBe("evidencia_no_mapeable");
   });
 
-  it("un requisito procedimental (opcional/condicional) sin evidencia sigue omitiéndose en silencio — no es una regresión de REQ-158", async () => {
+  it("un requisito condicional que el llamador declara EXPLÍCITAMENTE como no aplicable (anuncio de plazo) sigue omitiéndose en silencio — no es una regresión de REQ-158", async () => {
     const doc: TenderDocumentText = {
       documentId: "bases-v1",
       documentLabel: "Bases de licitación",
@@ -93,12 +93,65 @@ describe("TechnicalProposalBuilder — EX-EXP-03: requisito obligatorio sin evid
 
     const plazo = requirements.find((r) => r.topicKey === "plazo_entrega_proposiciones");
     expect(plazo).toBeDefined();
-    expect(plazo?.obligatoriedad).not.toBe("obligatorio"); // anuncio de plazo, no un requisito obligatorio léxico
+    expect(plazo?.obligatoriedad).toBe("condicional"); // anuncio de plazo, no un requisito obligatorio léxico
     expect(plazo?.requiredEvidence).toHaveLength(0);
 
-    const technical = new TechnicalProposalBuilder(emptyCompanyService()).build(COMPANY_ID, requirements, [], ASOF);
+    // EX-EXP-03/EX-EXP-12: a diferencia de la ronda anterior, el skip
+    // silencioso YA NO se infiere solo de `obligatoriedad === "condicional"`
+    // — el llamador debe declarar EXPLÍCITAMENTE que este condicional no
+    // aplica al caso concreto (un anuncio de plazo genuinamente
+    // procedimental, no una obligación sustantiva del licitante).
+    const technical = new TechnicalProposalBuilder(emptyCompanyService()).build(COMPANY_ID, requirements, [], ASOF, {
+      [plazo!.id]: false,
+    });
     expect(technical.sections.find((s) => s.requirementId === plazo!.id)).toBeUndefined();
     expect(technical.blockers.some((b) => b.requirementId === plazo!.id)).toBe(false);
+  });
+
+  describe("EX-EXP-03/EX-EXP-12: obligatoriedad 'condicional' ya NO se agrupa ciegamente con 'opcional'", () => {
+    async function buildPlazoRequirement() {
+      const doc: TenderDocumentText = {
+        documentId: "bases-v1",
+        documentLabel: "Bases de licitación",
+        publishedAt: "2026-01-01T00:00:00-06:00",
+        pages: [{ page: 1, text: "La entrega de proposiciones será a más tardar el 20 de octubre de 2026 a las 12:00 horas." }],
+      };
+      const matrixBuilder = new RequirementMatrixBuilder([new RuleBasedExtractor()]);
+      const { items: requirements } = await matrixBuilder.build([doc]);
+      const plazo = requirements.find((r) => r.topicKey === "plazo_entrega_proposiciones")!;
+      expect(plazo.obligatoriedad).toBe("condicional");
+      return { requirements, plazo };
+    }
+
+    it("condición NO evaluada (llamador no declaró nada): fail-closed, genera PENDIENTE con bloqueo 'condicion_no_evaluable', nunca desaparece", async () => {
+      const { requirements, plazo } = await buildPlazoRequirement();
+      const technical = new TechnicalProposalBuilder(emptyCompanyService()).build(COMPANY_ID, requirements, [], ASOF);
+      const section = technical.sections.find((s) => s.requirementId === plazo.id);
+      expect(section).toBeDefined();
+      expect(section!.title).toContain("PENDIENTE");
+      expect(section!.blockers).toHaveLength(1);
+      expect(section!.blockers[0].field).toBe("condicion_no_evaluable");
+      expect(technical.blockers.some((b) => b.requirementId === plazo.id && b.field === "condicion_no_evaluable")).toBe(true);
+    });
+
+    it("condición evaluada como VERDADERA (aplica al caso concreto): se trata como obligatorio, PENDIENTE con bloqueo 'evidencia_no_mapeable'", async () => {
+      const { requirements, plazo } = await buildPlazoRequirement();
+      const technical = new TechnicalProposalBuilder(emptyCompanyService()).build(COMPANY_ID, requirements, [], ASOF, {
+        [plazo.id]: true,
+      });
+      const section = technical.sections.find((s) => s.requirementId === plazo.id);
+      expect(section).toBeDefined();
+      expect(section!.title).toContain("PENDIENTE");
+      expect(section!.blockers[0].field).toBe("evidencia_no_mapeable");
+    });
+
+    it("condición evaluada como FALSA (no aplica al caso concreto): procedimental real, se omite en silencio", async () => {
+      const { requirements, plazo } = await buildPlazoRequirement();
+      const technical = new TechnicalProposalBuilder(emptyCompanyService()).build(COMPANY_ID, requirements, [], ASOF, {
+        [plazo.id]: false,
+      });
+      expect(technical.sections.find((s) => s.requirementId === plazo.id)).toBeUndefined();
+    });
   });
 
   it("2 de 3 requisitos obligatorios de bases LAASSP realistas ya no se pierden silenciosamente (reproducción íntegra de la auditoría)", async () => {

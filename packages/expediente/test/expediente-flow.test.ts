@@ -108,6 +108,21 @@ function buildMatrixMappings(requirements: RequirementItem[]): RequirementFulfil
   return mappings;
 }
 
+/**
+ * EX-EXP-03/EX-EXP-12: el anuncio de plazo ("La entrega de proposiciones
+ * será a más tardar...") se extrae con `obligatoriedad: "condicional"` (no
+ * matchea ningún léxico de obligatoriedad/opcionalidad, ver
+ * `classifyObligatoriedad`) pero es genuinamente procedimental — se
+ * gestiona vía `deadline`/`topicKey`, no como afirmación a redactar en la
+ * propuesta técnica. Como el skip silencioso YA NO se infiere solo de
+ * `obligatoriedad === "condicional"`, el flujo (como haría `apps/api`) debe
+ * declarar EXPLÍCITAMENTE que no aplica a la propuesta técnica.
+ */
+function buildConditionEvaluations(requirements: RequirementItem[]): Record<string, boolean> {
+  const plazo = requirements.find((r) => r.topicKey === "plazo_entrega_proposiciones");
+  return plazo ? { [plazo.id]: false } : {};
+}
+
 describe("Flujo integrado del expediente de participación (A6-A15)", () => {
   beforeEach(() => {
     resetRequirementCounters();
@@ -126,7 +141,7 @@ describe("Flujo integrado del expediente de participación (A6-A15)", () => {
     // 3. Propuesta técnica trazable.
     const technicalBuilder = new TechnicalProposalBuilder(companyService);
     const mappings = buildMatrixMappings(requirements);
-    const technical = technicalBuilder.build(COMPANY_ID, requirements, mappings, ASOF);
+    const technical = technicalBuilder.build(COMPANY_ID, requirements, mappings, ASOF, buildConditionEvaluations(requirements));
     expect(technical.blockers).toHaveLength(0);
     for (const section of technical.sections) {
       for (const statement of section.statements) {

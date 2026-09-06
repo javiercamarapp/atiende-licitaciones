@@ -48,3 +48,40 @@ Suite completa DESPUÉS de la corrección (packages/expediente):
 npm run -w packages/expediente typecheck -> exit 0
 npm run -w packages/expediente lint -> exit 0
 
+================================================================================
+## EX-EXP-03 / EX-EXP-12(a) — 'condicional' que aplica ya no desaparece en silencio
+================================================================================
+
+Reproducción (verificada en `git worktree add <scratchpad>/verify-ex03 HEAD`,
+NUNCA revirtiendo el árbol principal; los tests nuevos de esta ronda se
+copiaron al worktree, dejando `src/technical-proposal.ts` en su versión
+previa a esta corrección):
+
+  Test Files  2 failed | 13 passed (15)
+       Tests  98 failed | 232 passed (330)
+
+Fallos representativos:
+  - "condición NO evaluada ... genera PENDIENTE con bloqueo
+    'condicion_no_evaluable'" -> FAIL (section undefined: el requisito
+    condicional desaparecía sin sección ni bloqueo)
+  - "condición evaluada como VERDADERA ... se trata como obligatorio" -> FAIL
+  - test de propiedad (200 casos): 91 de los 200 casos aleatorios fallaron
+    con mensajes como `requisito "req-prop-5" (obligatoriedad=condicional,
+    evidencia=0) desapareció sin sección` — confirma la generalización real
+    del hallazgo, no solo el caso puntual.
+
+Corrección aplicada (packages/expediente/src/technical-proposal.ts):
+`evaluateObligatorioLike` distingue `obligatorio` / `condicional_aplica` /
+`no_evaluable` (fail-closed: PENDIENTE + bloqueo "condicion_no_evaluable")
+/ `no_aplica` (solo `opcional`, o `condicional` declarado EXPLÍCITAMENTE
+como no aplicable vía el nuevo parámetro `conditionEvaluations`). Ningún
+condicional se omite ya por default.
+
+Suite completa DESPUÉS de la corrección (packages/expediente):
+
+ Test Files  15 passed (15)
+      Tests  330 passed (330)
+
+npm run -w packages/expediente typecheck -> exit 0
+npm run -w packages/expediente lint -> exit 0
+
