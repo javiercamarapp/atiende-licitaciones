@@ -174,6 +174,21 @@ un `npm audit --workspace apps/web` en un clon *verdaderamente* aislado
 lockfile compartido — ambos números son ciertos, pero miden árboles
 distintos.
 
+## Control de acceso (W-12)
+
+`apps/web` **no tiene ningún guard de ruta**: `/panel` y todas las rutas de
+`AppShell` son accesibles sin sesión, y `login()`/`requestMagicLink()`
+(`src/lib/api.ts`) no persisten ningún token tras un login exitoso — no hay
+ni siquiera un lugar donde guardar una sesión todavía. Añadir un guard
+client-side ahora mismo sería una barrera cosmética (no hay sesión real que
+verificar, así que "proteger" una ruta equivaldría a comprobar la ausencia
+de una clave de `localStorage` que ningún flujo real escribe), lo que daría
+una falsa sensación de control de acceso sin ninguna garantía real. Se
+documenta aquí en vez de simularlo: el control de acceso real (verificar
+sesión contra `apps/api`, redirigir a `/login` si no hay sesión válida)
+queda pendiente para cuando exista persistencia de sesión real — ver "Qué
+falta" abajo.
+
 ## Qué falta (fuera de alcance de esta ronda)
 
 - Conectar `apps/api` real: hoy `src/lib/api.ts` apunta a `VITE_API_URL` pero
