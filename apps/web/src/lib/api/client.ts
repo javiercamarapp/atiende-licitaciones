@@ -12,7 +12,17 @@ export interface ApiRequestOptions {
 }
 
 function buildHeaders(opts: ApiRequestOptions, accessToken: string | null): Record<string, string> {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  // Solo se declara `Content-Type: application/json` cuando de verdad hay
+  // un cuerpo: varias mutaciones de apps/api son POST sin body (p. ej.
+  // `POST /company/rates/:id/approve`, `.../reject`, `/agents/tool-calls/:id/approve|deny`,
+  // `/admin/jobs/:id/retry`, `/admin/incidents/:id/resolve`) y Fastify
+  // rechaza con 400 ("Body cannot be empty when content-type is set to
+  // 'application/json'") una petición que declara ese Content-Type sin
+  // enviar ningún cuerpo — encontrado real en la suite E2E contra apps/api
+  // real (ver docs/logs/web-ronda3.log), no algo que MSW en pruebas
+  // unitarias hubiera detectado (no reproduce ese comportamiento estricto).
+  const headers: Record<string, string> = {};
+  if (opts.body !== undefined) headers["Content-Type"] = "application/json";
   if (!opts.skipAuth) {
     if (!accessToken) {
       throw new ApiError("No hay una sesión activa. Inicia sesión de nuevo.", 401);
