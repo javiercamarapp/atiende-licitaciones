@@ -207,3 +207,61 @@ describe("EX-EXP-06: extractDeadline reconoce DD/MM/AAAA, DD-MM-AAAA y 'del AAAA
     expect(conflicts[0].status).toBe("escalado");
   });
 });
+
+/**
+ * EX-EXP-15 (reverificación ronda 1, MEDIA, asociado a EX-EXP-06): el
+ * patrón numérico de `extractDeadline` SIEMPRE asumía DD/MM sin marcar
+ * ambigüedad ni bajar `confidence` cuando día y mes eran ambos ≤12 (p. ej.
+ * "05/09/2026" podría razonablemente ser 5-sep o 9-may) — contradice la
+ * filosofía declarada del extractor ("ante ambigüedad, clasifica... antes
+ * que inventar un valor en silencio"). La interpretación por defecto sigue
+ * siendo DD/MM (correcta para licitaciones mexicanas); solo cambia la
+ * `confidence` para que un revisor humano lo confirme.
+ */
+describe("EX-EXP-15: fecha numérica ambigua (día y mes ambos ≤12) baja confidence, sin cambiar la interpretación DD/MM por defecto", () => {
+  beforeEach(() => resetRequirementCounters());
+
+  it("'05/09/2026' (ambas lecturas posibles: 5-sep o 9-may) tiene confidence menor que una fecha inequívoca", async () => {
+    const doc: TenderDocumentText = {
+      documentId: "bases-v1",
+      documentLabel: "Bases",
+      publishedAt: "2026-01-01T00:00:00-06:00",
+      pages: [{ page: 1, text: "El acto de presentación de proposiciones se llevará a cabo el 05/09/2026." }],
+    };
+    const builder = new RequirementMatrixBuilder([new RuleBasedExtractor()]);
+    const { items } = await builder.build([doc]);
+    const item = items.find((i) => i.text.includes("05/09/2026"));
+    expect(item).toBeDefined();
+    // La interpretación sigue siendo DD/MM (5 de septiembre) — NO cambia.
+    expect(item?.deadline).toBe("2026-09-05T23:59:59-06:00");
+    expect(item?.confidence).toBeLessThan(0.7);
+  });
+
+  it("'25/10/2026' (día > 12, inequívoca) mantiene la confidence original de 0.7", async () => {
+    const doc: TenderDocumentText = {
+      documentId: "bases-v1",
+      documentLabel: "Bases",
+      publishedAt: "2026-01-01T00:00:00-06:00",
+      pages: [{ page: 1, text: "El acto de presentación de proposiciones se llevará a cabo el 25/10/2026." }],
+    };
+    const builder = new RequirementMatrixBuilder([new RuleBasedExtractor()]);
+    const { items } = await builder.build([doc]);
+    const item = items.find((i) => i.text.includes("25/10/2026"));
+    expect(item).toBeDefined();
+    expect(item?.confidence).toBe(0.7);
+  });
+
+  it("'05/05/2026' (día === mes: ambas lecturas dan la MISMA fecha) NO se marca como ambigua", async () => {
+    const doc: TenderDocumentText = {
+      documentId: "bases-v1",
+      documentLabel: "Bases",
+      publishedAt: "2026-01-01T00:00:00-06:00",
+      pages: [{ page: 1, text: "El acto de presentación de proposiciones se llevará a cabo el 05/05/2026." }],
+    };
+    const builder = new RequirementMatrixBuilder([new RuleBasedExtractor()]);
+    const { items } = await builder.build([doc]);
+    const item = items.find((i) => i.text.includes("05/05/2026"));
+    expect(item).toBeDefined();
+    expect(item?.confidence).toBe(0.7);
+  });
+});

@@ -123,7 +123,7 @@ export class RuleBasedExtractor implements RequirementExtractor {
     const obligatoriedad = classifyObligatoriedad(lower);
     const type = classifyType(lower);
     const responsibleRole = classifyResponsibleRole(type);
-    const { deadline, topicKey: deadlineTopic } = extractDeadline(lower);
+    const { deadline, topicKey: deadlineTopic, ambiguousDate } = extractDeadline(lower);
     const requiredEvidence = extractRequiredEvidence(lower, type);
     const topicKey = deadlineTopic ?? classifyTopicKey(lower, type);
 
@@ -138,7 +138,12 @@ export class RuleBasedExtractor implements RequirementExtractor {
       requiredEvidence,
       status: "pendiente",
       extractedBy: "rule",
-      confidence: 0.7,
+      // EX-EXP-06/EX-EXP-15: una fecha numérica "DD/MM/AAAA" con día Y mes
+      // ambos ≤12 es genuinamente ambigua (podría leerse como MM/DD si el
+      // documento de origen usara la convención estadounidense por error de
+      // copiado) — baja confianza en vez de asumir DD/MM con la misma
+      // certeza que una fecha inequívoca (día > 12).
+      confidence: ambiguousDate ? 0.5 : 0.7,
       topicKey,
     };
   }
@@ -263,7 +268,7 @@ const MESES: Record<string, number> = {
  * licitaciones federales). Si el texto no trae una fecha inequívoca, regresa
  * `null` — nunca se infiere una fecha por defecto (REQ-166).
  */
-export function extractDeadline(lower: string): { deadline: string | null; topicKey?: TopicKey } {
+export function extractDeadline(lower: string): { deadline: string | null; topicKey?: TopicKey; ambiguousDate?: boolean } {
   // Patrón "a más tardar el DD de <mes> de/del AAAA" o "... a las HH:MM horas"
   // (EX-EXP-06: "del" es tan común en español como "de" antes del año — se
   // aceptan ambos).
@@ -292,7 +297,20 @@ export function extractDeadline(lower: string): { deadline: string | null; topic
     if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
       const { hour, minute, second } = deadlineTimeOf(numericMatch[4], numericMatch[5]);
       const iso = buildMexicoCityIso(year, month, day, hour, minute, second);
-      return { deadline: iso, topicKey: deadlineTopicKeyOf(lower) };
+      // EX-EXP-06/EX-EXP-15 (reverificación ronda 1): el patrón numérico
+      // SIEMPRE asume DD/MM (la convención correcta por defecto en
+      // licitaciones mexicanas) sin marcar ambigüedad cuando día Y mes son
+      // ambos ≤12 (p. ej. "05/09/2026" podría razonablemente ser 5-sep o
+      // 9-may si el documento de origen usara la convención
+      // estadounidense) — contradice la filosofía declarada del extractor
+      // ("ante ambigüedad, clasifica... antes que inventar un valor en
+      // silencio"). No se cambia la interpretación por defecto (sigue
+      // siendo DD/MM); solo se señala la ambigüedad para que
+      // `classifySentence` baje `confidence` y un revisor humano lo
+      // confirme. `day === month` no es ambigüedad real (misma fecha en
+      // ambas lecturas).
+      const ambiguousDate = day <= 12 && day !== month;
+      return { deadline: iso, topicKey: deadlineTopicKeyOf(lower), ambiguousDate };
     }
   }
 

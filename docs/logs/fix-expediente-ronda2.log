@@ -174,3 +174,30 @@ Suite completa DESPUÉS de la corrección (packages/expediente):
 npm run -w packages/expediente typecheck -> exit 0
 npm run -w packages/expediente lint -> exit 0
 
+================================================================================
+## EX-EXP-06 (PARCIAL) / EX-EXP-15 — fecha numérica ambigua baja confidence
+================================================================================
+
+Reproducción (worktree separado, HEAD=fdf17e4, test nuevo copiado,
+`src/requirement-matrix.ts` en su versión previa):
+
+  Test Files  1 failed | 15 passed (16)
+       Tests  1 failed | 362 passed (363)
+
+Fallo: "05/09/2026" (ambigua: podría ser 5-sep o 9-may) tenía la misma
+`confidence` (0.7) que una fecha inequívoca como "25/10/2026".
+
+Corrección aplicada (packages/expediente/src/requirement-matrix.ts):
+`extractDeadline` marca `ambiguousDate: true` cuando `día <= 12 && día !==
+mes` en el patrón numérico; `classifySentence` baja `confidence` a 0.5 en
+ese caso. La interpretación DD/MM por defecto NO cambia (sigue siendo la
+correcta para licitaciones mexicanas) — solo se señala la ambigüedad.
+
+Suite completa DESPUÉS de la corrección (packages/expediente):
+
+ Test Files  16 passed (16)
+      Tests  363 passed (363)
+
+npm run -w packages/expediente typecheck -> exit 0
+npm run -w packages/expediente lint -> exit 0
+
