@@ -12,3 +12,4 @@
 2026-09-05 19:09  DESPERTAR  #6 db+api ronda 1 completado (8052ff4, 90+12 tests); despachados #13 auditor db/api, #14 api ronda 2, #15 worker; en curso #8,#10,#11,#12.
 2026-09-05 19:11  DESPERTAR  #10 expediente completado (467be32, 84/84); auditor #16 despachado; en curso #8,#11,#12,#13,#14,#15.
 2026-09-05 19:16  DESPERTAR  auditoría agents (#12) 16 hallazgos (2C/4A/6M/4B); corrector #17 despachado; en curso #8,#11,#13,#14,#15,#16.
+2026-09-05 19:19  DESPERTAR  auditoría web (#11) 16 hallazgos (2C/5A/6M/3B); corrector #18 despachado; en curso #8,#13,#14,#15,#16,#17.
