@@ -63,6 +63,20 @@ const ROLE_RISK_CEILING: Record<Role, RiskLevel> = {
   superadmin: "irreversible",
 };
 
+/**
+ * Fusiona defaults congelados con adiciones del llamador SIN NUNCA reducir
+ * el resultado por debajo del default (AG-03): siempre unión, nunca
+ * reemplazo, sin importar qué iterable llegue en `additions` (incluida una
+ * lista vacía).
+ */
+function unionWithDefaults(defaults: ReadonlySet<string>, additions?: Iterable<string>): Set<string> {
+  const result = new Set(defaults);
+  if (additions) {
+    for (const item of additions) result.add(item);
+  }
+  return result;
+}
+
 export interface AuthorizationRequest {
   toolName: string;
   riskLevel: RiskLevel;
@@ -82,12 +96,19 @@ export class AuthorizationPolicy {
   private readonly roleCeiling: Record<Role, RiskLevel>;
 
   constructor(options?: {
+    /** Herramientas ADICIONALES a tratar como prohibidas blandas. Nunca reemplaza `DEFAULT_PROHIBITED_ACTIONS` (AG-03). */
     prohibitedActions?: Iterable<string>;
+    /** Herramientas ADICIONALES a tratar como prohibición dura. Nunca reemplaza `DEFAULT_HARD_PROHIBITED_ACTIONS` (AG-03). */
     hardProhibitedActions?: Iterable<string>;
     roleCeiling?: Partial<Record<Role, RiskLevel>>;
   }) {
-    this.prohibitedActions = new Set(options?.prohibitedActions ?? DEFAULT_PROHIBITED_ACTIONS);
-    this.hardProhibitedActions = new Set(options?.hardProhibitedActions ?? DEFAULT_HARD_PROHIBITED_ACTIONS);
+    // INVARIANTE DE CÓDIGO (AG-03, REQ-165): las prohibiciones duras y
+    // blandas por defecto nunca son reemplazables desde configuración de
+    // constructor ni de tenant — solo se puede AÑADIR a ellas. Pasar `[]` (o
+    // cualquier iterable, vacío o no) jamás reduce el conjunto resultante
+    // por debajo de los defaults: siempre es una UNIÓN, nunca una asignación.
+    this.prohibitedActions = unionWithDefaults(DEFAULT_PROHIBITED_ACTIONS, options?.prohibitedActions);
+    this.hardProhibitedActions = unionWithDefaults(DEFAULT_HARD_PROHIBITED_ACTIONS, options?.hardProhibitedActions);
     this.roleCeiling = { ...ROLE_RISK_CEILING, ...options?.roleCeiling };
   }
 

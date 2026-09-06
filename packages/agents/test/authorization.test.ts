@@ -91,6 +91,34 @@ describe("AuthorizationPolicy", () => {
       expect(result.decision).toBe("denied");
     });
 
+    it("AG-03 (CRÍTICA, invariante de código): pasar hardProhibitedActions: [] NO desactiva ninguna de las prohibiciones duras por defecto — el constructor solo une, nunca reemplaza", () => {
+      const policy = new AuthorizationPolicy({ hardProhibitedActions: [] });
+      for (const toolName of DEFAULT_HARD_PROHIBITED_ACTIONS) {
+        const result = policy.decide({ toolName, riskLevel: "read", actorRole: "superadmin" });
+        expect(result.decision, `${toolName} debería seguir denied tras pasar []`).toBe("denied");
+      }
+    });
+
+    it("AG-03: pasar un Set completo de reemplazo tampoco sustituye los defaults, solo se unen", () => {
+      const policy = new AuthorizationPolicy({ hardProhibitedActions: new Set(["otra_accion_custom"]) });
+      // El default sigue prohibido...
+      expect(policy.decide({ toolName: "sign_document", riskLevel: "read", actorRole: "superadmin" }).decision).toBe(
+        "denied",
+      );
+      // ...y la nueva se agrega, no reemplaza.
+      expect(policy.decide({ toolName: "otra_accion_custom", riskLevel: "read", actorRole: "superadmin" }).decision).toBe(
+        "denied",
+      );
+    });
+
+    it("AG-03: lo mismo aplica a las prohibiciones blandas (prohibitedActions) — [] no las vacía", () => {
+      const policy = new AuthorizationPolicy({ prohibitedActions: [] });
+      for (const toolName of DEFAULT_PROHIBITED_ACTIONS) {
+        const result = policy.decide({ toolName, riskLevel: "write", actorRole: "director" });
+        expect(result.decision).toBe("pending");
+      }
+    });
+
     it("cubre las 4 categorías del flujo: enviar/presentar ofertas, firmar, actuar en portales, contactar terceros", () => {
       const policy = new AuthorizationPolicy();
       const categories = [
