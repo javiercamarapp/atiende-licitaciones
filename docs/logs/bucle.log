@@ -78,3 +78,4 @@
 2026-09-06 03:11  DESPERTAR  auditoría web integrado (#65) WI-01..05 importada a main; corrector web #66 despachado; WI-01/04 lado API → #64; en curso #64,#66.
 2026-09-06 03:37  LATIDO  bucle dinámico; en curso #64 (api ronda 4) y #66 (web fix); commits recientes visibles en git log.
 2026-09-06 04:13  DESPERTAR  #66 (web fix) reanudado tras estancamiento; clasificador intermitente; en curso #64,#66.
+2026-09-06 04:18  INCIDENTE  429 del servidor cortó #64 (api ronda 4) tras suite completa exit 0; reanudado para cierre documental; en curso #64,#66.
