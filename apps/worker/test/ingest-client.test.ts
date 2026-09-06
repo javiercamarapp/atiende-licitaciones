@@ -145,4 +145,31 @@ describe('TenderIngestClient contra un servidor HTTP real', () => {
     await client.ingest({ records: [makeRecord('EXP-1')], organizationIds: [orgId] });
     expect((fakeServer.received[0].body as { organizationIds: string[] }).organizationIds).toEqual([orgId]);
   });
+
+  /**
+   * WK-09 (docs/auditoria-1/worker.md): antes de esta ronda, la única
+   * cabecera enviada era `x-platform-api-key`; la idempotencia de
+   * transporte dependía ENTERAMENTE de que apps/api deduplicara por
+   * contenido, sin ninguna capa de defensa adicional si ese contrato
+   * cambiara. Ahora se envía `idempotency-key`, derivada
+   * determinísticamente del CONTENIDO exacto del lote (mismo payload =>
+   * misma clave, siempre).
+   */
+  it('WK-09: envía una cabecera Idempotency-Key determinística, estable entre reintentos del mismo lote', async () => {
+    const client = new TenderIngestClient({ baseUrl: fakeServer.baseUrl });
+    await client.ingest({ records: [makeRecord('EXP-IDEMP')] });
+    const key1 = fakeServer.received[0].headers['idempotency-key'];
+    expect(typeof key1).toBe('string');
+    expect((key1 as string).length).toBeGreaterThan(0);
+
+    // Mismo payload exacto en una segunda llamada -> misma clave.
+    await client.ingest({ records: [makeRecord('EXP-IDEMP')] });
+    const key2 = fakeServer.received[1].headers['idempotency-key'];
+    expect(key2).toBe(key1);
+
+    // Payload distinto -> clave distinta.
+    await client.ingest({ records: [makeRecord('EXP-OTRO')] });
+    const key3 = fakeServer.received[2].headers['idempotency-key'];
+    expect(key3).not.toBe(key1);
+  });
 });

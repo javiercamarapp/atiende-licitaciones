@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { computeBackoffDelayMs } from '../queue/backoff.js';
 
 /**
@@ -55,6 +56,18 @@ export class IngestApiError extends Error {
     super(message);
     this.name = 'IngestApiError';
   }
+
+  /**
+   * WK-10 (docs/auditoria-1/worker.md): un 4xx de `apps/api` que no sea 429
+   * (rate limit, transitorio) es un error PERMANENTE — el mismo payload
+   * seguirá siendo rechazado por el mismo motivo en un reintento (dato mal
+   * formado, no autorizado, etc.). `Worker.process()` usa esta propiedad
+   * (`isPermanentJobError`, `queue/errors.ts`) para dead-letrar de inmediato
+   * en vez de gastar el ciclo completo de backoff.
+   */
+  get permanent(): boolean {
+    return !this.retryable && this.status !== undefined && this.status >= 400 && this.status < 500;
+  }
 }
 
 export interface TenderIngestClientOptions {
@@ -89,6 +102,18 @@ export class TenderIngestClient {
     const maxRetries = this.options.maxRetries ?? 3;
     const url = new URL('/internal/tenders/ingest', this.options.baseUrl).toString();
     const body = JSON.stringify(request);
+    /**
+     * WK-09 (docs/auditoria-1/worker.md): cabecera `Idempotency-Key` de
+     * transporte, derivada determinísticamente del CONTENIDO exacto del
+     * lote (hash del cuerpo ya serializado: mismo `records` + mismo
+     * `organizationIds` en el mismo orden -> misma clave). Antes de esto la
+     * idempotencia dependía ENTERAMENTE de que `apps/api` deduplicara por
+     * contenido (`source, externalId, sourceVersion`), sin ninguna capa de
+     * defensa adicional en el transporte si ese contrato cambiara. No
+     * reemplaza esa deduplicación (sigue siendo la fuente de verdad real,
+     * documentado en README/tests); es una capa extra, no un sustituto.
+     */
+    const idempotencyKey = createHash('sha256').update(body).digest('hex');
 
     let lastError: unknown;
     for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
@@ -103,6 +128,7 @@ export class TenderIngestClient {
           method: 'POST',
           headers: {
             'content-type': 'application/json',
+            'idempotency-key': idempotencyKey,
             ...(this.options.apiKey ? { 'x-platform-api-key': this.options.apiKey } : {}),
           },
           body,
