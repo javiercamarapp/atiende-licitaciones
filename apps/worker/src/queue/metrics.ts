@@ -13,7 +13,7 @@ export class JobMetrics {
     return kind ? `${event}:${kind}` : event;
   }
 
-  inc(event: 'claimed' | 'succeeded' | 'retried' | 'dead' | 'cancelled' | JobStatus, kind?: string): void {
+  inc(event: 'claimed' | 'succeeded' | 'retried' | 'dead' | 'cancelled' | 'fenced' | JobStatus, kind?: string): void {
     const k = this.key(event, kind);
     this.counters.set(k, (this.counters.get(k) ?? 0) + 1);
   }

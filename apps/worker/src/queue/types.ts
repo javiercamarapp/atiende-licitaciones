@@ -1,4 +1,21 @@
-/** Estados de `jobs.status` definidos en packages/db/migrations/0003_system_tables.sql. */
+/**
+ * Estados de `jobs.status` definidos en packages/db/migrations/0003_system_tables.sql.
+ *
+ * WK-12 (docs/auditoria-1/worker.md, higiene): `'failed'` existe en el enum
+ * de la base de datos, pero ningún código de `apps/worker` lo asigna JAMÁS.
+ * Es intencional, no un olvido: el diseño de reintentos de este worker solo
+ * usa dos estados terminales/intermedios para un intento fallido —
+ * `'queued'` (falló pero quedan reintentos, ver `JobQueue.fail()`) o
+ * `'dead'` (falló y se agotaron los reintentos, o el error se clasificó como
+ * permanente, ver `JobQueue.deadLetterPermanent()`/`isPermanentJobError`).
+ * Un job "recién creado, nunca reclamado" y un job "que falló y está en
+ * `next_run_at` esperando su próximo reintento" son, ambos, `'queued'`
+ * — se distinguen mirando `attempts`/`last_error`, no `status`. `'failed'`
+ * se mantiene en este tipo únicamente por paridad estructural con el enum
+ * real de la base de datos (para que `JobRow.status`/`mapJobRow` tipen
+ * correctamente cualquier fila que pudiera traerlo, p. ej. escrita por otro
+ * proceso fuera de este worker), no porque este worker vaya a producirlo.
+ */
 export type JobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'dead';
 
 export interface Job<Payload = Record<string, unknown>> {

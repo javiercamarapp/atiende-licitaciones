@@ -2,6 +2,7 @@ import type { Logger } from '../logger.js';
 import { JobMetrics } from './metrics.js';
 import type { JobQueue } from './job-queue.js';
 import type { Job, JobHandler } from './types.js';
+import { isPermanentJobError } from './errors.js';
 
 export interface WorkerOptions {
   queue: JobQueue;
@@ -97,6 +98,13 @@ export class Worker {
     const handler = handlers[job.kind];
     const abortController = new AbortController();
     this.currentAbort = abortController;
+    // WK-02 (fencing token, docs/auditoria-1/worker.md): `job.attempts` en el
+    // momento del claim() es la generación/"fencing token" de ESTA posesión
+    // del lease (claim() la incrementa en cada reclamo, inicial o por
+    // recuperación de lease expirado — ver job-queue.ts). Se captura aquí
+    // para poder verificarla en cada heartbeat.
+    const fencingToken = job.attempts;
+    let leaseLost = false;
 
     if (!handler) {
       childLogger.error('sin handler registrado para este tipo de job');
@@ -108,20 +116,66 @@ export class Worker {
 
     const heartbeatMs = this.options.heartbeatIntervalMs ?? 15_000;
     const heartbeatTimer = setInterval(() => {
-      queue.heartbeat(job.id, workerId).catch((err) => childLogger.warn({ err: describeError(err) }, 'fallo de heartbeat'));
+      queue
+        .heartbeat(job.id, workerId, fencingToken)
+        .then((stillOwned) => {
+          if (!stillOwned && !leaseLost) {
+            // WK-02: el heartbeat detectó que este worker YA NO es dueño del
+            // lease (otro worker lo reclamó mientras este seguía vivo, p.
+            // ej. por un heartbeat lento/perdido anterior). Antes esto se
+            // descartaba en silencio (`.catch()` fire-and-forget que nunca
+            // miraba el valor resuelto): ambos workers seguían ejecutando el
+            // MISMO handler con efectos secundarios reales duplicados
+            // (p. ej. dos POST a apps/api), sin que ninguno se enterara.
+            // Ahora: se aborta el handler vía el mismo `AbortSignal` que ya
+            // existía para el cierre ordenado (los handlers cooperativos,
+            // como `discover_tenders`, ya lo respetan) y, decida lo que
+            // decida el handler a partir de aquí, su resultado NUNCA se
+            // persiste (ni `complete()` ni `fail()` — ver abajo): evita la
+            // "doble ejecución silenciosa" que confirmó la auditoría.
+            leaseLost = true;
+            childLogger.error(
+              'fencing: lease perdido durante la ejecución (otro worker reclamó este job); abortando handler, resultado NO se persistirá',
+            );
+            abortController.abort();
+          }
+        })
+        .catch((err) => childLogger.warn({ err: describeError(err) }, 'fallo de heartbeat'));
     }, heartbeatMs);
 
     try {
       childLogger.info('job iniciado');
       await handler(job, { job, logger: childLogger, signal: abortController.signal });
+      if (leaseLost) {
+        childLogger.warn('el handler terminó pero el lease se perdió durante la ejecución: no se persiste el resultado (fencing, WK-02)');
+        this.metrics.inc('fenced', job.kind);
+        return;
+      }
       await queue.complete(job.id, workerId);
       this.metrics.inc('succeeded', job.kind);
       childLogger.info('job completado');
     } catch (error) {
+      if (leaseLost) {
+        childLogger.warn(
+          { err: describeError(error) },
+          'el handler falló tras perder el lease: no se persiste ningún resultado (fencing, WK-02)',
+        );
+        this.metrics.inc('fenced', job.kind);
+        return;
+      }
       const message = describeError(error);
       childLogger.error({ err: message }, 'job falló');
-      const updated = await queue.fail(job, workerId, message);
-      this.metrics.inc(updated?.status === 'dead' ? 'dead' : 'retried', job.kind);
+      if (isPermanentJobError(error)) {
+        // WK-10: error permanente (fuente no configurada/no verificada, 4xx
+        // salvo 429, validación zod) — reintentar no cambiará el resultado,
+        // dead-letter inmediato sin gastar el ciclo completo de backoff.
+        childLogger.error('error clasificado como permanente: dead-letter inmediato sin reintentos (WK-10)');
+        await queue.deadLetterPermanent(job, workerId, message);
+        this.metrics.inc('dead', job.kind);
+      } else {
+        const updated = await queue.fail(job, workerId, message);
+        this.metrics.inc(updated?.status === 'dead' ? 'dead' : 'retried', job.kind);
+      }
     } finally {
       clearInterval(heartbeatTimer);
       this.currentAbort = undefined;
