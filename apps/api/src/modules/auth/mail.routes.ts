@@ -8,6 +8,7 @@ import { recordAuthAudit } from '../../lib/audit.js';
 import { verifySignedMailParams } from '../../lib/mail/links.js';
 import { fireAndForgetMail } from '../../lib/mail/pending.js';
 import { sendEmailVerification, sendPasswordResetEmail } from '../../lib/mail/triggers.js';
+import { runDecoyMailWork } from '../../lib/mail/decoy.js';
 import { auditContext } from './routes.js';
 
 /**
@@ -18,10 +19,18 @@ import { auditContext } from './routes.js';
  *
  * 1. **Ninguna revela si una cuenta existe.** `/email/resend-verification`
  *    y `/password/forgot` responden EXACTAMENTE lo mismo (202 + el mismo
- *    cuerpo) exista o no la dirección, y el envío se dispara sin `await`
- *    (`fireAndForgetMail`) para que tampoco la LATENCIA distinga los dos
- *    casos -- el mismo criterio con el que API-03 cerró el oráculo de
- *    temporización de `/auth/login` y `/auth/register`.
+ *    cuerpo) exista o no la dirección. AM-02 (docs/auditoria-2/api-mail.md,
+ *    ALTA): el cuerpo idéntico NO bastaba -- `fireAndForgetMail` solo se
+ *    invocaba cuando la cuenta era elegible, y aunque el envío real no se
+ *    espera, ese trabajo (render de plantilla, supresión, reserva de
+ *    `mail_outbox`) competía por CPU con la respuesta antes de que
+ *    terminara de enviarse, midiendo 8.34x/5.83x de diferencia de mediana
+ *    de latencia -- el mismo oráculo que API-03 ya había cerrado para
+ *    `/auth/login`. Reparado disparando SIEMPRE `fireAndForgetMail`,
+ *    exista o no la cuenta: cuando no es elegible, se dispara un envío
+ *    DECOY de costo equivalente (`lib/mail/decoy.ts`) en vez de omitir el
+ *    trabajo -- nunca se decide antes si "vale la pena" pagar el costo
+ *    según el resultado de `findUserForMail`.
  *
  * 2. **El enlace firmado no basta: el token de un solo uso manda.** La
  *    firma HMAC (`verifySignedMailParams`) solo garantiza que el payload no
@@ -121,24 +130,31 @@ export async function authMailRoutes(app: FastifyInstance): Promise<void> {
       const { email } = request.body;
       const user = await findUserForMail(app, email);
 
-      // Solo se manda si la cuenta existe, sigue activa, tiene contraseña
+      // Elegible solo si la cuenta existe, sigue activa, tiene contraseña
       // propia (una cuenta solo-Google ya llega verificada por Google,
       // REQ-179) y todavía NO está verificada -- reenviar a una cuenta ya
       // verificada solo daría un token vivo de más sin ningún beneficio.
-      if (user && user.is_active && user.password_hash && user.email_verified_at === null) {
-        fireAndForgetMail(app, 'email-verification', async () => {
-          await sendEmailVerification(app, { id: user.id, email, fullName: null });
+      // AM-02: la decisión NUNCA determina si se dispara `fireAndForgetMail`
+      // (eso es lo que abría el oráculo de temporización) -- solo decide
+      // QUÉ trabajo real se hace dentro de él.
+      const eligible = Boolean(user && user.is_active && user.password_hash && user.email_verified_at === null);
+
+      fireAndForgetMail(app, eligible ? 'email-verification' : 'email-verification-decoy', async () => {
+        if (eligible) {
+          await sendEmailVerification(app, { id: user!.id, email, fullName: null });
           await app.db.transaction(async (tx) => {
             await tx.query('set local role app_role');
             await recordAuthAudit(tx, {
-              actorId: user.id,
+              actorId: user!.id,
               action: 'auth.email_verification_sent',
               after: { reenvio: true, ...auditContext(request) },
               requestId: request.id,
             });
           });
-        });
-      }
+        } else {
+          await runDecoyMailWork(app, 'email-verification');
+        }
+      });
 
       reply.code(202);
       return ACCEPTED_BODY;
@@ -161,22 +177,27 @@ export async function authMailRoutes(app: FastifyInstance): Promise<void> {
       // Una cuenta creada SOLO con Google (`password_hash is null`) no tiene
       // contraseña que restablecer: darle un enlace de restablecimiento
       // crearía una contraseña que nadie pidió y convertiría la cuenta en
-      // una de acceso mixto por la puerta de atrás. Se omite el envío --
-      // sin que la respuesta cambie ni un byte.
-      if (user && user.is_active && user.password_hash) {
-        fireAndForgetMail(app, 'password-reset', async () => {
-          await sendPasswordResetEmail(app, { id: user.id, email, fullName: null }, request.ip);
+      // una de acceso mixto por la puerta de atrás. Se omite el envío REAL
+      // -- sin que la respuesta cambie ni un byte, y AM-02: sin que
+      // `fireAndForgetMail` deje de dispararse (ver docstring del módulo).
+      const eligible = Boolean(user && user.is_active && user.password_hash);
+
+      fireAndForgetMail(app, eligible ? 'password-reset' : 'password-reset-decoy', async () => {
+        if (eligible) {
+          await sendPasswordResetEmail(app, { id: user!.id, email, fullName: null }, request.ip);
           await app.db.transaction(async (tx) => {
             await tx.query('set local role app_role');
             await recordAuthAudit(tx, {
-              actorId: user.id,
+              actorId: user!.id,
               action: 'auth.password_reset_requested',
               after: auditContext(request),
               requestId: request.id,
             });
           });
-        });
-      }
+        } else {
+          await runDecoyMailWork(app, 'password-reset');
+        }
+      });
 
       reply.code(202);
       return ACCEPTED_BODY;
