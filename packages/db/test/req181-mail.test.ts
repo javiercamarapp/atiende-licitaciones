@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { DbClient } from '../src/driver.js';
-import { createMigratedDb, seedUser, asActor } from './helpers.js';
+import { createMigratedDb, seedUser, seedOrg, asActor } from './helpers.js';
 
 /**
  * REQ-181..195 (docs/REQUISITOS.md §34.2, 0080-0084): pruebas de esquema/
@@ -274,6 +274,103 @@ describe('REQ-181..195: esquema y funciones SECURITY DEFINER de correo', () => {
       await expect(
         asActor(db, {}, (tx) => tx.query('select app.enqueue_mail_retry($1, null, $2::jsonb, 300, 5, null)', [randomUUID(), '{}']))
       ).rejects.toThrow(/enqueue_mail_retry_payload_sin_messageKey/);
+    });
+
+    describe('AM-04 (docs/auditoria-2/api-mail.md, 0089): org_id de la sesión vs. p_org_id', () => {
+      it('org de sesión distinta de p_org_id: RAISE explícito, ninguna fila se inserta', async () => {
+        const orgA = await seedOrg(db, `am04-orga-${randomUUID()}`);
+        const orgB = await seedOrg(db, `am04-orgb-${randomUUID()}`);
+        const id = randomUUID();
+
+        await expect(
+          asActor(db, { orgId: orgA.orgId }, (tx) =>
+            tx.query('select app.enqueue_mail_retry($1, $2, $3::jsonb, 300, 5, null)', [
+              id,
+              orgB.orgId,
+              JSON.stringify({ messageKey: 'organization-invite:xyz' }),
+            ])
+          )
+        ).rejects.toThrow(/enqueue_mail_retry_org_mismatch/);
+
+        const { rows } = await db.query('select 1 from jobs where id = $1', [id]);
+        expect(rows).toHaveLength(0);
+      });
+
+      it('org de sesión activa pero p_org_id NULL: también es un mismatch (NULL no es "la misma organización")', async () => {
+        const orgA = await seedOrg(db, `am04-orga-null-${randomUUID()}`);
+        const id = randomUUID();
+
+        await expect(
+          asActor(db, { orgId: orgA.orgId }, (tx) =>
+            tx.query('select app.enqueue_mail_retry($1, null, $2::jsonb, 300, 5, null)', [
+              id,
+              JSON.stringify({ messageKey: 'password-reset:xyz' }),
+            ])
+          )
+        ).rejects.toThrow(/enqueue_mail_retry_org_mismatch/);
+      });
+
+      it('org de sesión IGUAL a p_org_id: permitido, encola con kind mail_retry y ese org_id', async () => {
+        const org = await seedOrg(db, `am04-match-${randomUUID()}`);
+        const id = randomUUID();
+
+        await asActor(db, { orgId: org.orgId }, (tx) =>
+          tx.query('select app.enqueue_mail_retry($1, $2, $3::jsonb, 300, 5, null)', [
+            id,
+            org.orgId,
+            JSON.stringify({ messageKey: 'organization-invite:match' }),
+          ])
+        );
+
+        const { rows } = await db.query<{ kind: string; org_id: string | null }>(
+          'select kind, org_id from jobs where id = $1',
+          [id]
+        );
+        expect(rows).toEqual([{ kind: 'mail_retry', org_id: org.orgId }]);
+      });
+
+      it('sin organización en sesión (camino real de hoy), p_org_id con un valor real SÍ se acepta -- no hay sesión de la que defender ese valor', async () => {
+        // Reproduce el call site real: apps/api/src/lib/mail/send-transactional.ts
+        // llama a esta función dentro de su PROPIA transacción, que solo fija
+        // `set local role app_role`, nunca `app.current_org_id` -- incluso
+        // para correos de organización real (invitación, onboarding).
+        const org = await seedOrg(db, `am04-no-session-${randomUUID()}`);
+        const id = randomUUID();
+
+        await asActor(db, {}, (tx) =>
+          tx.query('select app.enqueue_mail_retry($1, $2, $3::jsonb, 300, 5, null)', [
+            id,
+            org.orgId,
+            JSON.stringify({ messageKey: 'welcome-onboarding:sin-sesion' }),
+          ])
+        );
+
+        const { rows } = await db.query<{ kind: string; org_id: string | null }>(
+          'select kind, org_id from jobs where id = $1',
+          [id]
+        );
+        expect(rows).toEqual([{ kind: 'mail_retry', org_id: org.orgId }]);
+      });
+
+      it('acotación al kind mail_retry se conserva incluso cuando la organización de sesión coincide (no hay parámetro p_kind que un llamador pueda torcer)', async () => {
+        const org = await seedOrg(db, `am04-kind-${randomUUID()}`);
+        const id = randomUUID();
+
+        await asActor(db, { orgId: org.orgId }, (tx) =>
+          tx.query('select app.enqueue_mail_retry($1, $2, $3::jsonb, 300, 5, null)', [
+            id,
+            org.orgId,
+            // Un payload que intenta colar un `kind` propio no tiene ningún
+            // efecto: la función siempre inserta el literal 'mail_retry',
+            // `kind` en el payload es solo un dato de negocio más dentro del
+            // jsonb, nunca se lee para decidir la columna `jobs.kind`.
+            JSON.stringify({ messageKey: 'organization-invite:kind-probe', kind: 'otro_kind_cualquiera' }),
+          ])
+        );
+
+        const { rows } = await db.query<{ kind: string }>('select kind from jobs where id = $1', [id]);
+        expect(rows).toEqual([{ kind: 'mail_retry' }]);
+      });
     });
   });
 });
