@@ -1,9 +1,51 @@
 # @atiende/web
 
 Frontend del back office de **Atiende Licitaciones** (marca Atiende, plataforma
-de IA para gestión de licitaciones públicas). Ronda 1: solo interfaz — no hay
-`apps/api` conectado todavía, así que toda pantalla que necesitaría datos
-reales muestra un estado vacío u honesto en vez de datos "de demo".
+de IA para gestión de licitaciones públicas). Ronda 3: conectado a `apps/api`
+real (sin mocks en producción — MSW solo en pruebas de componente, ver
+`src/test/msw.ts`). Toda pantalla que todavía no tiene un endpoint real detrás
+sigue mostrando un estado honesto (vacío, error con `request_id`, o "endpoint
+pendiente en apps/api") en vez de datos ficticios.
+
+## Ronda 3 — arquitectura de datos y sesión
+
+- **Cliente API tipado** (`src/lib/api/`): `http.ts` (fetch de bajo nivel,
+  `ApiError` con mensaje real + `request_id` de la respuesta
+  `application/problem+json` de la API, reintento de 429 con backoff
+  respetando `Retry-After`), `client.ts` (`apiRequest`: inyecta
+  `Authorization`/`X-Org-Id`, reintenta automáticamente 401→refresh→
+  reintento), `schemas.ts` (esquemas zod escritos a mano a partir del código
+  real de `apps/api/src/modules/*/schemas.ts` — no hay generación
+  automática desde OpenAPI porque eso requiere la API arrancada con una
+  sesión válida en `/docs/json`; se mantienen sincronizados a mano) y un
+  archivo por dominio (`auth.ts`, `organizations.ts`, `company.ts`,
+  `tenders.ts`, `matching.ts`, `go-no-go.ts`, `agents.ts`, `admin.ts`).
+- **Sesión real** (`src/hooks/useAuth.tsx`): `AuthProvider`/`useAuth()`
+  hidratan usuario (`GET /me`) y memberships (`GET /organizations`) tras el
+  login o al restaurar sesión desde un refresh token guardado. El **access
+  token vive solo en memoria** (nunca en `localStorage`); el **refresh
+  token se persiste en `localStorage`** — riesgo documentado en
+  `src/lib/api/session.ts`: `apps/api` lo emite en el CUERPO de
+  `/auth/login`/`/auth/refresh`, no como cookie httpOnly, así que el
+  cliente no tiene forma de evitar que JavaScript (y por tanto un XSS)
+  pueda leerlo. La mitigación real (cookies httpOnly + rotación en el
+  servidor) requeriría un cambio de contrato en `apps/api`, fuera del
+  alcance de `apps/web`.
+- **Guard de rutas (W-12)**: `src/components/auth/RequireAuth.tsx` protege
+  todo lo que cuelga de `<AppShell/>`, redirigiendo a `/login` sin sesión.
+  La barrera real sigue siendo la API en cada petición (`Authorization:
+  Bearer`, `app.requireOrg`, `app.requireSuperadmin`) — el guard solo evita
+  mostrar el layout antes de que la primera petición falle.
+- **Selector de organización real** (`OrganizationSwitcher.tsx`): lista las
+  memberships reales del usuario (`GET /organizations`, con su rol real) y
+  cambia el header `X-Org-Id` que usan todos los hooks de dominio
+  (`useCompany`, `useTenders`, `useMatching`, `useGoNoGo`, `useAgents`). El
+  servidor sigue revalidando la membresía real en cada petición.
+- **Permisos en la UI**: cada página deriva de `currentMembership.role` si
+  debe mostrar/deshabilitar una acción de escritura (p. ej. "Guardar
+  perfil" solo si `owner`/`admin`), pero **nunca como única barrera** — la
+  API decide de verdad, y un 403 real se muestra con `<ErrorState/>` (ver
+  `/backoffice/organizaciones` para un usuario sin superadmin).
 
 ## Cómo correr
 
@@ -21,66 +63,97 @@ npm run -w apps/web test           # vitest run (pruebas de componente, jsdom)
 npm run -w apps/web test:watch     # vitest en modo watch
 npm run -w apps/web test:coverage  # vitest run --coverage
 npm run -w apps/web test:e2e       # build de producción + Playwright (navegador real) + axe-core
+npm run -w apps/web test:e2e:full  # arranca apps/api real (PGlite) + siembra + Playwright completo
 ```
 
 La primera vez que se corre `test:e2e`, instala el navegador de Playwright
 con `npx playwright install chromium` (una sola vez por máquina/CI).
 
+**`test:e2e` vs `test:e2e:full` (ronda 3):** con el guard de rutas real
+(W-12), casi ninguna pantalla es alcanzable sin sesión. `test:e2e` a secas
+(sin `apps/api` corriendo) sigue funcionando para lo que es alcanzable sin
+sesión (fundamentalmente `/login`, vía el fixture `noAuthPage` — ver
+`e2e/fixtures.ts`); para ejercitar el resto (24 rutas del sidebar, el
+recorrido de negocio completo) hace falta una API real, y `test:e2e:full`
+(`apps/web/scripts/e2e-full.mjs`) la levanta automáticamente: arranca
+`apps/api` con PGlite en memoria, espera `/healthz`, construye `apps/web`
+apuntando a esa API, corre la suite Playwright completa y apaga la API al
+terminar (propagando el código de salida real).
+
 Variables de entorno (`.env`, ver `.env.example`):
 
-- `VITE_API_URL` — URL base de `apps/api`. Sin backend desplegado, el cliente
-  en `src/lib/api.ts` lanza `ApiError` con el mensaje real del fallo de red y
-  la UI lo muestra en `<ErrorState/>` con botón de reintentar — nunca oculta
-  el error ni simula una respuesta exitosa.
+- `VITE_API_URL` — URL base de `apps/api` (ver `src/lib/api/http.ts`).
+  Un fallo de red real lanza `ApiError` con su mensaje real (nunca una
+  respuesta simulada); un error de la API (4xx/5xx) conserva su
+  `request_id` real (`application/problem+json`) para mostrarlo en
+  `<ErrorState/>`.
 
 ## Estructura
 
 ```
 src/
-  App.tsx                  # Router raíz, lazy routes por página, error boundary, loading screen
+  App.tsx                  # Router raíz, AuthProvider, RequireAuth, lazy routes, error boundary
   main.tsx                 # entry point
   index.css                # tokens de diseño (HSL), tipografías, dark mode, keyframes del logo
   config/navigation.ts     # única fuente de verdad del sidebar (grupos + items + rutas)
   lib/
     utils.ts               # cn() (clsx + tailwind-merge)
-    api.ts                 # cliente HTTP tipado hacia apps/api (aún sin backend real)
+    datetime.ts             # formato America/Mexico_City (plazos/aclaraciones de convocatorias)
+    api/                    # cliente API tipado hacia apps/api (ver "Ronda 3" arriba)
+      http.ts, session.ts, client.ts, schemas.ts
+      auth.ts, organizations.ts, company.ts, tenders.ts, matching.ts, go-no-go.ts, agents.ts, admin.ts
+  hooks/
+    useAuth.tsx              # AuthProvider/useAuth() — sesión real
+    useCompany.ts, useTenders.ts, useMatching.ts, useGoNoGo.ts, useAgents.ts, useAdmin.ts
   components/
     AtiendeLogo.tsx         # AtiendeMark / AtiendeWordmark (mismo glifo que atiende-restaurantes)
-    ThemeSelector.tsx        # claro/sistema/oscuro, persistido en localStorage, clase .dark en <html>
+    ThemeSelector.tsx        # claro/sistema/oscuro; vive en el header (md+) y en el drawer (<md, W-21)
     SkipLink.tsx              # "saltar a..." con foco real (.focus() explícito, no solo href="#id")
     AiDisclosureNote.tsx       # aviso de uso de IA (REQ-115), antepuesto a módulos con `disclosure: true`
+    auth/
+      RequireAuth.tsx          # guard de rutas real (W-12)
     layout/
       AppShell.tsx            # layout raíz: sidebar desktop + drawer móvil (Sheet) + header + main
       SidebarNav.tsx           # contenido de navegación (compartido entre sidebar y drawer)
       SectionHeader.tsx        # encabezado estándar de cada página de módulo
-      OrganizationSwitcher.tsx # selector de organización (placeholder controlado por estado)
+      OrganizationSwitcher.tsx # selector de organización real (memberships de /me)
+      UserMenu.tsx              # identidad real + logout real (revoca el refresh token)
     ui/                      # primitivas shadcn/ui adaptadas (button, card, dialog, sheet, table,
                               # tabs, select, dropdown-menu, form, sonner, tooltip, separator,
                               # scroll-area, skeleton, badge, empty-state, error-state, loading-state,
-                              # source-status-badge, package-status-badge)
+                              # textarea, source-status-badge, package-status-badge)
   pages/
-    LoginPage.tsx            # pantalla partida (kicker + h1 serif + lámina), contraseña + magic link
+    LoginPage.tsx            # pantalla partida (kicker + h1 serif + lámina), solo contraseña (ver abajo)
     login.css                 # fuente Fraunces del titular, exclusiva de esta pantalla
     NotFoundPage.tsx
-    createModulePage.tsx     # fábrica: SectionHeader + EmptyState honesto por módulo
-    empresa/                 # Perfil y capacidades, Documentos y vigencias, Firmantes, Tarifas
-    convocatorias/            # Descubrimiento, Matching, Fuentes y frescura
-    evaluacion/                # Go/No-Go, Análisis de bases
+    createModulePage.tsx     # fábrica: SectionHeader + EmptyState honesto (módulos aún sin backend)
+    empresa/                 # Perfil y capacidades, Documentos y vigencias, Firmantes, Tarifas — datos reales
+    convocatorias/            # Descubrimiento, detalle, Matching, Fuentes y frescura — datos reales
+    evaluacion/                # Go/No-Go (real), Análisis de bases (sin backend, ver abajo)
     preparacion/                # Cumplimiento documental, Redacción, Revisión, Expediente, Aprobaciones
-    entrega/                     # Entregas, Paquete descargable, Seguimiento post-adjudicación
-    backoffice/                   # Organizaciones, Usuarios y roles, Agentes y herramientas, Auditoría
+                                 # (fuera de alcance de esta ronda — ver "Módulos sin conectar")
+    entrega/                     # Entregas, Paquete descargable, Seguimiento post-adjudicación (ídem)
+    backoffice/                   # Organizaciones, Agentes y herramientas (reales); Usuarios y roles,
+                                   # Auditoría (endpoint pendiente en apps/api); Conectores, Jobs,
+                                   # Costos, Incidentes, Aprobaciones (reales, solo superadmin)
     ConfiguracionPage.tsx
   test/
-    setup.ts                 # extiende expect con jest-dom + vitest-axe, limpia entre tests
-    utils.tsx                # renderWithProviders() (QueryClient + Router + TooltipProvider)
+    setup.ts                 # jest-dom + vitest-axe + servidor MSW (server.listen/reset/close) + limpia sesión
+    utils.tsx                # renderWithProviders() (QueryClient + Router + TooltipProvider + AuthProvider)
+    msw.ts                   # servidor MSW compartido (éxito/401/403/500/red caída en pruebas de componente)
 e2e/                          # suite Playwright + axe-core sobre el navegador real (REQ-049/065)
-  fixtures.ts                 # test/expect propios: goto() espera networkidle (rutas con lazy())
-  recorrido.spec.ts            # login→shell, las 24 rutas del sidebar, drawer móvil, tema oscuro,
+  fixtures.ts                 # `page` (admin, login fresco por worker), `writerPage`, `noAuthPage`
+  global-setup.ts             # siembra 2 orgs + 2 usuarios reales vía la propia apps/api (test:e2e:full)
+  seed-client.ts               # cliente HTTP mínimo del seed (independiente del cliente de producción)
+  ronda3-flujo-real.spec.ts    # login→cambiar org→perfil→documento→tarifa→convocatorias vacías→403
+  recorrido.spec.ts            # login→shell, las 24+ rutas del sidebar, drawer móvil, tema oscuro,
                                 # Fuentes y frescura, Paquete "Borrador", sin scroll horizontal a 390px
   contraste.spec.ts, heading-order.spec.ts, login-landmarks.spec.ts, login-parity.spec.ts,
   skip-link.spec.ts, touch-targets.spec.ts, ai-disclosure.spec.ts  # regresión por hallazgo (ver
-                                                                     # docs/auditoria-1/web.md)
-playwright.config.ts          # sirve dist/ con `vite preview` (webServer), proyecto chromium
+                                                                     # docs/auditoria-1/web*.md)
+playwright.config.ts          # sirve dist/ con `vite preview`; proxy a apps/api real en modo "full"
+vite.config.ts                 # proxy /auth,/company,/tenders,... → apps/api real (solo con E2E_API_URL,
+                                 # evita el bug de CORS de apps/api — ver "Endpoints y gaps de API")
 ```
 
 ## Decisiones de esta ronda
@@ -159,8 +232,8 @@ manteniendo divergencias deliberadas para el dominio de licitaciones:
 | Layout | Pantalla partida, formulario + lámina fotográfica | Igual (pantalla partida, formulario + lámina) | Adoptado tal cual — es la anatomía real de la marca |
 | Kicker + titular serif (`Fraunces`) | Sí | Sí | Adoptado tal cual |
 | Lámina derecha | Foto de una cocina comercial (`login-hero.png`) | Degradado con los tokens de marca (`--primary` → fondo oscuro) | Una foto de cocina es del dominio equivocado (restaurantes, no licitaciones) y no existe un asset equivalente con licencia para licitaciones; se prefirió un degradado honesto a inventar/copiar una imagen que no representa el producto |
-| Métodos de acceso | Solo enlace mágico + Google OAuth | Contraseña **y** enlace mágico (tabs), sin OAuth | El backend de licitaciones (`apps/api`) expone `/auth/login` con contraseña; no hay integración con Google configurada en esta ronda. Se documenta como decisión de producto, no como omisión accidental |
-| Roles / redirect post-login | Lógica de `superadmin` vs. `admin` específica de restaurantes | No aplica — sin backend de sesión todavía | Fuera de alcance de esta ronda (ver "Qué falta") |
+| Métodos de acceso | Solo enlace mágico + Google OAuth | Solo contraseña, sin tabs ni OAuth | **Ronda 3**: apps/api solo expone `/auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout` — no existe ningún endpoint `/auth/magic-link` ni equivalente. La ronda 2 había implementado una pestaña de "enlace mágico" que llamaba a un endpoint inexistente (nunca podía funcionar); se retiró en vez de mantener una acción de UI sin backend real detrás |
+| Roles / redirect post-login | Lógica de `superadmin` vs. `admin` específica de restaurantes | Redirección real a `/panel` tras `POST /auth/login`; sin lógica de rol en el login mismo (el rol se resuelve por organización, ver `OrganizationSwitcher`) | Atiende Licitaciones es multi-organización con rol POR organización (no un rol global de usuario) — no hay un análogo directo al `superadmin` de restaurantes en el login |
 
 ## Seguridad de dependencias — `npm audit` (W-04)
 
@@ -242,31 +315,76 @@ con riesgo real de interferir con el trabajo concurrente de otros agentes
 sobre esos mismos paquetes. Se documenta el matiz aquí en vez de forzar un
 cambio de alcance más amplio que el mandato de esta ronda.
 
-## Control de acceso (W-12)
+## Control de acceso (W-12) — ronda 3
 
-`apps/web` **no tiene ningún guard de ruta**: `/panel` y todas las rutas de
-`AppShell` son accesibles sin sesión, y `login()`/`requestMagicLink()`
-(`src/lib/api.ts`) no persisten ningún token tras un login exitoso — no hay
-ni siquiera un lugar donde guardar una sesión todavía. Añadir un guard
-client-side ahora mismo sería una barrera cosmética (no hay sesión real que
-verificar, así que "proteger" una ruta equivaldría a comprobar la ausencia
-de una clave de `localStorage` que ningún flujo real escribe), lo que daría
-una falsa sensación de control de acceso sin ninguna garantía real. Se
-documenta aquí en vez de simularlo: el control de acceso real (verificar
-sesión contra `apps/api`, redirigir a `/login` si no hay sesión válida)
-queda pendiente para cuando exista persistencia de sesión real — ver "Qué
-falta" abajo.
+`RequireAuth` (`src/components/auth/RequireAuth.tsx`) protege TODO lo que
+cuelga de `<AppShell/>`: sin una sesión válida (`useAuth().status !==
+"authenticated"`), redirige a `/login` conservando la ruta pedida en
+`location.state.from` para volver ahí tras iniciar sesión. La sesión se
+restaura al recargar la pestaña si hay un refresh token guardado
+(`AuthProvider`, ver "Ronda 3 — arquitectura de datos y sesión" arriba); si
+el refresh falla (expirado/revocado), la sesión se limpia y el guard
+redirige igual. Esto sigue siendo una comodidad de UI, no la barrera de
+seguridad real: cada endpoint de `apps/api` exige `Authorization: Bearer` y
+valida membresía/rol por su cuenta (`app.requireOrg`, `app.requireSuperadmin`)
+sin importar lo que la UI decida mostrar u ocultar.
 
-## Qué falta (fuera de alcance de esta ronda)
+## Módulos sin conectar (fuera de alcance de esta ronda)
 
-- Conectar `apps/api` real: hoy `src/lib/api.ts` apunta a `VITE_API_URL` pero
-  no hay backend implementado; todas las páginas muestran `EmptyState`.
-- Autenticación real (el formulario de login valida con zod pero `login()` /
-  `requestMagicLink()` fallarán hasta que exista el backend).
-- Selector de organización con datos reales (hoy usa `listOrganizaciones()`,
-  que fallará limpiamente contra `ErrorState`/estado deshabilitado hasta que
-  exista el endpoint).
-- Contenido real de los módulos de back office ampliados (matriz de
-  requisitos del Expediente, tabla de fuentes con estado real, etc.) — esta
-  ronda entrega la navegación, las rutas y los estados vacíos/honestos, no la
-  lógica de negocio ni la integración con CompraNet/portal oficial.
+`apps/api` (ver su README) no expone endpoints para estos módulos todavía;
+siguen mostrando el `EmptyState` genérico de `createModulePage.tsx`, no una
+integración real: **Análisis de bases**, **Cumplimiento documental**,
+**Redacción**, **Revisión**, **Expediente**, **Aprobaciones** (Preparación),
+**Entregas**, **Paquete descargable**, **Seguimiento post-adjudicación**.
+Son responsabilidad de `packages/expediente` y de la orquestación de
+agentes (`packages/agents`) cableada con proveedores LLM reales, ninguno de
+los cuales expone HTTP todavía — ver sus propios README para el estado real.
+
+## Endpoints de apps/api que SÍ existen pero no se pudieron conectar (gaps documentados en el código)
+
+- **Usuarios y roles** (`/backoffice/usuarios-roles`): `apps/api` no expone
+  ningún endpoint para LISTAR los miembros de una organización.
+  `GET /organizations` solo devuelve las organizaciones del USUARIO ACTUAL
+  (`app.my_organizations`), no la lista de miembros de una organización
+  dada; existen mutaciones (`POST /organizations/invitations`,
+  `PATCH/DELETE /organizations/memberships/:userId`) pero ninguna consulta
+  previa. Hace falta un `GET /organizations/memberships` (o equivalente).
+- **Auditoría / Trazabilidad** (`/backoffice/auditoria`): `apps/api`
+  mantiene `audit_log` con cadena de hashes verificable
+  (`app.verify_audit_log_chain()`, ver `packages/db/README.md`) y escribe
+  en cada mutación relevante, pero no expone NINGÚN endpoint HTTP para
+  leerlo. Hace falta un `GET /audit-log` (con filtro por organización) o
+  `GET /admin/audit-log` para el back office.
+- **Aprobación cross-org de tool_calls** (`/backoffice/aprobaciones`):
+  `GET /admin/approvals` (superadmin) lista tool_calls pendientes de TODAS
+  las organizaciones, pero aprobar/denegar de verdad
+  (`POST /agents/tool-calls/:id/approve|deny`) exige `X-Org-Id` + rol
+  owner/admin DE ESA organización — un superadmin no necesariamente lo es.
+  La pantalla es de solo lectura a propósito, con el flujo real explicado
+  (cambiar de organización en el selector y aprobar desde "Agentes y
+  herramientas").
+
+## Bug real de apps/api encontrado por la suite E2E: CORS no permite PUT/DELETE
+
+`apps/api` registra `@fastify/cors` sin una lista explícita de métodos
+(`apps/api/src/app.ts`), y el preflight real (verificado con
+`curl -X OPTIONS`, ver `docs/logs/web-ronda3.log`) responde
+`access-control-allow-methods: GET,HEAD,POST` — **sin PUT, DELETE ni
+PATCH**. Esto bloquea, en CUALQUIER despliegue donde `apps/web` y `apps/api`
+vivan en orígenes distintos (típico en desarrollo local con puertos
+separados, no solo en la suite E2E), toda escritura real que use esos
+métodos: `PUT /company/profile`, `DELETE /company/documents/:id`,
+`DELETE /company/capabilities/:id`, `DELETE /company/signatories/:id`, etc.
+El navegador rechaza la petición en el propio preflight — nunca llega a
+tocar el servidor (confirmado: cero líneas en el log de `apps/api` para esas
+peticiones cuando fallan así).
+
+**No se corrigió aquí** (fuera del ámbito exclusivo de `apps/web`, y
+`apps/api` es responsabilidad de otro agente). Mitigación DENTRO de este
+ámbito, solo para `test:e2e:full`: `vite.config.ts` proxea las rutas de la
+API al mismo origen que sirve el front cuando `E2E_API_URL` está definida
+(el patrón de despliegue real más común — un reverse proxy compartiendo
+origen), así el navegador nunca ve la petición como cross-origin y el bug
+deja de bloquear la suite sin necesidad de tocar `apps/api`. Reportado para
+que quien mantenga `apps/api` agregue `methods: ['GET','HEAD','PUT','PATCH','POST','DELETE']`
+(o equivalente) a su registro de `@fastify/cors`.
