@@ -14,6 +14,7 @@ import { correlationIdPlugin } from './plugins/correlation-id.plugin.js';
 import { metricsPlugin } from './plugins/metrics.plugin.js';
 import { healthRoutes } from './modules/health/routes.js';
 import { authRoutes } from './modules/auth/routes.js';
+import { googleAuthRoutes } from './modules/auth/google/routes.js';
 import { twofaRoutes } from './modules/twofa/routes.js';
 import { legalRoutes } from './modules/legal/routes.js';
 import { organizationRoutes } from './modules/organizations/routes.js';
@@ -212,6 +213,9 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   await app.register(healthRoutes);
   await app.register(legalRoutes);
   await app.register(authRoutes, { prefix: '/auth' });
+  // REQ-172..180: login/registro con Google (OIDC), junto al método
+  // email+contraseña existente, sin reemplazarlo.
+  await app.register(googleAuthRoutes, { prefix: '/auth/google' });
   await app.register(twofaRoutes, { prefix: '/auth' });
   await app.register(organizationRoutes, { prefix: '/organizations' });
   await app.register(meRoutes);

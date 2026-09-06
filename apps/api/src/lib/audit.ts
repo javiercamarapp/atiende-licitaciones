@@ -52,7 +52,12 @@ export type AuthAuditAction =
   | 'auth.login_failed'
   | 'auth.refresh_succeeded'
   | 'auth.refresh_reuse_detected'
-  | 'auth.logout';
+  | 'auth.logout'
+  // REQ-172..180 (0072_req177_google_auth_audit.sql): login/vinculación/
+  // rechazo de identidad de Google -- ver `modules/auth/google/routes.ts`.
+  | 'auth.google_login'
+  | 'auth.google_linked'
+  | 'auth.google_rejected';
 
 export interface AuthAuditEntry {
   actorId: string | null;

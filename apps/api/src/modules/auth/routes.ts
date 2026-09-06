@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { hashPassword, verifyPassword } from '../../lib/passwords.js';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../lib/jwt.js';
 import { UnauthorizedError } from '../../lib/errors.js';
-import { recordAuthAudit } from '../../lib/audit.js';
+import { recordAuthAudit, type AuthAuditAction } from '../../lib/audit.js';
 import { registerBodySchema, loginBodySchema, refreshBodySchema, logoutBodySchema, authTokensSchema } from './schemas.js';
 import type { FastifyRequest } from 'fastify';
 
@@ -31,18 +31,47 @@ function hashToken(token: string): string {
 }
 
 /** API-13: extrae ip/user-agent de la petición para auditoría -- NUNCA contraseñas ni tokens. */
-function auditContext(request: FastifyRequest): { ip: string; userAgent: string | null } {
+export function auditContext(request: FastifyRequest): { ip: string; userAgent: string | null } {
   const ua = request.headers['user-agent'];
   return { ip: request.ip, userAgent: Array.isArray(ua) ? (ua[0] ?? null) : (ua ?? null) };
 }
 
-async function issueTokenPair(
+export interface IssueTokenPairAudit {
+  ip: string;
+  userAgent: string | null;
+  requestId: string;
+  /**
+   * REQ-175/REQ-177: acción de `audit_log` a registrar para la emisión de
+   * este par de tokens -- por defecto `'auth.login_succeeded'`
+   * (comportamiento histórico de `/auth/login`, sin cambios). El login con
+   * Google (`modules/auth/google/routes.ts`) reutiliza esta MISMA función
+   * (nunca una reimplementación paralela) pasando `'auth.google_login'`,
+   * para garantizar por construcción que ambos flujos comparten formato,
+   * duración y mecanismo de rotación de sesión (REQ-175).
+   */
+  action?: AuthAuditAction;
+  /** Metadatos adicionales a fusionar en el `after` del evento de auditoría -- NUNCA contraseñas/tokens (p.ej. `{ provider: 'google' }`). */
+  extra?: Record<string, unknown>;
+}
+
+/**
+ * Emite un par access/refresh token nuevo y dos efectos con el mismo
+ * user_id YA VERIFICADO por el caller (password recién validada, `sub` de
+ * un JWT firmado por el propio servidor, o identidad de Google recién
+ * vinculada/creada -- nunca un valor de entrada sin verificar): persiste el
+ * refresh token (`app.create_refresh_token`) y deja rastro en `audit_log`
+ * (API-13). Exportada para que `modules/auth/google/routes.ts` reutilice
+ * exactamente este mismo camino (REQ-175: mismo esquema y política de
+ * expiración que el login por email+contraseña).
+ */
+export async function issueTokenPair(
   app: FastifyInstance,
   userId: string,
-  audit: { ip: string; userAgent: string | null; requestId: string }
+  audit: IssueTokenPairAudit
 ): Promise<{ accessToken: string; refreshToken: string }> {
   const accessToken = await signAccessToken(app.config.jwtSecret, userId);
   const { token: refreshToken, jti } = await signRefreshToken(app.config.jwtSecret, userId);
+  const action: AuthAuditAction = audit.action ?? 'auth.login_succeeded';
   await app.db.transaction(async (tx) => {
     await tx.query('set local role app_role');
     // DB-08 (docs/auditoria-1/db-api-reverificacion.md, CRÍTICA):
@@ -51,8 +80,9 @@ async function issueTokenPair(
     // el parámetro por sí solo (mismo patrón que 0019 aplicó a DB-01). Se
     // fija aquí al id YA verificado por el caller de `issueTokenPair`
     // (login: contraseña recién validada; refresh: `sub` de un JWT firmado
-    // por el propio servidor) -- nunca a partir de un valor de entrada del
-    // cliente sin verificar.
+    // por el propio servidor; Google: identidad vinculada/creada dentro de
+    // la MISMA transacción de `modules/auth/google/routes.ts`) -- nunca a
+    // partir de un valor de entrada del cliente sin verificar.
     await tx.query("select set_config('app.current_user_id', $1, true)", [userId]);
     await tx.query(`select app.create_refresh_token($1, $2, $3, now() + interval '${REFRESH_TTL_DAYS} days')`, [
       randomUUID(),
@@ -61,7 +91,7 @@ async function issueTokenPair(
     ]);
     // API-13: login exitoso ahora deja rastro en audit_log (actor, ip,
     // user-agent, request_id -- nunca contraseña ni token).
-    await recordAuthAudit(tx, { actorId: userId, action: 'auth.login_succeeded', after: { ip: audit.ip, userAgent: audit.userAgent }, requestId: audit.requestId });
+    await recordAuthAudit(tx, { actorId: userId, action, after: { ip: audit.ip, userAgent: audit.userAgent, ...audit.extra }, requestId: audit.requestId });
   });
   return { accessToken, refreshToken };
 }
@@ -134,20 +164,27 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
       const { rows } = await app.db.transaction(async (tx) => {
         await tx.query('set local role app_role');
-        return tx.query<{ id: string; password_hash: string; is_active: boolean }>(
+        return tx.query<{ id: string; password_hash: string | null; is_active: boolean }>(
           'select * from app.find_user_by_email($1)',
           [email]
         );
       });
 
       const user = rows[0];
-      const isUsable = Boolean(user && user.is_active);
+      // REQ-172..180 (0071_req172_google_oidc.sql): una cuenta creada
+      // EXCLUSIVAMENTE vía Google (sin contraseña propia,
+      // `password_hash is null`) debe rechazar SIEMPRE el login por
+      // email+contraseña -- se trata igual que "cuenta inexistente" para
+      // efectos del oráculo de timing (API-03, ver comentario abajo): nunca
+      // se compara contra `null`, siempre contra ALGÚN hash con formato
+      // válido (el real, o el ficticio).
+      const isUsable = Boolean(user && user.is_active && user.password_hash);
       // Siempre se invoca verifyPassword (scrypt real) con ALGÚN hash, sea
       // el real del usuario o el ficticio -- nunca se decide antes si vale
       // la pena "gastar" el cómputo según si la cuenta existe. Esa decisión
       // condicional es precisamente lo que hacía observable por timing si
       // el email existía o no.
-      const valid = await verifyPassword(password, isUsable ? user!.password_hash : DUMMY_PASSWORD_HASH);
+      const valid = await verifyPassword(password, isUsable ? user!.password_hash! : DUMMY_PASSWORD_HASH);
       if (!isUsable || !valid) {
         // API-13: login fallido queda en audit_log (actor conocido si el
         // email existe, aunque la contraseña sea incorrecta; null si el
