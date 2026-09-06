@@ -49,11 +49,13 @@ async function focoEsVisible(
   };
 }
 
-// W-09: verificado por teclado real (Tab hasta el skip-link + Enter), no
-// solo por axe automatizado — axe no detecta a dónde se mueve el foco tras
-// activar un enlace, solo que el enlace exista.
+// Ronda 3 (W-12): con sesión (fixture `page` por defecto, ver
+// e2e/fixtures.ts), /login redirige a /panel — la prueba de esta suite que
+// necesita el formulario real de LoginPage usa `noAuthPage` (el resto de la
+// suite sí necesita sesión, para llegar a /panel y a las 24 rutas de
+// ALL_NAV_ITEMS).
 test.describe("Skip-link mueve el foco real (W-09)", () => {
-  test("en LoginPage, el skip-link mueve el foco al formulario (#login-form)", async ({ page }) => {
+  test("en LoginPage (sin sesión), el skip-link mueve el foco al formulario (#login-form)", async ({ noAuthPage: page }) => {
     await page.goto("/login");
     // LoginPage carga una fuente externa (Fraunces, ver login.css); sin
     // esperar a que la red esté quieta, el primer Tab puede llegar antes de
@@ -92,7 +94,7 @@ test.describe("Skip-link mueve el foco real (W-09)", () => {
 // sin ningún reemplazo. Parametrizado sobre las mismas 24 rutas que
 // `recorrido.spec.ts` (ALL_NAV_ITEMS) más /login.
 test.describe("Foco visible tras activar el skip-link (W-18)", () => {
-  test("en LoginPage, el foco en #login-form es visible (outline/box-shadow reales)", async ({ page }) => {
+  test("en LoginPage (sin sesión), el foco en #login-form es visible (outline/box-shadow reales)", async ({ noAuthPage: page }) => {
     await page.goto("/login");
     await page.waitForLoadState("networkidle");
     const baseline = await leerEstiloDe(page, "#login-form");

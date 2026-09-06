@@ -1,0 +1,85 @@
+// Cliente HTTP mínimo, independiente del código de producción, para
+// crear el seed de la suite E2E "contra la API real" llamando a la propia
+// apps/api (nunca insertando filas directo en la base de datos, y nunca
+// datos ficticios embebidos en el frontend — ver global-setup.ts). Solo se
+// usa desde infraestructura de pruebas (global-setup.ts).
+
+export interface Tokens {
+  accessToken: string;
+  refreshToken: string;
+}
+
+export class SeedApiError extends Error {
+  constructor(
+    method: string,
+    path: string,
+    public status: number,
+    body: unknown,
+  ) {
+    super(`${method} ${path} → ${status}: ${JSON.stringify(body)}`);
+  }
+}
+
+export function createSeedClient(apiUrl: string) {
+  async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+    const response = await fetch(`${apiUrl}${path}`, {
+      ...init,
+      headers: { "Content-Type": "application/json", ...init.headers },
+    });
+    if (!response.ok) {
+      let body: unknown;
+      try {
+        body = await response.json();
+      } catch {
+        body = await response.text();
+      }
+      throw new SeedApiError(init.method ?? "GET", path, response.status, body);
+    }
+    if (response.status === 204) return undefined as T;
+    return (await response.json()) as T;
+  }
+
+  return {
+    async register(email: string, password: string): Promise<void> {
+      await request("/auth/register", { method: "POST", body: JSON.stringify({ email, password }) });
+    },
+    async login(email: string, password: string): Promise<Tokens> {
+      return request<Tokens>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
+    },
+    async createOrganization(accessToken: string, name: string, slug: string): Promise<{ id: string; name: string; slug: string }> {
+      return request("/organizations", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ name, slug }),
+      });
+    },
+    async inviteMember(accessToken: string, orgId: string, email: string, role: string): Promise<{ token: string }> {
+      return request("/organizations/invitations", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}`, "X-Org-Id": orgId },
+        body: JSON.stringify({ email, role }),
+      });
+    },
+    async acceptInvitation(accessToken: string, token: string): Promise<{ orgId: string; role: string }> {
+      return request("/organizations/invitations/accept", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ token }),
+      });
+    },
+    async waitForHealthz(timeoutMs: number): Promise<void> {
+      const deadline = Date.now() + timeoutMs;
+      let lastError: unknown;
+      while (Date.now() < deadline) {
+        try {
+          const res = await fetch(`${apiUrl}/healthz`);
+          if (res.ok) return;
+        } catch (err) {
+          lastError = err;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
+      throw new Error(`apps/api no respondió en ${apiUrl}/healthz dentro de ${timeoutMs}ms: ${String(lastError)}`);
+    },
+  };
+}

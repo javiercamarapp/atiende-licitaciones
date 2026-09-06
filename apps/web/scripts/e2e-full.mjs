@@ -1,0 +1,105 @@
+#!/usr/bin/env node
+// Orquesta `test:e2e:full`: arranca apps/api de verdad (PGlite en memoria,
+// sin datos ficticios en el frontend — el seed mínimo se crea llamando a la
+// propia API), espera a que esté lista, construye apps/web apuntando a esa
+// API real y corre la suite Playwright completa contra ella. Al terminar
+// (éxito o fallo) apaga la API y propaga el código de salida real de
+// Playwright — nunca se informa éxito si la suite falló.
+//
+// Uso: `npm run -w apps/web test:e2e:full` (ver apps/web/package.json).
+import { spawn } from "node:child_process";
+import { setTimeout as delay } from "node:timers/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const WEB_ROOT = path.resolve(fileURLToPath(import.meta.url), "..", "..");
+const REPO_ROOT = path.resolve(WEB_ROOT, "..", "..");
+const API_ROOT = path.join(REPO_ROOT, "apps", "api");
+
+const API_PORT = Number(process.env.E2E_API_PORT) || 3400 + Math.floor(Math.random() * 300);
+const WEB_PORT = Number(process.env.PLAYWRIGHT_PORT) || 4200 + Math.floor(Math.random() * 300);
+const API_URL = `http://127.0.0.1:${API_PORT}`;
+const WEB_URL = `http://127.0.0.1:${WEB_PORT}`;
+
+function log(msg) {
+  console.log(`[test:e2e:full] ${msg}`);
+}
+
+function runChild(command, args, options) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { stdio: "inherit", ...options });
+    child.on("error", reject);
+    child.on("exit", (code, signal) => resolve({ code, signal }));
+  });
+}
+
+async function waitForHealthz(url, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError;
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch(`${url}/healthz`);
+      if (res.ok) return;
+      lastError = new Error(`GET /healthz respondió ${res.status}`);
+    } catch (err) {
+      lastError = err;
+    }
+    await delay(500);
+  }
+  throw new Error(`apps/api no respondió healthy en ${timeoutMs}ms en ${url}: ${lastError?.message ?? "sin detalle"}`);
+}
+
+async function main() {
+  log(`arrancando apps/api real (PGlite en memoria) en ${API_URL}…`);
+  const tsxBin = path.join(REPO_ROOT, "node_modules", ".bin", "tsx");
+  const apiEnv = {
+    ...process.env,
+    PORT: String(API_PORT),
+    JWT_SECRET: "e2e-ronda3-secreto-de-prueba-no-produccion",
+    DATABASE_URL: "pglite://memory",
+    NODE_ENV: "test",
+    SKIP_MIGRATIONS: "false",
+    STORAGE_DIR: path.join(WEB_ROOT, "e2e", ".artifacts", "storage"),
+    CORS_ORIGINS: WEB_URL,
+    PLATFORM_API_KEY: "",
+  };
+
+  const apiProcess = spawn(tsxBin, [path.join(API_ROOT, "src", "index.ts")], {
+    cwd: API_ROOT,
+    env: apiEnv,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  apiProcess.stdout.on("data", (chunk) => process.stdout.write(`[api] ${chunk}`));
+  apiProcess.stderr.on("data", (chunk) => process.stderr.write(`[api] ${chunk}`));
+
+  let exitCode = 1;
+  try {
+    await waitForHealthz(API_URL, 30_000);
+    log("apps/api lista (GET /healthz → 200).");
+
+    log(`corriendo build + Playwright contra ${API_URL} (web servido en ${WEB_URL})…`);
+    const { code } = await runChild("npm", ["run", "test:e2e"], {
+      cwd: WEB_ROOT,
+      env: {
+        ...process.env,
+        VITE_API_URL: API_URL,
+        E2E_API_URL: API_URL,
+        PLAYWRIGHT_PORT: String(WEB_PORT),
+      },
+    });
+    exitCode = code ?? 1;
+  } finally {
+    log("apagando apps/api…");
+    apiProcess.kill("SIGTERM");
+    await delay(200);
+    if (!apiProcess.killed) apiProcess.kill("SIGKILL");
+  }
+
+  log(exitCode === 0 ? "test:e2e:full OK." : `test:e2e:full FALLÓ (exit ${exitCode}).`);
+  process.exit(exitCode);
+}
+
+main().catch((err) => {
+  console.error("[test:e2e:full] error fatal:", err);
+  process.exit(1);
+});

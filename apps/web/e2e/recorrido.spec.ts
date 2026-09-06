@@ -22,11 +22,22 @@ async function sinScrollHorizontal(page: Page) {
   expect(scroll.scrollWidth).toBe(scroll.clientWidth);
 }
 
-test.describe("Recorrido esencial (W-14)", () => {
-  test("login → shell: /login carga y navegar a /panel muestra el AppShell", async ({ page }) => {
+// Ronda 3 (W-12): casi todo el árbol de rutas exige sesión real
+// (RequireAuth). El fixture `page` por defecto ya llega autenticado como
+// `admin` (login fresco por worker, ver e2e/fixtures.ts) para que el resto
+// de specs de este archivo no tengan que repetir el login manualmente. Esta
+// comprobación puntual SÍ necesita un contexto SIN sesión (`noAuthPage`,
+// para ver el formulario real, no la redirección).
+test.describe("Login sin sesión (W-14/ronda 3)", () => {
+  test("/login muestra el formulario real cuando no hay sesión", async ({ noAuthPage: page }) => {
     await page.goto("/login");
     await expect(page.getByRole("heading", { level: 1, name: "Accede a tu panel de licitaciones" })).toBeVisible();
+    await expect(page.getByLabel("Correo electrónico")).toBeVisible();
+  });
+});
 
+test.describe("Recorrido esencial (W-14)", () => {
+  test("shell: con sesión, /panel muestra el AppShell completo", async ({ page }) => {
     await page.goto("/panel");
     await expect(page.getByRole("navigation", { name: "Navegación principal" })).toBeVisible();
     await expect(page.getByRole("main")).toBeVisible();
