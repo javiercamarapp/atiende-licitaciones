@@ -1,0 +1,470 @@
+================================================================================
+Auditoría adversarial independiente — integración de packages/mail en apps/api
+Agente: Sonnet, auditor adversarial, contexto independiente. SOLO HALLAZGOS:
+        ningún código de apps/api, packages/db, packages/mail ni apps/worker
+        fue modificado por este agente en el repo principal.
+Fecha: 2026-09-06
+Repo:  /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging
+HEAD real al iniciar (repo principal): a492c87
+Commits auditados: 96a4248 fb0e0ca 76c988b c5705d1 c84f736 069a952 a0330b5
+                    a492c87
+Worktree desechable: git worktree add <scratchpad>/api-mail-audit a492c87
+                      (fuera del repo principal) + npm install real.
+Nota: entre el inicio de esta auditoría y el cierre de este informe, el árbol
+      principal avanzó (HEAD local -> 9a12173) por trabajo CONCURRENTE de
+      otros agentes (p.ej. apps/worker/src/handlers/mail-retry.ts,
+      packages/db/migrations/0087/0088, sin commitear al momento de escribir
+      esto) -- explícitamente FUERA del alcance de esta ronda (no está en la
+      lista de commits pedida, y el propio README a492c87 declaraba ese
+      handler "fuera del alcance de este cambio"). Esta auditoría se
+      mantuvo deliberadamente fija en a492c87, el HEAD real en el momento
+      del despacho y el último commit de la lista pedida.
+================================================================================
+
+
+## 1. REPRODUCIBILIDAD — typecheck/lint/test x2 por paquete, packages/db test, cobertura
+
+### apps/api
+
+$ cd apps/api && npm run typecheck
+> tsc --noEmit
+EXIT:0
+
+$ npm run lint
+> eslint src test
+EXIT:0
+
+$ npm run test -- --run   (corrida 1)
+ Test Files  74 passed (74)
+      Tests  350 passed (350)
+   Start at  16:54:26
+   Duration  183.24s
+
+$ npm run test -- --run   (corrida 2, misma máquina, sin tocar código)
+ Test Files  74 passed (74)
+      Tests  350 passed (350)
+   Start at  16:57:47
+   Duration  176.22s
+
+Idénticos en ambas corridas: 74/74 archivos, 350/350 pruebas, 0 fallos,
+0 intermitencias observadas.
+
+### packages/db
+
+$ cd packages/db && npm run typecheck   -> EXIT:0
+$ npm run lint                          -> EXIT:0
+
+$ npm run test -- --run   (corrida 1)
+ Test Files  27 passed (27)
+      Tests  205 passed (205)
+   Duration  30.46s
+
+$ npm run test -- --run   (corrida 2)
+ Test Files  27 passed (27)
+      Tests  205 passed (205)
+   Duration  29.40s
+
+### packages/mail
+
+$ cd packages/mail && npm run typecheck  -> EXIT:0
+$ npm run lint                            -> EXIT:0
+
+$ npm run test -- --run   (corrida 1)
+ Test Files  26 passed (26)
+      Tests  252 passed (252)
+   Duration  1.63s
+
+$ npm run test -- --run   (corrida 2)
+ Test Files  26 passed (26)
+      Tests  252 passed (252)
+   Duration  2.06s
+
+### Cobertura
+
+packages/mail tiene script `test:coverage` (v8). apps/api NO tiene script de
+cobertura propio, pero soporta `--coverage` vía CLI (verificado: se ejecutó
+sobre los archivos test/mail-*.test.ts + google-oidc-login.test.ts).
+
+$ cd packages/mail && npm run test:coverage
+All files                    | 96.26 Stmts | 85.17 Branch | 97.89 Funcs | 96.26 Lines
+ src/security (signed-link)  | 92.98       | 90.00        | 100         | 92.98   (líneas sin cubrir: 91-92,94-95 = ramas de "malformado" del payload JSON)
+ src/webhooks/verify-signature.ts | 92.98  | 84.37        | 100         | 92.98   (67-68,92-93 = un candidato de firma con base64 inválido)
+ src/webhooks/apply-event.ts | 100         | 100          | 100         | 100
+ src/webhooks/replay-guard.ts| 100         | 100          | 100         | 100
+ src/service/mail-service.ts | 90.74       | 79.68        | 100         | 90.74
+
+$ cd apps/api && npx vitest run test/mail-webhook.test.ts test/mail-provider-and-retry.test.ts \
+    test/mail-unsubscribe-preferences.test.ts test/mail-email-verification.test.ts \
+    test/mail-organization-invite.test.ts test/mail-password-reset.test.ts \
+    test/mail-public-contact.test.ts test/google-oidc-login.test.ts --coverage
+ Test Files  8 passed (8)
+      Tests  65 passed (65)
+ src/lib/mail        | 83.33 Stmts | 87.65 Branch | 84.21 Funcs | 83.33 Lines
+   mail.routes.ts    | 100         | 100          | 100         | 100
+ src/modules/mail    | 98.58       | 91.66        | 100         | 98.58
+
+Conclusión rubro 1: reproducibilidad EXCELENTE y verificada en vivo (no de
+lectura de documentación): 3 paquetes, 2 corridas cada uno, resultados
+idénticos byte a byte en conteo de pruebas. Ningún hallazgo.
+
+
+## 2/3/4. Tokens, enumeración, rate limit/anti-abuso — evidencia existente reproducida + hallazgos nuevos
+
+Se reprodujo (dentro de las corridas 74/74 de arriba, sin fallos) la
+cobertura YA EXISTENTE de:
+ - un solo uso de token (verificación, reset) con UPDATE...WHERE
+   consumed_at IS NULL...RETURNING atómico (mail-email-verification.test.ts
+   "el mismo enlace NO se puede usar dos veces", mail-password-reset.test.ts
+   "es de UN SOLO USO").
+ - hash en base (nunca texto plano): "el token vive HASHEADO en la base"
+   (mail-password-reset.test.ts), "el token en claro NO se persiste"
+   (mail-organization-invite.test.ts).
+ - token de otra cuenta: "el token de una cuenta NO verifica la otra"
+   (mail-email-verification.test.ts); "el enlace de una cuenta no cambia la
+   contraseña de OTRA" (mail-password-reset.test.ts).
+ - token manipulado: "enlace con la firma o el payload manipulados -> 400"
+   (últimos 2 bytes de la firma alterados; payload reescrito con firma
+   original conservada) en ambos archivos.
+ - comparación de firma en tiempo constante: packages/mail/src/security/
+   signed-link.ts usa `timingSafeEqual` (con chequeo de longitud igual
+   ANTES, como exige la API de Node) tanto para el enlace firmado como para
+   cada candidato `svix-signature`.
+ - rate limit tier `auth` (5/min): "el reenvío está acotado... 6º intento...
+   429" (mail-email-verification.test.ts), mismo patrón en
+   mail-password-reset.test.ts y mail-public-contact.test.ts.
+ - anti-abuso de /public/contact: honeypot, longitudes, flood -- los 4 tests
+   de mail-public-contact.test.ts, todos verdes.
+ - S12/red: sabotaje real de `fetch` global, ver rubro 8 abajo.
+
+### AUDIT zz (script temporal, ejecutado y luego BORRADO): oráculo de timing en /auth/password/forgot y /auth/email/resend-verification
+
+Metodología: igual a security-api03-login-timing.test.ts (una app Fastify+
+PGlite aislada por lote de 5 peticiones -- el límite real de la ruta --
+hasta reunir 25/15 muestras por lado; medianas, no promedios).
+
+$ npx vitest run test/zz-audit-mail-forgot-timing.test.ts
+AUDIT forgot-password timing: mediana existente=6.093ms, mediana inexistente=0.731ms, ratio=8.34x
+AUDIT existing samples:    16.82,11.85,11.08,10.70,10.22,8.28,12.70,5.11,4.72,4.48,6.32,7.14,4.31,4.08,4.00,6.03,7.61,4.25,4.37,3.99,6.11,7.16,4.26,6.09,4.55
+AUDIT nonexistent samples: 4.82,0.79,0.60,0.54,0.53,4.85,0.91,0.77,0.58,0.54,4.62,1.91,0.89,0.63,0.69,4.52,0.74,0.58,0.73,0.53,4.85,0.87,0.59,0.53,0.52
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+
+$ npx vitest run test/zz-audit-mail-resend-timing.test.ts
+AUDIT resend-verification timing: mediana existente=7.846ms, mediana inexistente=1.345ms, ratio=5.83x
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+
+Ambos ratios (8.34x y 5.83x) superan por mucho el umbral de aceptación de
+1.5x que el propio proyecto usa en security-api03-login-timing.test.ts para
+declarar CERRADO el oráculo de /auth/login (que medía 24x ANTES del fix).
+Ver hallazgo AM-02.
+
+Conclusión rubro 2/3: tokens y anti-reutilización SÓLIDOS y ya probados en
+vivo repetidamente. Enumeración por CUERPO/estructura de respuesta CERRADA
+correctamente, pero enumeración por TIEMPO reabierta en dos de las cuatro
+rutas anónimas de correo (AM-02). Rate limit y anti-abuso de contacto
+CORRECTOS.
+
+
+## 5. Compuerta de login sin verificar / Google / refresh / step-up / revocación de sesiones tras reset
+
+$ grep -n "requireEmailVerification" apps/api/src/config.ts
+    requireEmailVerification: env.REQUIRE_EMAIL_VERIFICATION !== 'false',
+-> default TRUE (activa por defecto; opt-out explícito, nunca al revés).
+
+Revisión de código confirma (sin excepción encontrada):
+ - `/auth/register` nunca emite tokens (no hay `issueTokenPair` en esa
+   ruta) -- una cuenta recién creada sin verificar JAMÁS tiene un refresh
+   token que rotar ni un access token para pedir un step-up.
+ - `/auth/login` evalúa la compuerta DESPUÉS de `verifyPassword` (visto en
+   modules/auth/routes.ts) -- no es oráculo de existencia de cuenta.
+ - Una cuenta Google-only (`password_hash IS NULL`) nunca pasa por
+   `/auth/login` (isUsable=false siempre) -- no hay "salto" porque nunca
+   entra por esa puerta.
+ - `/auth/refresh` y `/auth/2fa/step-up` operan sobre un token ya emitido
+   -- inalcanzables para una cuenta que nunca recibió uno.
+ - test existente "la compuerta es CONFIGURABLE: con requireEmailVerification=false
+   el login sin verificar entra" (mail-email-verification.test.ts) confirma
+   el opt-out explícito funciona y es la única forma de desactivarla.
+ - revocación de sesiones tras reset: confirmado por test existente
+   "la contraseña vieja deja de servir y TODA sesión previa queda revocada"
+   (mail-password-reset.test.ts) + `app.reset_password_with_token` llama
+   `app.revoke_all_refresh_tokens` en la MISMA función SECURITY DEFINER
+   (packages/db/migrations/0084).
+
+### AUDIT zz (script temporal, ejecutado y luego BORRADO): vinculación de Google a una cuenta email+contraseña NO VERIFICADA
+
+$ npx vitest run test/zz-audit-mail-google-squat.test.ts
+AUDIT: email_verified_at tras vinculación Google = null
+AUDIT: password_hash tras vinculación Google (debe seguir siendo el del atacante) = scrypt:4807194a838b0
+AUDIT: login del ATACANTE tras la verificación nativa disparada por la víctima = 200
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+
+Secuencia reproducida en vivo:
+  1. POST /auth/register con el email de la víctima y una contraseña
+     elegida por el "atacante" -> 201. email_verified_at = NULL.
+  2. POST /auth/login con esa contraseña -> 403 (compuerta activa, correcto).
+  3. Login real de Google (proveedor OIDC falso, emailVerified:true) para
+     ESE MISMO email -> 200, se vincula a la cuenta existente (REQ-173,
+     auditado como auth.google_linked). email_verified_at sigue NULL y
+     password_hash sigue siendo el del atacante (ninguno de los dos se toca).
+  4. POST /auth/email/resend-verification (mismo email) -> 202, genera un
+     token nuevo real.
+  5. Se consume ESE token real (equivalente a que la víctima, ya confiando
+     en la cuenta por usar Google, haga clic en el enlace de verificación
+     que de todas formas sigue llegando a su bandeja real) ->
+     email_verified_at deja de ser NULL.
+  6. POST /auth/login con la contraseña ORIGINAL DEL ATACANTE -> 200.
+
+Ver hallazgo AM-01 (CRÍTICA/ALTA).
+
+Conclusión rubro 5: la compuerta de verificación de correo NO se puede
+saltar por refresh ni por step-up (verificado por construcción del código),
+pero SÍ existe un camino -- vía la interacción entre la vinculación de
+Google y la verificación nativa de correo -- para que una cuenta creada
+por un atacante (con contraseña elegida por él) termine siendo utilizable
+por ESE atacante después de que la víctima, de buena fe, la vincule con su
+cuenta real de Google. Ver AM-01.
+
+
+## 6. Outbox/retry (0086 SECURITY DEFINER) y deduplicación
+
+Confirmado en vivo (dentro de las 350/350 pruebas verdes de apps/api):
+ - "un fallo transitorio agota los reintentos, deja el historial en
+   mail_outbox y encola un job mail_retry" (mail-provider-and-retry.test.ts).
+ - "un fallo PERMANENTE (4xx) no reintenta ni encola job".
+ - packages/db/test/req181-mail.test.ts: "un INSERT directo en jobs SIN
+   organización ni sesión lo rechaza la RLS" (el motivo real de existir de
+   0086) + "encola el reintento sin organización ni sesión, siempre con
+   kind = mail_retry".
+ - deduplicación real bajo concurrencia: "reserve() gana la primera vez y
+   pierde mientras la reserva sigue viva" con 10 llamadas en paralelo
+   (Promise.all) -> exactamente 1 gana (packages/db/test/req181-mail.test.ts).
+
+### AUDIT zz (script temporal, ejecutado y luego BORRADO): alcance real de app.enqueue_mail_retry
+
+$ npx vitest run test/zz-audit-mail-enqueue-retry.test.ts
+ ✓ NO puede insertar un job de otro kind (no existe ese parámetro) -- confirmado por firma de función
+ ✓ inserta un job con `org_id` de una organización AJENA al contexto de sesión actual -- ¿lo permite?
+     AUDIT enqueue_mail_retry cross-org: fila creada = { org_id: 'c1297c6a-...', kind: 'mail_retry' }
+ ✓ un `p_payload` SIN `messageKey` es rechazado (única validación de forma que hace la función)
+ ✓ un `p_payload` con CUALQUIER otro contenido arbitrario (mientras tenga messageKey) se inserta tal cual
+     AUDIT enqueue_mail_retry payload arbitrario aceptado = {"to":{"email":"attacker@evil.example","userId":"attacker-controlled"},"messageKey":"x"}
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+
+Confirmado: (a) el "kind" está genuinamente cerrado (no es parámetro, no se
+puede inyectar otro); (b) la función NO valida que `p_org_id` coincida con
+`app.current_org_id()` de la sesión que la invoca -- confía ciegamente en
+el argumento; (c) el payload solo se valida por la presencia de la clave
+`messageKey`, cualquier otro contenido (incluida una `to.email` arbitraria)
+se acepta e inserta tal cual. Ver hallazgo AM-04 (no explotable HOY porque
+el único invocador real, send-transactional.ts, siempre pasa un `orgId` ya
+validado por la capa de aplicación -- pero es un hueco de defensa en
+profundidad en la propia función que existe PARA bordear RLS).
+
+Conclusión rubro 6: outbox/dedupe CORRECTOS y confirmados en vivo bajo
+concurrencia real. La función SECURITY DEFINER del job de reintento está
+bien acotada en "kind" pero no en "org_id" ni en la forma del payload
+(AM-04, MEDIA).
+
+
+## 7. Webhook Svix — firma, timestamp, replay, evento de otro entorno, supresión de terceros
+
+Confirmado en vivo (dentro de las 350/350 pruebas verdes), mail-webhook.test.ts:
+ - "webhook FORJADO (firma con otro secreto) -> 401 y NINGÚN efecto".
+ - "cuerpo alterado DESPUÉS de firmar -> 401 y ningún efecto".
+ - "cabeceras Svix ausentes o timestamp fuera de la ventana -> 401"
+   (probado con timestamp -3600s, fuera de la tolerancia de 300s).
+ - "REENVIAR la misma petición firmada -> 409 y no se reaplica el efecto"
+   (ML-05, anti-replay por svix-id) -- y un svix-id NUEVO con el MISMO
+   cuerpo SÍ se procesa (el guardia deduplica por id, no censura la
+   dirección permanentemente).
+ - "SIN secreto configurado el endpoint responde 503 y NUNCA procesa nada"
+   (falla cerrado).
+ - "un proveedor desconocido en la ruta se rechaza por esquema" (422,
+   lista cerrada de providers -- cierra el vector de "evento de otro
+   proveedor/entorno" a nivel de ruta).
+
+### Hallazgo confirmado por el PROPIO test existente del proyecto (sin script nuevo)
+
+mail-webhook.test.ts, caso "una queja de spam suprime con motivo `complaint`":
+la dirección `queja@example.com` JAMÁS recibió ningún correo de la
+aplicación en ese test (no hay ningún `registerAndLogin`/`sendTransactionalMail`
+previo para esa dirección) y aun así el webhook la suprime con éxito
+(202, fila en mail_suppressions). Este test YA ESTÁ VERDE en el repo tal
+cual, y es evidencia suficiente por sí sola de que CUALQUIER dirección
+mencionada en un webhook con firma válida se suprime, exista o no un envío
+real nuestro detrás.
+
+### AUDIT zz (script temporal, ejecutado y luego BORRADO): confirmación end-to-end contra una cuenta REAL
+
+$ npx vitest run test/zz-audit-mail-webhook-thirdparty.test.ts
+AUDIT: ¿se suprimió una cuenta real por un email_id fabricado nunca enviado por nosotros? -> true
+AUDIT: estado del outbox del correo de restablecimiento tras la supresión de terceros -> undefined
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+
+Secuencia: (1) se registra un usuario real; (2) se confirma que NUNCA
+existió ningún `mail_outbox` con el `email_id` que se va a usar; (3) se
+manda un webhook `email.bounced` VÁLIDAMENTE FIRMADO (con el secreto real
+de la app -- el punto es que el PAYLOAD no corresponde a ningún envío
+nuestro, no que la firma sea falsa) con ese `email_id` inventado y el
+correo de la víctima -> 202, se suprime; (4) se pide un restablecimiento
+de contraseña real para esa cuenta -> 202 (la respuesta anti-enumeración
+sigue sin cambiar, correctamente), pero NINGUNA fila aparece en
+`mail_outbox` para ese envío: el correo de SEGURIDAD se descartó por
+completo, en silencio, sin que la respuesta HTTP ni ningún log visible al
+usuario lo indiquen. Ver hallazgo AM-03 (ALTA).
+
+`packages/mail/src/webhooks/parse-resend-payload.ts` SÍ extrae
+`data.email_id` a `providerMessageId`, pero
+`packages/mail/src/webhooks/apply-event.ts` (`applyMailWebhookEvent`) nunca
+lo usa para cruzarlo contra `mail_outbox.provider_message_id` antes de
+suprimir -- el dato para cerrar este hueco ya está disponible en el propio
+código, simplemente no se consulta.
+
+Conclusión rubro 7: firma, timestamp, replay y "lista cerrada de
+proveedores" CORRECTOS y confirmados en vivo. La supresión de un correo que
+NO enviamos nosotros (a un tercero, o a un usuario real vía un email_id
+inventado) SÍ ocurre hoy -- viola el criterio explícito de esta ronda
+("nunca suprime a terceros") y puede silenciar correo de SEGURIDAD real.
+AM-03.
+
+
+## 8. Red — sin proveedor configurado, cero bytes salen; sin secretos en logs/respuestas
+
+Confirmado en vivo (dentro de las 350/350 pruebas verdes), estos DOS tests
+YA EXISTEN en mail-provider-and-retry.test.ts y saboteando `fetch` global
+exactamente como pedía esta ronda:
+
+ "S12: sin MAIL_PROVIDER el proveedor activo es la BANDEJA DE CAPTURA --
+  0 llamadas de red" -- `globalThis.fetch` se reemplaza por una función que
+  lanza si se invoca; `sendTransactionalMail` con CaptureProvider por
+  defecto -> `status: 'sent'`, `llamadasDeRed === 0`.
+
+ "S12: con MAIL_PROVIDER=resend pero SIN credenciales -> not_configured,
+  0 red y el outbox queda en pending" -- mismo sabotaje de `fetch`, con
+  `MAIL_PROVIDER=resend` y `RESEND_API_KEY` ausente -> el adaptador declara
+  `not_configured` ANTES de intentar `fetch` (confirmado por lectura de
+  `resend-provider.ts`: el `if (!options.apiKey || !options.domain)` ocurre
+  antes del `try { fetchImpl(...) }`).
+
+Revisión de logs: `app.log.*` en todo el árbol de correo (`lib/mail/**`,
+`modules/mail/**`, `modules/auth/mail.routes.ts`) nunca incluye el token en
+claro, la firma, el secreto del webhook ni la contraseña -- solo mensajes
+de error (`err.message`), motivo de rechazo del webhook, y metadatos
+(userId, correo). Grep dirigido:
+
+$ grep -rn "app.log\." apps/api/src/lib/mail apps/api/src/modules/mail apps/api/src/modules/auth
+  lib/mail/pending.ts:      app.log.error({ err: ..., correo: what }, ...)
+  lib/mail/send-transactional.ts: app.log.error({ err: ..., userId }, ...)
+  modules/mail/webhook.routes.ts: app.log.warn({ motivo: verification.reason, provider }, ...)
+
+Ninguno de los tres imprime token/firma/secreto.
+
+Conclusión rubro 8: CORRECTO y confirmado en vivo con sabotaje real de
+`fetch`. Sin hallazgos.
+
+
+## 9. Preferencias — transaccionales de seguridad siempre se envían
+
+Confirmado en vivo (dentro de las 350/350 verdes),
+mail-unsubscribe-preferences.test.ts: "la preferencia SE APLICA al enviar:
+un correo opcional apagado no se manda, uno obligatorio sí". Mecanismo:
+`packages/mail/src/preferences/filter.ts#isCategoryEnabled` retorna `true`
+sin consultar preferencias cuando `isMandatoryCategory(category)`.
+
+Matiz importante (cruce con rubro 7): la SUPRESIÓN (rebote/queja) es un
+control DISTINTO y MÁS FUERTE que las preferencias -- correctamente, por
+diseño, bloquea incluso plantillas obligatorias (confirmado por
+mail-webhook.test.ts: "el siguiente envío a esa dirección se descarta").
+Este diseño es correcto EN SÍ MISMO, pero es precisamente el mecanismo que
+AM-03 permite activar para una dirección ajena/no verificada, así que en la
+práctica "las transaccionales de seguridad siempre se envían" puede
+violarse igual, no por las preferencias del propio usuario, sino por un
+webhook de terceros. Ver AM-03.
+
+Conclusión rubro 9: el mecanismo de preferencias en sí es CORRECTO. El
+riesgo real está en la supresión (rubro 7), no en las preferencias.
+
+
+## 10. RLS/cross-org — invitaciones y contactos
+
+$ grep -n "table:" packages/db/test/helpers.ts | grep invitations
+    table: 'invitations',
+
+`invitations` está en `DOMAIN_TABLES`, la lista genérica que
+`packages/db/test/rls-isolation.test.ts` ejercita para TODAS las tablas de
+dominio (70 pruebas en total en ese archivo, dentro de las 205/205 verdes
+de packages/db): por cada tabla, un owner de la organización A no ve, no
+puede UPDATE ni puede DELETE una fila de la organización B (SELECT/UPDATE/
+DELETE, los tres verificados). `invitations` pasa igual que el resto.
+
+`contact_requests` (0083) NO es una tabla por organización (es un buzón de
+plataforma) -- verificado que:
+  "cualquiera (sin sesión) puede insertar; solo superadmin puede listar"
+  (packages/db/test/req181-mail.test.ts) -- un usuario normal (no
+  superadmin) obtiene 0 filas al hacer SELECT, confirmado en vivo.
+
+Conclusión rubro 10: CORRECTO, confirmado por la suite genérica de
+aislamiento (invitations) y por el test específico de superadmin-only
+(contact_requests). Sin hallazgos.
+
+
+## 11. audit_log y correlation_id por evento
+
+### AUDIT zz (script temporal, ejecutado y luego BORRADO)
+
+$ npx vitest run test/zz-audit-mail-correlation-id.test.ts
+AUDIT filas auth.* relacionadas con correo: [{"action":"auth.password_reset_requested","correlation_id":null,"request_id":"79e15af2-5e25-47df-a2bd-7fe75f65ba77"}]
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+
+Confirmado por lectura de código + ejecución en vivo:
+ `apps/api/src/lib/audit.ts#AuthAuditEntry`/`recordAuthAudit` (usada por
+ TODOS los eventos `auth.*`, incluidos los 4 de correo:
+ `auth.email_verification_sent`, `auth.email_verified`,
+ `auth.password_reset_requested`, `auth.password_reset_completed`, más
+ login/refresh/logout/Google) NO tiene campo `correlationId` -- llama
+ `app.record_auth_event($1,$2,$3,$4)` (4 parámetros). La función SQL
+ (packages/db/migrations/0084) tampoco tiene parámetro
+ `p_correlation_id` ni columna en el INSERT. Por contraste,
+ `SecurityAuditEntry`/`recordSecurityAudit` (2FA, 0057) SÍ tiene
+ `correlationId` y lo pasa a `app.record_security_event`, y
+ `AuditEntry`/`recordAudit` (genérico, usado por `invitation.create`) SÍ
+ lo propaga a `audit_log.correlation_id` (0056).
+
+También se observó (sin script adicional, por lectura del flujo): el envío
+INICIAL de verificación en `POST /auth/register` nunca queda registrado
+como `auth.email_verification_sent` en `audit_log` -- esa acción solo se
+audita desde `POST /auth/email/resend-verification`. El primer correo de
+verificación de una cuenta nueva no deja ningún rastro de auditoría de que
+se intentó enviar.
+
+Conclusión rubro 11: hallazgo confirmado en vivo -- `correlation_id` NUNCA
+se propaga para la familia `auth.*` (incluye las 4 acciones de correo en
+alcance de esta ronda), aunque el cliente mande un `X-Correlation-Id`
+válido. AM-05 (MEDIA).
+
+
+## 12. Trazabilidad — S5/S6/S7/S10/S12 y REQ-181..210 de docs/ACEPTACION.md (NO editado)
+
+$ grep -n "^| S5 \|^| S6 \|^| S7 \|^| S10 \|^| S12 " docs/ACEPTACION.md
+| S5  | ... | integración | Sin código | PENDIENTE |
+| S6  | ... | integración | Sin código | PENDIENTE |
+| S7  | ... | integración | Sin código | PENDIENTE |
+| S10 | ... | integración | Sin código | PENDIENTE |
+| S12 | ... | integración | Sin código | PENDIENTE |
+
+Las cinco filas siguen literalmente "Sin código / PENDIENTE" pese a que el
+código y las pruebas existen y pasan en verde para las cinco (ver mapeo
+completo en el informe .md, sección 12). Ver AM-06 (BAJA, gobierno/
+documentación -- no se editó ACEPTACION.md, solo se reporta el desfase).
+
+================================================================================
+Fin del log. Los 6 scripts de prueba adversariales temporales
+(zz-audit-mail-*.test.ts) fueron escritos, ejecutados y BORRADOS del
+worktree antes de cerrar esta auditoría; no quedan en ningún commit.
+================================================================================
