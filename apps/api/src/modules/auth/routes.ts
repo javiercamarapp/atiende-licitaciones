@@ -120,7 +120,10 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   server.post(
     '/login',
     {
-      config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
+      // Ronda 4: el límite concreto viene de `app.rateLimitSettings.auth`
+      // (ver `lib/rate-limit-settings.ts`) -- 5/min salvo
+      // `RATE_LIMIT_PROFILE=e2e`, nunca activo por defecto (ver config.ts).
+      config: { rateLimit: { max: app.rateLimitSettings.auth.max, timeWindow: app.rateLimitSettings.auth.timeWindow } },
       schema: {
         body: loginBodySchema,
         response: { 200: authTokensSchema },
