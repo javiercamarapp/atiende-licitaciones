@@ -1,5 +1,22 @@
-import { BudgetExceededError } from "./errors.js";
+import { BudgetExceededError, InvalidAmountError } from "./errors.js";
 import type { OrganizationId } from "./types.js";
+
+/**
+ * AG-08: valida que un monto sea un número finito y no negativo. Sin esto,
+ * `-1000` pasaba `amountUsd > available` (incrementando el presupuesto
+ * disponible en vez de gastarlo) y `NaN` pasaba silenciosamente (`NaN > x`
+ * es siempre `false`), corrompiendo el ledger de forma permanente.
+ * `Infinity` se rechaza también (no es un monto gastable real), salvo en
+ * `setLimit()` donde representa deliberadamente "sin límite".
+ */
+function assertValidAmount(context: string, amount: number, options: { allowInfinity?: boolean } = {}): void {
+  if (Number.isNaN(amount) || amount < 0) {
+    throw new InvalidAmountError(context, amount);
+  }
+  if (!options.allowInfinity && !Number.isFinite(amount)) {
+    throw new InvalidAmountError(context, amount);
+  }
+}
 
 /**
  * Presupuesto/ledger por organización (REQ-128): reserva → consumo → límite,
@@ -41,6 +58,7 @@ export class BudgetLedger {
   }
 
   setLimit(organizationId: OrganizationId, limitUsd: number): void {
+    assertValidAmount("BudgetLedger.setLimit", limitUsd, { allowInfinity: true });
     this.getOrCreateLedger(organizationId).limitUsd = limitUsd;
   }
 
@@ -56,6 +74,7 @@ export class BudgetLedger {
 
   /** Reserva `amountUsd`; rechaza si excede el límite disponible. */
   reserve(organizationId: OrganizationId, amountUsd: number): BudgetReservation {
+    assertValidAmount("BudgetLedger.reserve", amountUsd);
     const ledger = this.getOrCreateLedger(organizationId);
     const available = ledger.limitUsd - ledger.reservedUsd - ledger.consumedUsd;
     if (amountUsd > available) {
@@ -70,6 +89,7 @@ export class BudgetLedger {
 
   /** Convierte una reserva en consumo real (puede diferir del monto reservado). */
   consume(reservationId: string, actualUsd: number): void {
+    assertValidAmount("BudgetLedger.consume", actualUsd);
     const reservation = this.mustGetReservation(reservationId);
     const ledger = this.getOrCreateLedger(reservation.organizationId);
     ledger.reservedUsd -= reservation.reservedUsd;

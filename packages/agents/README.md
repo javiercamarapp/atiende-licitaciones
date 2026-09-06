@@ -24,7 +24,9 @@ src/
   idempotency.ts              IdempotencyStore en memoria por [organizationId, key]
   retry.ts                    RetryPolicy: backoff exponencial + jitter
   budget-ledger.ts            BudgetLedger: reserva/consume/límite por organización
+                               (AG-08: rechaza montos negativos/NaN/infinitos)
   rate-limiter.ts             TokenBucketRateLimiter por organización
+                               (AG-09: rechaza tokens negativos/NaN/infinitos/no-enteros)
   stores.ts                   RunStore/ToolCallStore (interfaces) + implementación en memoria
   tracing.ts                  hashValue/estimateTokens/estimateCostUsd
   agent-runner.ts             AgentRunner: orquesta un AgentRun paso a paso

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BudgetLedger } from "../src/budget-ledger.js";
-import { BudgetExceededError } from "../src/errors.js";
+import { BudgetExceededError, InvalidAmountError } from "../src/errors.js";
 
 describe("BudgetLedger", () => {
   it("reserva y consume dentro del límite configurado", () => {
@@ -55,6 +55,53 @@ describe("BudgetLedger", () => {
   it("sin límite configurado el disponible es ilimitado (no rechaza)", () => {
     const ledger = new BudgetLedger();
     expect(() => ledger.reserve("org-nuevo", 1_000_000)).not.toThrow();
+  });
+
+  describe("AG-08 (ALTA): validación de signo/finitud en reserve()/consume()", () => {
+    it("reserve() rechaza un monto negativo en vez de incrementar el presupuesto disponible", () => {
+      const ledger = new BudgetLedger();
+      ledger.setLimit("org-1", 10);
+      expect(() => ledger.reserve("org-1", -1000)).toThrow(InvalidAmountError);
+      // El ledger no debe quedar corrompido/incrementado por el intento.
+      expect(ledger.getStatus("org-1")).toMatchObject({ reservedUsd: 0, consumedUsd: 0, availableUsd: 10 });
+    });
+
+    it("reserve() rechaza NaN en vez de dejarlo pasar silenciosamente", () => {
+      const ledger = new BudgetLedger();
+      ledger.setLimit("org-1", 10);
+      expect(() => ledger.reserve("org-1", NaN)).toThrow(InvalidAmountError);
+      expect(ledger.getStatus("org-1").reservedUsd).toBe(0);
+    });
+
+    it("reserve() rechaza Infinity", () => {
+      const ledger = new BudgetLedger();
+      ledger.setLimit("org-1", 10);
+      expect(() => ledger.reserve("org-1", Infinity)).toThrow(InvalidAmountError);
+    });
+
+    it("consume() rechaza un monto negativo/NaN/infinito", () => {
+      const ledger = new BudgetLedger();
+      ledger.setLimit("org-1", 10);
+      const reservation = ledger.reserve("org-1", 4);
+      expect(() => ledger.consume(reservation.id, -1)).toThrow(InvalidAmountError);
+      expect(() => ledger.consume(reservation.id, NaN)).toThrow(InvalidAmountError);
+      expect(() => ledger.consume(reservation.id, Infinity)).toThrow(InvalidAmountError);
+      // La reserva sigue intacta: ningún intento inválido la consumió a medias.
+      expect(ledger.getStatus("org-1")).toMatchObject({ reservedUsd: 4, consumedUsd: 0 });
+    });
+
+    it("setLimit() rechaza NaN (pero permite Infinity para 'sin límite')", () => {
+      const ledger = new BudgetLedger();
+      expect(() => ledger.setLimit("org-1", NaN)).toThrow(InvalidAmountError);
+      expect(() => ledger.setLimit("org-1", -5)).toThrow(InvalidAmountError);
+      expect(() => ledger.setLimit("org-1", Number.POSITIVE_INFINITY)).not.toThrow();
+    });
+
+    it("reserve() acepta 0 (costo nulo es válido, no un ataque)", () => {
+      const ledger = new BudgetLedger();
+      ledger.setLimit("org-1", 10);
+      expect(() => ledger.reserve("org-1", 0)).not.toThrow();
+    });
   });
 
   it("el error incluye organización, monto solicitado y disponible", () => {

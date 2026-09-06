@@ -81,6 +81,16 @@ export class IdempotencyInProgressError extends AgentsError {
   }
 }
 
+export class InvalidAmountError extends AgentsError {
+  constructor(readonly context: string, readonly amount: number) {
+    super(
+      `Monto inválido para "${context}": ${amount}. Se exige un número finito y no negativo ` +
+        "(AG-08/AG-09: signo/NaN/Infinity nunca se aceptan silenciosamente, ni en presupuesto ni en rate limit)",
+      false,
+    );
+  }
+}
+
 export class BudgetExceededError extends AgentsError {
   constructor(
     readonly organizationId: string | null,

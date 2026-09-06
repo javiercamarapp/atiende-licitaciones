@@ -1,6 +1,6 @@
 import { AuthorizationPolicy } from "./authorization.js";
 import type { DependencyInvalidationRegistry } from "./dependency-invalidation.js";
-import { RunCancelledError, RunTimeoutError, RateLimitExceededError } from "./errors.js";
+import { InvalidAmountError, RunCancelledError, RunTimeoutError, RateLimitExceededError } from "./errors.js";
 import type { AntiCorruptionGuardrail } from "./guardrails/anticorruption.js";
 import { IdempotencyStore } from "./idempotency.js";
 import type { BudgetLedger, BudgetReservation } from "./budget-ledger.js";
@@ -303,6 +303,27 @@ export class AgentRunner {
   ): Promise<StepOutcome> {
     const tokens = estimateTokens(JSON.stringify(step.input ?? ""));
     const costUsd = step.estimatedCostUsd ?? (step.tier ? estimateCostUsd(step.tier, tokens) : 0);
+
+    // AG-08: un `estimatedCostUsd` negativo/NaN/infinito nunca se reserva ni
+    // se persiste tal cual en la traza — antes solo se evitaba la reserva
+    // (`costUsd > 0` es `false` para negativos), pero el costo corrupto
+    // igual quedaba escrito en `ToolCallTrace` y la corrida "completaba"
+    // silenciosamente. Ahora el paso falla explícitamente, igual que
+    // cualquier otro dato de entrada inválido.
+    if (Number.isNaN(costUsd) || !Number.isFinite(costUsd) || costUsd < 0) {
+      const error = new InvalidAmountError("AgentRunner.executeAuthorized.estimatedCostUsd", costUsd);
+      await this.record(runId, index, step, request, {
+        status: "error",
+        startedAt,
+        inputHash,
+        attempts: 0,
+        estimatedTokens: tokens,
+        estimatedCostUsd: 0,
+        authorizationDecision,
+        error: describeError(error),
+      });
+      return this.stopWith(runId, "failed", describeError(error));
+    }
 
     let reservation: BudgetReservation | undefined;
     if (costUsd > 0) {

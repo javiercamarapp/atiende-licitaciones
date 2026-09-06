@@ -290,6 +290,36 @@ describe("AgentRunner: presupuesto", () => {
   });
 });
 
+describe("AgentRunner: presupuesto — AG-08 saneamiento de costo negativo/NaN", () => {
+  it("un estimatedCostUsd negativo nunca se reserva/persiste sin sanear: la corrida falla en vez de completarse", async () => {
+    const deps = makeDeps();
+    deps.registry.register(readTool());
+    const runner = new AgentRunner(deps);
+
+    const run = await runner.run(
+      baseRequest({ steps: [{ toolName: "list_tenders", input: { q: "x" }, estimatedCostUsd: -5 }] }),
+    );
+
+    expect(run.status).toBe("failed");
+    const [trace] = await deps.toolCallStore.listToolCalls(run.id);
+    expect(trace.status).toBe("error");
+    // Nunca se persiste un costo negativo en la traza.
+    expect(trace.estimatedCostUsd).toBeGreaterThanOrEqual(0);
+  });
+
+  it("un estimatedCostUsd NaN también falla en vez de corromper el ledger silenciosamente", async () => {
+    const deps = makeDeps();
+    deps.registry.register(readTool());
+    const runner = new AgentRunner(deps);
+
+    const run = await runner.run(
+      baseRequest({ steps: [{ toolName: "list_tenders", input: { q: "x" }, estimatedCostUsd: NaN }] }),
+    );
+
+    expect(run.status).toBe("failed");
+  });
+});
+
 describe("AgentRunner: rate limit", () => {
   it("un rate limiter agotado hace fallar el paso tras agotar reintentos", async () => {
     const deps = makeDeps({
