@@ -112,6 +112,44 @@ export interface StepUpScope {
 }
 
 /**
+ * R6-13 (docs/auditoria-2/api-ronda6-reverificacion.md, MEDIA): la suite
+ * completa de `apps/api` resultó intermitente por un flake de reloj aquí --
+ * `generateTotpCodeForTesting` calcula el código en el reloj de pared T y
+ * el servidor lo verifica en T+Δ; `verifyTotpCode` (`lib/step-up.ts`) no da
+ * NINGUNA tolerancia de ventana (`otplib.verify` sin `epochTolerance`), así
+ * que si Δ cruza el límite de 30s del `timeStep` (plausible bajo la suite
+ * completa corriendo en paralelo, 285-388s medidos), el código deja de ser
+ * válido y el servidor responde 403 con un mensaje AMBIGUO ("inválido O ya
+ * utilizado"). El usuario de esta función es SIEMPRE nuevo y verifica una
+ * sola vez -- nunca es un replay real, así que el único motivo posible de
+ * ese 403 es el borde de ventana. Se reintenta UNA vez con un código
+ * RECIÉN generado (nunca se reutiliza el que ya falló, que seguiría siendo
+ * inválido) -- si el segundo intento también falla, se propaga el error
+ * real tal cual, nunca se oculta ni se reintenta sin límite. No se fija el
+ * reloj (`vi.setSystemTime`) porque `enrollTwoFactor`/`enrollTwoFactorFull`
+ * son helpers de integración compartidos por decenas de tests fuera de
+ * este archivo, que sí dependen del reloj real para JWT/expiración de
+ * sesiones; regenerar el código es más simple y no tiene ese riesgo.
+ */
+async function verifyTotpEnrollment(
+  app: FastifyInstance,
+  headers: Record<string, string>,
+  secretBase32: string,
+  purpose: TestStepUpPurpose
+): Promise<{ stepUpToken: string }> {
+  let lastFailure: { statusCode: number; body: string } | null = null;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const code = await generateTotpCodeForTesting(secretBase32);
+    const verify = await app.inject({ method: 'POST', url: '/auth/2fa/verify-enrollment', headers, payload: { code, purpose } });
+    if (verify.statusCode === 200) {
+      return { stepUpToken: verify.json().stepUpToken };
+    }
+    lastFailure = { statusCode: verify.statusCode, body: verify.body };
+  }
+  throw new Error(`2fa verify-enrollment failed: ${lastFailure!.statusCode} ${lastFailure!.body}`);
+}
+
+/**
  * REQ-044/064: enrola 2FA (TOTP) para `accessToken` y devuelve un
  * `stepUpToken` VIGENTE (emitido por `verify-enrollment`, ver
  * `modules/twofa/routes.ts`), atado a `scope.orgId`/`scope.purpose`
@@ -133,12 +171,8 @@ export async function enrollTwoFactor(
     throw new Error(`2fa enroll failed: ${enroll.statusCode} ${enroll.body}`);
   }
   const { secretBase32 } = enroll.json();
-  const code = await generateTotpCodeForTesting(secretBase32);
-  const verify = await app.inject({ method: 'POST', url: '/auth/2fa/verify-enrollment', headers, payload: { code, purpose: scope.purpose } });
-  if (verify.statusCode !== 200) {
-    throw new Error(`2fa verify-enrollment failed: ${verify.statusCode} ${verify.body}`);
-  }
-  return { secretBase32, stepUpToken: verify.json().stepUpToken };
+  const { stepUpToken } = await verifyTotpEnrollment(app, headers, secretBase32, scope.purpose);
+  return { secretBase32, stepUpToken };
 }
 
 /**
@@ -161,12 +195,8 @@ export async function enrollTwoFactorFull(
     throw new Error(`2fa enroll failed: ${enroll.statusCode} ${enroll.body}`);
   }
   const { secretBase32, backupCodes } = enroll.json();
-  const code = await generateTotpCodeForTesting(secretBase32);
-  const verify = await app.inject({ method: 'POST', url: '/auth/2fa/verify-enrollment', headers, payload: { code, purpose: scope.purpose } });
-  if (verify.statusCode !== 200) {
-    throw new Error(`2fa verify-enrollment failed: ${verify.statusCode} ${verify.body}`);
-  }
-  return { secretBase32, backupCodes, stepUpToken: verify.json().stepUpToken };
+  const { stepUpToken } = await verifyTotpEnrollment(app, headers, secretBase32, scope.purpose);
+  return { secretBase32, backupCodes, stepUpToken };
 }
 
 /**

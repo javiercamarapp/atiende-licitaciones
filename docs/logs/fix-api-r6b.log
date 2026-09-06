@@ -152,3 +152,57 @@ ejercitar -- honesto sobre su alcance real, en vez de vacuo.
 
 `npm run -w apps/api typecheck` y `lint` verdes tras el cambio.
 
+## R6-13 (MEDIA) — flake de ventana TOTP en test/helpers.ts
+
+`enrollTwoFactor`/`enrollTwoFactorFull` generaban el código TOTP UNA sola
+vez y lo enviaban a `/auth/2fa/verify-enrollment` sin reintento;
+`verifyTotpCode` no da tolerancia de ventana, así que si la petición HTTP
+tardaba lo suficiente en llegar (suite completa, 285-388s bajo carga) el
+código podía cruzar el límite de 30s del `timeStep` y el servidor
+respondía 403 con el mensaje ambiguo medido por el reverificador
+("Código TOTP inválido o ya utilizado (replay rechazado)."), aunque el
+usuario de prueba fuera nuevo y nunca hubiera verificado antes (no era un
+replay real).
+
+No es reproducible de forma determinista ganando una carrera de reloj real
+-- se escribió el test nuevo (`test/helpers-totp-window-retry.test.ts`)
+interceptando la PRIMERA llamada a `/auth/2fa/verify-enrollment` (vía
+`vi.spyOn(app, 'inject')`) para que devuelva exactamente ese 403 ambiguo
+sin tocar el backend real, dejando pasar cualquier llamada posterior.
+
+Rojo confirmado contra el código sin retry:
+
+  × enrollTwoFactor reintenta con un código NUEVO tras un único 403 de
+    "borde de ventana" y tiene éxito, en vez de lanzar de inmediato
+    → 2fa verify-enrollment failed: 403 {"title":"Código TOTP inválido o
+      ya utilizado (replay rechazado)."}
+  × enrollTwoFactorFull reintenta igual y sigue devolviendo backupCodes
+    reales
+    → (mismo error)
+  × si AMBOS intentos fallan, propaga el error real...
+    → expected 1 to be 2 (no había ningún reintento)
+  3 failed (3)
+
+Fix (`apps/api/test/helpers.ts`): se extrajo `verifyTotpEnrollment`
+(privada al archivo), que reintenta UNA vez con un código RECIÉN generado
+(nunca reutiliza el que ya falló) si la primera verificación no responde
+200; si el segundo intento también falla, propaga el error real tal cual
+(nunca lo oculta, nunca reintenta más de una vez). No se fijó el reloj
+(`vi.setSystemTime`) porque estos helpers los comparten decenas de tests
+fuera de este archivo que sí dependen del reloj real (JWT/expiración de
+sesiones).
+
+Verde tras el fix:
+
+  ✓ test/helpers-totp-window-retry.test.ts (3 tests) 2535ms
+  Test Files  1 passed (1)
+       Tests  3 passed (3)
+
+Regresión verificada en una muestra amplia de consumidores de
+`enrollTwoFactor(Full)`: `expediente-inconformidad.test.ts` (7),
+`security-req044-064-step-up-2fa.test.ts` (7, incluida la prueba de
+REPLAY real -- sigue rechazando correctamente el mismo código dos veces),
+`expediente-e2e-flow.test.ts` (1) -- 15/15 verdes.
+
+`npm run -w apps/api typecheck` y `lint` verdes tras el cambio.
+
