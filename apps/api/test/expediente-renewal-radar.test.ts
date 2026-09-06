@@ -32,17 +32,33 @@ function toDateOnly(d: Date): string {
  * forma DETERMINISTA de comprobar la ausencia de un patrón N+1, en vez de un
  * umbral de milisegundos que depende de la carga de la máquina y de cuántos
  * archivos de test corren en paralelo.
+ *
+ * R6-09 (docs/auditoria-2/api-ronda6-reverificacion.md, "criterio
+ * trivialmente satisfacible"): el reverificador demostró que el criterio
+ * ORIGINAL (`scanQueries < 100`) lo satisface igual de bien una
+ * implementación degradada que quita `limit`/`pageSize` y trae TODOS los
+ * contratos en una sola consulta (12 sentencias en total, muy por debajo
+ * de 100) -- lo que atrapaba esa regresión no era este criterio sino el
+ * test VECINO de paginación por cursor. Se añade `matchSql`: además del
+ * TOTAL de sentencias, cuenta cuántas veces se ejecutó específicamente la
+ * consulta que trae UNA PÁGINA de contratos -- una implementación sin
+ * límite ejecuta esa consulta una sola vez sin importar cuántos contratos
+ * haya, mientras que la paginación real la ejecuta `ceil(contratos /
+ * pageSize)` veces. Este conteo, no el total de sentencias, es el que
+ * distingue "paginado de verdad" de "una sola consulta sin límite".
  */
-function countTxQueries(db: DbClient): { stop: () => number } {
+function countTxQueries(db: DbClient, opts: { matchSql?: RegExp } = {}): { stop: () => { total: number; matching: number } } {
   const originalTransaction = db.transaction.bind(db);
-  let count = 0;
+  let total = 0;
+  let matching = 0;
   db.transaction = (async <T,>(fn: (tx: DbExecutor) => Promise<T>): Promise<T> =>
     originalTransaction(async (tx: DbExecutor) => {
       const originalQuery = tx.query.bind(tx);
       const counting: DbExecutor = {
         ...tx,
         query: (async (sql: string, params?: unknown[]) => {
-          count += 1;
+          total += 1;
+          if (opts.matchSql?.test(sql)) matching += 1;
           return originalQuery(sql, params);
         }) as DbExecutor['query'],
       };
@@ -51,10 +67,13 @@ function countTxQueries(db: DbClient): { stop: () => number } {
   return {
     stop() {
       db.transaction = originalTransaction;
-      return count;
+      return { total, matching };
     },
   };
 }
+
+/** R6-09: patrón único de la consulta de UNA página de contratos en `scanContractsPage` (`renewal-radar.routes.ts`) -- contar sus ejecuciones es contar páginas realmente recorridas. */
+const CONTRACT_PAGE_QUERY_PATTERN = /from contracts c join tenders t/;
 
 describe('expediente — radar de renovaciones (REQ-055)', () => {
   let app: FastifyInstance;
@@ -192,12 +211,12 @@ describe('expediente — radar de renovaciones (REQ-055)', () => {
     // milisegundos aquí era no determinista (esta suite corre en paralelo con
     // otros archivos: se midió 1.1s aislado y 2.9s bajo carga completa) --
     // exactamente el tipo de test intermitente que esta ronda vino a eliminar.
-    const queriesDuringScan = countTxQueries(db);
+    const queriesDuringScan = countTxQueries(db, { matchSql: CONTRACT_PAGE_QUERY_PATTERN });
     const startedAt = Date.now();
     const scan = await app.inject({ method: 'POST', url: '/expediente/renewals/scan', headers, payload: {} });
     const elapsedMs = Date.now() - startedAt;
-    const scanQueries = queriesDuringScan.stop();
-    console.log(`R6-03 perf: 5000 contratos, primer escaneo=${elapsedMs}ms, consultas SQL=${scanQueries}`);
+    const { total: scanQueries, matching: pagesScanned } = queriesDuringScan.stop();
+    console.log(`R6-03 perf: 5000 contratos, primer escaneo=${elapsedMs}ms, consultas SQL=${scanQueries}, paginas=${pagesScanned}`);
 
     expect(scan.statusCode).toBe(200);
     expect(scan.json().evaluatedContracts).toBe(5000);
@@ -209,17 +228,27 @@ describe('expediente — radar de renovaciones (REQ-055)', () => {
     // suites en paralelo y el mismo escaneo se midió entre 1.2s y 10.0s
     // según la carga. El tiempo se imprime como dato, nunca como criterio.
     expect(scanQueries).toBeLessThan(100);
+    // R6-09/R6-14: el total de sentencias NO basta -- una implementación
+    // que quite `limit`/`pageSize` y traiga TODOS los contratos en una
+    // sola consulta también pasa `scanQueries < 100` (12 sentencias,
+    // medido por el reverificador). Lo que sí la distingue: con
+    // `pageSize` por defecto (2,000) y 5,000 contratos, la paginación real
+    // ejecuta la consulta de página EXACTAMENTE `ceil(5000/2000) = 3`
+    // veces -- una implementación sin límite la ejecuta 1 sola vez sin
+    // importar cuántos contratos haya.
+    expect(pagesScanned).toBe(3);
 
     // Segundo escaneo (dedupe en lote, no una consulta por alerta): mismo
     // criterio estructural, y no duplica ninguna alerta.
-    const queriesDuringSecondScan = countTxQueries(db);
+    const queriesDuringSecondScan = countTxQueries(db, { matchSql: CONTRACT_PAGE_QUERY_PATTERN });
     const startedAt2 = Date.now();
     const secondScan = await app.inject({ method: 'POST', url: '/expediente/renewals/scan', headers, payload: {} });
     const elapsedMs2 = Date.now() - startedAt2;
-    const secondScanQueries = queriesDuringSecondScan.stop();
-    console.log(`R6-03 perf: 5000 contratos, segundo escaneo (dedupe)=${elapsedMs2}ms, consultas SQL=${secondScanQueries}`);
+    const { total: secondScanQueries, matching: secondPagesScanned } = queriesDuringSecondScan.stop();
+    console.log(`R6-03 perf: 5000 contratos, segundo escaneo (dedupe)=${elapsedMs2}ms, consultas SQL=${secondScanQueries}, paginas=${secondPagesScanned}`);
     expect(secondScan.json().alertsCreated).toBe(0);
     expect(secondScanQueries).toBeLessThan(100);
+    expect(secondPagesScanned).toBe(3);
 
     const totalAlerts = await db.query<{ count: string }>('select count(*)::text as count from renewal_alerts where org_id = $1', [org.id]);
     expect(Number(totalAlerts.rows[0].count)).toBe(15000);
@@ -357,6 +386,33 @@ describe('expediente — radar de renovaciones (REQ-055)', () => {
       cursor = body.nextCursor;
     }
     expect(seenIds.size).toBe(1000);
+  });
+
+  /**
+   * R6-14 (docs/auditoria-2/api-ronda6-reverificacion.md, BAJA):
+   * `pageSize` admitía hasta 20,000 -- un llamador legítimo podía pedir una
+   * sola página de 20,000 contratos (hasta 60,000 alertas candidatas
+   * construidas en memoria, más 8 arreglos paralelos para el `unnest`) en
+   * una sola transacción, y el conteo de sentencias de R6-09/R6-03
+   * (`scanQueries < 100`) en realidad BAJA al subir `pageSize` -- el
+   * criterio premiaba justo lo contrario de lo que quería acotar. Techo
+   * bajado a un valor defendible (mismo orden de magnitud que el escaneo
+   * de 5,000 contratos ya medido y probado en esta suite, R6-03).
+   */
+  it('R6-14: pageSize tiene un techo defendible -- ya NO admite 20,000 (60,000 alertas candidatas en memoria en una sola transacción)', async () => {
+    const owner = await registerAndLogin(app, 'c055-owner-10@example.com');
+    const org = await createOrgFor(app, owner, 'C055 Org 10', 'c055-org-10');
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+
+    const tooLarge = await app.inject({ method: 'POST', url: '/expediente/renewals/scan', headers, payload: { pageSize: 20000 } });
+    expect(tooLarge.statusCode).toBe(422);
+
+    const tooLargeEnqueue = await app.inject({ method: 'POST', url: '/expediente/renewals/scan/enqueue', headers, payload: { pageSize: 20000 } });
+    expect(tooLargeEnqueue.statusCode).toBe(422);
+
+    // Un pageSize razonable (dentro del nuevo techo) sigue funcionando.
+    const withinLimit = await app.inject({ method: 'POST', url: '/expediente/renewals/scan', headers, payload: { pageSize: 5000 } });
+    expect(withinLimit.statusCode).toBe(200);
   });
 
   it('viewer no puede iniciar un escaneo de renovaciones', async () => {

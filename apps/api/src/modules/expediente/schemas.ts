@@ -580,7 +580,15 @@ export const renewalScanRequestSchema = z.object({
   // se quedó (nunca reprocesa ni salta contratos).
   cursor: z.string().uuid().nullable().optional(),
   /** Contratos a evaluar por página (una sola consulta conjunta por página, sin N+1). Límite alto para no fragmentar organizaciones normales; acotado para no degradar el tiempo por página. */
-  pageSize: z.number().int().positive().max(20000).default(2000),
+  // R6-14 (docs/auditoria-2/api-ronda6-reverificacion.md, BAJA): el techo
+  // era 20,000 -- una sola página así podía construir hasta 60,000 alertas
+  // candidatas en memoria (más 8 arreglos paralelos para el `unnest`) en
+  // una sola transacción, y el conteo de sentencias de R6-09 (estructural,
+  // `scanQueries < 100`) en realidad BAJA al subir `pageSize` -- ver
+  // `test/expediente-renewal-radar.test.ts` ("R6-09"/"R6-14"). Bajado a un
+  // techo defendible, del mismo orden de magnitud que el escaneo de 5,000
+  // contratos ya medido y probado en esta suite (R6-03).
+  pageSize: z.number().int().positive().max(5000).default(2000),
   /** Límite de tiempo (ms) para todo el request -- al superarlo, el escaneo se detiene ANTES de procesar la siguiente página y responde `truncated:true` + `nextCursor` en vez de dejar la petición HTTP colgada minutos (riesgo de timeout de proxy/gateway y de mantener la transacción abierta demasiado tiempo). */
   maxDurationMs: z.number().int().positive().max(60_000).default(8_000),
 });
@@ -607,7 +615,15 @@ export const renewalRadarRunSchema = z.object({
 // de aparentar que ya corre en segundo plano.
 export const renewalScanEnqueueRequestSchema = z.object({
   leadDaysThresholds: z.array(z.number().int().positive()).min(1).max(10).default([90, 60, 30]),
-  pageSize: z.number().int().positive().max(20000).default(2000),
+  // R6-14 (docs/auditoria-2/api-ronda6-reverificacion.md, BAJA): el techo
+  // era 20,000 -- una sola página así podía construir hasta 60,000 alertas
+  // candidatas en memoria (más 8 arreglos paralelos para el `unnest`) en
+  // una sola transacción, y el conteo de sentencias de R6-09 (estructural,
+  // `scanQueries < 100`) en realidad BAJA al subir `pageSize` -- ver
+  // `test/expediente-renewal-radar.test.ts` ("R6-09"/"R6-14"). Bajado a un
+  // techo defendible, del mismo orden de magnitud que el escaneo de 5,000
+  // contratos ya medido y probado en esta suite (R6-03).
+  pageSize: z.number().int().positive().max(5000).default(2000),
 });
 
 export const renewalScanEnqueueResponseSchema = z.object({

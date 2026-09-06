@@ -206,3 +206,61 @@ REPLAY real -- sigue rechazando correctamente el mismo código dos veces),
 
 `npm run -w apps/api typecheck` y `lint` verdes tras el cambio.
 
+## R6-09 (criterio trivialmente satisfacible) + R6-14 (BAJA) — pageSize sin techo defendible
+
+R6-09: el reverificador demostró que el criterio estructural de R6-03
+(`scanQueries < 100`, total de sentencias) lo satisface igual una
+implementación degradada que quita `limit $3` de `scanContractsPage` y
+trae TODOS los contratos en una sola consulta (12 sentencias, muy por
+debajo de 100) -- lo que atrapaba esa regresión era el test VECINO de
+paginación por cursor, no este criterio.
+
+Se instrumentó `countTxQueries` (`test/expediente-renewal-radar.test.ts`)
+para además contar cuántas veces se ejecuta ESPECÍFICAMENTE la consulta
+que trae una página de contratos (`matchSql`), no solo el total de
+sentencias: con 5,000 contratos y `pageSize` por defecto (2,000), la
+paginación real ejecuta esa consulta EXACTAMENTE `ceil(5000/2000) = 3`
+veces; una implementación sin límite la ejecuta 1 sola vez sin importar
+cuántos contratos haya.
+
+Confirmado mutante reproduciendo EXACTAMENTE la mutación del acta (quitar
+`limit $3` de `scanContractsPage`, `git diff` limpio después de revertir a
+mano):
+
+  R6-03 perf: 5000 contratos, primer escaneo=979ms, consultas SQL=12, paginas=1
+  × expected 1 to be 3
+
+(mismas 12 sentencias que midió el reverificador -- confirma que es
+exactamente la misma mutación). Revertido de inmediato.
+
+Verde con el código real:
+
+  R6-03 perf: 5000 contratos, primer escaneo=1243ms, consultas SQL=22, paginas=3
+  R6-03 perf: 5000 contratos, segundo escaneo (dedupe)=345ms, consultas SQL=13, paginas=3
+
+R6-14: el mismo hallazgo señaló que `pageSize` admitía hasta 20,000 --
+una sola página así podía construir hasta 60,000 alertas candidatas en
+memoria (más 8 arreglos paralelos para el `unnest`) en una sola
+transacción, y el conteo de sentencias BAJABA al subir `pageSize` (premiando
+justo lo contrario de lo que quería acotar). Se bajó el techo de
+`pageSize` de 20,000 a 5,000 en `renewalScanRequestSchema` y
+`renewalScanEnqueueRequestSchema` (`schemas.ts`) -- mismo orden de
+magnitud que el escaneo de 5,000 contratos ya medido y probado en esta
+suite (R6-03).
+
+Rojo confirmado antes del cambio de schema:
+
+  × R6-14: pageSize tiene un techo defendible...
+    → expected 200 to be 422 (pageSize:20000 todavía se aceptaba)
+
+Verde tras bajar el techo:
+
+  ✓ test/expediente-renewal-radar.test.ts (10 tests) 11531ms
+    ✓ R6-03: 5,000 contratos ... paginas=3
+    ✓ R6-14: pageSize tiene un techo defendible -- ya NO admite 20,000
+      (60,000 alertas candidatas en memoria en una sola transacción) 1828ms
+  Test Files  1 passed (1)
+       Tests  10 passed (10)
+
+`npm run -w apps/api typecheck` y `lint` verdes tras ambos cambios.
+
