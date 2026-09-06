@@ -1,0 +1,137 @@
+=== Sun Sep 6 06:29-06:43 CST 2026 — auditoría adversarial ronda 5, apps/api ===
+
+Agente: auditor adversarial independiente. HEAD real al iniciar: 6dab9f3.
+Worktree: git worktree add <scratchpad>/audit-api5 HEAD (+ npm install real).
+Eliminado al cierre de esta auditoría (git worktree remove).
+
+--- Reproducción independiente (worktree audit-api5) ---
+
+$ npm install --no-audit --no-fund
+added 739 packages in 4s
+
+$ npm run -w apps/api typecheck
+> tsc --noEmit
+(sin salida = sin errores)
+
+$ npm run -w apps/api lint
+> eslint src test
+(sin salida = sin errores)
+
+$ npm run -w packages/db test
+Test Files  23 passed (23)
+Tests  158 passed (158)
+
+$ npm run -w apps/api test
+Test Files  53 passed (53)
+Tests  200 passed (200)
+
+$ npm run -w packages/expediente typecheck
+(sin errores)
+$ npm run -w packages/expediente lint
+(sin errores)
+$ npm run -w packages/expediente test
+Test Files  16 passed (16)
+Tests  413 passed (413)
+
+$ npm run -w apps/web typecheck
+> tsc -b --noEmit
+(sin salida = sin errores)
+
+$ npm run -w apps/worker typecheck
+(sin errores)
+$ npm run -w apps/worker test
+Test Files  11 passed (11)
+Tests  298 passed (298)
+
+Conclusión rubro 1: reproducible de extremo a extremo, coincide con
+docs/logs/api-ronda5.log preexistente (200/158/413), más apps/web y
+apps/worker en verde (no cubiertos por ese log).
+
+--- Prueba adversarial 1: integración calendar_holidays -> business-days ---
+
+Archivo temporal: apps/api/test/_audit-probe-holidays.test.ts (borrado al
+terminar). Carga un feriado ficticio 2026-09-10 (jueves) vía superadmin,
+luego POST /expediente/.../post-award kind=facturacion con
+acceptanceDate=2026-09-05 (sábado).
+
+Resultado:
+  PROBE raw holiday_date value/type {"holiday_date":"2026-09-10T00:00:00.000Z","t":"date"} object
+  PROBE RESULT dueDate=2026-09-29 (calendarNote afirma "1 día(s) inhábil(es)
+    oficial(es) cargado(s) ... incluido(s) en el cómputo")
+  PROBE without-holiday due date (weekends only) = 2026-09-29  <-- IDÉNTICO
+
+  Confirmación de causa raíz (node -e):
+  String(new Date('2026-09-10T00:00:00.000Z'))
+    => "Wed Sep 09 2026 18:00:00 GMT-0600 (Central Standard Time)"
+  slice(0,10) => "Wed Sep 09"  (nunca coincide con la clave "2026-09-10")
+
+=> R5-01 (CRÍTICA): el feriado cargado NO excluye el día real del cómputo,
+   pese a que calendarNote dice explícitamente lo contrario. Ver
+   docs/auditoria-2/api-ronda5.md.
+
+--- Prueba adversarial 2: fuerza bruta sobre /auth/2fa/verify-enrollment ---
+
+Archivo temporal: apps/api/test/_audit-probe-bruteforce.test.ts (borrado al
+terminar). 40 POST /auth/2fa/verify-enrollment consecutivos con código de 6
+dígitos incorrecto, mismo usuario/IP simulada.
+
+Resultado:
+  PROBE statuses sample [403,403,403,403,403,403,403,403,403,403]
+  has429 = false
+  count403 = 40
+  PROBE audit_log rows for 2fa entities after 40 failed attempts:
+    [ { action: 'twofa.enroll' } ]   <-- solo el enroll inicial; CERO
+                                          eventos de los 40 fallos.
+
+=> R5-02 (CRÍTICA): sin rate limit específico -- ningún intento disparó
+   429, solo el límite global de 300/min por IP aplica.
+=> R5-03 (MEDIA): los 40 fallos no dejan ningún rastro en audit_log.
+   Ver docs/auditoria-2/api-ronda5.md.
+
+--- Prueba adversarial 3: fecha calendario inexistente en admin/calendar-holidays ---
+
+Archivo temporal: apps/api/test/_audit-probe-invalid-date.test.ts (borrado
+al terminar). POST /admin/calendar-holidays con date="2026-02-30" (formato
+válido, fecha calendario inexistente).
+
+Resultado:
+  PROBE status 500
+  {"type":"...internal-server-error","title":"date/time field value out of
+   range: \"2026-02-30\"","status":500,...}
+
+Confirmado en plugins/error-handler.ts que en NODE_ENV=production el
+título se redacta a "Error interno del servidor" (sin fuga de info en
+prod), pero sigue siendo 500 en vez de 422 explícito.
+
+=> R5-07 (BAJA). Ver docs/auditoria-2/api-ronda5.md.
+
+--- Verificación estática adicional (sin ejecución) ---
+
+- grep confirma: twofa/routes.ts no registra ningún `config: { rateLimit }`
+  (a diferencia de auth/routes.ts:126, admin/routes.ts:467/519,
+  agents/routes.ts:94/160).
+- grep confirma: apps/worker/src/source-runs/source-runs-repository.ts:45
+  (único INSERT a source_runs) no incluye correlation_id.
+- grep confirma: apps/api/src/modules/tenders/internal-ingest.routes.ts:210
+  inserta en audit_log sin columna correlation_id, pese a que
+  request.correlationId está disponible.
+- git log confirma: docs/TABLERO.md y docs/BACKLOG.md (último commit sobre
+  ambos: e61156e, 2026-09-06 05:22:23) son ANTERIORES al commit que
+  construyó el trabajo real de E11 de esta ronda (480d691, 05:55:56) --
+  ambos siguen diciendo "E11 ... 0% construido, sin trabajo despachado".
+- Revisado el diff completo de 53427ff sobre los 13 archivos de test
+  preexistentes modificados: en todos los casos el único cambio es agregar
+  X-Step-Up (via enrollTwoFactor) o TOTP_ENCRYPTION_KEY a la config de
+  prueba -- ninguna aserción fue debilitada.
+- Revisado packages/db/test/security-definer-audit.test.ts: la nueva
+  entrada de whitelist para app.record_security_event sigue el mismo
+  patrón/nivel de detalle que las preexistentes.
+
+--- Limpieza ---
+
+$ git -C <scratchpad>/audit-api5 status --short
+(limpio salvo package-lock.json/node_modules, subproducto de npm install)
+$ git worktree remove <scratchpad>/audit-api5 --force
+(ejecutado al cierre de esta auditoría)
+
+=== Fin ronda 5 ===
