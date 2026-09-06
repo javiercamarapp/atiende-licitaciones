@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AuthorizationPolicy, DEFAULT_HARD_PROHIBITED_ACTIONS, DEFAULT_PROHIBITED_ACTIONS } from "../src/authorization.js";
+import { InvalidRoleCeilingError } from "../src/errors.js";
 import type { Role } from "../src/types.js";
 
 describe("AuthorizationPolicy", () => {
@@ -198,4 +199,62 @@ describe("AuthorizationPolicy", () => {
       }
     });
   });
+
+  describe("AG-17 (ALTA, REQ-062): roleCeiling solo puede BAJAR el techo por rol, nunca subirlo", () => {
+    it("lanza InvalidRoleCeilingError si options.roleCeiling intenta SUBIR el techo de consultor_externo por encima de read", () => {
+      expect(() => new AuthorizationPolicy({ roleCeiling: { consultor_externo: "irreversible" } })).toThrow(
+        InvalidRoleCeilingError,
+      );
+      expect(() => new AuthorizationPolicy({ roleCeiling: { consultor_externo: "write" } })).toThrow(
+        InvalidRoleCeilingError,
+      );
+      expect(() => new AuthorizationPolicy({ roleCeiling: { consultor_externo: "external" } })).toThrow(
+        InvalidRoleCeilingError,
+      );
+    });
+
+    it("lanza InvalidRoleCeilingError para CUALQUIER rol si el override supera su default (no solo consultor_externo)", () => {
+      // Todos los demás roles ya tienen el default más alto ("irreversible"), así que
+      // no hay override posible que los suba — pero si en el futuro alguno bajara su
+      // default, la invariante debe seguir cerrando esa vía. Se verifica aquí con el
+      // único rol cuyo default NO es el máximo: consultor_externo.
+      const result = () => new AuthorizationPolicy({ roleCeiling: { consultor_externo: "irreversible" } });
+      expect(result).toThrow(/roleCeiling.*nunca subirlo|consultor_externo/i);
+    });
+
+    it("consultor_externo sigue denegado en riesgo > read tras el intento de override rechazado (REQ-062 se mantiene, el constructor nunca llegó a aplicarse)", () => {
+      let policy: AuthorizationPolicy | undefined;
+      try {
+        policy = new AuthorizationPolicy({ roleCeiling: { consultor_externo: "irreversible" } });
+      } catch {
+        // esperado: el constructor lanza y no se llega a construir la instancia envenenada.
+      }
+      expect(policy).toBeUndefined();
+
+      // Una instancia normal, sin la opción envenenada, mantiene la invariante REQ-062 intacta.
+      const safePolicy = new AuthorizationPolicy();
+      for (const riskLevel of ["write", "external", "irreversible"] as const) {
+        expect(safePolicy.decide({ toolName: "cualquier_tool", riskLevel, actorRole: "consultor_externo" }).decision).toBe(
+          "denied",
+        );
+      }
+    });
+
+    it("SÍ permite BAJAR el techo de un rol (hacerlo más restrictivo que el default)", () => {
+      const policy = new AuthorizationPolicy({ roleCeiling: { licitador: "write" } });
+      expect(policy.decide({ toolName: "algo_irreversible", riskLevel: "irreversible", actorRole: "licitador" }).decision).toBe(
+        "denied",
+      );
+      expect(policy.decide({ toolName: "algo_write", riskLevel: "write", actorRole: "licitador" }).decision).toBe("auto");
+    });
+
+    it("pasar exactamente el default de vuelta (consultor_externo: 'read') no lanza — es un no-op, no una subida", () => {
+      expect(() => new AuthorizationPolicy({ roleCeiling: { consultor_externo: "read" } })).not.toThrow();
+    });
+
+    it("no lanza si no se pasa roleCeiling en absoluto (comportamiento por defecto intacto)", () => {
+      expect(() => new AuthorizationPolicy()).not.toThrow();
+    });
+  });
+
 });

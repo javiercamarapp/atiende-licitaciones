@@ -114,4 +114,95 @@ describe("NoFabricationPolicy", () => {
       expect(finding.path).toContain("costo");
     });
   });
+
+  describe("AG-19 (MEDIA): scanForUnsourcedSensitiveData también recorre Map/Set/Buffer/Date/JSON embebido", () => {
+    it("detecta un campo sensible dentro de un Map (bypass original del hallazgo)", () => {
+      const findings = scanForUnsourcedSensitiveData({ datos: new Map([["precio", 999999]]) });
+      expect(findings.some((f) => f.kind === "precio")).toBe(true);
+    });
+
+    it("un Map con approvedSourceRef como entrada hermana sí cuenta como abastecido", () => {
+      const findings = scanForUnsourcedSensitiveData({
+        datos: new Map<string, unknown>([
+          ["precio", 999999],
+          ["approvedSourceRef", { docId: "d1", capturedAt: "t" }],
+        ]),
+      });
+      expect(findings).toEqual([]);
+    });
+
+    it("detecta un objeto con campo sensible anidado dentro de un Set (bypass original del hallazgo)", () => {
+      const findings = scanForUnsourcedSensitiveData({ datos: new Set([{ precio: 999999 }]) });
+      expect(findings.some((f) => f.kind === "precio")).toBe(true);
+    });
+
+    it("detecta texto libre sospechoso cuando es un elemento directo (string) de un Set", () => {
+      const findings = scanForUnsourcedSensitiveData({
+        datos: new Set(["el precio final es de $1500"]),
+      });
+      expect(findings.some((f) => f.kind === "texto_libre")).toBe(true);
+    });
+
+    it("detecta un precio serializado como JSON dentro de un Buffer (bypass original del hallazgo)", () => {
+      const buffer = Buffer.from(JSON.stringify({ precio: 999999 }), "utf-8");
+      const findings = scanForUnsourcedSensitiveData({ adjunto: buffer });
+      expect(findings.some((f) => f.kind === "precio")).toBe(true);
+    });
+
+    it("detecta un precio serializado como JSON dentro de un TypedArray (Uint8Array) genérico", () => {
+      const bytes = new TextEncoder().encode(JSON.stringify({ costo: 12345 }));
+      const findings = scanForUnsourcedSensitiveData({ adjunto: bytes });
+      expect(findings.some((f) => f.kind === "precio")).toBe(true);
+    });
+
+    it("un Buffer/TypedArray sin nada sensible dentro no genera falsos positivos (basura binaria real)", () => {
+      const randomBytes = Buffer.from([0x00, 0xff, 0x10, 0x8a, 0x01, 0x02, 0x03, 0x04]);
+      const findings = scanForUnsourcedSensitiveData({ adjunto: randomBytes });
+      expect(findings).toEqual([]);
+    });
+
+    it("una fecha (objeto Date) bajo una clave NO sensible es una hoja inerte: no se recorre buscando dentro de ella", () => {
+      const findings = scanForUnsourcedSensitiveData({ createdAt: new Date("2026-12-31") });
+      expect(findings).toEqual([]);
+    });
+
+    it("una fecha (objeto Date) bajo una clave sensible (vigencia) SÍ se reporta como no abastecida (comportamiento ya existente, no un bypass)", () => {
+      const findings = scanForUnsourcedSensitiveData({ vigencia: new Date("2026-12-31") });
+      expect(findings.some((f) => f.kind === "vigencia")).toBe(true);
+    });
+
+    it("detecta un precio serializado como JSON dentro de un string (JSON.stringify sin approvedSourceRef)", () => {
+      const findings = scanForUnsourcedSensitiveData({
+        payload: JSON.stringify({ precio: 999999 }),
+      });
+      expect(findings.some((f) => f.kind === "precio")).toBe(true);
+    });
+
+    it("detecta JSON embebido con texto alrededor (no solo cuando el string ENTERO es JSON puro)", () => {
+      const findings = scanForUnsourcedSensitiveData({
+        payload: `respuesta_cruda: ${JSON.stringify({ precio: 999999 })} (fin)`,
+      });
+      expect(findings.some((f) => f.kind === "precio")).toBe(true);
+    });
+
+    it("un string con approvedSourceRef ya presente en el JSON embebido no genera hallazgo", () => {
+      const findings = scanForUnsourcedSensitiveData({
+        payload: JSON.stringify({ precio: 999999, approvedSourceRef: { docId: "d1", capturedAt: "t" } }),
+      });
+      expect(findings).toEqual([]);
+    });
+
+    it("un string normal con llaves que NO es JSON válido no genera falsos positivos ni lanza", () => {
+      expect(() =>
+        scanForUnsourcedSensitiveData({ resumen: "el precio {ver anexo} está pendiente de confirmar" }),
+      ).not.toThrow();
+    });
+
+    it("un Map anidado dentro de un array anidado dentro de un Set sigue siendo detectado (combinación de contenedores)", () => {
+      const findings = scanForUnsourcedSensitiveData({
+        raiz: new Set([[new Map([["precio", 1]])]]),
+      });
+      expect(findings.some((f) => f.kind === "precio")).toBe(true);
+    });
+  });
 });

@@ -58,6 +58,22 @@ export class InvalidDeclaredEffectsError extends AgentsError {
   }
 }
 
+export class InvalidRoleCeilingError extends AgentsError {
+  constructor(
+    readonly role: string,
+    readonly requestedCeiling: string,
+    readonly defaultCeiling: string,
+  ) {
+    super(
+      `No se puede fijar el techo de riesgo del rol "${role}" en "${requestedCeiling}": ` +
+        `supera el default "${defaultCeiling}" (AG-17, REQ-062: "roleCeiling" solo puede BAJAR ` +
+        "el techo de un rol respecto al default, nunca subirlo — en particular, el techo " +
+        "\"read\" de consultor_externo es invariante)",
+      false,
+    );
+  }
+}
+
 export class UnauthorizedToolInputError extends AgentsError {
   constructor(readonly toolName: string, readonly field: string) {
     super(

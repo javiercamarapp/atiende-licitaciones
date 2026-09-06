@@ -228,14 +228,26 @@ function getZodArrayElement(schema: z.ZodTypeAny): z.ZodTypeAny | undefined {
 }
 
 /**
- * AG-11: busca RECURSIVAMENTE (sin límite de profundidad) un campo
+ * AG-11/AG-20: busca RECURSIVAMENTE (sin límite de profundidad) un campo
  * prohibido en cualquier `ZodObject` anidado, atravesando envolturas
- * (`optional`/`nullable`/`default`/`effects`) y arrays de objetos.
+ * (`optional`/`nullable`/`default`/`effects`, vía `unwrapOneLayer`), arrays
+ * de objetos, y — AG-20, MEDIA, cierre del hueco estructural que dejó
+ * abierto AG-11 en combinadores de Zod distintos a objeto/array/wrapper —
+ * también:
+ * - `ZodUnion`/`ZodDiscriminatedUnion`: CUALQUIER rama (`_def.options`)
+ *   puede declarar el campo prohibido, así que se revisan todas.
+ * - `ZodIntersection`: ambos operandos (`_def.left`/`_def.right`).
+ * - `ZodRecord`/`ZodMap`: el tipo de VALOR (`_def.valueType`) — la clave
+ *   nunca puede ser un objeto con el campo, pero el valor sí.
+ * - `ZodTuple`: cada item posicional (`_def.items`) y el elemento variádico
+ *   `rest`, si existe.
+ * - `ZodLazy`: resuelve el esquema real vía `_def.getter()` — necesario
+ *   para esquemas auto-referenciados/recursivos declarados con `z.lazy()`.
  * Retorna el primer nombre de campo prohibido encontrado, o `undefined` si
  * el esquema completo está limpio.
  */
 function findForbiddenFieldRecursive(schema: z.ZodTypeAny, seen: Set<z.ZodTypeAny> = new Set()): string | undefined {
-  if (seen.has(schema)) return undefined; // evita ciclos en esquemas recursivos.
+  if (seen.has(schema)) return undefined; // evita ciclos en esquemas recursivos (p. ej. z.lazy() auto-referenciado).
   seen.add(schema);
 
   const shape = getZodObjectShape(schema);
@@ -251,6 +263,55 @@ function findForbiddenFieldRecursive(schema: z.ZodTypeAny, seen: Set<z.ZodTypeAn
   const arrayElement = getZodArrayElement(schema);
   if (arrayElement) {
     return findForbiddenFieldRecursive(arrayElement, seen);
+  }
+
+  const def = (schema as unknown as { _def?: Record<string, unknown> })._def;
+  const typeName = def?.typeName as string | undefined;
+
+  // AG-20: ZodUnion/ZodDiscriminatedUnion — cualquier rama puede traer el campo prohibido.
+  if (typeName === "ZodUnion" || typeName === "ZodDiscriminatedUnion") {
+    const options = def?.options as z.ZodTypeAny[] | undefined;
+    if (Array.isArray(options)) {
+      for (const option of options) {
+        const nested = findForbiddenFieldRecursive(option, seen);
+        if (nested) return nested;
+      }
+    }
+    return undefined;
+  }
+
+  // AG-20: ZodIntersection — ambos operandos pueden declararlo.
+  if (typeName === "ZodIntersection") {
+    for (const operand of [def?.left, def?.right] as Array<z.ZodTypeAny | undefined>) {
+      if (operand) {
+        const nested = findForbiddenFieldRecursive(operand, seen);
+        if (nested) return nested;
+      }
+    }
+    return undefined;
+  }
+
+  // AG-20: ZodRecord/ZodMap — el tipo de valor puede ser (u contener) un objeto con el campo.
+  if (typeName === "ZodRecord" || typeName === "ZodMap") {
+    const valueType = def?.valueType as z.ZodTypeAny | undefined;
+    return valueType ? findForbiddenFieldRecursive(valueType, seen) : undefined;
+  }
+
+  // AG-20: ZodTuple — cualquier item posicional o el elemento variádico "rest".
+  if (typeName === "ZodTuple") {
+    const items = (def?.items as z.ZodTypeAny[] | undefined) ?? [];
+    for (const item of items) {
+      const nested = findForbiddenFieldRecursive(item, seen);
+      if (nested) return nested;
+    }
+    const rest = def?.rest as z.ZodTypeAny | undefined;
+    return rest ? findForbiddenFieldRecursive(rest, seen) : undefined;
+  }
+
+  // AG-20: ZodLazy — resuelve el esquema real (esquemas auto-referenciados/recursivos).
+  if (typeName === "ZodLazy") {
+    const getter = def?.getter as (() => z.ZodTypeAny) | undefined;
+    return typeof getter === "function" ? findForbiddenFieldRecursive(getter(), seen) : undefined;
   }
 
   const unwrapped = unwrapOneLayer(schema);

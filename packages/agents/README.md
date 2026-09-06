@@ -111,7 +111,18 @@ argumentos no validen contra el esquema.
 2. **Techo de riesgo por rol**: `consultor_externo` es el único rol capado
    en `read` — no puede ni *pedir* nada por encima (REQ-062: "nunca 2/2").
    El resto de roles operativos puede llegar hasta `irreversible` en modo
-   `pending`.
+   `pending`. **Invariante de código (AG-17, ALTA, REQ-062)**: la opción de
+   constructor `roleCeiling` solo puede BAJAR (hacer más restrictivo) el
+   techo por defecto de un rol, nunca subirlo — a diferencia de
+   `hardProhibitedActions`/`prohibitedActions` (AG-03, unión-nunca-reemplazo,
+   que no aplica aquí porque `RiskLevel` es un orden total, no un conjunto),
+   aquí la invariante se hace cumplir **lanzando `InvalidRoleCeilingError`
+   en el constructor** si algún override intenta subir el techo de
+   cualquier rol por encima de su default. Como `consultor_externo` ya
+   tiene el default más bajo posible (`read`), esto lo vuelve un techo
+   verdaderamente invariante: `new AuthorizationPolicy({ roleCeiling: {
+   consultor_externo: "irreversible" } })` lanza en vez de crear
+   silenciosamente una instancia que rompería REQ-062.
 3. **Prohibiciones blandas** (`DEFAULT_PROHIBITED_ACTIONS`: pagar, fijar
    precio final, emitir paquete final): siempre `pending`, pero sí
    ejecutables dentro del sistema una vez que un humano aprueba vía

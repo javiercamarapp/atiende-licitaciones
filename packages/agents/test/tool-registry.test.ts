@@ -135,6 +135,174 @@ describe("ToolRegistry", () => {
     ).not.toThrow();
   });
 
+  describe("AG-20 (MEDIA): findForbiddenFieldRecursive desciende en combinadores de Zod más allá de objeto/array/wrapper", () => {
+    it("rechaza organizationId escondido en CUALQUIER rama de un z.union", () => {
+      const registry = new ToolRegistry();
+      expect(() =>
+        registry.register(
+          makeTool({
+            name: "union_leaky",
+            inputSchema: z.union([z.object({ foo: z.string() }), z.object({ organizationId: z.string() })]),
+          }),
+        ),
+      ).toThrow(UnauthorizedToolInputError);
+    });
+
+    it("rechaza organizationId en una rama de un z.discriminatedUnion", () => {
+      const registry = new ToolRegistry();
+      expect(() =>
+        registry.register(
+          makeTool({
+            name: "discriminated_union_leaky",
+            inputSchema: z.discriminatedUnion("kind", [
+              z.object({ kind: z.literal("a"), foo: z.string() }),
+              z.object({ kind: z.literal("b"), organizationId: z.string() }),
+            ]),
+          }),
+        ),
+      ).toThrow(UnauthorizedToolInputError);
+    });
+
+    it("rechaza organizationId dentro del tipo de valor de un z.record", () => {
+      const registry = new ToolRegistry();
+      expect(() =>
+        registry.register(
+          makeTool({
+            name: "record_leaky",
+            inputSchema: z.record(z.string(), z.object({ organizationId: z.string() })),
+          }),
+        ),
+      ).toThrow(UnauthorizedToolInputError);
+    });
+
+    it("rechaza organizationId dentro del tipo de valor de un z.map", () => {
+      const registry = new ToolRegistry();
+      expect(() =>
+        registry.register(
+          makeTool({
+            name: "map_leaky",
+            inputSchema: z.object({ config: z.map(z.string(), z.object({ tenant_id: z.string() })) }),
+          }),
+        ),
+      ).toThrow(UnauthorizedToolInputError);
+    });
+
+    it("rechaza organizationId dentro de un operando de z.intersection", () => {
+      const registry = new ToolRegistry();
+      expect(() =>
+        registry.register(
+          makeTool({
+            name: "intersection_leaky",
+            inputSchema: z.intersection(z.object({ foo: z.string() }), z.object({ organizationId: z.string() })),
+          }),
+        ),
+      ).toThrow(UnauthorizedToolInputError);
+    });
+
+    it("rechaza organizationId dentro de un item posicional de z.tuple", () => {
+      const registry = new ToolRegistry();
+      expect(() =>
+        registry.register(
+          makeTool({
+            name: "tuple_leaky",
+            inputSchema: z.object({
+              par: z.tuple([z.string(), z.object({ organizationId: z.string() })]),
+            }),
+          }),
+        ),
+      ).toThrow(UnauthorizedToolInputError);
+    });
+
+    it("rechaza organizationId dentro de un esquema auto-referenciado con z.lazy", () => {
+      const registry = new ToolRegistry();
+      type Node = { organizationId?: string; children?: Node[] };
+      const nodeSchema: z.ZodType<Node> = z.lazy(() =>
+        z.object({
+          organizationId: z.string().optional(),
+          children: z.array(nodeSchema).optional(),
+        }),
+      );
+      expect(() =>
+        registry.register(
+          makeTool({
+            name: "lazy_leaky",
+            inputSchema: z.object({ tree: nodeSchema }),
+          }),
+        ),
+      ).toThrow(UnauthorizedToolInputError);
+    });
+
+    it("permite z.lazy() auto-referenciado legítimo, sin campos de tenant, sin recursión infinita", () => {
+      const registry = new ToolRegistry();
+      type Node = { name: string; children?: Node[] };
+      const nodeSchema: z.ZodType<Node> = z.lazy(() =>
+        z.object({
+          name: z.string(),
+          children: z.array(nodeSchema).optional(),
+        }),
+      );
+      expect(() =>
+        registry.register(
+          makeTool({
+            name: "lazy_legit",
+            inputSchema: z.object({ tree: nodeSchema }),
+          }),
+        ),
+      ).not.toThrow();
+    });
+
+    it("permite z.union/z.record/z.intersection/z.tuple legítimos sin campos de tenant en ninguna rama", () => {
+      const registry = new ToolRegistry();
+      expect(() =>
+        registry.register(
+          makeTool({
+            name: "union_legit",
+            inputSchema: z.union([z.object({ foo: z.string() }), z.object({ bar: z.string() })]),
+          }),
+        ),
+      ).not.toThrow();
+
+      expect(() =>
+        registry.register(
+          makeTool({
+            name: "record_legit",
+            inputSchema: z.record(z.string(), z.object({ q: z.string() })),
+          }),
+        ),
+      ).not.toThrow();
+
+      expect(() =>
+        registry.register(
+          makeTool({
+            name: "intersection_legit",
+            inputSchema: z.intersection(z.object({ foo: z.string() }), z.object({ bar: z.string() })),
+          }),
+        ),
+      ).not.toThrow();
+
+      expect(() =>
+        registry.register(
+          makeTool({
+            name: "tuple_legit",
+            inputSchema: z.object({ par: z.tuple([z.string(), z.object({ bar: z.string() })]) }),
+          }),
+        ),
+      ).not.toThrow();
+    });
+
+    it("sigue rechazando el caso ya cubierto por AG-11 (objeto anidado directo) tras la extensión de AG-20", () => {
+      const registry = new ToolRegistry();
+      expect(() =>
+        registry.register(
+          makeTool({
+            name: "control_nested_direct",
+            inputSchema: z.object({ meta: z.object({ organizationId: z.string() }) }),
+          }),
+        ),
+      ).toThrow(UnauthorizedToolInputError);
+    });
+  });
+
   it("permite esquemas de entrada sin campos de tenant", () => {
     const registry = new ToolRegistry();
     expect(() => registry.register(makeTool())).not.toThrow();

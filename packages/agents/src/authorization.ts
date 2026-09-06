@@ -1,5 +1,6 @@
 import type { ActionKind, AuthorizationDecision, Role, RiskLevel } from "./types.js";
 import { RISK_LEVEL_ORDER } from "./types.js";
+import { InvalidRoleCeilingError } from "./errors.js";
 
 /**
  * AG-04: `Object.freeze()` sobre un `Set` NO impide `.add()`/`.delete()`/
@@ -124,6 +125,34 @@ function unionWithDefaults(defaults: ReadonlySet<string>, additions?: Iterable<s
   return result;
 }
 
+/**
+ * AG-17 (ALTA, REQ-062): valida el `roleCeiling` que llega por opciones del
+ * constructor contra el default (`ROLE_RISK_CEILING`) y devuelve el
+ * resultado fusionado — pero a diferencia de un `{ ...default, ...override }`
+ * ingenuo (el bug original), aquí un override que SUBIRÍA el techo de
+ * cualquier rol por encima de su default lanza `InvalidRoleCeilingError`
+ * en vez de aplicarse. Bajar el techo (hacerlo más restrictivo) sí se
+ * permite libremente. Como `consultor_externo` ya tiene el default más bajo
+ * posible (`read`, orden 0), esto lo vuelve un techo verdaderamente
+ * invariante: la ÚNICA forma de "override" que no lanza para ese rol es
+ * pasar exactamente `"read"` de nuevo, nunca nada por encima.
+ */
+function clampRoleCeiling(overrides?: Partial<Record<Role, RiskLevel>>): Record<Role, RiskLevel> {
+  const result: Record<Role, RiskLevel> = { ...ROLE_RISK_CEILING };
+  if (!overrides) return result;
+  for (const role of Object.keys(overrides) as Role[]) {
+    const override = overrides[role];
+    if (override === undefined) continue;
+    const defaultCeiling = ROLE_RISK_CEILING[role];
+    if (defaultCeiling === undefined) continue; // rol desconocido fuera del enum Role: se ignora, no puede inventar un rol nuevo.
+    if (RISK_LEVEL_ORDER[override] > RISK_LEVEL_ORDER[defaultCeiling]) {
+      throw new InvalidRoleCeilingError(role, override, defaultCeiling);
+    }
+    result[role] = override;
+  }
+  return result;
+}
+
 export interface AuthorizationRequest {
   toolName: string;
   riskLevel: RiskLevel;
@@ -166,7 +195,7 @@ export class AuthorizationPolicy {
   private readonly normalizedHardProhibitedActions: Set<string>;
   private readonly prohibitedActions: Set<string>;
   private readonly normalizedProhibitedActions: Set<string>;
-  private readonly roleCeiling: Record<Role, RiskLevel>;
+  private readonly roleCeiling: Readonly<Record<Role, RiskLevel>>;
 
   constructor(options?: {
     /** Herramientas ADICIONALES a tratar como prohibidas blandas. Nunca reemplaza `DEFAULT_PROHIBITED_ACTIONS` (AG-03). */
@@ -187,7 +216,18 @@ export class AuthorizationPolicy {
     // para que decide() nunca compare nombres crudos sin normalizar.
     this.normalizedProhibitedActions = normalizedSet(this.prohibitedActions);
     this.normalizedHardProhibitedActions = normalizedSet(this.hardProhibitedActions);
-    this.roleCeiling = { ...ROLE_RISK_CEILING, ...options?.roleCeiling };
+    // AG-17 (ALTA, REQ-062): `roleCeiling` solo puede BAJAR (hacer más
+    // restrictivo) el techo por defecto de un rol, nunca subirlo. A
+    // diferencia de `hardProhibitedActions`/`prohibitedActions` (AG-03,
+    // unión-nunca-reemplazo), aquí "unión" no tendría sentido porque el
+    // dominio es un orden total (RiskLevel), no un conjunto — así que la
+    // invariante correcta es "nunca por encima del default" y se hace
+    // cumplir lanzando en el constructor, no clampeando en silencio: un
+    // llamador que intenta subir el techo de cualquier rol (en particular
+    // `consultor_externo`, el único capado en `read` por REQ-062: "nunca
+    // 2/2") debe enterarse de inmediato, no obtener silenciosamente un
+    // techo distinto al que pidió.
+    this.roleCeiling = Object.freeze(clampRoleCeiling(options?.roleCeiling));
   }
 
   decide(request: AuthorizationRequest): AuthorizationResult {
