@@ -21,6 +21,7 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { WRITE_ROLES } from '@atiende/db';
+import type { DbExecutor } from '@atiende/db';
 import { requireOrgRole } from '../../lib/authorize.js';
 import { recordAudit } from '../../lib/audit.js';
 import { requireStepUp } from '../../lib/step-up.js';
@@ -110,6 +111,48 @@ async function requireContract(tx: import('@atiende/db').DbExecutor, orgId: stri
     throw new NotFoundError('No existe contrato registrado para esta convocatoria todavía; regístrelo primero con POST /expediente/tenders/:tenderId/contract.');
   }
   return res.rows[0];
+}
+
+/**
+ * R6-04 (docs/auditoria-2/api-ronda6.md, MEDIA) / R6-10
+ * (docs/auditoria-2/api-ronda6-reverificacion.md, MEDIA): `UPDATE`
+ * condicionado sobre el `fromStatus` leído, para que dos transiciones
+ * concurrentes que parten del MISMO estado nunca puedan tener éxito ambas
+ * (una pisando el historial de la otra). Se extrae como función propia
+ * (en vez de quedar inline en el handler) para poder probarla de forma
+ * DETERMINISTA con un `fromStatus` deliberadamente obsoleto -- el test de
+ * `Promise.all` original (R6-04) resultó vacuo bajo PGlite (una sola
+ * conexión, sin entrelazado real: el 409 que observaba lo producía
+ * `checkTransition`, nunca este `UPDATE`), y una carrera real no se puede
+ * forzar de forma determinista contra ese motor. Ver
+ * `test/expediente-contract-lifecycle.test.ts` ("R6-10").
+ *
+ * Bajo READ COMMITTED, Postgres bloquea la fila mientras otra transacción
+ * concurrente con el mismo `id`/`org_id` está en vuelo y, al liberarse,
+ * vuelve a evaluar el `WHERE` (incluido `status = $fromStatus`) contra el
+ * valor YA COMMITTEADO -- si el estado cambió mientras tanto, esta
+ * actualización afecta 0 filas en vez de aplicar un cambio basado en un
+ * estado que ya no es el vigente. Lanza `ConflictError` (409) con el
+ * estado real actual en ese caso; nunca escribe nada si no hay match.
+ */
+export async function updateContractStatusConditioned(
+  tx: DbExecutor,
+  params: { orgId: string; contractId: string; fromStatus: string; toStatus: string }
+): Promise<Record<string, unknown>> {
+  const { orgId, contractId, fromStatus, toStatus } = params;
+  const updated = await tx.query<Record<string, unknown>>(
+    'update contracts set status = $1 where id = $2 and org_id = $3 and status = $4 returning *',
+    [toStatus, contractId, orgId, fromStatus]
+  );
+  if (updated.rows.length === 0) {
+    const current = await tx.query<{ status: string }>('select status from contracts where id = $1 and org_id = $2', [contractId, orgId]);
+    const currentStatus = current.rows[0]?.status ?? fromStatus;
+    throw new ConflictError(
+      `El estado del contrato cambió mientras se procesaba esta transición (de "${fromStatus}" ya pasó a "${currentStatus}" por otra solicitud). Reintente la transición partiendo del estado actual.`,
+      { fromStatus, toStatus, currentStatus }
+    );
+  }
+  return updated.rows[0];
 }
 
 export async function expedienteContractRoutes(app: FastifyInstance): Promise<void> {
@@ -264,7 +307,14 @@ export async function expedienteContractRoutes(app: FastifyInstance): Promise<vo
           await requireStepUp(tx, { userId, stepUpHeader: request.headers['x-step-up'], orgId, purpose: 'expediente.contract_transition' });
         }
 
-        // R6-04 (docs/auditoria-2/api-ronda6.md, MEDIA): el `SELECT` de
+        // R6-04 (docs/auditoria-2/api-ronda6.md, MEDIA) / R6-10
+        // (docs/auditoria-2/api-ronda6-reverificacion.md, MEDIA -- el test
+        // de concurrencia original de R6-04 resultó vacuo: bajo PGlite
+        // -- una sola conexión, sin entrelazado real -- el 409 lo produce
+        // `checkTransition` de arriba, nunca este `UPDATE`; ver
+        // `updateContractStatusConditioned` más abajo, extraída para poder
+        // probarla de forma determinista sin depender de una carrera real,
+        // en `test/expediente-contract-lifecycle.test.ts`). El `SELECT` de
         // `requireContract` de arriba NO bloquea la fila -- dos transiciones
         // concurrentes que parten del MISMO `fromStatus` podrían pasar
         // ambas la validación en memoria (`checkTransition`) y, si el
@@ -278,18 +328,7 @@ export async function expedienteContractRoutes(app: FastifyInstance): Promise<vo
         // el valor YA COMMITTEADO -- si el estado cambió mientras tanto,
         // esta actualización afecta 0 filas en vez de aplicar un cambio
         // basado en un estado que ya no es el vigente.
-        const updated = await tx.query<Record<string, unknown>>(
-          'update contracts set status = $1 where id = $2 and org_id = $3 and status = $4 returning *',
-          [toStatus, contract.id, orgId, fromStatus]
-        );
-        if (updated.rows.length === 0) {
-          const current = await tx.query<{ status: string }>('select status from contracts where id = $1 and org_id = $2', [contract.id, orgId]);
-          const currentStatus = current.rows[0]?.status ?? fromStatus;
-          throw new ConflictError(
-            `El estado del contrato cambió mientras se procesaba esta transición (de "${fromStatus}" ya pasó a "${currentStatus}" por otra solicitud). Reintente la transición partiendo del estado actual.`,
-            { fromStatus, toStatus, currentStatus }
-          );
-        }
+        const updated = await updateContractStatusConditioned(tx, { orgId, contractId: contract.id as string, fromStatus, toStatus });
 
         await tx.query(
           `insert into contract_status_history (id, org_id, contract_id, from_status, to_status, reason, actor_id, evidence_ref, correlation_id)
@@ -320,7 +359,7 @@ export async function expedienteContractRoutes(app: FastifyInstance): Promise<vo
           requestId: request.id, correlationId: request.correlationId,
         });
 
-        return updated.rows[0];
+        return updated;
       });
 
       return mapContractRow(row);

@@ -100,3 +100,55 @@ Verde tras el fix:
 `npm run -w apps/api typecheck` y `lint` verdes tras el cambio (ver además
 el gate final ×2 al cierre de este log).
 
+## R6-10 (MEDIA) — el test de concurrencia de R6-04 era vacuo
+
+El acta de reverificación confirmó (RV-CONC, docs/logs/reverify-r6-wk6.log
+líneas 249-260) que bajo PGlite (una sola conexión, sin entrelazado real)
+el 409 del test `Promise.all` de R6-04 lo produce `checkTransition`
+(validación del grafo: "contrato_firmado_declarado ->
+contrato_firmado_declarado" no es una transición válida), NUNCA el UPDATE
+condicionado -- mutación inversa (quitar "and status = $4") quedaba en
+VERDE.
+
+Se extrajo `updateContractStatusConditioned` (antes inline en el handler)
+como función exportada de `apps/api/src/modules/expediente/contract.routes.ts`,
+para poder invocarla DIRECTAMENTE con un `fromStatus` deliberadamente
+obsoleto, sin depender de ninguna carrera real.
+
+Confirmado mutante ANTES de escribir el test definitivo: se quitó a mano
+"and status = $4" del UPDATE (dejando el bind de 4 parámetros sin
+consumir el 4º) y se corrió el test nuevo -- ROJO:
+
+  × R6-10: UPDATE condicionado con un fromStatus OBSOLETO no aplica ningún
+    cambio -- 0 filas, 409 con el mensaje de carrera, sin transición
+    fantasma ni entrada de audit_log
+    → expected error: bind message supplies 4 parameters... to match
+      object { statusCode: 409, ... }
+
+(el motor real rechaza el bind por parámetro no referenciado en vez de
+aplicar silenciosamente la transición fantasma -- de cualquier forma, el
+test deja de aceptar el resultado esperado y falla, que es la propiedad que
+se buscaba probar). Revertido el cambio a mano inmediatamente después,
+confirmado `git diff` limpio.
+
+Verde con el código real (`and status = $4` presente):
+
+  ✓ test/expediente-contract-lifecycle.test.ts (7 tests) 6693ms
+    ✓ bajo PGlite (una sola conexión, sin entrelazado real), dos
+      transiciones "concurrentes" al MISMO destino producen 200/409 por
+      VALIDACIÓN DEL GRAFO -- nunca dos 200, y el historial nunca queda
+      con dos filas para el mismo salto 778ms
+    ✓ R6-10: UPDATE condicionado con un fromStatus OBSOLETO no aplica
+      ningún cambio -- 0 filas, 409 con el mensaje de carrera, sin
+      transición fantasma ni entrada de audit_log 960ms
+  Test Files  1 passed (1)
+       Tests  7 passed (7)
+
+El test de `Promise.all` original se conservó (cobertura real de que el
+resultado observable sigue siendo coherente bajo carga concurrente), pero
+renombrado y con aserción sobre el MENSAJE del 409 (validación del grafo,
+no el de la carrera) para no reclamar un mecanismo que esta suite no puede
+ejercitar -- honesto sobre su alcance real, en vez de vacuo.
+
+`npm run -w apps/api typecheck` y `lint` verdes tras el cambio.
+

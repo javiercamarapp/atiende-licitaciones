@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { DbClient } from '@atiende/db';
 import { createTestApp, registerAndLogin, createOrgFor, enrollTwoFactor, TEST_PLATFORM_API_KEY } from './helpers.js';
+import { updateContractStatusConditioned } from '../src/modules/expediente/contract.routes.js';
+import { withTx } from '../src/lib/expediente/context.js';
 
 /**
  * REQ-051 — máquina de estados del contrato post-adjudicación: transiciones
@@ -209,19 +211,32 @@ describe('expediente — máquina de estados del contrato (REQ-051)', () => {
     expect(attempt.statusCode).toBe(403);
   });
 
-  it('R6-04: dos transiciones concurrentes del MISMO contrato partiendo del MISMO fromStatus -- exactamente una 200, la otra 409, y el historial nunca queda con dos filas para el mismo salto', async () => {
+  /**
+   * R6-10 (docs/auditoria-2/api-ronda6-reverificacion.md, MEDIA): esta
+   * prueba se llamaba "R6-04: ... exactamente una 200, la otra 409" y su
+   * mutación inversa (quitar `and status = $4` del `UPDATE` condicionado)
+   * seguía en VERDE -- es decir, no protegía nada. Causa raíz medida por el
+   * reverificador: PGlite es de UNA sola conexión y serializa las
+   * transacciones, así que `Promise.all` de dos peticiones HTTP NO produce
+   * un entrelazado real -- la segunda transacción arranca cuando la primera
+   * YA hizo commit, lee el estado ya actualizado, y el 409 lo produce
+   * `checkTransition` (validación del grafo: "contrato_firmado_declarado ->
+   * contrato_firmado_declarado" no es una transición válida), nunca el
+   * `UPDATE` condicionado de R6-04. Este test se deja (cobertura real de
+   * que el resultado observable bajo carga concurrente sigue siendo
+   * coherente: exactamente un 200, historial sin duplicar), pero ahora
+   * afirma sobre el MENSAJE del 409 -- el de la validación del grafo, no el
+   * de la carrera -- para no reclamar un mecanismo que esta suite no puede
+   * ejercitar. La protección real contra la carrera (`UPDATE ... and status
+   * = $4`) se prueba de forma DETERMINISTA en el siguiente caso.
+   */
+  it('bajo PGlite (una sola conexión, sin entrelazado real), dos transiciones "concurrentes" al MISMO destino producen 200/409 por VALIDACIÓN DEL GRAFO -- nunca dos 200, y el historial nunca queda con dos filas para el mismo salto', async () => {
     const owner = await registerAndLogin(app, 'c051-owner-6@example.com');
     const org = await createOrgFor(app, owner, 'C051 Org 6', 'c051-org-6');
     const tenderId = await createTender(app, org.id, 'c051-006');
     const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
     await app.inject({ method: 'POST', url: `/expediente/tenders/${tenderId}/contract`, headers });
 
-    // Antes de R6-04, el UPDATE de la transición no condicionaba sobre el
-    // `fromStatus` leído -- dos solicitudes concurrentes que parten del
-    // mismo estado ("adjudicado") podían ambas pasar la validación en
-    // memoria y ambas tener éxito (200), cada una insertando una fila de
-    // historial con un `from_status` que ya no correspondía al estado real
-    // inmediatamente anterior en la cadena.
     const [first, second] = await Promise.all([
       app.inject({
         method: 'POST',
@@ -236,17 +251,83 @@ describe('expediente — máquina de estados del contrato (REQ-051)', () => {
         payload: { toStatus: 'contrato_firmado_declarado', reason: 'Solicitud concurrente B.' },
       }),
     ]);
-    const codes = [first.statusCode, second.statusCode].sort();
-    expect(codes).toEqual([200, 409]);
+    const succeeded = first.statusCode === 200 ? first : second;
+    const failed = first.statusCode === 200 ? second : first;
+    expect(succeeded.statusCode).toBe(200);
+    expect(failed.statusCode).toBe(409);
+    // Mensaje de la validación DEL GRAFO (`checkTransition`), no el de la
+    // carrera ("El estado del contrato cambió mientras se procesaba...") --
+    // ese último nunca lo produce este test, ver docstring de arriba.
+    expect(failed.json().title).toContain('Transición inválida');
+    expect(failed.json().title).not.toContain('cambió mientras se procesaba');
 
     const contract = await app.inject({ method: 'GET', url: `/expediente/tenders/${tenderId}/contract`, headers });
     expect(contract.json().status).toBe('contrato_firmado_declarado');
 
     // El historial tiene EXACTAMENTE una fila para el salto
     // adjudicado -> contrato_firmado_declarado (la otra solicitud nunca
-    // escribió nada, gracias al UPDATE condicionado -- ver R6-04).
+    // escribió nada -- porque su propia validación de grafo la rechazó
+    // antes de llegar al UPDATE, no porque el UPDATE la haya bloqueado).
     const history = await app.inject({ method: 'GET', url: `/expediente/tenders/${tenderId}/contract/history`, headers });
     const jumps = history.json().filter((h: any) => h.fromStatus === 'adjudicado' && h.toStatus === 'contrato_firmado_declarado');
     expect(jumps).toHaveLength(1);
+  });
+
+  /**
+   * R6-10 (docs/auditoria-2/api-ronda6-reverificacion.md, MEDIA): test
+   * DETERMINISTA (sin depender de ninguna carrera real, imposible de forzar
+   * bajo PGlite) del `UPDATE` condicionado que sí cierra la ventana de
+   * R6-04 -- `updateContractStatusConditioned` (exportada de
+   * `modules/expediente/contract.routes.ts`) se invoca DIRECTAMENTE con un
+   * `fromStatus` deliberadamente obsoleto (exactamente lo que vería una
+   * segunda transacción que leyó el estado ANTES de que otra ya lo hubiera
+   * cambiado): el contrato real sigue en "adjudicado", pero se le pasa
+   * `fromStatus: "contrato_firmado_declarado"`.
+   *
+   * Prueba MUTANTE: si alguien quita `and status = $4` del `UPDATE` dentro
+   * de `updateContractStatusConditioned`, la llamada de abajo dejaría de
+   * lanzar (el `WHERE` coincidiría por `id`/`org_id` solamente) y aplicaría
+   * el contrato a "en_ejecucion" partiendo de un `fromStatus` que ya no era
+   * el vigente -- exactamente la transición fantasma que R6-04 vino a
+   * impedir. Este test falla en ese escenario: se comprobó revirtiendo la
+   * cláusula a mano (ver docs/logs/fix-api-r6b.log).
+   */
+  it('R6-10: UPDATE condicionado con un fromStatus OBSOLETO no aplica ningún cambio -- 0 filas, 409 con el mensaje de carrera, sin transición fantasma ni entrada de audit_log', async () => {
+    const owner = await registerAndLogin(app, 'c051-owner-9@example.com');
+    const org = await createOrgFor(app, owner, 'C051 Org 9', 'c051-org-9');
+    const tenderId = await createTender(app, org.id, 'c051-009');
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+    const create = await app.inject({ method: 'POST', url: `/expediente/tenders/${tenderId}/contract`, headers });
+    const contractId = create.json().id as string;
+    expect(create.json().status).toBe('adjudicado');
+
+    await expect(
+      withTx(app.db, org.id, owner.id, (tx) =>
+        updateContractStatusConditioned(tx, {
+          orgId: org.id,
+          contractId,
+          fromStatus: 'contrato_firmado_declarado', // OBSOLETO: el estado real es "adjudicado".
+          toStatus: 'en_ejecucion',
+        })
+      )
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      message: expect.stringContaining('El estado del contrato cambió mientras se procesaba esta transición'),
+      detail: expect.objectContaining({ fromStatus: 'contrato_firmado_declarado', toStatus: 'en_ejecucion', currentStatus: 'adjudicado' }),
+    });
+
+    // Sin transición fantasma: el estado real sigue siendo "adjudicado" --
+    // el `fromStatus` obsoleto NUNCA se aplicó.
+    const after = await app.inject({ method: 'GET', url: `/expediente/tenders/${tenderId}/contract`, headers });
+    expect(after.json().status).toBe('adjudicado');
+
+    // `updateContractStatusConditioned` no escribe historial ni auditoría
+    // por sí misma (eso lo hace el handler DESPUÉS de que la actualización
+    // tiene éxito) -- al lanzar antes de llegar ahí, ninguna de las dos
+    // queda con un registro de esta llamada fallida.
+    const history = await db.query('select 1 from contract_status_history where contract_id = $1 and to_status = $2', [contractId, 'en_ejecucion']);
+    expect(history.rows).toHaveLength(0);
+    const audit = await db.query("select 1 from audit_log where entity = 'contracts' and entity_id = $1 and action = 'contract.transition'", [contractId]);
+    expect(audit.rows).toHaveLength(0);
   });
 });
