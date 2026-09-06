@@ -1,0 +1,369 @@
+=== fix-api-ronda6.log — agente corrector Sonnet, ronda 6 (R6-01..08) ===
+
+Ámbito: apps/api/src/modules/expediente/**, apps/api/src/lib/expediente/**,
+sus tests, apps/api/package.json (solo pdf-parse), docs/logs/fix-api-ronda6.log,
+columna "Estado reparación" de docs/auditoria-2/api-ronda6.md. NO se tocó
+apps/api/src/modules/auth/** (otro agente), NI apps/worker/** (fuera de
+ámbito explícito), NI packages/db/migrations existentes (solo 0076-0079
+habrían sido territorio propio; no se necesitó ninguna migración nueva
+para R6-01..08).
+
+Metodología por hallazgo: test rojo (o gap de cobertura confirmado) →
+arreglo → test verde → commit individual (`git add <archivos>` +
+`git commit` + `git push origin main`). Evidencia real abajo, ningún
+resultado inventado.
+
+-----------------------------------------------------------------------
+R6-01/R6-02 (ALTA) — pdf-parse -> pdfjs-dist (xref-stream real)
+-----------------------------------------------------------------------
+Commit: 83b806d "fix(api): R6-01/R6-02 sustituye pdf-parse por pdfjs-dist (xref-stream real)"
+
+Repro del rojo original (confirmado ANTES de tocar código, contra el
+código de la ronda 6 sin modificar):
+$ npx vitest run --config apps/api/vitest.config.ts apps/api/test/expediente-documents-and-matrix.test.ts
+  FAIL  "sube un PDF real con texto, lo extrae vía pdf-parse..."
+  AssertionError: expected 'failed' to be 'extracted'
+(reproduce exactamente el hallazgo R6-01/R6-02 de la auditoría, NO era
+flake de iCloud -- causa raíz: pdf-parse@1.1.1 no soporta cross-reference
+stream, formato que pdf-lib genera por defecto.)
+
+Reparación: `pdf-parse`/`@types/pdf-parse` removidos de apps/api/package.json;
+`pdfjs-dist@4.9.155` añadido. `lib/expediente/text-extraction.ts` reescrito
+para usar `pdfjs-dist/legacy/build/pdf.mjs`, extracción PÁGINA POR PÁGINA
+REAL (nuevo campo `pages: {page,text}[]` en `TextExtractionResult`).
+`lib/expediente/contract-extraction.ts` usa esas páginas reales para
+`sourcePage` (ya no aproximación proporcional). `documents.routes.ts`
+reconstruye páginas reales del texto persistido (`splitPersistedTextIntoPages`,
+separador `PAGE_BREAK` = form feed) en vez de forzar `pages:[{page:1,...}]`.
+
+Fixtures nuevos (generados con pdf-lib, verificados por contenido binario
+real -- `/Type /XRef` vs `trailer`):
+  apps/api/test/fixtures/pdf/xref-stream.pdf   (cross-reference STREAM, PDF 1.5+)
+  apps/api/test/fixtures/pdf/xref-classic.pdf  (tabla xref clásica, PDF <=1.4)
+
+Verde tras el arreglo:
+$ npx vitest run --config apps/api/vitest.config.ts apps/api/test/expediente-text-extraction.test.ts apps/api/test/expediente-documents-and-matrix.test.ts apps/api/test/expediente-contract-extraction.test.ts
+  Test Files  3 passed (3)
+  Tests  18 passed (18)
+(incluye: xref-stream real, xref-classic real, PDF multipágina con
+`sourcePage` exacto por página en `expediente-contract-extraction.test.ts`
+"R6-02: sube el contrato firmado como PDF real de varias páginas...").
+
+-----------------------------------------------------------------------
+R6-04 (MEDIA) — condición de carrera en transición de contrato
+-----------------------------------------------------------------------
+Commit: be4a37a "fix(api): R6-04 transición de contrato condicionada al fromStatus (409 en carrera)"
+
+Hallazgo original: NO confirmado en vivo por el auditor (solo lectura de
+código, cortado por 429). Se confirmó en vivo por este agente ANTES del
+arreglo, añadiendo temporalmente el `UPDATE` condicionado a `status =
+$fromStatus` sin la lógica de reparación en `contract.routes.ts`... en
+realidad la reparación y el test se aplicaron juntos (patrón ya usado en
+approved_rates.approve/reject y tool_calls de rondas anteriores, cuya
+solidez bajo PGlite ya estaba probada) -- se confirma el ROJO indirectamente:
+antes del cambio, el `UPDATE` no tenía cláusula `AND status = $4`
+(verificado por lectura + por el propio diff del commit).
+
+Verde:
+$ npx vitest run --config apps/api/vitest.config.ts apps/api/test/expediente-contract-lifecycle.test.ts
+  Test Files  1 passed (1)
+  Tests  6 passed (6)
+(incluye "R6-04: dos transiciones concurrentes del MISMO contrato... --
+exactamente una 200, la otra 409, y el historial nunca queda con dos filas
+para el mismo salto" -- Promise.all real, no mock).
+
+-----------------------------------------------------------------------
+R6-05 (BAJA) — IDOR: campos del contrato no anidados por contract_id
+-----------------------------------------------------------------------
+Commit: b8fa205 "fix(api): R6-05 confirmación/lectura de campos del contrato anidada por contract_id"
+
+GET .../documents/:documentId/fields y POST .../fields/:fieldId/confirm
+ahora exigen que el documento/campo pertenezca al contrato REAL del
+tenderId de la URL (JOIN a contract_documents por contract_id), no solo a
+la organización.
+
+Verde:
+$ npx vitest run --config apps/api/vitest.config.ts apps/api/test/expediente-contract-extraction.test.ts
+  Test Files  1 passed (1)
+  Tests  6 passed (6)
+(incluye "R6-05: un documentId/fieldId de OTRO contrato de la MISMA
+organización no es accesible vía el tenderId 'equivocado'" -- 404 cruzado,
+200 en la ruta correcta).
+
+-----------------------------------------------------------------------
+R6-06 (BAJA) — resto de renumeración de migraciones en comentarios
+-----------------------------------------------------------------------
+Commit: 11aafb2 "fix(api): R6-06 corrige el número de migración en el comentario de step-up.ts"
+
+Corregido: apps/api/src/lib/step-up.ts ("migración 0065" -> 0066).
+NO tocado (decisión explícita, documentada en el commit y en la columna
+"Estado reparación" de docs/auditoria-2/api-ronda6.md): el comentario de
+cabecera duplicado DENTRO de packages/db/migrations/0066_r6_step_up_purposes_contract_inconformidad.sql
+(línea 1: "-- 0065_...sql") -- editar el contenido de una migración YA
+APLICADA cambia su checksum sha256 (packages/db/src/migrate.ts) y rompería
+con un error explícito cualquier base de datos persistente que ya la haya
+corrido con el contenido anterior; además está fuera del ámbito acordado
+para esta ronda (migraciones 0076-0079).
+
+-----------------------------------------------------------------------
+R6-07/R6-08 (BAJA) — gaps de cobertura (feriado cargado / viabilidad "media")
+-----------------------------------------------------------------------
+Commit: aa16d15 "test(api): R6-07/R6-08 cobertura del calendario de feriados y viabilidad 'media'"
+
+Ambos eran gaps de cobertura confirmados por LECTURA de código en la
+auditoría (código ya correcto, nunca ejercitado en vivo). Se añaden los
+dos tests sin tocar el código de producción:
+  - R6-07: feriado real insertado en calendar_holidays (2026-01-08, entre
+    semana) desplaza el plazo de 6 días hábiles de 2026-01-13 a 2026-01-14.
+  - R6-08: 2 agravios/1 prueba -> viability:'media', sin bloquear (201).
+
+Verde:
+$ npx vitest run --config apps/api/vitest.config.ts apps/api/test/expediente-inconformidad.test.ts
+  Test Files  1 passed (1)
+  Tests  7 passed (7)
+
+-----------------------------------------------------------------------
+R6-03 (ALTA) — rendimiento del radar de renovaciones (5,000 contratos)
+-----------------------------------------------------------------------
+Commit: b50e45d "fix(api): R6-03 radar de renovaciones por lotes, paginado y con límite de tiempo"
+
+Repro del rojo original (medido, no solo leído): con el código de
+`renewal-radar.routes.ts` de la ronda 6 sin modificar, un escaneo de 5,000
+contratos/15,000 alertas candidatas hace ~60,000 round-trips secuenciales
+(N+1: 1 SELECT dedupe + 1 SELECT histórico + 2 INSERT por alerta) -- la
+propia auditoría midió 16.6-28s en PGlite EN MEMORIA para ese volumen
+(docs/auditoria-2/api-ronda6.md, R6-03). Se acepta esa medición de la
+auditoría como el "rojo" de referencia (mismo código, mismo motor PGlite);
+no se re-ejecutó el código viejo aquí para no perder tiempo reproduciendo
+un resultado ya once confirmado en vivo por la auditoría con evidencia de
+comandos real (docs/logs/audit-api-ronda6.log, sección "REQ-055 --
+rendimiento con 5000 contratos simulados").
+
+Reparación: consultas de dedupe/histórico en LOTE por página (nunca por
+alerta), INSERT por lote (`unnest`), paginación por cursor (keyset sobre
+contracts.id, `pageSize` configurable) y límite de tiempo por request
+(`maxDurationMs`, `truncated`+`nextCursor` para reanudar). Nuevo endpoint
+`POST /renewals/scan/enqueue` (job `renewal_radar_scan`, sin consumidor en
+apps/worker todavía -- documentado explícitamente, mismo patrón ya
+aceptado para `contract_state_alert`/`renewal_radar_alert`).
+
+Verde + medición real (mismo volumen, mismo PGlite):
+$ npx vitest run --config apps/api/vitest.config.ts apps/api/test/expediente-renewal-radar.test.ts
+  stdout: R6-03 perf: 5000 contratos, primer escaneo=1064ms..1176ms (3 corridas)
+  stdout: R6-03 perf: 5000 contratos, segundo escaneo (dedupe)=317ms..330ms
+  Test Files  1 passed (1)
+  Tests  8 passed (8)
+(evaluatedContracts=5000, alertsCreated=15000, truncated=false,
+nextCursor=null; segundo escaneo alertsCreated=0; test adicional de
+paginación por cursor con maxDurationMs=1 fuerza truncated:true por
+página y confirma que 3 llamadas encadenadas -- 10+10+5 contratos --
+evalúan 25/25 sin perder ni duplicar ninguno; test de
+POST /renewals/scan/enqueue confirma que encolar NO genera alertas).
+
+Mejora medida: de 16.6-28s a ~1.1s (primer escaneo) / ~0.3s (re-escaneo) --
+>15x más rápido, muy por debajo del límite de 2s pedido por esta ronda.
+
+-----------------------------------------------------------------------
+Verificación final por módulo (aislada, sin interferencia de otros agentes)
+-----------------------------------------------------------------------
+$ npx vitest run --config apps/api/vitest.config.ts apps/api/test/expediente-*.test.ts
+  (ver salida completa más abajo, sección "RUN FINAL AISLADO")
+
+$ npm run -w packages/db test
+  Test Files  27 passed (27)
+  Tests  202 passed (202)
+  (sin cambios en packages/db esta ronda -- ninguno de los 8 hallazgos
+  requirió migración nueva; se corrió igualmente para confirmar que nada
+  de este ámbito lo rompió).
+
+-----------------------------------------------------------------------
+Nota sobre el gate final "npm run -w apps/api typecheck lint test" (263/263)
+-----------------------------------------------------------------------
+El árbol de trabajo es COMPARTIDO en tiempo real con otros agentes
+correctores paralelos (mail, auth/Google OIDC, worker, web) que NO están
+en el ámbito de este agente. Durante la ejecución de esta ronda,
+`apps/api/src/lib/mail/**` (directorio NUEVO, NO commiteado por ningún
+agente al momento de escribir este log) quedó en un estado intermedio que
+rompe `tsc --noEmit` (`src/lib/mail/env.ts(43,23): Expected 2-3 arguments,
+but got 1`) y, por extensión, hace fallar el arranque de `createTestApp`
+en TODA la suite de `apps/api` (no solo los módulos de esta ronda) por una
+validación de `MAIL_LINK_SECRET` añadida a `apps/api/src/config.ts` como
+parte de esa integración en curso. Esto es EXTERNO al ámbito de esta ronda
+(expediente/contratos/inconformidad/radar) -- no se modificó ningún
+archivo de `lib/mail` ni `config.ts` por este agente. Se documenta aquí en
+vez de forzar un número verde inflado; la verificación real y aislada de
+los 8 hallazgos de esta ronda (arriba, por módulo) SÍ es 100% real y
+verde.
+
+
+=======================================================================
+=== 2a PARTE — agente corrector Opus (respaldo), verificación del gate
+=== final y hallazgo R6-09 sobre la propia corrección de R6-03
+=======================================================================
+
+Motivo: el agente Sonnet cerró la ronda SIN haber podido correr nunca el
+gate completo `npm run -w apps/api typecheck && lint && test` (lo
+bloqueaba trabajo sin commitear de otros agentes). Este agente lo corrió
+de verdad y encontró que la suite completa NO estaba verde.
+
+-----------------------------------------------------------------------
+1) Estado del árbol de trabajo compartido (confirmado, NO tocado)
+-----------------------------------------------------------------------
+$ npm run -w apps/api typecheck    (árbol de trabajo principal)
+  38 errores, TODOS fuera del ámbito de esta ronda:
+    20  ../../packages/mail/src/index.ts            (TS6142, --jsx no configurado)
+    16  ../../packages/mail/src/templates/registry.ts (TS6142, idem)
+     2  src/modules/auth/routes.ts                  (otro agente)
+  0 errores en apps/api/src/modules/expediente/** ni apps/api/src/lib/expediente/**.
+
+$ npm run -w apps/api test         (árbol de trabajo principal)
+  Test Files  56 failed | 10 passed (66)
+  Tests  228 failed | 60 passed (288)
+  CAUSA ÚNICA, ajena a este ámbito: apps/api/src/modules/auth/routes.ts:157
+  llama a `sendEmailVerification(...)` sin importarla ni definirla (cambio
+  SIN COMMITEAR de otro agente) -> POST /auth/register responde 500
+  "sendEmailVerification is not defined" -> `registerAndLogin` de
+  test/helpers.ts lanza -> arrastra a casi toda la suite.
+  Tests representativos caídos por esa causa (NO se arreglan, ámbito ajeno):
+    test/tenders-and-ingest.test.ts > "lista de convocatorias no filtra entre organizaciones (aislamiento por org_id)"
+    test/tenders-and-ingest.test.ts > "viewer no puede escribir en go/no-go pero sí lee tenders (viewer solo lee)"
+    test/tenders-and-ingest.test.ts > "GET /tenders/sources/freshness responde para cualquier usuario autenticado (sin X-Org-Id)"
+  (mismo error `register failed: 500 ... sendEmailVerification is not defined`
+  en los 56 archivos).
+
+-----------------------------------------------------------------------
+2) Gate real, aislado del trabajo ajeno sin commitear (git worktree a HEAD)
+-----------------------------------------------------------------------
+$ git worktree add <scratchpad>/verify-r6 HEAD   # solo código COMMITEADO
+$ npm install --prefer-offline                    # 818 paquetes
+$ npm run -w apps/api typecheck                   # LIMPIO, 0 errores
+$ npm run -w apps/api lint                        # LIMPIO
+$ npm run -w apps/api test
+  Test Files  1 failed | 65 passed (66)
+  Tests  1 failed | 287 passed (288)
+
+  FAIL test/expediente-renewal-radar.test.ts >
+       "R6-03: 5,000 contratos (15,000 alertas candidatas) escanean en <2s
+        en PGlite -- sin N+1, en lote y paginado por cursor"
+  AssertionError: expected 2935 to be less than 2000
+    at test/expediente-renewal-radar.test.ts:165
+
+  => ROJO REAL de R6-09. El mismo test corrido AISLADO da ~1.1s (como
+  midió Sonnet) y corrido dentro de la suite completa (vitest con 66
+  archivos en paralelo, incluido uno de 21-64s de timing) da ~2.9s. El
+  umbral de reloj de pared convertía la corrección de R6-03 en un test
+  intermitente dependiente de la carga -- exactamente el defecto que R6-01
+  denunciaba en esta misma ronda.
+
+-----------------------------------------------------------------------
+R6-09 (MEDIA) — el test de rendimiento del radar no debe depender del reloj
+-----------------------------------------------------------------------
+Commit: 13ee279 "fix(api): R6-09 el test de rendimiento del radar no depende del reloj de pared"
+
+Reparación (solo en el test, el código de producción de R6-03 NO cambió --
+era correcto): se instrumenta el `DbClient` que la app de prueba comparte
+(`countTxQueries`: envuelve `db.transaction` y cuenta cada `tx.query` del
+handler) y el criterio de aceptación pasa a ser ESTRUCTURAL -- número de
+sentencias SQL O(páginas), no O(alertas). El tiempo se sigue midiendo e
+imprimiendo, pero con un techo de regresión generoso (10s) que separa lo
+batcheado de los 16.6-28s del N+1 original sin ser sensible al paralelismo.
+
+Verde (archivo aislado, con la medición estructural real):
+$ npx vitest run --config apps/api/vitest.config.ts apps/api/test/expediente-renewal-radar.test.ts
+  stdout: R6-03 perf: 5000 contratos, primer escaneo=1319ms, consultas SQL=22
+  stdout: R6-03 perf: 5000 contratos, segundo escaneo (dedupe)=328ms, consultas SQL=13
+  Test Files  1 passed (1)
+  Tests  8 passed (8)
+
+22 consultas para 5,000 contratos / 15,000 alertas (3 páginas de pageSize
+2,000 x ~5 consultas + contexto de tenant + auditoría) frente a los
+~60,000 round-trips del N+1 original: la ausencia de N+1 queda probada por
+conteo, no por cronómetro.
+
+-----------------------------------------------------------------------
+R6-09, 2a iteración: el "techo de regresión" de 10s TAMBIÉN era un flake
+-----------------------------------------------------------------------
+Commit: cef42a8 "fix(api): R6-09 elimina por completo el umbral de reloj del test del radar"
+
+El primer commit de R6-09 (13ee279) dejó, además del criterio estructural,
+un techo generoso de 10s. Se corrió el gate completo dos veces y en la 2a
+pasada volvió a fallar:
+
+$ npm run -w apps/api test    (worktree a HEAD, 2a pasada)
+  stdout: R6-03 perf: 5000 contratos, primer escaneo=9966ms, consultas SQL=17
+  Test Files  1 failed | 65 passed (66)
+  Tests  1 failed | 287 passed (288)
+
+Es decir: el MISMO escaneo midió 1,286ms aislado, 2,935ms bajo la suite
+completa y 9,966ms con la máquina compartida por varios agentes -- un
+rango de 8x -- mientras que el conteo de consultas SQL se mantuvo entre 17
+y 22 en TODAS las corridas. Se elimina cualquier assert de milisegundos;
+el tiempo queda solo como dato impreso. El timeout del test sube de 20s a
+180s (tope para que la carga no lo mate, no una medida de rendimiento).
+
+-----------------------------------------------------------------------
+GATE FINAL — `npm run -w apps/api typecheck && lint && test`, x2
+-----------------------------------------------------------------------
+
+(A) Worktree aislado a HEAD (solo código commiteado, sin trabajo en curso
+    de otros agentes) -- dos pasadas consecutivas:
+
+PASADA 1
+$ npm run -w apps/api typecheck
+  > tsc --noEmit                       (limpio, sin salida)
+$ npm run -w apps/api lint
+  > eslint src test                    (limpio, sin salida)
+$ npm run -w apps/api test
+  stdout: R6-03 perf: 5000 contratos, primer escaneo=1310ms, consultas SQL=22
+  stdout: R6-03 perf: 5000 contratos, segundo escaneo (dedupe)=342ms, consultas SQL=13
+  Test Files  66 passed (66)
+  Tests  288 passed (288)
+  Duration  85.47s
+
+PASADA 2
+$ npm run -w apps/api typecheck
+  > tsc --noEmit                       (limpio)
+$ npm run -w apps/api lint
+  > eslint src test                    (limpio)
+$ npm run -w apps/api test
+  stdout: R6-03 perf: 5000 contratos, primer escaneo=1364ms, consultas SQL=22
+  stdout: R6-03 perf: 5000 contratos, segundo escaneo (dedupe)=374ms, consultas SQL=13
+  Test Files  66 passed (66)
+  Tests  288 passed (288)
+  Duration  93.43s
+
+(B) Árbol de trabajo REAL (compartido), una vez que el otro agente
+    completó y commiteó la integración de correo/auth que bloqueaba el
+    gate (ver sección 1 de esta 2a parte) -- dos pasadas consecutivas.
+    El total sube de 288 a 322/326 porque incluye los tests nuevos de
+    esos otros agentes, ajenos a esta ronda:
+
+PASADA 1
+$ npm run -w apps/api lint
+  > eslint src test                    (limpio)
+$ npm run -w apps/api test
+  stdout: R6-03 perf: 5000 contratos, primer escaneo=1648ms, consultas SQL=22
+  stdout: R6-03 perf: 5000 contratos, segundo escaneo (dedupe)=378ms, consultas SQL=13
+  Test Files  70 passed (70)
+  Tests  322 passed (322)
+  Duration  100.55s
+
+PASADA 2
+$ npm run -w apps/api typecheck
+  > tsc --noEmit                       (limpio)
+$ npm run -w apps/api lint
+  > eslint src test                    (limpio)
+$ npm run -w apps/api test
+  stdout: R6-03 perf: 5000 contratos, primer escaneo=1457ms, consultas SQL=22
+  stdout: R6-03 perf: 5000 contratos, segundo escaneo (dedupe)=387ms, consultas SQL=13
+  Test Files  71 passed (71)
+  Tests  326 passed (326)
+  Duration  124.80s
+
+Sin fallos de auth/mail que reportar en el gate final: el bloqueo descrito
+en la sección 1 (auth/routes.ts llamando a `sendEmailVerification` sin
+definirla) desapareció cuando ese agente terminó y commiteó su trabajo.
+Ningún archivo de `apps/api/src/modules/auth/**`, `apps/api/src/lib/mail/**`,
+`app.ts`, `config.ts`, `types.ts` ni `test/helpers.ts` fue modificado por
+este agente.
+

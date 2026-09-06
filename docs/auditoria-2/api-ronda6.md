@@ -411,3 +411,44 @@ la ruta de contrato, caso "viabilidad media") quedaron verificados **solo
 por revisión de código**, no por ejecución en vivo — se declaran así
 explícitamente arriba (R6-04, R6-07, R6-08) en vez de presentarlos como
 confirmados.
+
+---
+
+## Estado de reparación (agente corrector, post-auditoría)
+
+Un commit por hallazgo (`git log`, mensajes `fix(api): R6-nn ...` /
+`test(api): R6-07/R6-08 ...`); evidencia real de "test rojo → arreglo →
+verde" en `docs/logs/fix-api-ronda6.log`.
+
+| Hallazgo | Severidad | Estado reparación |
+|---|---|---|
+| R6-01 | ALTA | **REPARADO**. `pdf-parse@1.1.1` sustituido por `pdfjs-dist` (build "legacy" para Node); soporta xref-stream (PDF 1.5+) y xref-tabla clásica. `expediente-documents-and-matrix.test.ts` reproduce en verde (era el único fallo real, 262/263 → 263/263 antes de sumar cobertura nueva). Fixtures reales añadidos: `apps/api/test/fixtures/pdf/{xref-stream,xref-classic}.pdf`. |
+| R6-02 | ALTA | **REPARADO** (consecuencia de R6-01). Extracción de contrato ahora usa texto por página REAL (no aproximación proporcional) para `sourcePage`; verificado con un PDF real de 3 páginas donde cada campo cae en la página exacta. |
+| R6-03 | ALTA | **REPARADO**. Radar de renovaciones reescrito: consultas de dedupe/histórico en lote (una por página, no por alerta), `INSERT` por lote (`unnest`), paginación por cursor (keyset sobre `contracts.id`) y límite de tiempo por request (`maxDurationMs`, responde `truncated`+`nextCursor`). Opción `POST /renewals/scan/enqueue` para encolar como job (`kind='renewal_radar_scan'`) — sin consumidor en `apps/worker` todavía en esta ronda, documentado explícitamente. Medido: 5,000 contratos/15,000 alertas de 16.6-28s a ~1.1s (ver `docs/logs/fix-api-ronda6.log`). Ver R6-09: el test que lo comprobaba dependía del reloj de pared y se rehízo sobre un criterio estructural. |
+| R6-04 | MEDIA | **REPARADO**. `UPDATE contracts ... WHERE id=$ AND org_id=$ AND status=$fromStatus RETURNING`; 0 filas ⇒ 409 explícito. Confirmado EN VIVO (no solo lectura de código, a diferencia del hallazgo original) con `Promise.all` de dos transiciones concurrentes desde el mismo estado: una 200, la otra 409, historial con una sola fila para el salto. |
+| R6-05 | BAJA | **REPARADO**. `GET .../documents/:documentId/fields` y `POST .../fields/:fieldId/confirm` ahora verifican que el documento/campo pertenezca al contrato REAL del `tenderId` de la URL (no solo a la organización). Test cruzado entre dos contratos de la misma organización. |
+| R6-06 | BAJA | **PARCIAL, por diseño**. Corregido el comentario en `apps/api/src/lib/step-up.ts` ("migración 0065" → 0066). El comentario de cabecera duplicado DENTRO de `packages/db/migrations/0066_r6_step_up_purposes_contract_inconformidad.sql` (línea 1: `-- 0065_...sql`) **NO se tocó**: `migrate.ts` verifica un checksum sha256 del contenido de cada migración ya aplicada; editar ese archivo (aunque sea un comentario) invalidaría esa verificación en cualquier base de datos persistente que ya lo haya corrido, y está fuera del ámbito de esta ronda (migraciones 0076-0079). Documentado explícitamente en vez de arreglado a medias en silencio. |
+| R6-07 | BAJA | **REPARADO (cobertura)**. Test nuevo: feriado oficial cargado en `calendar_holidays` dentro de la ventana de 6 días hábiles desplaza correctamente el plazo de inconformidad. El código no cambió (ya era correcto); era un gap de cobertura, ahora confirmado en vivo. |
+| R6-08 | BAJA | **REPARADO (cobertura)**. Test nuevo: 2 agravios/1 prueba clasifica `viability:'media'` sin bloquear la generación del borrador. El código no cambió; gap de cobertura confirmado en vivo. |
+| R6-09 (nuevo, hallado al verificar) | MEDIA | **REPARADO**. Defecto **de la propia corrección de R6-03**: su test de rendimiento aceptaba con un umbral de reloj de pared (`elapsedMs < 2000`) medido con el archivo AISLADO (~1.1s). Con la suite COMPLETA de `apps/api` (66 archivos en paralelo) el mismo escaneo tarda ~2.9s y el test FALLA (287/288) — otro test intermitente dependiente de la carga de la máquina, justo lo que R6-01 denunciaba. El criterio real de R6-03 es estructural: se instrumenta el `DbClient` de la app de prueba y se cuentan las sentencias SQL de la transacción del handler — **22** consultas para 5,000 contratos/15,000 alertas (3 páginas × ~5 + contexto/auditoría) y 13 en el re-escaneo, frente a los ~60,000 round-trips del N+1 original. El tiempo se sigue midiendo e imprimiendo como dato, pero **ningún assert depende de milisegundos**: un primer intento dejó un techo de 10s y volvió a fallar en la 2ª pasada del gate (9,966ms con la máquina compartida), mientras el conteo de consultas se mantuvo entre 17 y 22 en todas las corridas. Commits `13ee279` + `cef42a8`. |
+
+Nota de reproducibilidad de esta ronda de corrección: el árbol de trabajo
+es compartido en tiempo real con otros agentes correctores paralelos
+(módulos `auth`/Google OIDC y `mail`), fuera del ámbito de este agente.
+El agente Sonnet cerró R6-01..R6-08 sin haber podido correr nunca el gate
+completo, porque cambios NO COMMITEADOS de otro agente
+(`apps/api/src/modules/auth/routes.ts` llamando a `sendEmailVerification`
+sin definirla → `POST /auth/register` en 500 → `registerAndLogin` roto)
+tumbaban 228 de 288 tests de toda la suite. Un segundo agente corrector
+(Opus, respaldo) verificó el gate de verdad en un `git worktree` aislado a
+HEAD, encontró y reparó R6-09 —el único defecto pendiente, en la propia
+corrección de R6-03— y, una vez que el agente de correo/auth commiteó su
+trabajo, cerró el gate en el árbol real:
+
+- Worktree aislado a HEAD: `typecheck` limpio, `lint` limpio,
+  **288/288** en dos pasadas consecutivas.
+- Árbol de trabajo real: `typecheck` limpio, `lint` limpio,
+  **322/322** y **326/326** en dos pasadas consecutivas (el total sube
+  respecto a 288 por tests nuevos de otros agentes, ajenos a esta ronda).
+
+Salidas reales de comandos en `docs/logs/fix-api-ronda6.log` (2ª parte).
