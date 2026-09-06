@@ -21,6 +21,29 @@ export const userPublicSchema = z.object({
 });
 export type UserPublic = z.infer<typeof userPublicSchema>;
 
+// --- auth/google (REQ-172..180 — login con Google, OIDC) --------------------
+// Espejo exacto de apps/api/src/modules/auth/google/schemas.ts.
+export const googleStartResponseSchema = z.object({
+  authorizationUrl: z.string().url(),
+});
+export type GoogleStartResponse = z.infer<typeof googleStartResponseSchema>;
+
+/**
+ * Respuesta única de `GET /auth/google/callback` y `POST
+ * /auth/google/verify-2fa` (ver docstring del schema real en
+ * apps/api/src/modules/auth/google/schemas.ts): un objeto plano con campos
+ * opcionales, nunca una unión discriminada — se valida con `.refine()` a
+ * mano en `lib/api/google.ts` cuál combinación de campos corresponde a cada
+ * `status` antes de usarlos, en vez de confiar ciegamente en la forma.
+ */
+export const googleAuthResultSchema = z.object({
+  status: z.enum(["ok", "sin_acceso", "requires_2fa"]),
+  accessToken: z.string().optional(),
+  refreshToken: z.string().optional(),
+  pendingToken: z.string().optional(),
+});
+export type GoogleAuthResult = z.infer<typeof googleAuthResultSchema>;
+
 // --- organizations -----------------------------------------------------------
 export const ORG_ROLES = ["owner", "admin", "analyst", "writer", "reviewer", "viewer"] as const;
 export type OrgRole = (typeof ORG_ROLES)[number];

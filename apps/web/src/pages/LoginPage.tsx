@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { ErrorState } from "@/components/ui/error-state";
+import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
 import { useAuth, describeApiError } from "@/hooks/useAuth";
 import { toast } from "@/components/ui/sonner";
 import "./login.css";
@@ -138,6 +139,21 @@ export default function LoginPage() {
               className="mt-9 rounded-2xl ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               <PasswordLoginForm />
+
+              {/* REQ-172: "Continuar con Google" JUNTO al método de
+                  email+contraseña de arriba, nunca reemplazándolo — mismo
+                  <LoginPage/>, sin pestañas ni pantalla separada (no existe
+                  todavía una pantalla de registro dedicada por
+                  email+contraseña, ver README "queda para ronda 8b": el
+                  registro nuevo vía Google ya funciona hoy, crea la cuenta
+                  automáticamente en el primer login). */}
+              <div className="my-6 flex items-center gap-3" role="presentation">
+                <span aria-hidden="true" className="h-px flex-1 bg-border" />
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">o</span>
+                <span aria-hidden="true" className="h-px flex-1 bg-border" />
+              </div>
+
+              <GoogleAuthButton />
             </div>
           </div>
         </div>

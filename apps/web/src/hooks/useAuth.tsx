@@ -13,6 +13,7 @@ import {
   refreshSessionOnce,
   setTokens,
   writeStoredOrgId,
+  type AuthTokens,
   type LoginPayload,
   type MyOrg,
   type UserPublic,
@@ -30,6 +31,17 @@ export interface AuthContextValue {
   /** Membresía (rol incluido) de la organización activa, si existe. */
   currentMembership: MyOrg | null;
   login: (payload: LoginPayload) => Promise<void>;
+  /**
+   * Ronda 8 (REQ-172..176): completa la sesión a partir de un par de tokens
+   * YA emitidos por `apps/api` fuera del flujo de contraseña — hoy solo
+   * `GoogleCallbackPage`/`GoogleTwoFactorPage` lo usan (`status: "ok"` |
+   * `"sin_acceso"` de `GET /auth/google/callback` o `POST
+   * /auth/google/verify-2fa`, REQ-175: mismo esquema de tokens que
+   * `POST /auth/login`). Comparte toda la hidratación de usuario/
+   * membresías con `login()` — la única diferencia es que aquí los tokens
+   * ya existen, no hay que pedirlos con `apiLogin`.
+   */
+  loginWithTokens: (tokens: AuthTokens) => Promise<void>;
   logout: () => Promise<void>;
   switchOrg: (orgId: string) => void;
   refreshMemberships: () => Promise<void>;
@@ -88,8 +100,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const login = useCallback(async (payload: LoginPayload) => {
-    const tokens = await apiLogin(payload);
+  /**
+   * Núcleo compartido de `login()`/`loginWithTokens()`: persiste el par de
+   * tokens y solo entonces hidrata usuario/membresías reales — nunca se
+   * finge una sesión autenticada sin esos datos (si `/me`/`GET
+   * /organizations` fallan justo después, se revierte a sin sesión en vez
+   * de dejar un estado a medias).
+   */
+  const completeSession = useCallback(async (tokens: AuthTokens) => {
     setTokens(tokens);
     try {
       const { user: hydratedUser, memberships: hydratedMemberships } = await hydrateUserAndMemberships();
@@ -98,14 +116,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setCurrentOrgId(pickInitialOrgId(hydratedMemberships));
       setStatus("authenticated");
     } catch (err) {
-      // Login fue exitoso pero /me o /organizations fallaron (p. ej. red
-      // caída justo después): no se finge una sesión autenticada sin datos
-      // reales de usuario/organizaciones.
       clearTokens();
       setStatus("unauthenticated");
       throw err;
     }
   }, []);
+
+  const login = useCallback(
+    async (payload: LoginPayload) => {
+      const tokens = await apiLogin(payload);
+      await completeSession(tokens);
+    },
+    [completeSession],
+  );
+
+  const loginWithTokens = useCallback(
+    async (tokens: AuthTokens) => {
+      await completeSession(tokens);
+    },
+    [completeSession],
+  );
 
   const logout = useCallback(async () => {
     const { refreshToken } = getTokens();
@@ -162,8 +192,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<AuthContextValue>(
-    () => ({ status, user, memberships, currentOrgId, currentMembership, login, logout, switchOrg, refreshMemberships }),
-    [status, user, memberships, currentOrgId, currentMembership, login, logout, switchOrg, refreshMemberships],
+    () => ({ status, user, memberships, currentOrgId, currentMembership, login, loginWithTokens, logout, switchOrg, refreshMemberships }),
+    [status, user, memberships, currentOrgId, currentMembership, login, loginWithTokens, logout, switchOrg, refreshMemberships],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

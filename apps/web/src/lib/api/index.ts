@@ -7,6 +7,7 @@ export * from "./session";
 export * from "./client";
 export * from "./schemas";
 export * from "./auth";
+export * from "./google";
 export * from "./organizations";
 export * from "./company";
 export * from "./tenders";

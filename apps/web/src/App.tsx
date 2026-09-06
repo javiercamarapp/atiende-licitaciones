@@ -13,10 +13,12 @@ import { queryClient } from "@/lib/queryClient";
 
 const LandingPage = lazy(() => import("@/pages/LandingPage"));
 const LoginPage = lazy(() => import("@/pages/LoginPage"));
+const GoogleCallbackPage = lazy(() => import("@/pages/auth/GoogleCallbackPage"));
 const PrivacyNoticePage = lazy(() => import("@/pages/PrivacyNoticePage"));
 const TermsPage = lazy(() => import("@/pages/TermsPage"));
 const DemoPage = lazy(() => import("@/pages/DemoPage"));
 const OnboardingPage = lazy(() => import("@/pages/onboarding/OnboardingPage"));
+const SinAccesoPage = lazy(() => import("@/pages/SinAccesoPage"));
 const NotFoundPage = lazy(() => import("@/pages/NotFoundPage"));
 const PanelPage = lazy(() => import("@/pages/PanelPage"));
 const PerfilCapacidadesPage = lazy(() => import("@/pages/empresa/PerfilCapacidadesPage"));
@@ -108,6 +110,11 @@ export default function App() {
                       (mismo patrón que LoginPage.tsx). */}
                   <Route path="/" element={<LandingPage />} />
                   <Route path="/login" element={<LoginPage />} />
+                  {/* REQ-172..180: pública a propósito, como /login — un login
+                      con Google en curso, por definición, todavía no tiene
+                      sesión. `GOOGLE_REDIRECT_URI` (apps/api) apunta AQUÍ,
+                      nunca a apps/api directo — ver GoogleCallbackPage.tsx. */}
+                  <Route path="/auth/google/callback" element={<GoogleCallbackPage />} />
                   {/* REQ-119/131: accesible SIN sesión, como cualquier aviso de
                       privacidad real (debe poder consultarse antes de crear
                       una cuenta). */}
@@ -129,6 +136,12 @@ export default function App() {
                         de un panel que aún no tiene datos que mostrar). Ver
                         RequireAuth.tsx para la redirección automática. */}
                     <Route path="/onboarding" element={<OnboardingPage />} />
+                    {/* D-09/ronda 8: compuerta `sin_acceso` -- ver
+                        SinAccesoPage.tsx y RequireOrganization en
+                        components/auth/RequireAuth.tsx. Ruta hermana de
+                        /onboarding, fuera de <AppShell/> por el mismo
+                        motivo (nada real de negocio que mostrar todavía). */}
+                    <Route path="/sin-acceso" element={<SinAccesoPage />} />
                     <Route element={<RequireOrganization />}>
                       <Route element={<AppShell />}>
                         <Route path="/panel" element={<PanelPage />} />
