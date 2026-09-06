@@ -189,6 +189,59 @@ un `npm audit --workspace apps/web` en un clon *verdaderamente* aislado
 lockfile compartido — ambos números son ciertos, pero miden árboles
 distintos.
 
+**Matiz (W-20): no "ninguna" dependencia propia de `apps/web` toca la cadena
+vulnerable, sino "ninguna en runtime".** El párrafo anterior, tal como quedó
+tras la corrección de W-04, decía que ninguna aparición vulnerable "cuelga
+de la `vitest@4.1.11` que declara `apps/web/package.json`" — dando a
+entender que el origen es exclusivamente de otros workspaces. Eso es
+incompleto: `apps/web` declara `vitest-axe` como devDependency propia (no de
+otro workspace), y su peer-dependency (`"vitest": ">=0.16.0"`, sin tope
+superior) sí resuelve, en el árbol de npm compartido del monorepo, hacia el
+`vitest@2.1.9` vulnerable en vez de hacia la `vitest@4.1.11` propia de
+`apps/web`:
+
+```
+$ npm ls vitest
+atiende-licitaciones@0.1.0 /ruta/al/repo
+└─┬ @atiende/web@0.1.0 -> ./apps/web
+  ├─┬ @vitest/coverage-v8@4.1.11
+  │ └── vitest@4.1.11 deduped
+  ├─┬ vitest-axe@0.1.0
+  │ └── vitest@2.1.9
+  └── vitest@4.1.11
+```
+
+Esto **no cambia el veredicto de fondo de W-04**: la resolución de un
+peer-dependency en el árbol de `npm` no significa que el código se ejecute.
+`vitest-axe` nunca hace `require("vitest")`/`import ... from "vitest"` en su
+paquete publicado — confirmado por grep, sin ningún resultado:
+
+```
+$ grep -rn "require(.vitest.)\|from \"vitest\"\|from 'vitest'" node_modules/vitest-axe/dist
+(sin resultados)
+```
+
+Sus tipos (`vitest-axe/matchers`) y sus matchers en sí son agnósticos de la
+instancia de Vitest que los registre (por eso `src/test/setup.ts` los
+registra a mano contra el `expect` correcto, ver más arriba) — el
+`vitest@2.1.9` que resuelve el peer nunca llega a ejecutarse en los tests
+de `apps/web` ni, por supuesto, en su bundle de producción. La corrección
+real seguiría siendo la misma que ya documentaba W-04 (que los otros
+workspaces suban de `vitest@^2`), no algo que `apps/web` pueda resolver
+unilateralmente:
+
+**Por qué no se añadió `overrides`/`resolutions`.** `npm` solo aplica el
+campo `overrides` cuando está declarado en el `package.json` de la **raíz**
+del workspace tree — un `overrides` dentro de `apps/web/package.json` no
+tiene ningún efecto sobre cómo `npm` resuelve `vitest-axe` en el árbol
+compartido, así que la única forma real de forzar esa resolución sería
+editar el `package.json` raíz (y regenerar el lockfile raíz), lo que
+recalcularía las dependencias de **todos** los workspaces (`apps/api`,
+`packages/*`) — fuera del ámbito exclusivo de esta corrección (`apps/web`) y
+con riesgo real de interferir con el trabajo concurrente de otros agentes
+sobre esos mismos paquetes. Se documenta el matiz aquí en vez de forzar un
+cambio de alcance más amplio que el mandato de esta ronda.
+
 ## Control de acceso (W-12)
 
 `apps/web` **no tiene ningún guard de ruta**: `/panel` y todas las rutas de
