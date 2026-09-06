@@ -1,0 +1,216 @@
+=== W-07: heading-order — reproducción real del fallo (CardTitle fijo a <h3>), ANTES de la corrección ===
+
+[2mRunning [22m2[2m tests using [22m2[2m workers[22m
+
+  [31m✘[39m  [2m2 [22m[31m[chromium] › e2e/heading-order.spec.ts:12:5 › Orden de encabezados (W-07) › /convocatorias/fuentes-frescura no tiene salto de nivel de encabezado[39m[2m (503ms)[22m
+  [31m✘[39m  [2m1 [22m[31m[chromium] › e2e/heading-order.spec.ts:12:5 › Orden de encabezados (W-07) › /entrega/paquete-descargable no tiene salto de nivel de encabezado[39m[2m (505ms)[22m
+
+
+[31m  1) [chromium] › e2e/heading-order.spec.ts:12:5 › Orden de encabezados (W-07) › /convocatorias/fuentes-frescura no tiene salto de nivel de encabezado [39m
+
+    Error: [
+      {
+        "id": "heading-order",
+        "impact": "moderate",
+        "tags": [
+          "cat.semantics",
+          "best-practice"
+        ],
+        "description": "Ensure the order of headings is semantically correct",
+        "help": "Heading levels should only increase by one",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/heading-order?application=playwright",
+        "nodes": [
+          {
+            "any": [
+              {
+                "id": "heading-order",
+                "data": null,
+                "relatedNodes": [],
+                "impact": "moderate",
+                "message": "Heading order invalid"
+              }
+            ],
+            "all": [],
+            "none": [],
+            "impact": "moderate",
+            "html": "<h3 class=\"font-display font-semibold tracking-tight text-base\">Estados posibles</h3>",
+            "target": [
+              "h3"
+            ],
+            "failureSummary": "Fix any of the following:\n  Heading order invalid"
+          }
+        ]
+      }
+    ]
+
+    [2mexpect([22m[31mreceived[39m[2m).[22mtoEqual[2m([22m[32mexpected[39m[2m) // deep equality[22m
+
+    [32m- Expected  -  1[39m
+    [31m+ Received  + 35[39m
+
+    [32m- Array [][39m
+    [31m+ Array [[39m
+    [31m+   Object {[39m
+    [31m+     "description": "Ensure the order of headings is semantically correct",[39m
+    [31m+     "help": "Heading levels should only increase by one",[39m
+    [31m+     "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/heading-order?application=playwright",[39m
+    [31m+     "id": "heading-order",[39m
+    [31m+     "impact": "moderate",[39m
+    [31m+     "nodes": Array [[39m
+    [31m+       Object {[39m
+    [31m+         "all": Array [],[39m
+    [31m+         "any": Array [[39m
+    [31m+           Object {[39m
+    [31m+             "data": null,[39m
+    [31m+             "id": "heading-order",[39m
+    [31m+             "impact": "moderate",[39m
+    [31m+             "message": "Heading order invalid",[39m
+    [31m+             "relatedNodes": Array [],[39m
+    [31m+           },[39m
+    [31m+         ],[39m
+    [31m+         "failureSummary": "Fix any of the following:[39m
+    [31m+   Heading order invalid",[39m
+    [31m+         "html": "<h3 class=\"font-display font-semibold tracking-tight text-base\">Estados posibles</h3>",[39m
+    [31m+         "impact": "moderate",[39m
+    [31m+         "none": Array [],[39m
+    [31m+         "target": Array [[39m
+    [31m+           "h3",[39m
+    [31m+         ],[39m
+    [31m+       },[39m
+    [31m+     ],[39m
+    [31m+     "tags": Array [[39m
+    [31m+       "cat.semantics",[39m
+    [31m+       "best-practice",[39m
+    [31m+     ],[39m
+    [31m+   },[39m
+    [31m+ ][39m
+
+    [0m [90m 13 |[39m       [36mawait[39m page[33m.[39mgoto(ruta)[33m;[39m
+     [90m 14 |[39m       [36mconst[39m results [33m=[39m [36mawait[39m [36mnew[39m [33mAxeBuilder[39m({ page })[33m.[39mwithRules([[32m"heading-order"[39m])[33m.[39manalyze()[33m;[39m
+    [31m[1m>[22m[39m[90m 15 |[39m       expect(results[33m.[39mviolations[33m,[39m [33mJSON[39m[33m.[39mstringify(results[33m.[39mviolations[33m,[39m [36mnull[39m[33m,[39m [35m2[39m))[33m.[39mtoEqual([])[33m;[39m
+     [90m    |[39m                                                                               [31m[1m^[22m[39m
+     [90m 16 |[39m     })[33m;[39m
+     [90m 17 |[39m   }
+     [90m 18 |[39m })[33m;[39m[0m
+    [2m    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/e2e/heading-order.spec.ts:15:79[22m
+
+[2m    Error Context: test-results/heading-order-Orden-de-enc-6c7e4-alto-de-nivel-de-encabezado-chromium/error-context.md[22m
+
+[2m    attachment #2: [1mtrace[2m (application/zip) [2m─────────────────────────────────────────────────────────[2m[22m
+[2m    test-results/heading-order-Orden-de-enc-6c7e4-alto-de-nivel-de-encabezado-chromium/trace.zip[22m
+[2m    Usage:[22m
+
+[2m        npx playwright show-trace test-results/heading-order-Orden-de-enc-6c7e4-alto-de-nivel-de-encabezado-chromium/trace.zip[22m
+
+[2m    [2m────────────────────────────────────────────────────────────────────────────────────────────────[2m[22m
+
+[31m  2) [chromium] › e2e/heading-order.spec.ts:12:5 › Orden de encabezados (W-07) › /entrega/paquete-descargable no tiene salto de nivel de encabezado [39m
+
+    Error: [
+      {
+        "id": "heading-order",
+        "impact": "moderate",
+        "tags": [
+          "cat.semantics",
+          "best-practice"
+        ],
+        "description": "Ensure the order of headings is semantically correct",
+        "help": "Heading levels should only increase by one",
+        "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/heading-order?application=playwright",
+        "nodes": [
+          {
+            "any": [
+              {
+                "id": "heading-order",
+                "data": null,
+                "relatedNodes": [],
+                "impact": "moderate",
+                "message": "Heading order invalid"
+              }
+            ],
+            "all": [],
+            "none": [],
+            "impact": "moderate",
+            "html": "<h3 class=\"font-display font-semibold tracking-tight text-base\">La presentación y firma las realiza el usuario</h3>",
+            "target": [
+              "h3"
+            ],
+            "failureSummary": "Fix any of the following:\n  Heading order invalid"
+          }
+        ]
+      }
+    ]
+
+    [2mexpect([22m[31mreceived[39m[2m).[22mtoEqual[2m([22m[32mexpected[39m[2m) // deep equality[22m
+
+    [32m- Expected  -  1[39m
+    [31m+ Received  + 35[39m
+
+    [32m- Array [][39m
+    [31m+ Array [[39m
+    [31m+   Object {[39m
+    [31m+     "description": "Ensure the order of headings is semantically correct",[39m
+    [31m+     "help": "Heading levels should only increase by one",[39m
+    [31m+     "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/heading-order?application=playwright",[39m
+    [31m+     "id": "heading-order",[39m
+    [31m+     "impact": "moderate",[39m
+    [31m+     "nodes": Array [[39m
+    [31m+       Object {[39m
+    [31m+         "all": Array [],[39m
+    [31m+         "any": Array [[39m
+    [31m+           Object {[39m
+    [31m+             "data": null,[39m
+    [31m+             "id": "heading-order",[39m
+    [31m+             "impact": "moderate",[39m
+    [31m+             "message": "Heading order invalid",[39m
+    [31m+             "relatedNodes": Array [],[39m
+    [31m+           },[39m
+    [31m+         ],[39m
+    [31m+         "failureSummary": "Fix any of the following:[39m
+    [31m+   Heading order invalid",[39m
+    [31m+         "html": "<h3 class=\"font-display font-semibold tracking-tight text-base\">La presentación y firma las realiza el usuario</h3>",[39m
+    [31m+         "impact": "moderate",[39m
+    [31m+         "none": Array [],[39m
+    [31m+         "target": Array [[39m
+    [31m+           "h3",[39m
+    [31m+         ],[39m
+    [31m+       },[39m
+    [31m+     ],[39m
+    [31m+     "tags": Array [[39m
+    [31m+       "cat.semantics",[39m
+    [31m+       "best-practice",[39m
+    [31m+     ],[39m
+    [31m+   },[39m
+    [31m+ ][39m
+
+    [0m [90m 13 |[39m       [36mawait[39m page[33m.[39mgoto(ruta)[33m;[39m
+     [90m 14 |[39m       [36mconst[39m results [33m=[39m [36mawait[39m [36mnew[39m [33mAxeBuilder[39m({ page })[33m.[39mwithRules([[32m"heading-order"[39m])[33m.[39manalyze()[33m;[39m
+    [31m[1m>[22m[39m[90m 15 |[39m       expect(results[33m.[39mviolations[33m,[39m [33mJSON[39m[33m.[39mstringify(results[33m.[39mviolations[33m,[39m [36mnull[39m[33m,[39m [35m2[39m))[33m.[39mtoEqual([])[33m;[39m
+     [90m    |[39m                                                                               [31m[1m^[22m[39m
+     [90m 16 |[39m     })[33m;[39m
+     [90m 17 |[39m   }
+     [90m 18 |[39m })[33m;[39m[0m
+    [2m    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/e2e/heading-order.spec.ts:15:79[22m
+
+[2m    Error Context: test-results/heading-order-Orden-de-enc-6099b-alto-de-nivel-de-encabezado-chromium/error-context.md[22m
+
+[2m    attachment #2: [1mtrace[2m (application/zip) [2m─────────────────────────────────────────────────────────[2m[22m
+[2m    test-results/heading-order-Orden-de-enc-6099b-alto-de-nivel-de-encabezado-chromium/trace.zip[22m
+[2m    Usage:[22m
+
+[2m        npx playwright show-trace test-results/heading-order-Orden-de-enc-6099b-alto-de-nivel-de-encabezado-chromium/trace.zip[22m
+
+[2m    [2m────────────────────────────────────────────────────────────────────────────────────────────────[2m[22m
+
+[31m  2 failed[39m
+[31m    [chromium] › e2e/heading-order.spec.ts:12:5 › Orden de encabezados (W-07) › /convocatorias/fuentes-frescura no tiene salto de nivel de encabezado [39m
+[31m    [chromium] › e2e/heading-order.spec.ts:12:5 › Orden de encabezados (W-07) › /entrega/paquete-descargable no tiene salto de nivel de encabezado [39m
+
+=== W-07: tras la corrección (CardTitle acepta `level`, por defecto 2) ===
+
+[2mRunning [22m2[2m tests using [22m2[2m workers[22m
+
+  [32m✓[39m  [2m2 [22m[chromium] › e2e/heading-order.spec.ts:12:5 › Orden de encabezados (W-07) › /convocatorias/fuentes-frescura no tiene salto de nivel de encabezado[2m (616ms)[22m
+  [32m✓[39m  [2m1 [22m[chromium] › e2e/heading-order.spec.ts:12:5 › Orden de encabezados (W-07) › /entrega/paquete-descargable no tiene salto de nivel de encabezado[2m (620ms)[22m
+
+[32m  2 passed[39m[2m (1.2s)[22m

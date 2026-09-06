@@ -15,11 +15,28 @@ const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDiv
 );
 CardHeader.displayName = "CardHeader";
 
-const CardTitle = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLHeadingElement>>(
-  ({ className, ...props }, ref) => (
-    // eslint-disable-next-line jsx-a11y/heading-has-content -- primitivo genérico: el contenido llega vía `children` en {...props}
-    <h3 ref={ref} className={cn("font-display text-xl font-semibold leading-none tracking-tight", className)} {...props} />
-  ),
+export interface CardTitleProps extends React.HTMLAttributes<HTMLHeadingElement> {
+  /**
+   * Nivel semántico del encabezado (h1-h6). Antes estaba fijo a `<h3>` sin
+   * forma de configurarlo: cualquier página con `SectionHeader` (h1) +
+   * `Card` saltaba de h1 a h3 sin pasar por h2 (violación axe "moderate"
+   * `heading-order`, W-07). Por defecto es 2 porque el caso normal es un
+   * `Card` dentro de una página que ya tiene su propio `<h1>`.
+   */
+  level?: 1 | 2 | 3 | 4 | 5 | 6;
+}
+
+const CardTitle = React.forwardRef<HTMLParagraphElement, CardTitleProps>(
+  ({ className, level = 2, ...props }, ref) => {
+    const Heading = `h${level}` as const;
+    return (
+      <Heading
+        ref={ref as React.Ref<HTMLHeadingElement>}
+        className={cn("font-display text-xl font-semibold leading-none tracking-tight", className)}
+        {...props}
+      />
+    );
+  },
 );
 CardTitle.displayName = "CardTitle";
 
