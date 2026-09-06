@@ -1,0 +1,285 @@
+=== Auditoría adversarial de infraestructura — log de comandos ===
+Fecha (UTC): 2026-09-06T23:47:49Z
+Agente: Sonnet auditor adversarial independiente (solo hallazgos, no corrige código).
+Repo: /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging
+Worktree desechable (detached HEAD, git worktree add --detach): HEAD = 7f393a864e7b9afc437d1c2b9df9b2424439c649
+  "docs: pase de trazabilidad registrado; auditorías web e infra despachadas; E22"
+(el árbol de trabajo REAL del repo tenía cambios en curso de otros agentes
+al momento de iniciar esta ronda; no se tocó — se auditó el HEAD commiteado
+en un worktree separado)
+
+--- Entorno ---
+$ which docker
+docker not found
+$ which hadolint
+hadolint not found
+$ which shellcheck
+/opt/homebrew/bin/shellcheck
+$ node -v
+v25.6.1
+$ npx --version
+11.12.1
+$ npm ping
+npm notice PING https://registry.npmjs.org/
+npm notice PONG 226ms   (red disponible para npx)
+
+--- Rubro 1: Dockerfiles ---
+$ npx --yes dockerfile-utils lint apps/api/Dockerfile
+(sin salida, EXIT:0 -- 0 hallazgos)
+$ npx --yes dockerfile-utils lint apps/worker/Dockerfile
+(sin salida, EXIT:0 -- 0 hallazgos)
+$ npx --yes dockerfile-utils lint apps/web/Dockerfile
+(sin salida, EXIT:0 -- 0 hallazgos)
+
+Confirmado por lectura de los 3 Dockerfiles + infra/docker/nginx.conf:
+- apps/api/Dockerfile, apps/worker/Dockerfile: multi-stage (deps -> runtime),
+  USER node, npm ci con package-lock.json, HEALTHCHECK SOLO en api (worker
+  no lo declara -- confirmado, documentado explícitamente como decisión en
+  el propio Dockerfile y en docs/OPERACION.md §4/§10).
+- apps/web/Dockerfile: multi-stage (build vite -> runtime nginx:1.27-alpine),
+  USER nginx, HEALTHCHECK a /index.html en 8080.
+- Imágenes base: node:22-alpine, nginx:1.27-alpine -- fijas a major.minor,
+  no a dígito SHA256.
+- .dockerignore (raíz): excluye node_modules/, dist/, coverage/,
+  playwright-report/, test-results/, .pglite/, .data/, .env/.env.*
+  (excepto *.env.example e infra/env/.env.prod.example -- este último NO
+  EXISTE, ver rubro 3), .git/, .vscode/, .idea/, *.log.
+
+--- Rubro 2: docker-compose.prod.yml ---
+Leído completo (infra/compose/docker-compose.prod.yml, infra/compose/docker-compose.dev.yml).
+grep de depends_on/condition:
+  migrate:   depends_on: postgres: condition: service_healthy
+  api:       depends_on: migrate: condition: service_completed_successfully
+  worker:    depends_on: migrate: condition: service_completed_successfully
+             depends_on: api: condition: service_started      <-- NO service_healthy
+  caddy:     depends_on: [web, api]                            <-- forma corta, sin condition
+Ningún servicio declara deploy.resources.limits (grep "resources:" / "limits:" -> 0 resultados).
+Ningún servicio usa env_file: (grep "env_file" -> 0 resultados); todos los
+secretos van vía environment: NOMBRE: ${VAR}.
+Variables obligatorias (POSTGRES_USER/PASSWORD/DB, JWT_SECRET,
+PLATFORM_API_KEY, TOTP_ENCRYPTION_KEY, WEB_DOMAIN, API_DOMAIN, ACME_EMAIL):
+interpoladas como ${VAR} simple, sin ${VAR:?mensaje}.
+Puertos publicados al host: solo caddy (80, 443, 443/udp). postgres/api/worker/web: ninguno.
+
+Variables NUEVAS (correo/OIDC) buscadas en infra/compose/docker-compose.prod.yml:
+$ for v in MAIL_LINK_SECRET PUBLIC_URL MAIL_FROM CONTACT_INBOX MAIL_PROVIDER \
+  RESEND_API_KEY RESEND_EMAIL_DOMAIN RESEND_WEBHOOK_SECRET POSTMARK_SERVER_TOKEN \
+  POSTMARK_FROM_ADDRESS SMTP_HOST SMTP_PORT SMTP_SECURE SMTP_USER SMTP_PASS \
+  SMTP_FROM_ADDRESS MAIL_CAPTURE_FILE REQUIRE_EMAIL_VERIFICATION GOOGLE_CLIENT_ID \
+  GOOGLE_CLIENT_SECRET GOOGLE_REDIRECT_URI OIDC_ISSUER_URL SENTRY_DSN; do
+    echo "$v: $(grep -c "$v" infra/compose/docker-compose.prod.yml)"
+  done
+MAIL_LINK_SECRET: 0
+PUBLIC_URL: 0
+MAIL_FROM: 0
+CONTACT_INBOX: 0
+MAIL_PROVIDER: 0
+RESEND_API_KEY: 0
+RESEND_EMAIL_DOMAIN: 0
+RESEND_WEBHOOK_SECRET: 0
+POSTMARK_SERVER_TOKEN: 0
+POSTMARK_FROM_ADDRESS: 0
+SMTP_HOST: 0
+SMTP_PORT: 0
+SMTP_SECURE: 0
+SMTP_USER: 0
+SMTP_PASS: 0
+SMTP_FROM_ADDRESS: 0
+MAIL_CAPTURE_FILE: 0
+REQUIRE_EMAIL_VERIFICATION: 0
+GOOGLE_CLIENT_ID: 0
+GOOGLE_CLIENT_SECRET: 0
+GOOGLE_REDIRECT_URI: 0
+OIDC_ISSUER_URL: 0
+SENTRY_DSN: 1   (sí presente)
+-> Todas las 21 variables de correo/OIDC ausentes del environment: de `api`
+   en el compose de producción (ver IN-01/IN-08 en docs/auditoria-2/infra.md).
+
+Validación YAML (sin `docker compose config` -- Docker no disponible, dicho
+explícitamente aquí como pide el encargo):
+$ python3 -c "import yaml; yaml.safe_load(open('infra/compose/docker-compose.prod.yml'))" -> OK
+$ python3 -c "import yaml; yaml.safe_load(open('infra/compose/docker-compose.dev.yml'))" -> OK
+$ python3 -c "import yaml; yaml.safe_load(open('.github/workflows/quality.yml'))" -> OK
+$ python3 -c "import json; json.load(open('vercel.json'))" -> OK
+
+--- Rubro 3: .env.prod.example ---
+$ find . -iname "*.env.prod*"
+(sin resultados)
+$ git ls-files | grep -i "env.prod"
+(sin resultados)
+$ git log --all --oneline --diff-filter=A -- "*.env.prod.example" "*/env/*"
+(sin resultados)
+$ git log --all -p -S "infra/env/.env.prod.example" --oneline
+0edf2f8 docs: pase de aceptación y tablero (ampliación 2)   <-- solo aparece
+  como TEXTO dentro de docs/ACEPTACION.md (la fila REQ-200 que lo cita),
+  nunca como un archivo real añadido en ningún commit.
+CONCLUSIÓN: infra/env/.env.prod.example NUNCA existió como archivo real en
+el repositorio ni en su historial. Ver IN-03.
+
+Comparación de variables (apps/api/.env.example, apps/worker/.env.example,
+apps/web/.env.example, leídos completos) contra apps/api/src/config.ts
+(loadConfig, líneas 68-116) y environment: de docker-compose.prod.yml --
+ver tabla en docs/auditoria-2/infra.md rubro 3.
+
+$ sed -n '1,140p' apps/api/src/config.ts
+(confirmado: mailLinkSecret = env.MAIL_LINK_SECRET; if (!mailLinkSecret ||
+mailLinkSecret.length < 16) throw new Error(...) -- mismo patrón exacto que
+jwtSecret y totpEncryptionKey, ambas SÍ declaradas en el compose)
+
+$ apps/api/src/modules/auth/google/env.ts
+(confirmado: GOOGLE_*/OIDC_ISSUER_URL son opcionales a nivel de proceso --
+GoogleOidcNotConfiguredError produce 503 explícito, no un crash de arranque
+-- por eso su ausencia del compose es de menor severidad que MAIL_LINK_SECRET)
+
+--- Rubro 4: backup/restore ---
+$ shellcheck infra/scripts/backup-postgres.sh   -> 0 hallazgos
+$ shellcheck infra/scripts/restore-postgres.sh  -> 0 hallazgos
+$ shellcheck infra/scripts/healthcheck.sh       -> 0 hallazgos
+$ shellcheck scripts/ci-local.sh                -> (leído completo, sin invocar aparte; ver abajo)
+$ shellcheck scripts/check-secrets.sh           -> (ver rubro 7)
+
+backup-postgres.sh: set -euo pipefail presente; nombre de archivo con
+timestamp único (idempotente, nunca sobreescribe); cifrado GPG opcional con
+aviso explícito si no se usa; retención con `find "$BACKUP_DIR" -maxdepth 1
+-type f -name 'atiende-*.dump*' -mtime "+N" -print -delete` (acotado, sin
+rm -rf genérico).
+
+restore-postgres.sh: set -euo pipefail presente; confirmación interactiva
+("Escribe RESTAURAR para continuar") salvo --yes; redacta contraseña en el
+mensaje impreso (sed sobre DATABASE_URL); trap cleanup EXIT con rm -f
+acotado a un único archivo temporal de descifrado GPG; usa
+--clean --if-exists (destructivo, documentado como tal a propósito).
+
+Búsqueda de "drill"/"simulacro"/restauración real ejecutada:
+$ grep -rni "drill|simulacro|restauración real|restore.*probad" infra/ docs/OPERACION.md docs/ACEPTACION.md
+-> Sin resultados de un drill ejecutado; docs/ACEPTACION.md REQ-203 y el
+   propio infra/README.md declaran explícitamente "Nada de esto se ha
+   probado contra un backup/restore real en este repositorio".
+
+infra/scripts/healthcheck.sh: usa /tmp/healthcheck-body.$$ (ruta predecible,
+no mktemp) -- ver IN-11.
+
+infra/scripts/rotate-secrets.md (133 líneas, leído completo): cubre
+JWT_SECRET, PLATFORM_API_KEY, TOTP_ENCRYPTION_KEY, POSTGRES_PASSWORD.
+$ grep -n "MAIL_LINK_SECRET" infra/scripts/rotate-secrets.md
+(sin resultados) -- no cubre la rotación de MAIL_LINK_SECRET pese a que
+apps/api/.env.example advierte "ROTARLA INVALIDA todos los enlaces ya
+enviados".
+
+--- Rubro 5: CI (.github/workflows/quality.yml vs scripts/ci-local.sh) ---
+Leídos completos ambos archivos.
+Jobs de quality.yml: workspace-checks (matrix de 7 workspaces), db-postgres
+(servicio postgres:16 real, migraciones + RLS dinámico), e2e-web
+(Playwright), npm-audit (--omit=dev --audit-level=high), check-secrets.
+permissions a nivel de workflow: contents: read (mínimo, sin overrides).
+Acciones usadas: actions/checkout@v4, actions/setup-node@v4,
+actions/upload-artifact@v4 -- pineadas por versión MAYOR (no SHA).
+NODE_VERSION: "22" (coincide con node:22-alpine de los Dockerfiles).
+Sin bloque `secrets:` en ningún job; credenciales del servicio postgres son
+literales de ejemplo (postgres/postgres) válidas solo en el runner efímero.
+
+ci-local.sh: reproduce workspace-checks + npm-audit + check-secrets;
+documenta explícitamente que NO reproduce db-postgres (requiere Postgres
+real) y que e2e-web es opcional (--e2e). Equivalencia correcta.
+
+--- check-secrets.sh: ejecución real contra el árbol de trabajo del worktree ---
+$ bash scripts/check-secrets.sh; echo "REAL EXIT: $?"
+[check-secrets] buscando patrones de secretos en el árbol de trabajo (excluye node_modules, dist, coverage, .env.example)...
+
+[check-secrets] posible secreto — patrón: sk-[A-Za-z0-9_-]{16,}
+./docs/auditoria-2/worker-agentes.md:476:  `Authorization: Bearer sk-test-super-secreta-...` para confirmar que la
+
+[check-secrets] posible secreto — cadena de conexión Postgres con credenciales embebidas (host distinto de localhost):
+./infra/compose/docker-compose.prod.yml:84:      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+./infra/compose/docker-compose.prod.yml:101:      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+./infra/compose/docker-compose.prod.yml:126:      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+
+[check-secrets] FALLÓ: se encontraron patrones de secretos. Revisa los hallazgos de arriba antes de commitear/mergear.
+REAL EXIT: 1
+
+-> Dos falsos positivos reales, CERO secretos reales en el repo. Ver IN-02.
+
+Corroboración de que es una regresión no detectada:
+$ git log --oneline -- infra/compose/docker-compose.prod.yml | tail -5
+beddc41 infra: Dockerfiles multi-etapa, compose de prod/dev, backups y runbook de despliegue
+$ git log --oneline -- docs/logs/ci-local.log | head -5
+d1239a3 docs: ci-local 3 en verde (28/28, audit, secrets)
+18fbced ci: pipeline de calidad en GitHub Actions, scripts de CI local/secretos y documentación operativa
+-> El contenido commiteado de docs/logs/ci-local.log (que muestra
+   "check-secrets: OK") corresponde al commit d1239a3, ANTERIOR a beddc41
+   (el commit que introdujo docker-compose.prod.yml con la línea que ahora
+   causa el falso positivo). El log guardado en el repo está desactualizado
+   respecto al HEAD auditado y da una falsa sensación de que check-secrets
+   pasa hoy.
+$ grep -n "check-secrets" docs/logs/ci-local.log | tail -5
+975:check-secrets
+977:--- check-secrets: bash scripts/check-secrets.sh ---
+978:[check-secrets] buscando patrones de secretos en el árbol de trabajo (excluye node_modules, dist, coverage, .env.example)...
+979:[check-secrets] OK: no se encontraron patrones de secretos conocidos.
+980:--- check-secrets: OK ---
+
+--- check-secrets.sh: prueba de inyección de secretos realistas ---
+(archivo temporal creado FUERA del árbol versionado -- copiado un instante a
+scripts/zz-secret-fixture-test.txt, ejecutado el chequeo, y BORRADO de
+inmediato junto con el temporal en /tmp; nunca se hizo `git add`/commit de
+este archivo de prueba)
+
+$ cat > /tmp/secret-fixture.txt <<'EOF'
+AWS_KEY=AKIAABCDEFGHIJKLMNOP
+RESEND_API_KEY=re_c3Ntg8fh_HdaK9vXqR2pL7mNfG4tYzWq
+JWT_SAMPLE=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
+-----BEGIN PRIVATE KEY-----
+MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7VJTUt9Us8cKj
+-----END PRIVATE KEY-----
+EOF
+$ cp /tmp/secret-fixture.txt scripts/zz-secret-fixture-test.txt
+$ bash scripts/check-secrets.sh
+[...]
+[check-secrets] posible secreto — patrón: AKIA[0-9A-Z]{16}
+./scripts/zz-secret-fixture-test.txt:1:AWS_KEY=AKIAABCDEFGHIJKLMNOP
+[check-secrets] posible secreto — patrón: -----BEGIN PRIVATE KEY-----
+./scripts/zz-secret-fixture-test.txt:4:-----BEGIN PRIVATE KEY-----
+[...]
+$ rm -f scripts/zz-secret-fixture-test.txt /tmp/secret-fixture.txt
+
+RESULTADO:
+  - AWS key sintética (AKIA...):        DETECTADA.
+  - PEM (-----BEGIN PRIVATE KEY-----):  DETECTADA.
+  - Token Resend sintético (re_...):    NO detectada (sin patrón para "re_").
+  - JWT de 3 segmentos con forma real:  NO detectado (sin patrón activo de
+    JWT en el array PATTERNS, pese a que el comentario del script describe
+    esa lógica como si existiera).
+
+Revisión de código del marcador check-secrets:allow-fixture (funciones
+is_test_fixture_path / filter_fixture_marker_exemptions, leídas completas):
+solo exime líneas marcadas EN archivos *.test.ts/*.spec.ts/test//e2e/ --
+confirmado por lectura, no se ejercitó con un caso real adicional.
+
+--- Rubro 6: vercel.json ---
+Leído completo. outputDirectory: apps/web/dist. rewrites SPA correctos.
+Headers: X-Content-Type-Options, Referrer-Policy, X-Frame-Options: DENY,
+Permissions-Policy -- SIN Content-Security-Policy como cabecera HTTP (la
+CSP real depende del <meta> inyectado por vite.config.ts en build) y SIN
+Strict-Transport-Security explícito.
+
+$ cat apps/web/src/lib/security/csp.ts
+(confirmado: connect-src: ["'self'"] fijo, comentario explícito del propio
+archivo advirtiendo el caso de API en otro dominio)
+$ grep -n "connect-src" apps/web/README.md
+848: `connect-src 'self'` asume que producción sirve `apps/web` y `apps/api`
+...
+852:  `connect-src` debe ampliarse para incluirlo explícitamente...
+854:  bloqueará las peticiones a la API bajo esta CSP.
+
+Cruce con infra/docker/nginx.web.conf (replica la misma CSP literal,
+connect-src 'self' incluido) e infra/README.md/Caddyfile (arquitectura de
+DOS dominios $WEB_DOMAIN/$API_DOMAIN documentada y desplegada a propósito)
+-> contradicción confirmada, ver IN-10.
+
+--- Rubro 8: trazabilidad ---
+$ grep -n "REQ-19[9]|REQ-20[0-7]" docs/REQUISITOS.md
+$ grep -n "S11|REQ-19[9]|REQ-20[0-7]" docs/ACEPTACION.md
+(filas leídas completas, líneas 278-286 y 307 de docs/ACEPTACION.md)
+Ver tabla de recomendaciones en docs/auditoria-2/infra.md rubro 8.
+
+=== Fin del log ===
