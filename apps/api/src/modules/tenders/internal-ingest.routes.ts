@@ -45,6 +45,14 @@ export async function internalIngestRoutes(app: FastifyInstance): Promise<void> 
     },
     async (request) => {
       const { records, organizationIds } = request.body;
+      // R5-04 (docs/auditoria-2/api-ronda5.md, MEDIA): `request.correlationId`
+      // ya lo resuelve el plugin global (hereda `X-Correlation-Id` o genera
+      // uno) para CUALQUIER request, esta incluida -- el hueco no era la
+      // resolución, sino que nunca se PERSISTÍA en ningún dato de esta
+      // request (ni en `tenders`/`tender_versions`, que no tenían la
+      // columna, ni en el `audit_log` de ingesta). Ahora nace aquí y se
+      // hereda en ambas tablas.
+      const correlationId = request.correlationId ?? randomUUID();
 
       const targetOrgIds =
         organizationIds && organizationIds.length > 0
@@ -58,7 +66,7 @@ export async function internalIngestRoutes(app: FastifyInstance): Promise<void> 
 
       for (const record of records) {
         for (const orgId of targetOrgIds) {
-          const outcome = await ingestOneRecordForOrg(app.db, orgId, record);
+          const outcome = await ingestOneRecordForOrg(app.db, orgId, record, correlationId);
           results.push(outcome);
           if (outcome.action === 'created') created += 1;
           else if (outcome.action === 'updated') updated += 1;
@@ -77,7 +85,8 @@ export async function internalIngestRoutes(app: FastifyInstance): Promise<void> 
 async function ingestOneRecordForOrg(
   db: DbClient,
   orgId: string,
-  record: TenderRecordIngest
+  record: TenderRecordIngest,
+  correlationId: string
 ): Promise<IngestOutcome> {
   return db.transaction(async (tx) => {
     const existing = await tx.query<{
@@ -95,8 +104,8 @@ async function ingestOneRecordForOrg(
     if (existing.rows.length === 0) {
       const tenderId = randomUUID();
       await tx.query(
-        `insert into tenders (id, org_id, source, external_id, title, contracting_body, cpv_codes, budget_amount, currency, submission_deadline, published_at, url, status, raw_data)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb)`,
+        `insert into tenders (id, org_id, source, external_id, title, contracting_body, cpv_codes, budget_amount, currency, submission_deadline, published_at, url, status, raw_data, correlation_id)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15)`,
         [
           tenderId,
           orgId,
@@ -112,10 +121,11 @@ async function ingestOneRecordForOrg(
           record.url ?? null,
           status,
           JSON.stringify(record.rawData ?? {}),
+          correlationId,
         ]
       );
-      const versionId = await createVersionAndEvent(tx, orgId, tenderId, record, record.changeKind ?? 'publication');
-      await auditIngest(tx, orgId, 'tender.ingest.created', tenderId, record);
+      const versionId = await createVersionAndEvent(tx, orgId, tenderId, record, record.changeKind ?? 'publication', correlationId);
+      await auditIngest(tx, orgId, 'tender.ingest.created', tenderId, record, correlationId);
       return { source: record.source, externalId: record.externalId, organizationId: orgId, action: 'created', tenderId, versionId };
     }
 
@@ -148,7 +158,7 @@ async function ingestOneRecordForOrg(
 
     await tx.query(
       `update tenders set title = $1, contracting_body = $2, cpv_codes = $3, budget_amount = $4, currency = $5,
-         submission_deadline = $6, published_at = $7, url = $8, status = $9, raw_data = $10::jsonb
+         submission_deadline = $6, published_at = $7, url = $8, status = $9, raw_data = $10::jsonb, correlation_id = $13
        where id = $11 and org_id = $12`,
       [
         record.title,
@@ -163,6 +173,7 @@ async function ingestOneRecordForOrg(
         JSON.stringify(record.rawData ?? {}),
         tenderId,
         orgId,
+        correlationId,
       ]
     );
 
@@ -175,9 +186,9 @@ async function ingestOneRecordForOrg(
     // que esta ruta tenga que repetir esa lógica a mano (defensa en
     // profundidad: cualquier otro código que inserte un change_event futuro
     // también la dispara).
-    const versionId = await createVersionAndEvent(tx, orgId, tenderId, record, inferredKind);
+    const versionId = await createVersionAndEvent(tx, orgId, tenderId, record, inferredKind, correlationId);
 
-    await auditIngest(tx, orgId, 'tender.ingest.updated', tenderId, record);
+    await auditIngest(tx, orgId, 'tender.ingest.updated', tenderId, record, correlationId);
 
     return { source: record.source, externalId: record.externalId, organizationId: orgId, action: 'updated', tenderId, versionId };
   });
@@ -188,13 +199,14 @@ async function createVersionAndEvent(
   orgId: string,
   tenderId: string,
   record: TenderRecordIngest,
-  changeKind: string
+  changeKind: string,
+  correlationId: string
 ): Promise<string> {
   const versionId = randomUUID();
   await tx.query(
-    `insert into tender_versions (id, org_id, tender_id, change_kind, source_version, payload)
-     values ($1, $2, $3, $4, $5, $6::jsonb)`,
-    [versionId, orgId, tenderId, changeKind, record.sourceVersion, JSON.stringify(record)]
+    `insert into tender_versions (id, org_id, tender_id, change_kind, source_version, payload, correlation_id)
+     values ($1, $2, $3, $4, $5, $6::jsonb, $7)`,
+    [versionId, orgId, tenderId, changeKind, record.sourceVersion, JSON.stringify(record), correlationId]
   );
   const eventId = randomUUID();
   await tx.query(
@@ -205,10 +217,10 @@ async function createVersionAndEvent(
   return versionId;
 }
 
-async function auditIngest(tx: DbExecutor, orgId: string, action: string, tenderId: string, record: TenderRecordIngest): Promise<void> {
+async function auditIngest(tx: DbExecutor, orgId: string, action: string, tenderId: string, record: TenderRecordIngest, correlationId: string): Promise<void> {
   await tx.query(
-    `insert into audit_log (org_id, actor_id, action, entity, entity_id, after, request_id)
-     values ($1, null, $2, 'tenders', $3, $4::jsonb, null)`,
-    [orgId, action, tenderId, JSON.stringify({ source: record.source, externalId: record.externalId, sourceVersion: record.sourceVersion })]
+    `insert into audit_log (org_id, actor_id, action, entity, entity_id, after, request_id, correlation_id)
+     values ($1, null, $2, 'tenders', $3, $4::jsonb, null, $5)`,
+    [orgId, action, tenderId, JSON.stringify({ source: record.source, externalId: record.externalId, sourceVersion: record.sourceVersion }), correlationId]
   );
 }
