@@ -66,6 +66,19 @@ export interface SeedData {
   orgC: { id: string; name: string; slug: string };
   /** `null` si `PLATFORM_API_KEY` no está configurada (ver e2e-full.mjs) -- en ese caso expediente-flujo-completo.spec.ts se salta entero. */
   tender: { id: string; title: string } | null;
+  /**
+   * Ronda 7 (e2e/dashboard.spec.ts): organización DEDICADA al panel/dashboard
+   * real (REQ-169), con su propia convocatoria sembrada -- aislada de orgC
+   * (que expediente-flujo-completo.spec.ts muta con matriz/propuesta/checklist/
+   * aprobación/paquete a lo largo de su `describe.serial`) para que el
+   * dashboard verifique KPIs sobre una convocatoria en su estado ORIGINAL
+   * ("discovered"), sin depender del orden de ejecución de esa otra suite.
+   * `admin` es owner directo (sin invitación) -- el dashboard no necesita
+   * ejercitar el flujo de invitación, ya cubierto por orgA/orgC.
+   */
+  orgD: { id: string; name: string; slug: string };
+  /** `null` si `PLATFORM_API_KEY` no está configurada -- en ese caso e2e/dashboard.spec.ts se salta entero. */
+  dashboardTender: { id: string; title: string } | null;
 }
 
 export default async function globalSetup(): Promise<void> {
@@ -132,6 +145,21 @@ export default async function globalSetup(): Promise<void> {
     tender = { id: ingestResult.tenderId, title: `Convocatoria E2E ${runId}` };
   }
 
-  const seed: SeedData = { apiUrl, admin: { ...admin, twoFactor }, writer, orgA, orgB, orgC, tender };
+  // Ronda 7: organización D, dedicada al panel/dashboard real.
+  const orgD = await client.createOrganization(adminTokens.accessToken, `E2E Org D ${runId}`, `e2e-org-d-${runId}`);
+  let dashboardTender: SeedData["dashboardTender"] = null;
+  if (platformApiKey) {
+    const now = Date.now();
+    const dashboardDeadline = new Date(now + 45 * 24 * 60 * 60 * 1000).toISOString();
+    const dashboardPublishedAt = new Date(now - 1 * 24 * 60 * 60 * 1000).toISOString(); // "reciente": dentro de la ventana de 7 días del dashboard
+    const dashboardIngest = await client.ingestTender(platformApiKey, orgD.id, {
+      title: `Convocatoria dashboard E2E ${runId}`,
+      submissionDeadline: dashboardDeadline,
+      publishedAt: dashboardPublishedAt,
+    });
+    dashboardTender = { id: dashboardIngest.tenderId, title: `Convocatoria dashboard E2E ${runId}` };
+  }
+
+  const seed: SeedData = { apiUrl, admin: { ...admin, twoFactor }, writer, orgA, orgB, orgC, tender, orgD, dashboardTender };
   fs.writeFileSync(path.join(ARTIFACTS_DIR, "seed.json"), JSON.stringify(seed, null, 2));
 }
