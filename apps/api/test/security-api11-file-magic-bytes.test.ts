@@ -47,7 +47,7 @@ describe('API-11 — subida de documentos rechaza ejecutables y llaves/certifica
     const org = await createOrgFor(app, owner, 'API11 Org 2', 'api11-org-2');
     const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
 
-    const pem = '-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA...\n-----END RSA PRIVATE KEY-----\n';
+    const pem = '-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA...\n-----END RSA PRIVATE KEY-----\n'; // check-secrets:allow-fixture — clave PEM falsa, solo para probar el rechazo por magic bytes.
     const res = await app.inject({
       method: 'POST',
       url: '/company/documents',

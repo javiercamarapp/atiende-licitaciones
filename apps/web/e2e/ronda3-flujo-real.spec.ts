@@ -154,7 +154,7 @@ test.describe.serial("Ronda 3 — recorrido real contra apps/api", () => {
       await page.locator("#document-file").setInputFiles({
         name: "llave-privada.key",
         mimeType: "application/octet-stream",
-        buffer: Buffer.from("-----BEGIN PRIVATE KEY-----\nfalso-para-la-prueba\n-----END PRIVATE KEY-----"),
+        buffer: Buffer.from("-----BEGIN PRIVATE KEY-----\nfalso-para-la-prueba\n-----END PRIVATE KEY-----"), // check-secrets:allow-fixture
       });
 
       await expect(page.getByText(/REQ-098|e\.firma/)).toBeVisible({ timeout: 5_000 });
