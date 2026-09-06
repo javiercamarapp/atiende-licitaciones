@@ -148,3 +148,4 @@
 2026-09-06 13:10  VERCEL  el alias responde 200 pero sirve «Login – Vercel»: Deployment Protection (Vercel Authentication) activa en el equipo likida → el sitio no es público hasta desactivarla (decisión del usuario, B-07).
 2026-09-06 13:10  DESPERTAR  CI diagnóstico (#97) 02d2cde: facturación GitHub confirmada en 6 runs; actionlint OK. En curso #91,#92,#93,#94,#96.
 2026-09-06 13:11  DESPERTAR  auditoría api ronda 6 (#93) ef6d3fd: R6-01/02 ALTA (pdf-parse), R6-03 ALTA; corrector #98 despachado; en curso #91,#92,#94,#96.
+2026-09-06 13:13  DESPERTAR  worker ronda K (#91) completado (370 tests); en curso #92,#94,#96,#98.
