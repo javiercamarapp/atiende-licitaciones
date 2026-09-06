@@ -1,0 +1,131 @@
+Reverificación adversarial vuelta 3 (FINAL) — packages/agents
+===============================================================
+
+Worktree: git worktree add <scratchpad>/reverify3-agents HEAD (HEAD=802cff6)
+npm install ejecutado solo dentro del worktree.
+
+1) ANCESTRÍA
+------------
+$ git log --oneline -5
+802cff6 docs: corrección agents vuelta 3; despacho reverificación final
+80fb455 docs: cierre api ronda 2; despacho reverificación db-api y ronda 3 (web↔api, api E6–E11)
+9cb38be fix(agents): AG-21/AG-22 cierre de PARCIAL en no-fabrication y tool-registry
+da36f65 fix(db): 0026b — resuelve duplicados activos de jobs antes del índice único de 0027 (reverificación WK-04)
+baa262f docs: reverificación worker; despacho corrección vuelta 2
+
+$ git merge-base --is-ancestor 9cb38be HEAD && echo "9cb38be IS ancestor of HEAD"
+9cb38be IS ancestor of HEAD
+
+$ git show --stat 9cb38be
+commit 9cb38becbb7ba2d3da520d126f1d76a5c44e63f4
+fix(agents): AG-21/AG-22 cierre de PARCIAL en no-fabrication y tool-registry
+ docs/auditoria-1/agents-reverificacion-2.md |  47 +++++-
+ docs/logs/fix-agents-ronda3.log             | 149 +++++++++++++++++
+ packages/agents/README.md                   | 106 +++++++++++-
+ packages/agents/src/errors.ts               |  69 ++++++++
+ packages/agents/src/no-fabrication.ts       | 225 ++++++++++++++++++++++---
+ packages/agents/src/tool-registry.ts        | 245 +++++++++++++++++++++++++---
+ packages/agents/test/no-fabrication.test.ts | 101 ++++++++++++
+ packages/agents/test/tool-registry.test.ts  | 203 +++++++++++++++++++++++
+ 8 files changed, 1091 insertions(+), 54 deletions(-)
+=> Confirmado: EXACTAMENTE 8 archivos, coincide con el mandato.
+
+2) SUITE OFICIAL Y CONSUMIDORES
+--------------------------------
+$ npm run -w packages/agents typecheck   -> OK, sin errores
+$ npm run -w packages/agents lint        -> OK, sin hallazgos
+$ npm run -w packages/agents test
+  Test Files  13 passed (13)
+  Tests       241 passed (241)
+  (39 en test/no-fabrication.test.ts, 46 en test/tool-registry.test.ts — incluye los
+   26 tests nuevos citados por el commit: 12 describe "AG-21" en no-fabrication.test.ts,
+   14 describe "AG-22" en tool-registry.test.ts)
+$ npm run -w packages/agents build       -> OK
+$ npm run -w packages/agents test:coverage
+  All files: 94.07% stmts / 90.79% branch / 94.18% funcs / 94.07% lines
+  (commit declara 94.07/90.82/94.18/94.07 — diferencia de 0.03pp en branch,
+   variación de entorno/vitest, no material; supera umbral 85/80/85/85)
+
+$ npm run -w apps/api typecheck     -> OK, sin errores
+$ npm run -w apps/worker typecheck  -> OK, sin errores
+$ npm run -w apps/worker test       -> 8 archivos pasan / 3 saltados (Postgres real),
+                                        55 pruebas pasan / 5 saltadas, 0 fallos
+
+3) ATAQUES ADVERSARIALES FINALES (27 pruebas propias,
+   packages/agents/test/reverify3-adversarial.test.ts, creado y ejecutado
+   SOLO en el worktree, borrado antes de cerrarlo, nunca commiteado)
+------------------------------------------------------------------------
+
+AG-19/AG-21 (no-fabrication.ts) — 12 ataques
+---------------------------------------------
+✓ offset 8192-10 (JSON a caballo justo antes del límite de ventana): DETECTADO
+✓ offset 8192+10 (JSON empezando justo después): DETECTADO
+✓ offset exactamente 8192: DETECTADO
+✓ Buffer de exactamente 5 MiB (límite): escaneado con normalidad, NO "no_evaluable"
+✓ Buffer de 5 MiB + 1 byte: produce EXACTAMENTE [{kind:"no_evaluable"}], el precio
+  presente en el buffer NO se reporta por separado — no pasa silenciosamente
+✓ base64 con padding inválido (longitud rota, %4 != 0): NO decodificado, sin crash
+✓ base64 con padding extra ("==="): no lanza, tratado con seguridad
+✓ base64 de JSON con espacios/indentación (JSON.stringify(..,null,2)): DETECTADO
+  (el TextDecoder UTF-8 maneja espacios/saltos de línea con normalidad)
+✓ base64 URL-safe (- y _ en vez de + y /): NO DETECTADO — confirma el límite
+  documentado (heurística solo reconoce el alfabeto base64 ESTÁNDAR)
+✓ doble base64 (base64(base64(json))): NO DETECTADO en un solo paso — hallazgo
+  nuevo no documentado explícitamente antes: la capa externa decodifica a un
+  string que es la representación base64 interna, que NO "parece JSON" (no
+  contiene { ni [), así que `tryDecodeBase64Json` no recursa una segunda vez.
+✓ array de arrays de Buffers (Array > Array > Buffer): JSON sensible DETECTADO
+  (la recursión de walk() atraviesa arrays anidados con normalidad)
+✓ array de arrays de Buffers, cada uno > 5 MiB: 2 hallazgos "no_evaluable"
+  independientes (uno por cada Buffer), confirma que el límite se aplica por
+  contenedor binario, no de forma agregada global
+
+AG-20/AG-22 (tool-registry.ts) — 15 ataques
+---------------------------------------------
+✓ runtime {orgId: 1} dentro de z.record(z.string(), z.any()): SÍ lanza
+  ForbiddenRuntimeInputFieldError (coincidencia literal exacta en la lista)
+✗→NUEVO HALLAZGO: runtime {ORG_ID: 1}: NO lanza — bypass por mayúsculas
+✗→NUEVO HALLAZGO: runtime {"org-id": 1}: NO lanza — bypass por separador guion
+  Criterio confirmado con 11 variantes (organizationId/organization_id/tenantId/
+  tenant_id/orgId/org_id → SÍ lanzan; OrgId/ORGID/Organization_Id/"org id"/orgid
+  → NO lanzan). FORBIDDEN_INPUT_FIELDS es una lista de 6 strings comparados por
+  IGUALDAD ESTRICTA (Array.includes), SIN NFKC/lowercase/normalización de
+  separadores — a diferencia del patrón ya establecido por AG-02 para nombres
+  de herramienta. Afecta tanto a `findForbiddenFieldRecursive` (estático) como
+  a `findForbiddenKeyAtRuntime` (AG-22, la mitigación de runtime construida
+  específicamente para cerrar el hueco de z.record de clave genérica).
+✓ profundidad de esquema 255 (< MAX_SCHEMA_RECURSION_DEPTH=256): registra sin error
+✓ profundidad de esquema 257 (> 256): SchemaTooDeepError, NO RangeError
+✓ profundidad de argumentos runtime 255 (< MAX_RUNTIME_ARGS_DEPTH=256): sin error
+✓ profundidad de argumentos runtime 257 (> 256): RuntimeArgsTooDeepError, NO RangeError
+✓ ZodPipeline dentro de ZodBranded dentro de ZodLazy (organizationId): RECHAZADO
+✓ ZodBranded dentro de ZodPipeline dentro de ZodLazy (orden inverso): RECHAZADO
+✓ Triple envoltura legítima (sin organizationId): registra sin error
+✓ z.custom() con forma organizationId: NO detectado estáticamente (esperado,
+  sin _def.shape que inspeccionar — límite arquitectónico, no un bug nuevo)
+✓ z.custom() con organizationId en runtime: SÍ detectado por
+  findForbiddenKeyAtRuntime (el dato parseado sigue siendo un objeto plano
+  recorrible, independientemente de qué validó el esquema) — mitigación
+  incidental mas real
+✓ z.instanceof() con propiedad organizationId: NO detectado estáticamente
+  (esperado, mismo motivo)
+✓ z.instanceof() con instancia real en runtime: SÍ detectado por
+  findForbiddenKeyAtRuntime (Object.entries() de una instancia de clase con
+  propiedades propias enumerables funciona igual que un objeto plano)
+
+4) RESULTADO: 27/27 pruebas propias ejecutadas (todas confirmando el
+   comportamiento documentado o documentando un gap), 0 crashes inesperados,
+   ningún falso positivo detectado en los casos de control.
+   1 hallazgo NUEVO no reportado en rondas anteriores: case-sensitividad /
+   ausencia de normalización de separadores en FORBIDDEN_INPUT_FIELDS
+   (afecta tanto la detección estática AG-11/20 como la mitigación de
+   runtime AG-22) — ver docs/auditoria-1/agents-cierre.md, hallazgo AG-23.
+
+Metodología: todo el trabajo (npm install, typecheck/lint/test/build/coverage,
+las 27 pruebas adversariales propias) se ejecutó en
+git worktree add <scratchpad>/reverify3-agents HEAD, nunca en el árbol
+principal. El worktree se eliminó al finalizar (git worktree remove --force).
+El único archivo de prueba creado (test/reverify3-adversarial.test.ts) se
+borró antes de cerrar el worktree y nunca se commiteó. Este log y
+docs/auditoria-1/agents-cierre.md son los únicos artefactos persistentes de
+esta reverificación.
