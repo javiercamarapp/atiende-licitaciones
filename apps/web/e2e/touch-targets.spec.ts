@@ -28,4 +28,53 @@ test.describe("Objetivos táctiles ≥44×44px (W-10)", () => {
     expect(box).not.toBeNull();
     expect(box!.height).toBeGreaterThanOrEqual(MIN_TARGET);
   });
+
+  // W-19: W-10 corrigió el botón hamburguesa y los 24 enlaces de navegación
+  // del drawer, pero no los botones de acordeón de cada grupo ("EMPRESA",
+  // "CONVOCATORIAS", etc., SidebarNav.tsx) — medían 31px de alto. Se miden
+  // TODOS los controles interactivos del drawer (los botones de grupo y los
+  // enlaces), no solo el primero, a 390×844.
+  test("todos los botones de acordeón de grupo del drawer móvil miden al menos 44px de alto", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/panel");
+
+    await page.getByRole("button", { name: "Abrir menú de navegación" }).click();
+    const dialog = page.getByRole("dialog");
+
+    // `[aria-expanded]` selecciona solo los botones de acordeón de grupo
+    // (SidebarNav.tsx) y excluye el botón "Cerrar menú" del Sheet (sin
+    // aria-expanded, fuera de ámbito de W-19).
+    const groupButtons = dialog.locator("button[aria-expanded]");
+    const count = await groupButtons.count();
+    expect(count).toBeGreaterThan(0);
+
+    for (let i = 0; i < count; i++) {
+      const button = groupButtons.nth(i);
+      const label = (await button.textContent())?.trim() ?? `botón #${i}`;
+      const box = await button.boundingBox();
+      expect(box, `botón de grupo "${label}" sin boundingBox`).not.toBeNull();
+      expect(box!.height, `botón de grupo "${label}": ${box!.height}px de alto`).toBeGreaterThanOrEqual(MIN_TARGET);
+    }
+  });
+
+  test("todos los controles interactivos del drawer móvil (grupos + enlaces) miden al menos 44px de alto", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/panel");
+
+    await page.getByRole("button", { name: "Abrir menú de navegación" }).click();
+    const dialog = page.getByRole("dialog");
+
+    const links = dialog.getByRole("link");
+    const linkCount = await links.count();
+    expect(linkCount).toBeGreaterThan(0);
+    for (let i = 0; i < linkCount; i++) {
+      const link = links.nth(i);
+      const label = (await link.textContent())?.trim() ?? `link #${i}`;
+      const box = await link.boundingBox();
+      expect(box, `link "${label}" sin boundingBox`).not.toBeNull();
+      expect(box!.height, `link "${label}": ${box!.height}px de alto`).toBeGreaterThanOrEqual(MIN_TARGET);
+    }
+  });
 });

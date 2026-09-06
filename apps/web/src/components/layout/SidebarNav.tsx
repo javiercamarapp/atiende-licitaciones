@@ -54,7 +54,12 @@ export function SidebarNav({ onNavigate, className }: SidebarNavProps) {
               aria-expanded={abierto}
               aria-controls={listId}
               onClick={() => toggleGrupo(group.id)}
-              className="flex w-full items-center justify-between rounded-lg px-2 py-2 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground hover:text-foreground"
+              // min-h-11 (44px, W-19): con solo px-2 py-2 este botón medía
+              // 31px de alto en el drawer móvil — por debajo del objetivo de
+              // ≥44px para targets táctiles, igual que W-10 corrigió los
+              // enlaces de navegación. min-h (no solo más padding) garantiza
+              // el mínimo sin depender de las métricas exactas de la fuente.
+              className="flex min-h-11 w-full items-center justify-between rounded-lg px-2 py-2 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground hover:text-foreground"
             >
               <span>{group.label}</span>
               <ChevronDown
