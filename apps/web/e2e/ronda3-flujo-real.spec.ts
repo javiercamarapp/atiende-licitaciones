@@ -247,6 +247,20 @@ test.describe.serial("Ronda 3 — recorrido real contra apps/api", () => {
       await row.getByRole("button", { name: "Aprobar" }).click();
       await page.getByLabel("Código TOTP o de respaldo").fill(await getAdminStepUpCode(seed));
       const verifyButton = page.getByRole("button", { name: "Verificar y continuar" });
+      // StepUpDialog.tsx deshabilita este botón mientras `code` esté vacío
+      // (`disabled={verifyStepUp.isPending || !code.trim()}`), y `fill()`
+      // devuelve el control ANTES de que React necesariamente haya
+      // confirmado (commit) ese estado. A diferencia de `locator.click()`,
+      // `page.mouse.click()` -- imprescindible aquí para simular dos clics
+      // físicos simultáneos de verdad -- NO repite ningún chequeo de
+      // "actionability": si los dos clics caían sobre un botón todavía
+      // deshabilitado, no se disparaba NINGUNA petición y el test moría en
+      // el `waitForResponse` de abajo por una carrera de la propia
+      // orquestación (falso rojo intermitente), no por una regresión real
+      // del guard de doble envío que WI-06 vigila. Esperar aquí a que esté
+      // habilitado no debilita nada de lo que el test comprueba: el guard
+      // se ejercita igual con los dos clics de más abajo.
+      await expect(verifyButton).toBeEnabled();
       const box = await verifyButton.boundingBox();
       if (!box) throw new Error('No se pudo obtener la posición de "Verificar y continuar" para el doble clic físico');
       const x = box.x + box.width / 2;
