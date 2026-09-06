@@ -27,4 +27,26 @@ test.describe("Contraste de color (W-05, W-06)", () => {
     const violations = await seriousOrCriticalViolations(page);
     expect(violations, formatViolations(violations)).toEqual([]);
   });
+
+  // W-17: el badge `destructive` ("Caída", "Permisos faltantes") nunca se
+  // auditó en modo OSCURO real — la ronda de corrección de W-06 solo probó
+  // el badge `warning` (CAPTCHA/Cambio de interfaz) en claro. axe-core dio
+  // una violación "serious" de color-contrast (4.30:1 < 4.5:1) hasta que se
+  // ajustó `--destructive` en `.dark` (ver src/index.css,
+  // src/lib/contrast.test.ts).
+  test("los 5 estados de fuente (incluido el badge destructive) no tienen violaciones serias de contraste en modo oscuro", async ({
+    page,
+  }) => {
+    await page.goto("/convocatorias/fuentes-frescura");
+    await page.getByRole("radio", { name: "Tema oscuro" }).click();
+    await expect(page.locator("html")).toHaveClass(/dark/);
+    await page.waitForTimeout(300);
+
+    for (const label of ["OK", "Caída", "CAPTCHA", "Cambio de interfaz", "Permisos faltantes"]) {
+      await expect(page.getByText(label, { exact: true })).toBeVisible();
+    }
+
+    const violations = await seriousOrCriticalViolations(page);
+    expect(violations, formatViolations(violations)).toEqual([]);
+  });
 });

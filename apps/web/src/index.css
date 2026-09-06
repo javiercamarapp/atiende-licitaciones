@@ -94,7 +94,13 @@
     --accent: 199 89% 55%;
     --accent-foreground: 216 45% 9%;
 
-    --destructive: 352 75% 55%;
+    /* W-17: era 352 75% 55% → 4.30:1 con --destructive-foreground blanco,
+       violación axe "serious" de color-contrast en el badge `destructive`
+       de SourceStatusBadge ("Caída"/"Permisos faltantes") en modo oscuro
+       real. Oscurecido a 48% de luminosidad → 4.59:1 (≥4.5:1 exigido para
+       texto normal), ver src/lib/contrast.test.ts y
+       e2e/contraste.spec.ts. */
+    --destructive: 352 75% 48%;
     --destructive-foreground: 0 0% 100%;
 
     --success: 152 55% 45%;
