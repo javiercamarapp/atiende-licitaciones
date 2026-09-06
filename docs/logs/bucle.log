@@ -119,3 +119,4 @@
 2026-09-06 10:17  DESPERTAR  ci-local-4 completada (exit 0); en curso #81.
 2026-09-06 10:18  DESPERTAR  ci-local-4: apps/web test:coverage FALLÓ (6 timeouts + canvas jsdom); #82 despachado; en curso #81.
 2026-09-06 10:29  DESPERTAR  #82 en pausa esperando proceso en segundo plano; reanudado para cerrar en primer plano; en curso #81,#82.
+2026-09-06 10:39  DESPERTAR  diagnóstico ci-local-4 (#82): contención + canvas QR corregido (0a29c10); en curso #81.
