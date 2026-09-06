@@ -53,10 +53,12 @@ nombre "parece" uno prohibido sin serlo textualmente. Como defensa adicional
 (no sustituta), `AuthorizationPolicy` normaliza (NFKC + minúsculas + sin
 separadores) antes de comparar contra las listas de prohibiciones.
 `register()` **rechaza** cualquier esquema de entrada que declare
-`organizationId`/`tenant_id`/`org_id` (o variantes): el tenant lo inyecta
-siempre el runtime en `ToolExecutionContext`, nunca el modelo — mismo patrón
-que "properties: {} vacías a propósito" de Likida
-(`docs/investigacion/likida-arquitectura.md`, patrón #4).
+`organizationId`/`tenant_id`/`org_id` (o variantes) **en cualquier
+profundidad** (AG-11: recorrido recursivo de objetos anidados y arrays de
+objetos, no solo el nivel raíz): el tenant lo inyecta siempre el runtime en
+`ToolExecutionContext`, nunca el modelo — mismo patrón que "properties: {}
+vacías a propósito" de Likida (`docs/investigacion/likida-arquitectura.md`,
+patrón #4).
 `validateInput`/`validateOutput` rechazan cualquier `tool_call` cuyos
 argumentos no validen contra el esquema.
 

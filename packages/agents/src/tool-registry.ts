@@ -112,13 +112,18 @@ export class ToolRegistry {
     }
   }
 
+  /**
+   * AG-11: recorre RECURSIVAMENTE todas las `ZodObject` anidadas del
+   * esquema (a través de objetos hijos y arrays de objetos), no solo el
+   * nivel raíz. Antes, `organizationId` anidado en un objeto hijo (p. ej.
+   * `z.object({ meta: z.object({ organizationId: z.string() }) })`) se
+   * registraba sin lanzar, contradiciendo la garantía documentada en el
+   * README.
+   */
   private assertNoForbiddenFields(tool: AnyToolDefinition): void {
-    const shape = getZodObjectShape(tool.inputSchema);
-    if (!shape) return;
-    for (const field of FORBIDDEN_INPUT_FIELDS) {
-      if (field in shape) {
-        throw new UnauthorizedToolInputError(tool.name, field);
-      }
+    const field = findForbiddenFieldRecursive(tool.inputSchema);
+    if (field) {
+      throw new UnauthorizedToolInputError(tool.name, field);
     }
   }
 
@@ -162,9 +167,60 @@ function getZodObjectShape(schema: z.ZodTypeAny): Record<string, unknown> | unde
   if (maybeShape && typeof maybeShape === "object") {
     return maybeShape as Record<string, unknown>;
   }
-  // ZodEffects/ZodOptional/etc envuelven el esquema real en `_def.schema` o `_def.innerType`.
+  return undefined;
+}
+
+/**
+ * Quita una capa de envoltura no estructural (`ZodOptional`, `ZodNullable`,
+ * `ZodDefault`, `ZodEffects`, etc.) para llegar al esquema real que
+ * describe la forma de los datos. Retorna el mismo esquema si no hay nada
+ * que desenvolver (evita recursión infinita).
+ */
+function unwrapOneLayer(schema: z.ZodTypeAny): z.ZodTypeAny {
   const def = (schema as unknown as { _def?: Record<string, unknown> })._def;
   const inner = (def?.schema ?? def?.innerType) as z.ZodTypeAny | undefined;
-  if (inner) return getZodObjectShape(inner);
+  return inner ?? schema;
+}
+
+/** Extrae el tipo de elemento de un `ZodArray`, si aplica. */
+function getZodArrayElement(schema: z.ZodTypeAny): z.ZodTypeAny | undefined {
+  const def = (schema as unknown as { _def?: Record<string, unknown> })._def;
+  if (def?.typeName === "ZodArray") {
+    return def.type as z.ZodTypeAny;
+  }
+  return undefined;
+}
+
+/**
+ * AG-11: busca RECURSIVAMENTE (sin límite de profundidad) un campo
+ * prohibido en cualquier `ZodObject` anidado, atravesando envolturas
+ * (`optional`/`nullable`/`default`/`effects`) y arrays de objetos.
+ * Retorna el primer nombre de campo prohibido encontrado, o `undefined` si
+ * el esquema completo está limpio.
+ */
+function findForbiddenFieldRecursive(schema: z.ZodTypeAny, seen: Set<z.ZodTypeAny> = new Set()): string | undefined {
+  if (seen.has(schema)) return undefined; // evita ciclos en esquemas recursivos.
+  seen.add(schema);
+
+  const shape = getZodObjectShape(schema);
+  if (shape) {
+    for (const [field, fieldSchema] of Object.entries(shape)) {
+      if (FORBIDDEN_INPUT_FIELDS.includes(field)) return field;
+      const nested = findForbiddenFieldRecursive(fieldSchema as z.ZodTypeAny, seen);
+      if (nested) return nested;
+    }
+    return undefined;
+  }
+
+  const arrayElement = getZodArrayElement(schema);
+  if (arrayElement) {
+    return findForbiddenFieldRecursive(arrayElement, seen);
+  }
+
+  const unwrapped = unwrapOneLayer(schema);
+  if (unwrapped !== schema) {
+    return findForbiddenFieldRecursive(unwrapped, seen);
+  }
+
   return undefined;
 }

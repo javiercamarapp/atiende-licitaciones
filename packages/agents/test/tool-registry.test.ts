@@ -91,6 +91,48 @@ describe("ToolRegistry", () => {
     ).toThrow(UnauthorizedToolInputError);
   });
 
+  it("AG-11 (MEDIA): rechaza organizationId/tenant_id/org_id anidado en cualquier profundidad, no solo el nivel raíz", () => {
+    const registry = new ToolRegistry();
+    expect(() =>
+      registry.register(
+        makeTool({
+          name: "leaky_nested_1",
+          inputSchema: z.object({ meta: z.object({ organizationId: z.string() }) }),
+        }),
+      ),
+    ).toThrow(UnauthorizedToolInputError);
+
+    expect(() =>
+      registry.register(
+        makeTool({
+          name: "leaky_nested_2",
+          inputSchema: z.object({ filtro: z.object({ avanzado: z.object({ tenant_id: z.string() }) }) }),
+        }),
+      ),
+    ).toThrow(UnauthorizedToolInputError);
+
+    expect(() =>
+      registry.register(
+        makeTool({
+          name: "leaky_nested_optional",
+          inputSchema: z.object({ meta: z.object({ org_id: z.string() }).optional() }),
+        }),
+      ),
+    ).toThrow(UnauthorizedToolInputError);
+  });
+
+  it("AG-11: permite objetos anidados legítimos sin campos de tenant en ningún nivel", () => {
+    const registry = new ToolRegistry();
+    expect(() =>
+      registry.register(
+        makeTool({
+          name: "nested_legit",
+          inputSchema: z.object({ meta: z.object({ page: z.number(), filters: z.object({ q: z.string() }) }) }),
+        }),
+      ),
+    ).not.toThrow();
+  });
+
   it("permite esquemas de entrada sin campos de tenant", () => {
     const registry = new ToolRegistry();
     expect(() => registry.register(makeTool())).not.toThrow();
