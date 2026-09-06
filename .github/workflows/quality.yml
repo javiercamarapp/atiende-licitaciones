@@ -1,0 +1,242 @@
+name: Quality
+
+# CI de Atiende Licitaciones. Sin secretos: todo lo que corre aquí funciona
+# con las credenciales por defecto del runner (PGlite embebido, Postgres del
+# servicio `db-postgres`, sin llamadas salientes a APIs de terceros que
+# requieran API key — OpenAI/WhatsApp/etc. siguen fuera de CI, ver
+# docs/OPERACION.md "Límites conocidos").
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------
+  # Typecheck + lint + test (con cobertura donde el workspace la define) +
+  # build, por workspace. Usa PGlite (embebido, sin Postgres real) para
+  # todas las suites que tocan @atiende/db — igual que en local.
+  # ---------------------------------------------------------------------
+  workspace-checks:
+    name: ${{ matrix.workspace }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        workspace:
+          - apps/api
+          - apps/web
+          - apps/worker
+          - packages/db
+          - packages/agents
+          - packages/expediente
+          - packages/sources
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Instalar dependencias (workspace completo)
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck --workspace=${{ matrix.workspace }} --if-present
+
+      - name: Lint
+        run: npm run lint --workspace=${{ matrix.workspace }} --if-present
+
+      - name: Test (con cobertura si el workspace la define)
+        run: |
+          set -e
+          if npm run --workspace=${{ matrix.workspace }} 2>/dev/null | grep -q '^  test:coverage$'; then
+            echo "-> usando test:coverage"
+            npm run test:coverage --workspace=${{ matrix.workspace }}
+          else
+            echo "-> sin script test:coverage en este workspace; usando test"
+            npm run test --workspace=${{ matrix.workspace }} --if-present
+          fi
+
+      - name: Build
+        run: npm run build --workspace=${{ matrix.workspace }} --if-present
+
+      - name: Subir artefacto de cobertura (si existe)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.workspace == 'apps/api' && 'apps-api' || matrix.workspace == 'apps/web' && 'apps-web' || matrix.workspace == 'apps/worker' && 'apps-worker' || matrix.workspace == 'packages/db' && 'packages-db' || matrix.workspace == 'packages/agents' && 'packages-agents' || matrix.workspace == 'packages/expediente' && 'packages-expediente' || 'packages-sources' }}
+          path: ${{ matrix.workspace }}/coverage/**
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # ---------------------------------------------------------------------
+  # Migraciones de packages/db aplicadas UNA A UNA sobre un Postgres REAL
+  # (servicio, no PGlite) + ataques RLS dinámicos, siguiendo el patrón de CI
+  # de Likida documentado en docs/investigacion/likida-arquitectura.md §4
+  # (migraciones aplicadas una por una sobre Postgres efímero + ataques RLS
+  # dinámicos con SET LOCAL simulando otro tenant), adaptado al esquema real
+  # de este repo (GUCs app.current_org_id/app.current_user_id + SET LOCAL
+  # ROLE app_role, ver packages/db/src/context.ts — NO al mecanismo
+  # PostgREST/Supabase que usa Likida).
+  #
+  # packages/db/src/driver.ts SÍ soporta Postgres real vía
+  # createPgClient({ connectionString }) cuando DATABASE_URL es postgres://...
+  # (verificado leyendo el código): por eso este job aplica el runner de
+  # verdad contra el servicio, en vez de degradar a PGlite.
+  #
+  # La suite de vitest de packages/db (test/*.test.ts) instancia PGlite
+  # DIRECTAMENTE (test/helpers.ts: createPgliteClient(), sin leer
+  # DATABASE_URL) — no está parametrizada para correr contra `pg`. Re-correr
+  # `npm test -w packages/db` aquí con DATABASE_URL apuntando a este servicio
+  # NO ejercitaría Postgres real (seguiría usando PGlite en memoria, dando un
+  # falso verde de "probado contra Postgres real"). Por eso este job NO repite
+  # esa suite: en su lugar, `db-postgres-migrate.mjs` aplica las migraciones
+  # reales una a una y `db-postgres-rls-check.mjs` ataca el aislamiento RLS
+  # con datos reales, ambos usando la API pública de @atiende/db contra el
+  # driver `pg` real. Ver también packages/db/README.md "Límites conocidos de
+  # PGlite" (#1: no hay pruebas de concurrencia real contra Postgres, pendiente
+  # documentado ahí mismo).
+  db-postgres:
+    name: db-postgres (migraciones + RLS real)
+    runs-on: ubuntu-latest
+    continue-on-error: false
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: atiende_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/atiende_ci
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Instalar dependencias (workspace completo)
+        run: npm ci
+
+      - name: Verificar que el runner de migraciones soporta Postgres real
+        run: |
+          if ! grep -q "postgres://" packages/db/src/driver.ts || ! grep -q "createPgClient" packages/db/src/driver.ts; then
+            echo "::error::packages/db/src/driver.ts ya no expone createPgClient para postgres://; el job db-postgres no puede correr honestamente. Deteniendo (runner sin soporte pg)." >&2
+            exit 1
+          fi
+          echo "OK: packages/db/src/driver.ts soporta postgres:// vía createPgClient (verificado en este paso, no asumido)."
+
+      - name: Esperar Postgres del servicio
+        run: |
+          for i in $(seq 1 30); do
+            pg_isready -h localhost -p 5432 -U postgres && exit 0
+            sleep 1
+          done
+          echo "::error::Postgres del servicio no respondió a tiempo" >&2
+          exit 1
+
+      - name: Aplicar TODAS las migraciones de packages/db, una a una, contra Postgres real
+        # `@atiende/db` se resuelve a packages/db/src/index.ts (fuente TS, no
+        # compilada) vía el symlink de npm workspaces: node plano no puede
+        # resolver sus imports internos (`./driver.js` -> `./driver.ts`), por
+        # eso se ejecuta con `tsx` (ya usado en apps/api y apps/worker para
+        # lo mismo), no con `node` directo (verificado localmente: `node`
+        # falla con ERR_MODULE_NOT_FOUND, `tsx` no).
+        run: npx tsx scripts/db-postgres-migrate.mjs
+
+      - name: Ataques RLS dinámicos contra Postgres real (aislamiento por organización)
+        run: npx tsx scripts/db-postgres-rls-check.mjs
+
+  # ---------------------------------------------------------------------
+  # E2E de apps/web (Playwright + axe-core) sobre el build de producción
+  # servido con `vite preview` — ver apps/web/playwright.config.ts.
+  # ---------------------------------------------------------------------
+  e2e-web:
+    name: e2e-web (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Instalar dependencias (workspace completo)
+        run: npm ci
+
+      - name: Verificar que apps/web define test:e2e
+        run: |
+          if ! npm run --workspace=apps/web 2>/dev/null | grep -q '^  test:e2e$'; then
+            echo "::error::apps/web ya no define el script test:e2e; ajusta este job." >&2
+            exit 1
+          fi
+
+      - name: Instalar navegador Chromium de Playwright
+        run: npx --prefix apps/web playwright install --with-deps chromium
+
+      - name: Build + Playwright + axe-core (test:e2e)
+        run: npm run test:e2e --workspace=apps/web
+
+      - name: Subir reporte de Playwright (si existe)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            apps/web/playwright-report/**
+            apps/web/test-results/**
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # ---------------------------------------------------------------------
+  # Auditoría de dependencias de producción (sin devDependencies). No baja
+  # el pipeline por vulnerabilidades de herramientas de desarrollo/test.
+  # ---------------------------------------------------------------------
+  npm-audit:
+    name: npm audit (prod, alta+)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Instalar dependencias (workspace completo)
+        run: npm ci
+
+      - name: npm audit --omit=dev --audit-level=high
+        run: npm audit --omit=dev --audit-level=high
+
+  # ---------------------------------------------------------------------
+  # Grep de patrones de secretos (ver scripts/check-secrets.sh). Barato y
+  # rápido: no requiere npm ci.
+  # ---------------------------------------------------------------------
+  check-secrets:
+    name: check-secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Buscar patrones de secretos filtrados
+        run: bash scripts/check-secrets.sh
