@@ -1,12 +1,172 @@
-import { Bot } from "lucide-react";
-import { createModulePage } from "@/pages/createModulePage";
+import { Bot, Check, X } from "lucide-react";
 
-const Page = createModulePage({
-  icon: Bot,
-  title: "Agentes y herramientas",
-  description: "Configuración de agentes de IA y herramientas conectadas.",
-  emptyTitle: "Aún no hay agentes configurados",
-  emptyDescription: "Los agentes y herramientas que actives aparecerán aquí.",
-});
+import { SectionHeader } from "@/components/layout/SectionHeader";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { LoadingState } from "@/components/ui/loading-state";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { toast } from "@/components/ui/sonner";
+import { useAuth, describeApiError } from "@/hooks/useAuth";
+import { useAgentRuns, useToolCalls, useApproveToolCall, useDenyToolCall } from "@/hooks/useAgents";
+import { MEMBERSHIP_ADMIN_ROLES, type ToolCall } from "@/lib/api/schemas";
+import { formatDateTimeMx } from "@/lib/datetime";
 
-export default Page;
+const AUTH_STATUS_CONFIG: Record<ToolCall["authorizationStatus"], { label: string; variant: "success" | "warning" | "destructive" | "secondary" }> = {
+  auto: { label: "Automática", variant: "secondary" },
+  pending: { label: "Pendiente de aprobación", variant: "warning" },
+  approved: { label: "Aprobada", variant: "success" },
+  denied: { label: "Denegada", variant: "destructive" },
+};
+
+/**
+ * Persistencia real de packages/agents (`agent_runs`/`tool_calls`, ver
+ * apps/api/README.md módulo `agents`) para la organización activa. La
+ * orquestación de agentes en sí (proveedores LLM reales) queda fuera de esta
+ * ronda — esta pantalla es honesta sobre eso: si no hay corridas, dice
+ * exactamente eso, no inventa actividad.
+ */
+export default function AgentesHerramientasPage() {
+  const { currentOrgId, currentMembership } = useAuth();
+  const { data: runs, isLoading: loadingRuns, isError: runsError, error: runsErr, refetch: refetchRuns } = useAgentRuns();
+  const { data: toolCalls, isLoading: loadingCalls, isError: callsError, error: callsErr, refetch: refetchCalls } = useToolCalls();
+  const approveToolCall = useApproveToolCall();
+  const denyToolCall = useDenyToolCall();
+
+  const canApprove = Boolean(currentMembership && MEMBERSHIP_ADMIN_ROLES.includes(currentMembership.role));
+
+  return (
+    <div>
+      <SectionHeader icon={Bot} title="Agentes y herramientas" description="Corridas de agentes y aprobación humana de tool_calls pendientes de esta organización." />
+      {!currentOrgId ? (
+        <EmptyState icon={Bot} title="Selecciona una organización" description="Elige una organización en el encabezado para ver sus agentes." />
+      ) : (
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle level={2}>Tool_calls pendientes de aprobación</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingCalls && <LoadingState label="Cargando tool_calls…" rows={2} />}
+              {callsError && <ErrorState message={describeApiError(callsErr)} onRetry={() => refetchCalls()} />}
+              {!loadingCalls && !callsError && (!toolCalls || toolCalls.length === 0) && (
+                <p className="text-sm text-muted-foreground">Aún no hay tool_calls registradas para esta organización.</p>
+              )}
+              {!loadingCalls && !callsError && toolCalls && toolCalls.length > 0 && (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Herramienta</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead>Creada (CDMX)</TableHead>
+                      {canApprove && <TableHead>Acciones</TableHead>}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {toolCalls.map((tc) => {
+                      const cfg = AUTH_STATUS_CONFIG[tc.authorizationStatus];
+                      return (
+                        <TableRow key={tc.id}>
+                          <TableCell className="font-medium">{tc.toolName}</TableCell>
+                          <TableCell>
+                            <Badge variant={cfg.variant}>{cfg.label}</Badge>
+                          </TableCell>
+                          <TableCell>{formatDateTimeMx(tc.createdAt)}</TableCell>
+                          {canApprove && (
+                            <TableCell>
+                              {tc.authorizationStatus === "pending" ? (
+                                <div className="flex gap-1.5">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="gap-1"
+                                    onClick={() =>
+                                      approveToolCall.mutate(tc.id, {
+                                        onSuccess: () => toast.success("tool_call aprobada."),
+                                        onError: (err) => toast.error(describeApiError(err)),
+                                      })
+                                    }
+                                  >
+                                    <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                                    Aprobar
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    className="gap-1"
+                                    onClick={() =>
+                                      denyToolCall.mutate(tc.id, {
+                                        onSuccess: () => toast.success("tool_call denegada."),
+                                        onError: (err) => toast.error(describeApiError(err)),
+                                      })
+                                    }
+                                  >
+                                    <X className="h-3.5 w-3.5" aria-hidden="true" />
+                                    Denegar
+                                  </Button>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+              {!canApprove && (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Tu rol ({currentMembership?.role ?? "sin rol"}) puede ver las tool_calls pero no aprobarlas/denegarlas
+                  — se requiere owner/admin.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle level={2}>Corridas de agentes</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingRuns && <LoadingState label="Cargando corridas…" rows={2} />}
+              {runsError && <ErrorState message={describeApiError(runsErr)} onRetry={() => refetchRuns()} />}
+              {!loadingRuns && !runsError && (!runs || runs.length === 0) && (
+                <EmptyState icon={Bot} title="Aún no hay agentes configurados" description="Las corridas de agentes que se ejecuten para esta organización aparecerán aquí." />
+              )}
+              {!loadingRuns && !runsError && runs && runs.length > 0 && (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Agente</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead>Progreso</TableHead>
+                      <TableHead>Inicio (CDMX)</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {runs.map((run) => (
+                      <TableRow key={run.id}>
+                        <TableCell className="font-medium">{run.agentName}</TableCell>
+                        <TableCell>{run.status}</TableCell>
+                        <TableCell>
+                          {run.completedSteps}/{run.totalSteps}
+                        </TableCell>
+                        <TableCell>{formatDateTimeMx(run.startedAt)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+}

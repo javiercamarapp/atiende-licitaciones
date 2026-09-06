@@ -22,6 +22,9 @@ import {
   Bot,
   History,
   Settings,
+  ListTodo,
+  CircleDollarSign,
+  AlertOctagon,
   type LucideIcon,
 } from "lucide-react";
 
@@ -138,6 +141,22 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: Bot,
       },
       { id: "auditoria", label: "Auditoría / Trazabilidad", to: "/backoffice/auditoria", icon: History },
+      // Ronda 3 (E10/superadmin): conectores, jobs, costos, incidentes y
+      // aprobaciones cross-org — ver apps/api/README.md módulo `admin`.
+      { id: "conectores", label: "Conectores", to: "/backoffice/conectores", icon: Wifi },
+      { id: "jobs", label: "Jobs", to: "/backoffice/jobs", icon: ListTodo },
+      { id: "costos", label: "Costos", to: "/backoffice/costos", icon: CircleDollarSign },
+      { id: "incidentes", label: "Incidentes", to: "/backoffice/incidentes", icon: AlertOctagon },
+      {
+        id: "aprobaciones-backoffice",
+        // Nombre accesible distinto del "Aprobaciones" de Preparación
+        // (/preparacion/aprobaciones): dos enlaces con el mismo nombre en el
+        // mismo <nav> rompen `getByRole("link", { name })` (ambiguo) en
+        // AppShell.test.tsx y son indistinguibles para lectores de pantalla.
+        label: "Aprobaciones (tool_calls)",
+        to: "/backoffice/aprobaciones",
+        icon: ShieldCheck,
+      },
     ],
   },
   {
