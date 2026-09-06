@@ -150,3 +150,4 @@
 2026-09-06 13:11  DESPERTAR  auditoría api ronda 6 (#93) ef6d3fd: R6-01/02 ALTA (pdf-parse), R6-03 ALTA; corrector #98 despachado; en curso #91,#92,#94,#96.
 2026-09-06 13:13  DESPERTAR  worker ronda K (#91) completado (370 tests); en curso #92,#94,#96,#98.
 2026-09-06 13:14  RONDA6  auditor #99 (agentes del worker) despachado; en curso #92,#94,#96,#98,#99.
+2026-09-06 13:22  DESPERTAR  Google OIDC api (#92) completado (278 api / 185 db); #100 correos+recuperación+contacto despachado; en curso #94,#96,#98,#99,#100.
