@@ -1,0 +1,283 @@
+Log real — reverificación adversarial de "Estado reparación" (R5-01..R5-08)
+en docs/auditoria-2/api-ronda5.md
+Fecha: 2026-09-06. Agente: reverificador adversarial Sonnet, contexto
+independiente del proyecto. Rol: SOLO encuentra/verifica -- ningún código de
+apps/api, packages/db, apps/web ni apps/worker fue modificado por este
+agente en el repo principal.
+
+METODOLOGÍA
+-----------
+Repo principal: /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging
+(no se usó git reset/checkout <commit>/stash/rebase/add -A en el repo
+principal en ningún momento; el repo principal tenía cambios preexistentes
+sin commitear en apps/web/e2e/*.ts al iniciar, ajenos a este encargo, que
+nunca se tocaron).
+
+Worktree: git worktree add <scratch>/reverify-api5 HEAD  (HEAD real al
+iniciar: 926c996). npm install real (739 paquetes, 0 errores fatales, solo
+warnings de deprecación/audit preexistentes). El repo principal avanzó
+durante esta reverificación con al menos un commit más (2ac371b,
+fix(web,e2e), ajeno a apps/api/packages/db) -- no afecta la ancestría de los
+5 commits verificados. El worktree se eliminó al cierre.
+
+Para verificar comportamiento real (no solo lectura de código) se
+escribieron 6 archivos de prueba adversarial TEMPORALES
+(apps/api/test/_reverify-probe-*.test.ts), ejecutados con fastify.inject +
+PGlite y BORRADOS al terminar -- `git status --short`/`git diff --stat` del
+worktree confirmados vacíos antes de eliminarlo.
+
+===========================================================================
+1. ANCESTRÍA Y `git show --stat` DE LOS 5 COMMITS DE REPARACIÓN
+===========================================================================
+
+$ git merge-base --is-ancestor <hash> HEAD   (los 5, en el repo principal)
+fccab53 (R5-01)          ANCESTOR: yes
+7242298 (R5-02/03/05)    ANCESTOR: yes
+4db65e9 (R5-04)          ANCESTOR: yes
+c2deca5 (R5-06/07)       ANCESTOR: yes
+efea5b3 (docs)           ANCESTOR: yes
+Orden real en `git log`: fccab53 -> 7242298 -> 4db65e9 -> c2deca5 -> efea5b3
+(coincide con el orden declarado en la tabla "Estado reparación").
+
+fccab53 (R5-01): post-award.routes.ts (+55/-6), +1 test nuevo (224 líneas,
+  security-r501-calendar-holidays-effect.test.ts).
+7242298 (R5-02/03/05): audit.ts, errors.ts, rate-limit-settings.ts,
+  step-up.ts, twofa-lockout.ts (nuevo, 83 líneas), company/routes.ts,
+  expediente/approval.routes.ts, twofa/routes.ts (+271/-?), twofa/schemas.ts,
+  error-handler.ts, test/helpers.ts (+49), +2 tests nuevos
+  (security-r502-r503-twofa-brute-force.test.ts 168 líneas,
+  security-r505-stepup-scope.test.ts 94 líneas), +3 migraciones (0058, 0059,
+  0061). 16 archivos, 822 inserciones/75 borrados.
+4db65e9 (R5-04): internal-ingest.routes.ts (+46/-17), +1 test nuevo
+  (security-r504-correlation-id-ingest.test.ts, 165 líneas), +1 migración
+  (0060). 3 archivos, 209 inserciones/17 borrados.
+c2deca5 (R5-06/07): schema-helpers.ts (+27, nuevo helper
+  realCalendarDateString), admin/schemas.ts (+17/-4), +1 test nuevo
+  (security-r506-r507-calendar-holiday-input-validation.test.ts, 105
+  líneas). 3 archivos, 145 inserciones/4 borrados.
+efea5b3 (docs): apps/api/README.md + docs/auditoria-2/api-ronda5.md
+  (columna "Estado reparación"). Solo documentación.
+
+===========================================================================
+2. SUITES OFICIALES REPRODUCIDAS DESDE CERO EN EL WORKTREE
+===========================================================================
+
+$ cd apps/api && npm run typecheck && npm run lint && npm test
+  tsc --noEmit: 0 errores.
+  eslint src test: 0 errores.
+  Test Files  58 passed (58)
+  Tests       227 passed (227)
+  Duration    74.15s
+
+$ cd packages/db && npm test
+  Test Files  23 passed (23)
+  Tests       158 passed (158)
+  Duration    16.00s
+  (incluye migrate.test.ts: las 4 migraciones nuevas 0058-0061 aplican sin
+  error, son idempotentes, y quedan registradas en schema_migrations)
+
+$ cd apps/worker && npm run typecheck && npm test
+  tsc --noEmit: 0 errores.
+  Test Files  11 passed (11)
+  Tests       298 passed (298)
+  Duration    32.65s
+
+$ cd apps/web && npm run typecheck
+  tsc -b --noEmit: 0 errores.
+
+Los 4 números (227/158/298/typecheck limpio) coinciden EXACTAMENTE con lo
+declarado al pie de la tabla "Estado reparación" en api-ronda5.md. Ningún
+resultado se tomó del log preexistente sin re-ejecutar.
+
+===========================================================================
+3. ATAQUES ADVERSARIALES (pruebas temporales, borradas al terminar)
+===========================================================================
+
+--- R5-01 (calendar_holidays) ---
+Archivo: _reverify-probe-r501.test.ts (3 tests, los 3 PASAN)
+  - Feriado cargado el MISMO día que la fecha de aceptación/verificación:
+    no se cuenta (la ventana de negocio empieza al día siguiente) y
+    calendarNote NO afirma exclusión -- correcto, consistente con
+    addBusinessDays.
+  - Feriado oficial en AÑO BISIESTO (2024-02-29) cargado y dentro de la
+    ventana real: SÍ mueve el dueDate real (no solo pasa la validación de
+    esquema -- efecto real en el cómputo). calendarNote lo afirma.
+  - Mismo cómputo (mismo tender, misma fecha de verificación, mismo
+    feriado) bajo `process.env.TZ = 'America/Mexico_City'` y bajo
+    `process.env.TZ = 'UTC'`: dueDate y calendarNote IDÉNTICOS byte a byte
+    en ambos casos -- confirma que `toDateOnlyString` (getters UTC) es
+    realmente independiente de la TZ del proceso, cerrando el vector
+    original de R5-01.
+Cobertura ya existente (security-r501-calendar-holidays-effect.test.ts,
+224 líneas, 5 tests) reproducida sin cambios: feriado dentro/fuera de
+ventana, feriado en fin de semana (sin doble descuento), aceptación en fin
+de semana, y propiedad N=0..3 feriados (dueDate monótono creciente) --
+2 feriados consecutivos quedan cubiertos por esa propiedad (N=2,3 son
+consecutivos por construcción de `pickWeekdayHolidays`).
+VEREDICTO: CERRADO.
+
+--- R5-02/R5-03 (2FA anti-fuerza-bruta + auditoría de fallos) ---
+Archivo: _reverify-probe-r502.test.ts (4 tests, los 4 PASAN)
+  - IP ROTADA sobre el MISMO usuario (5 intentos fallidos, 5 IPs distintas
+    vía `remoteAddress`): el contador de fallos POR USUARIO en DB (no por
+    IP) SÍ activa el bloqueo (lock_count=1, locked_until en el futuro); un
+    6º intento desde una IP NUNCA antes usada sigue devolviendo 429 --
+    confirma que rotar de IP NO reinicia el presupuesto de intentos.
+  - Usuario DISTINTO desde la MISMA IP que un usuario ya bloqueado: no
+    hereda el lockout del otro usuario (failed_count <= 1, locked_until
+    NULL para el usuario que nunca falló) -- el límite de tasa por IP
+    (5/5min, compartido a nivel de plugin `@fastify/rate-limit`, sin
+    keyGenerator por usuario) sí puede devolver 429 al segundo usuario si
+    comparte IP y ventana con el primero, pero el LOCKOUT de cuenta (DB)
+    nunca se cruza entre usuarios.
+  - Desbloqueo por tiempo: con `locked_until` fijado en el pasado
+    directamente en DB, un código TOTP VÁLIDO inmediatamente después
+    responde 200 (no arrastra el bloqueo vencido).
+  - Bloqueo progresivo real: un segundo ciclo de 5 fallos (tras expirar el
+    primer bloqueo) sí DUPLICA la ventana respecto al primer bloqueo
+    (verificado con `secondWindowMs > firstWindowMs * 1.5`, tolerancia
+    amplia por tiempo de ejecución) -- lock_count pasa de 1 a 2,
+    failed_count acumula a 10.
+Archivo: _reverify-probe-r503-ip-gap.test.ts (2 tests, los 2 PASAN --
+  CONFIRMAN UN HALLAZGO NUEVO, ver sección 4, R5-10)
+  - Un fallo de verify-enrollment SÍ queda en audit_log con actor_id y
+    request_id (columnas dedicadas de `audit_log`), y el código TOTP
+    enviado ('424242') NUNCA aparece en claro en el payload `after`.
+  - PERO la IP del cliente (verificada con `remoteAddress`) NO aparece en
+    ningún lado del evento -- ni como columna (`audit_log` no tiene
+    `ip_address`/`ip`, confirmado contra `information_schema.columns`) ni
+    dentro del jsonb `after` (que solo contiene `{reason,
+    retryAfterSeconds}`).
+  - Comparación de paridad: un `auth.login_failed` real (ronda 4/API-13)
+    SÍ incluye la IP del cliente dentro de su propio `after` (vía
+    `auditContext` en `modules/auth/routes.ts`) -- confirma que la ausencia
+    en `twofa.*` es una asimetría real de este fix, no una limitación
+    general del esquema `audit_log`.
+Cobertura ya existente (security-r502-r503-twofa-brute-force.test.ts, 168
+líneas, 8 tests) reproducida sin cambios: 6º intento -> 429 con
+Retry-After, tier `twoFactor` NO se relaja con `RATE_LIMIT_PROFILE=e2e`
+(mínimo garantizado, verificado con 6 intentos reales bajo ese perfil),
+contador DB con bloqueo progresivo persistido, replay de TOTP rechazado,
+fallo queda auditado, bloqueo activo también audita y responde 429,
+verificación exitosa reinicia el contador.
+VEREDICTO: PARCIAL -- el límite de tasa y el bloqueo progresivo por usuario
+son sólidos y resisten rotación de IP; la auditoría de fallos existe pero
+le falta la IP del cliente (R5-10, nuevo hallazgo, MEDIA-BAJA).
+
+--- R5-04 (correlation_id en el ingest) ---
+Archivo: _reverify-probe-r504.test.ts (3 tests, los 3 PASAN)
+  - `X-Correlation-Id` malformado (`'; DROP TABLE tenders; --`) en
+    `POST /internal/tenders/ingest`: la request NO se rechaza (200), el
+    valor crudo/malicioso NUNCA se refleja ni se persiste -- se genera un
+    UUID nuevo, que es el que queda en `tenders.correlation_id`. La tabla
+    `tenders` permanece íntegra (el header nunca llega a SQL sin
+    parametrizar).
+  - `X-Correlation-Id` de 10,000 caracteres: no tumba la request ni el
+    proceso; se descarta igual que el malformado (se genera uno nuevo,
+    <100 caracteres).
+  - `X-Correlation-Id` válido (UUID real): se hereda tal cual, sin
+    regenerar innecesariamente, y queda persistido en `tenders`.
+Cobertura ya existente (security-r504-correlation-id-ingest.test.ts, 165
+líneas, 4 tests) reproducida sin cambios, incluida la traza end-to-end REAL
+(ingesta con X-Correlation-Id -> aprobación de tarifa -> checklist ->
+aprobación de expediente -> manifiesto del paquete, reconstruida en
+`GET /audit-log?correlationId=` con la entidad "tenders" presente).
+VEREDICTO: CERRADO para el lado de `apps/api` (que es el ámbito declarado
+del corrector). El hueco documentado como "FUERA DE ÁMBITO"
+(`apps/worker/src/source-runs/source-runs-repository.ts` nunca incluye
+`correlation_id` en su INSERT a `source_runs`) se reconfirmó sin cambios
+por lectura directa del archivo -- sigue exactamente igual que en la
+auditoría original, correctamente etiquetado.
+
+--- R5-05 (scope de step-up) ---
+Archivo: _reverify-probe-r505-generic-risk.test.ts (1 test, PASA --
+  CONFIRMA UN HALLAZGO NUEVO, ver sección 4, R5-09)
+  - Un `stepUpToken` obtenido exactamente como lo hace `apps/web` HOY
+    (`enrollTwoFactor` == `verifyTwoFactorEnrollment({code})`, sin
+    `orgId`/`purpose` -- confirmado por lectura de
+    `apps/web/src/lib/api/twofa.ts` líneas 28-35 y `client.ts`
+    `buildHeaders`, que solo agrega `X-Org-Id` si `opts.orgId` se pasa
+    explícitamente, cosa que `verifyStepUp`/`verifyTwoFactorEnrollment`
+    NUNCA hacen) aprueba una tarifa en la organización A y, sin volver a
+    verificar 2FA, TAMBIÉN aprueba una tarifa en la organización B con el
+    MISMO token, dentro de la ventana de vigencia.
+Cobertura ya existente (security-r505-stepup-scope.test.ts, 94 líneas, 4
+tests) reproducida sin cambios: reutilización cruzada de purpose rechazada,
+mismo purpose declarado sí funciona, reutilización cruzada de organización
+rechazada, y sesión GENÉRICA (sin declarar nada) sigue sirviendo para
+cualquier acción -- ese último test YA documentaba el comportamiento, pero
+ni el test ni la tabla "Estado reparación" señalan que es el ÚNICO
+comportamiento que el producto real (apps/web) ejercita hoy.
+VEREDICTO: PARCIAL -- el mecanismo de scope funciona correctamente para un
+cliente API que decida usarlo, pero es un no-op en el flujo real del
+producto (R5-09, nuevo hallazgo, BAJA-MEDIA, mismo nivel que el R5-05
+original).
+
+--- R5-06/R5-07 (validación de calendar-holidays) ---
+Archivo: _reverify-probe-r506.test.ts (3 tests, los 3 PASAN)
+  - `sourceUrl: 'file:///etc/passwd'` -> 422.
+  - `sourceUrl: 'ftp://ftp.gob.mx/calendario.pdf'` -> 422.
+  - `sourceUrl: 'JAVASCRIPT:alert(1)'` (mayúsculas) -> 422 (sin bypass
+    trivial de mayúsculas -- el `.refine` usa el flag `i`).
+Cobertura ya existente (security-r506-r507-calendar-holiday-input-
+validation.test.ts, 105 líneas, 6 tests) reproducida sin cambios:
+javascript:/data: rechazados, http/https aceptado, 2026-02-30 y
+2026-13-01 -> 422, 2024-02-29 (bisiesto real) sigue aceptado.
+VEREDICTO: CERRADO.
+
+===========================================================================
+4. HALLAZGOS NUEVOS (numeración continúa desde R5-08)
+===========================================================================
+
+R5-09 (BAJA-MEDIA, mismo nivel que R5-05 original) -- El scope opcional de
+`step_up_sessions` (migración 0061) nunca se activa en el flujo real de
+`apps/web`: `apps/web/src/lib/api/twofa.ts` (`verifyTwoFactorEnrollment`,
+`verifyStepUp`) solo envía `{code}` en el body y nunca pasa `orgId` a
+`apiRequest` (que es la única forma de que `buildHeaders` agregue
+`X-Org-Id`, ver `apps/web/src/lib/api/client.ts:36`) -- por lo tanto TODA
+sesión de step-up producida por el producto real queda "genérica"
+(org_id=null, purpose=null) y sigue siendo reutilizable, dentro de la
+ventana de vigencia, para aprobar cualquier tarifa/expediente en
+CUALQUIER organización de la que el usuario sea miembro, exactamente como
+antes del fix. Confirmado con reproducción real (sección 3). La etiqueta
+"CORREGIDO (alcance opcional)" en la tabla es honesta sobre el alcance
+declarado, pero no dice explícitamente que el riesgo original de R5-05
+sigue intacto en producción -- vale la pena que quede dicho en la propia
+tabla o en el README, no solo inferible leyendo dos repos.
+Reparación propuesta (no aplicada): que `apps/web` pase `purpose:
+'company.rate_approval'`/`'expediente.approval'` y `orgId` al pedir el
+step-up desde `TarifasAprobadasPage`/la aprobación de expediente.
+
+R5-10 (MEDIA-BAJA) -- Los eventos `twofa.verification_failed`/
+`twofa.step_up_denied` (R5-03) auditan `actor_id`/`entity`/`entity_id`/
+`request_id`/`correlation_id`/`reason`, pero NUNCA la IP del cliente --
+`SecurityAuditEntry` (`lib/audit.ts`) ni siquiera tiene un campo `ip`, y
+`recordFailure` (`modules/twofa/routes.ts`) nunca llama a `request.ip`.
+Esto rompe la paridad que la propia tabla de R5-03 invoca con
+`auth.login_failed` (API-13/0051): ese evento SÍ incluye `ip`/`userAgent`
+dentro de su `after` (vía `auditContext`, `modules/auth/routes.ts:34-36`).
+Sin la IP, reconstruir en retrospectiva si un ataque de fuerza bruta contra
+2FA vino de una IP concentrada o de muchas (relevante para decidir un
+bloqueo a nivel de red, más allá del bloqueo por cuenta que R5-02 ya
+resuelve) es más difícil de lo necesario. Confirmado con reproducción real
+(sección 3) y con una comparación directa de paridad contra
+`auth.login_failed` en la misma corrida.
+Reparación propuesta (no aplicada): agregar `ip`/`userAgent` al payload
+`after` de `recordFailure` en `modules/twofa/routes.ts`, igual que ya hace
+`auditContext` en `modules/auth/routes.ts` (mismo patrón, sin migración
+nueva -- `after` ya es jsonb sin esquema fijo).
+
+===========================================================================
+5. REGRESIÓN apps/web typecheck
+===========================================================================
+`cd apps/web && npm run typecheck` -> 0 errores (sección 2). Sin cambios de
+código en `apps/web` en esta ronda de reparación (solo apps/api +
+packages/db), así que no se esperaba regresión -- confirmado.
+
+===========================================================================
+6. LIMPIEZA
+===========================================================================
+Los 6 archivos `_reverify-probe-*.test.ts` se borraron tras ejecutarse.
+`git status --short` y `git diff --stat` del worktree confirmados VACÍOS
+antes de `git worktree remove`. El worktree `reverify-api5` se eliminó al
+cierre de esta reverificación.
