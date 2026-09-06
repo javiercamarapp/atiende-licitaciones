@@ -177,7 +177,7 @@ export function useApproveExpediente(tenderId: string | null | undefined) {
   const { currentOrgId } = useAuth();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => api.approveExpediente(currentOrgId!, tenderId!),
+    mutationFn: (stepUpToken: string) => api.approveExpediente(currentOrgId!, tenderId!, stepUpToken),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: key(currentOrgId, tenderId, "approval") });
       void queryClient.invalidateQueries({ queryKey: key(currentOrgId, tenderId, "package") });
@@ -239,6 +239,16 @@ export function usePostAward(tenderId: string | null | undefined) {
     queryKey: key(currentOrgId, tenderId, "post-award"),
     queryFn: () => api.listPostAward(currentOrgId!, tenderId!),
     enabled: Boolean(currentOrgId && tenderId),
+  });
+}
+
+/** REQ-056: alertas de vencimiento de TODAS las convocatorias de la organización activa. */
+export function usePostAwardAlerts() {
+  const { currentOrgId } = useAuth();
+  return useQuery({
+    queryKey: ["expediente", currentOrgId, "post-award-alerts"],
+    queryFn: () => api.listPostAwardAlerts(currentOrgId!),
+    enabled: Boolean(currentOrgId),
   });
 }
 

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Timer, Plus, Scale } from "lucide-react";
+import { Timer, Plus, Scale, AlertTriangle } from "lucide-react";
 
 import { SectionHeader } from "@/components/layout/SectionHeader";
 import { TenderSelect } from "@/components/expediente/TenderSelect";
@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { toast } from "@/components/ui/sonner";
 import { useAuth, describeApiError } from "@/hooks/useAuth";
-import { usePostAward, useCreatePostAward, useUpdatePostAward } from "@/hooks/useExpediente";
+import { usePostAward, usePostAwardAlerts, useCreatePostAward, useUpdatePostAward } from "@/hooks/useExpediente";
 import { WRITE_ROLES, FOLLOWUP_KINDS, FOLLOWUP_STATUSES, type FollowupKind, type FollowupStatus } from "@/lib/api/schemas";
 import { formatDateMx, formatDateTimeMx } from "@/lib/datetime";
 
@@ -27,8 +27,46 @@ const KIND_LABELS: Record<FollowupKind, string> = {
   garantia: "Garantía",
   facturacion: "Facturación",
   pago: "Pago",
+  penalizacion: "Penalización",
+  convenio_modificatorio: "Convenio modificatorio",
   otro: "Otro",
 };
+
+/**
+ * REQ-056: alertas de vencimiento a través de TODAS las convocatorias de la
+ * organización activa (`GET /expediente/post-award-alerts`), no solo la
+ * seleccionada abajo -- útil para no tener que revisar convocatoria por
+ * convocatoria para saber qué está por vencer o ya venció.
+ */
+function AlertsCard() {
+  const { data: alerts, isLoading, isError } = usePostAwardAlerts();
+  if (isLoading || isError || !alerts || alerts.length === 0) return null;
+
+  return (
+    <Card className="border-warning/40 bg-warning/5">
+      <CardHeader className="flex-row items-start gap-3 space-y-0">
+        <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warning" aria-hidden="true" />
+        <div>
+          <CardTitle className="text-base">Alertas de vencimiento ({alerts.length})</CardTitle>
+          <CardDescription>Seguimientos vencidos o próximos a vencer en todas las convocatorias de esta organización.</CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {alerts.map((a) => (
+          <div key={a.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm">
+            <span>
+              <Badge variant={a.alertLevel === "vencido" ? "destructive" : "warning"} className="mr-2">
+                {a.alertLevel === "vencido" ? "Vencido" : "Próximo"}
+              </Badge>
+              {KIND_LABELS[a.kind as FollowupKind] ?? a.kind}: {a.label}
+            </span>
+            <span className="text-xs text-muted-foreground">{a.dueDate ? formatDateMx(a.dueDate) : "sin fecha"}</span>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
 
 const STATUS_LABELS: Record<FollowupStatus, { label: string; variant: "outline" | "warning" | "success" | "destructive" }> = {
   pending: { label: "Pendiente", variant: "outline" },
@@ -45,12 +83,31 @@ const followupSchema = z.object({
   amount: z.string().optional(),
   notes: z.string().optional(),
   invoiceVerifiedOn: z.string().optional(),
+  acceptanceDate: z.string().optional(),
+  responsibleParty: z.string().optional(),
+  guaranteeType: z.string().optional(),
+  cfdiReference: z.string().optional(),
+  modificationReference: z.string().optional(),
 });
 type FollowupValues = z.infer<typeof followupSchema>;
 
+const EMPTY_FOLLOWUP_VALUES: FollowupValues = {
+  kind: "hito",
+  label: "",
+  dueDate: "",
+  amount: "",
+  notes: "",
+  invoiceVerifiedOn: "",
+  acceptanceDate: "",
+  responsibleParty: "",
+  guaranteeType: "",
+  cfdiReference: "",
+  modificationReference: "",
+};
+
 function CreateFollowupForm({ tenderId }: { tenderId: string }) {
   const create = useCreatePostAward(tenderId);
-  const form = useForm<FollowupValues>({ resolver: zodResolver(followupSchema), defaultValues: { kind: "hito", label: "", dueDate: "", amount: "", notes: "", invoiceVerifiedOn: "" } });
+  const form = useForm<FollowupValues>({ resolver: zodResolver(followupSchema), defaultValues: EMPTY_FOLLOWUP_VALUES });
   const kind = form.watch("kind");
 
   const onSubmit = async (values: FollowupValues) => {
@@ -58,17 +115,27 @@ function CreateFollowupForm({ tenderId }: { tenderId: string }) {
       toast.error('Para kind="pago" indica la fecha en que se verificó la factura (el plazo se calcula, no se declara).');
       return;
     }
+    if (values.kind === "facturacion" && !values.acceptanceDate) {
+      toast.error('Para kind="facturacion" indica la fecha en que se aceptó la factura (el plazo se calcula, no se declara).');
+      return;
+    }
     try {
       await create.mutateAsync({
         kind: values.kind,
         label: values.label,
-        dueDate: values.kind === "pago" ? undefined : values.dueDate || undefined,
+        dueDate: values.kind === "pago" || values.kind === "facturacion" ? undefined : values.dueDate || undefined,
         amount: values.amount ? Number(values.amount) : undefined,
         notes: values.notes || undefined,
         invoiceVerifiedOn: values.kind === "pago" ? values.invoiceVerifiedOn : undefined,
+        acceptanceDate: values.kind === "facturacion" ? values.acceptanceDate : undefined,
+        responsibleParty: values.kind === "hito" ? values.responsibleParty || undefined : undefined,
+        guaranteeType: values.kind === "garantia" ? values.guaranteeType || undefined : undefined,
+        cfdiReference: values.kind === "facturacion" ? values.cfdiReference || undefined : undefined,
+        modificationReference:
+          values.kind === "penalizacion" || values.kind === "convenio_modificatorio" ? values.modificationReference || undefined : undefined,
       });
       toast.success("Seguimiento registrado.");
-      form.reset({ kind: "hito", label: "", dueDate: "", amount: "", notes: "", invoiceVerifiedOn: "" });
+      form.reset(EMPTY_FOLLOWUP_VALUES);
     } catch (err) {
       toast.error(describeApiError(err));
     }
@@ -122,7 +189,7 @@ function CreateFollowupForm({ tenderId }: { tenderId: string }) {
                 </FormItem>
               )}
             />
-            {kind === "pago" ? (
+            {kind === "pago" && (
               <FormField
                 control={form.control}
                 name="invoiceVerifiedOn"
@@ -135,7 +202,78 @@ function CreateFollowupForm({ tenderId }: { tenderId: string }) {
                   </FormItem>
                 )}
               />
-            ) : (
+            )}
+            {kind === "facturacion" && (
+              <>
+                <FormField
+                  control={form.control}
+                  name="acceptanceDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Fecha en que se aceptó la factura</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="cfdiReference"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Folio fiscal / UUID del CFDI (opcional)</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </>
+            )}
+            {kind === "hito" && (
+              <FormField
+                control={form.control}
+                name="responsibleParty"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Responsable (nombre/rol/correo, opcional)</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            )}
+            {kind === "garantia" && (
+              <FormField
+                control={form.control}
+                name="guaranteeType"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tipo de garantía (opcional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="cumplimiento / anticipo / vicios_ocultos / otro" {...field} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            )}
+            {(kind === "penalizacion" || kind === "convenio_modificatorio") && (
+              <FormField
+                control={form.control}
+                name="modificationReference"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Número/expediente registrado (opcional)</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            )}
+            {kind !== "pago" && kind !== "facturacion" && (
               <FormField
                 control={form.control}
                 name="dueDate"
@@ -201,6 +339,7 @@ export default function SeguimientoPage() {
         <EmptyState icon={Timer} title="Selecciona una organización" description="Elige una organización en el encabezado para ver el seguimiento de sus convocatorias." />
       ) : (
         <div className="space-y-6">
+          <AlertsCard />
           <TenderSelect value={tenderId} onChange={setTenderId} />
 
           {tenderId && (

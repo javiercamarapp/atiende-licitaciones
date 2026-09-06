@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ClipboardCheck, MessageSquare, Send, CheckCircle2, XCircle, ShieldAlert } from "lucide-react";
 
+import { StepUpDialog } from "@/components/StepUpDialog";
 import { SectionHeader } from "@/components/layout/SectionHeader";
 import { TenderSelect } from "@/components/expediente/TenderSelect";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -30,6 +31,7 @@ export default function RevisionPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [tenderId, setTenderIdState] = useState<string | null>(searchParams.get("tenderId"));
   const [commentText, setCommentText] = useState("");
+  const [stepUpOpen, setStepUpOpen] = useState(false);
 
   const setTenderId = (id: string) => {
     setTenderIdState(id);
@@ -55,9 +57,9 @@ export default function RevisionPage() {
     }
   };
 
-  const onApprove = async () => {
+  const onApproveWithStepUp = async (stepUpToken: string) => {
     try {
-      await approve.mutateAsync();
+      await approve.mutateAsync(stepUpToken);
       toast.success("Expediente aprobado.");
     } catch (err) {
       toast.error(describeApiError(err));
@@ -114,7 +116,12 @@ export default function RevisionPage() {
                         </Button>
                       )}
                       {canApprove && (
-                        <Button type="button" className="gap-1.5" disabled={approve.isPending || approval.fullyApproved} onClick={onApprove}>
+                        <Button
+                          type="button"
+                          className="gap-1.5"
+                          disabled={approve.isPending || approval.fullyApproved}
+                          onClick={() => setStepUpOpen(true)}
+                        >
                           <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                           {approve.isPending ? "Aprobando…" : approval.fullyApproved ? "Ya aprobado" : "Aprobar expediente"}
                         </Button>
@@ -220,6 +227,13 @@ export default function RevisionPage() {
           )}
         </div>
       )}
+      <StepUpDialog
+        open={stepUpOpen}
+        onOpenChange={setStepUpOpen}
+        title="Verificación en dos pasos para aprobar el expediente"
+        description="Aprobar un expediente exige confirmar tu identidad con un segundo factor (REQ-044/064)."
+        onVerified={onApproveWithStepUp}
+      />
     </div>
   );
 }

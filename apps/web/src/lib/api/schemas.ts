@@ -586,11 +586,18 @@ export const submissionSchema = z.object({
 export type Submission = z.infer<typeof submissionSchema>;
 
 // --- post-adjudicación (E11) ------------------------------------------------------
-export const FOLLOWUP_KINDS = ["hito", "garantia", "facturacion", "pago", "otro"] as const;
+// Ronda 5 (apps/api): kinds ampliados (garantía con tipo, facturación con
+// CFDI, penalización/convenio modificatorio) -- ver
+// apps/api/src/modules/expediente/schemas.ts (docstring sobre qué campo
+// aplica a cada kind).
+export const FOLLOWUP_KINDS = ["hito", "garantia", "facturacion", "pago", "penalizacion", "convenio_modificatorio", "otro"] as const;
 export type FollowupKind = (typeof FOLLOWUP_KINDS)[number];
 
 export const FOLLOWUP_STATUSES = ["pending", "in_progress", "done", "overdue", "cancelled"] as const;
 export type FollowupStatus = (typeof FOLLOWUP_STATUSES)[number];
+
+export const ALERT_LEVELS = ["vencido", "proximo"] as const;
+export type AlertLevel = (typeof ALERT_LEVELS)[number];
 
 export const legalRegimeSchema = z.object({
   law: z.string(),
@@ -616,7 +623,54 @@ export const followupSchema = z.object({
   reminderLeadDays: z.number(),
   jobId: z.string().nullable(),
   createdAt: z.string(),
+  responsibleParty: z.string().nullable().optional(),
+  guaranteeType: z.string().nullable().optional(),
+  cfdiReference: z.string().nullable().optional(),
+  acceptanceDate: z.string().nullable().optional(),
+  modificationReference: z.string().nullable().optional(),
   calendarNote: z.string().nullable(),
   legalRegime: legalRegimeSchema.nullable(),
+  /** REQ-056: 'vencido' (ya pasó dueDate, no terminal) | 'proximo' (vence dentro de reminderLeadDays) | null. */
+  alertLevel: z.enum(ALERT_LEVELS).nullable().optional(),
 });
 export type Followup = z.infer<typeof followupSchema>;
+
+// --- aviso de privacidad (REQ-119/131, GET /legal/privacy-notice) --------------
+export const privacyNoticeSchema = z.object({
+  version: z.number(),
+  publishedAt: z.string(),
+  status: z.literal("borrador_pendiente_validacion_juridica"),
+  responsible: z.string(),
+  supervisoryAuthority: z.string(),
+  applicableLaw: z.string(),
+  sourceDocument: z.string(),
+  contentMarkdown: z.string(),
+});
+export type PrivacyNotice = z.infer<typeof privacyNoticeSchema>;
+
+// --- 2FA / step-up TOTP (REQ-044/064, /auth/2fa/*) ------------------------------
+export const stepUpStatusSchema = z.object({
+  enrolled: z.boolean(),
+  enrolledAt: z.string().nullable(),
+});
+export type StepUpStatus = z.infer<typeof stepUpStatusSchema>;
+
+export const enrollTwoFactorResponseSchema = z.object({
+  secretBase32: z.string(),
+  otpauthUrl: z.string(),
+  backupCodes: z.array(z.string()),
+});
+export type EnrollTwoFactorResponse = z.infer<typeof enrollTwoFactorResponseSchema>;
+
+export const verifyEnrollmentResponseSchema = z.object({
+  enrolled: z.literal(true),
+  stepUpToken: z.string(),
+  expiresAt: z.string(),
+});
+export type VerifyEnrollmentResponse = z.infer<typeof verifyEnrollmentResponseSchema>;
+
+export const stepUpResponseSchema = z.object({
+  stepUpToken: z.string(),
+  expiresAt: z.string(),
+});
+export type StepUpResponse = z.infer<typeof stepUpResponseSchema>;

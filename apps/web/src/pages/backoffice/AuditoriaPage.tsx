@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { History } from "lucide-react";
+import { History, Route } from "lucide-react";
 
 import { SectionHeader } from "@/components/layout/SectionHeader";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -7,6 +7,7 @@ import { ErrorState } from "@/components/ui/error-state";
 import { LoadingState } from "@/components/ui/loading-state";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth, describeApiError } from "@/hooks/useAuth";
 import { useAuditLog } from "@/hooks/useAuditLog";
@@ -17,11 +18,17 @@ import { formatDateTimeMx } from "@/lib/datetime";
  * restringida a reviewer/admin/owner en apps/api (más estricto que su RLS
  * real). Un rol sin permiso recibe 403 real de la API, mostrado tal cual
  * con `<ErrorState/>` — nunca se oculta el enlace como única barrera.
+ *
+ * Ronda 5 (REQ-171): filtro por `correlationId` reconstruye la traza
+ * completa de un flujo de negocio (p. ej. perfil → tarifa → propuesta →
+ * checklist → aprobación → paquete), no solo eventos aislados por
+ * entidad/actor.
  */
 export default function AuditoriaPage() {
   const { currentOrgId } = useAuth();
   const [entity, setEntity] = useState("");
-  const { data, isLoading, isError, error, refetch } = useAuditLog({ entity: entity || undefined });
+  const [correlationId, setCorrelationId] = useState("");
+  const { data, isLoading, isError, error, refetch } = useAuditLog({ entity: entity || undefined, correlationId: correlationId || undefined });
 
   return (
     <div>
@@ -31,13 +38,27 @@ export default function AuditoriaPage() {
         <EmptyState icon={History} title="Selecciona una organización" description="Elige una organización en el encabezado para ver su bitácora." />
       ) : (
         <div className="space-y-4">
-          <Input
-            aria-label="Filtrar por entidad"
-            placeholder="Filtrar por entidad (p. ej. tender_documents, proposals)…"
-            value={entity}
-            onChange={(e) => setEntity(e.target.value)}
-            className="max-w-md"
-          />
+          <div className="flex flex-wrap gap-3">
+            <Input
+              aria-label="Filtrar por entidad"
+              placeholder="Filtrar por entidad (p. ej. tender_documents, proposals)…"
+              value={entity}
+              onChange={(e) => setEntity(e.target.value)}
+              className="max-w-md"
+            />
+            <Input
+              aria-label="Filtrar por id de correlación"
+              placeholder="Filtrar por id de correlación (traza de un flujo completo)…"
+              value={correlationId}
+              onChange={(e) => setCorrelationId(e.target.value)}
+              className="max-w-md"
+            />
+            {correlationId && (
+              <Button type="button" variant="ghost" size="sm" onClick={() => setCorrelationId("")}>
+                Quitar filtro de traza
+              </Button>
+            )}
+          </div>
 
           {isLoading && <LoadingState label="Cargando bitácora…" />}
           {isError && <ErrorState message={describeApiError(error)} onRetry={() => refetch()} />}
@@ -56,6 +77,7 @@ export default function AuditoriaPage() {
                       <TableHead>ID de entidad</TableHead>
                       <TableHead>Actor</TableHead>
                       <TableHead>request_id</TableHead>
+                      <TableHead>Traza</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -67,6 +89,23 @@ export default function AuditoriaPage() {
                         <TableCell className="max-w-[180px] truncate text-xs text-muted-foreground">{entry.entityId ?? "—"}</TableCell>
                         <TableCell className="max-w-[180px] truncate text-xs text-muted-foreground">{entry.actorId ?? "sistema"}</TableCell>
                         <TableCell className="max-w-[140px] truncate text-xs text-muted-foreground">{entry.requestId ?? "—"}</TableCell>
+                        <TableCell>
+                          {entry.correlationId ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="gap-1 text-xs"
+                              aria-label={`Ver traza completa de ${entry.correlationId}`}
+                              onClick={() => setCorrelationId(entry.correlationId!)}
+                            >
+                              <Route className="h-3.5 w-3.5" aria-hidden="true" />
+                              Ver traza
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

@@ -164,13 +164,20 @@ export async function requestApprovalReview(orgId: string, tenderId: string, sco
   return approvalStateSchema.parse(raw);
 }
 
+/**
+ * Ronda 5 (REQ-044/064): exige `stepUpToken` de una sesión de step-up
+ * vigente (`POST /auth/2fa/step-up`) — sin 2FA enrolado y verificado,
+ * apps/api responde 403 con instrucción explícita antes de siquiera llegar
+ * a esta ruta.
+ */
 export async function approveExpediente(
   orgId: string,
   tenderId: string,
+  stepUpToken: string,
   scope: "seccion" | "documento" | "expediente" = "expediente",
   scopeRef = "expediente",
 ): Promise<ApprovalState> {
-  const raw = await apiRequest<unknown>(`${base(tenderId)}/approval/approve`, { method: "POST", body: { scope, scopeRef }, orgId });
+  const raw = await apiRequest<unknown>(`${base(tenderId)}/approval/approve`, { method: "POST", body: { scope, scopeRef }, orgId, stepUpToken });
   return approvalStateSchema.parse(raw);
 }
 
@@ -247,6 +254,16 @@ export async function listPostAward(orgId: string, tenderId: string): Promise<Fo
   return z.array(followupSchema).parse(raw);
 }
 
+/**
+ * REQ-056: alertas de vencimiento a través de TODAS las convocatorias de la
+ * organización activa (no por tenderId -- ruta `/expediente/post-award-alerts`,
+ * distinta de `/expediente/tenders/:tenderId/post-award`).
+ */
+export async function listPostAwardAlerts(orgId: string): Promise<Followup[]> {
+  const raw = await apiRequest<unknown>("/expediente/post-award-alerts", { orgId });
+  return z.array(followupSchema).parse(raw);
+}
+
 export interface FollowupCreateInput {
   kind: Followup["kind"];
   label: string;
@@ -256,6 +273,16 @@ export interface FollowupCreateInput {
   reminderLeadDays?: number;
   invoiceVerifiedOn?: string;
   holidays?: string[];
+  /** kind='hito' */
+  responsibleParty?: string;
+  /** kind='garantia' */
+  guaranteeType?: string;
+  /** kind='facturacion' */
+  cfdiReference?: string;
+  /** kind='facturacion': dispara el mismo cómputo legal de plazo que invoiceVerifiedOn. */
+  acceptanceDate?: string;
+  /** kind='penalizacion' | 'convenio_modificatorio' */
+  modificationReference?: string;
 }
 
 export async function createPostAward(orgId: string, tenderId: string, input: FollowupCreateInput): Promise<Followup> {
