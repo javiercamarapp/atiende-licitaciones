@@ -204,8 +204,8 @@ una reverificación adversarial independiente de `apps/api`/E6-E11.
 | EX-EXP-14 | MEDIA | **CERRADO** (mismo commit que EX-EXP-02) | |
 | EX-EXP-15 | MEDIA | **CERRADO** | Fecha numérica ambigua (día/mes ambos ≤12) baja `confidence` a 0.5 sin cambiar interpretación DD/MM |
 | EX-EXP-16 | BAJA | **CERRADO (documental)** | Docstring de `expediente-flow.test.ts` ya no sobreestima A6-A15 |
-| EX-EXP-17 | ALTA | **CERRADO**, con 1 hallazgo derivado nuevo BAJA (§3.1, no explotable) | `HashedInputs` sellado con símbolo privado; 11 ataques adicionales de esta ronda sin bypass funcional real |
-| EX-EXP-18 | MEDIA | **CERRADO** para su alcance declarado; `-0`/`NaN` residual BAJO latente (§4) | `sortKeysDeep` distingue `Date`/`Map`/`Set`/`BigInt`, incluido anidamiento |
+| EX-EXP-17 | ALTA | **CERRADO**; hallazgo derivado REVERIFY3-EXP-A (§3.1, BAJA) también **CERRADO** por agente corrector — `isSealedHashedInputs` ahora exige `Object.hasOwn(SEALED_MARKER/inputs/hash)` (propiedad propia, no heredada) **y** pertenencia a un `WeakSet` interno poblado solo por `sealInputs` (identidad de instancia, no falsificable vía `Object.create`); ver `packages/expediente/src/proposal-version.ts`, `packages/expediente/README.md` §"Hash de insumos", `packages/expediente/test/approval-workflow.test.ts` ("Object.create(hashedInputsAjeno)"), `docs/logs/fix-expediente-micro.log` | `HashedInputs` sellado con símbolo privado; 11 ataques adicionales de esta ronda sin bypass funcional real |
+| EX-EXP-18 | MEDIA | **CERRADO** para su alcance declarado; residual `-0`/`NaN`/`Infinity` (§4, BAJA) también **CERRADO** por agente corrector — `sortKeysDeep` lanza fail-closed ante `NaN`/`Infinity`/`-Infinity` (decisión de diseño: no finito = error de validación del insumo, no valor hasheable) y serializa `-0` con marcador de tipo distinto de `0`; ver `packages/expediente/src/types.ts`, `packages/expediente/README.md`, `packages/expediente/test/types.test.ts` ("EX-EXP-18 residual"), `docs/logs/fix-expediente-micro.log` | `sortKeysDeep` distingue `Date`/`Map`/`Set`/`BigInt`, incluido anidamiento |
 | EX-EXP-19 | BAJA/MEDIA | **CERRADO** | Secciones "NO APLICA" visibles; reevaluación confirmada correcta (§5); nota de integración sobre `conditionEvaluations` fuera del hash, señalada para `apps/api` |
 | EX-EXP-20 | BAJA | **CERRADO**, robusto más allá del caso original (§6) | `assertValidTimeComponents` cubre offsets Z y no-Z, leap seconds, fracciones límite |
 | EX-EXP-21 | BAJA (CI) | **CERRADO**, confirmado con ataque adversarial de mutación de umbral (§2) | `test:coverage` con thresholds reales, gate probado en falla y en éxito |
@@ -214,10 +214,23 @@ una reverificación adversarial independiente de `apps/api`/E6-E11.
 **Resumen**: 20 de 22 hallazgos CERRADOS con evidencia de test/ataque directo;
 2 aceptados como límites conocidos con causa documentada (EX-EXP-08,
 EX-EXP-10, ambos por diseño correcto de una librería pura sin capa de
-identidad/consistencia externa); 1 hallazgo nuevo de severidad BAJA/documental
-sin explotabilidad real (§3.1); 2 residuales latentes de severidad BAJA
-señalados para awareness futura (`-0`/`NaN` en `stableStringify`, §4). Ningún
-hallazgo de severidad CRÍTICA o ALTA permanece abierto.
+identidad/consistencia externa). Ningún hallazgo de severidad CRÍTICA o ALTA
+permanece abierto.
+
+**Actualización post-cierre (agente corrector, misma fecha)**: los 2
+hallazgos derivados de severidad BAJA que esta ronda dejó documentados pero
+sin corregir — REVERIFY3-EXP-A (§3.1, `isSealedHashedInputs` recorría la
+cadena de prototipos) y el residual `-0`/`NaN`/`Infinity` de `stableStringify`
+(§4) — fueron ambos **CERRADOS** en una micro-vuelta de corrección posterior,
+sin tocar `apps/api` ni ningún otro alcance: ver filas EX-EXP-17/EX-EXP-18 de
+esta tabla, `packages/expediente/README.md`, y
+`docs/logs/fix-expediente-micro.log` para la reproducción "antes" (5 tests
+fallando contra el código sin corregir en un `git worktree` separado) y la
+corrida completa `typecheck`/`lint`/`test`/`test:coverage` en verde tras el
+fix. De los 22 hallazgos originales más el derivado REVERIFY3-EXP-A, ninguno
+queda abierto salvo los 2 aceptados como límites de diseño (EX-EXP-08,
+EX-EXP-10) y EX-EXP-22 (documental, pendiente de que el orquestador actualice
+`docs/ACEPTACION.md`, fuera del alcance de este agente).
 
 ---
 

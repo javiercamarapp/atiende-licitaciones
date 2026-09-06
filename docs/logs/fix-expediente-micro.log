@@ -1,0 +1,242 @@
+================================================================================
+0. Reproducción 'antes' en git worktree separado (HEAD, sin tocar el árbol principal)
+================================================================================
+
+HEAD en el momento del fix: 26328742823d6b169bcd6695ce7829d557d8fc80
+
+Comando: git worktree add <scratchpad>/fix-expediente-micro-before HEAD
+Se copiaron test/types.test.ts y test/approval-workflow.test.ts (ya con los
+nuevos casos) sobre el código SIN corregir del worktree y se corrió vitest.
+Resultado esperado y obtenido: los 5 tests nuevos FALLAN contra el código viejo
+(prueba de que reproducen los 2 hallazgos BAJA antes del fix):
+
+
+ RUN  v2.1.9 /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/fix-expediente-micro-before/packages/expediente
+
+ ❯ test/types.test.ts (42 tests | 4 failed) 14ms
+   × stableStringify/sha256Hex — EX-EXP-18 residual: -0/NaN/Infinity ya no colisionan > -0 y 0 ya NO producen el mismo hash (antes: JSON.stringify(-0) === JSON.stringify(0) === '0') 2ms
+     → expected '5feceb66ffc86f38d952786c6d696c79c2dbc…' not to be '5feceb66ffc86f38d952786c6d696c79c2dbc…' // Object.is equality
+   × stableStringify/sha256Hex — EX-EXP-18 residual: -0/NaN/Infinity ya no colisionan > -0 anidado dentro de un objeto tampoco colisiona con 0 en la misma posición 0ms
+     → expected '31f48ed33afe7e437efa2c30cbf97fbd62c2d…' not to be '31f48ed33afe7e437efa2c30cbf97fbd62c2d…' // Object.is equality
+   × stableStringify/sha256Hex — EX-EXP-18 residual: -0/NaN/Infinity ya no colisionan > serializar NaN lanza explícitamente (antes: colapsaba a 'null', colisionando con null/Infinity/-Infinity) 1ms
+     → expected [Function] to throw an error
+   × stableStringify/sha256Hex — EX-EXP-18 residual: -0/NaN/Infinity ya no colisionan > serializar Infinity/-Infinity lanza explícitamente (antes: ambos colapsaban a 'null') 0ms
+     → expected [Function] to throw an error
+ ❯ test/approval-workflow.test.ts (21 tests | 1 failed) 13ms
+   × ApprovalWorkflow — EX-EXP-17: inputsHash exige un HashedInputs sellado, nunca un string suelto > approve() rechaza un objeto Object.create(hashedInputsAjeno) con inputs/hash PROPIOS auto-coherentes (el símbolo heredado ya no basta) 3ms
+     → expected [Function] to throw an error
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/approval-workflow.test.ts > ApprovalWorkflow — EX-EXP-17: inputsHash exige un HashedInputs sellado, nunca un string suelto > approve() rechaza un objeto Object.create(hashedInputsAjeno) con inputs/hash PROPIOS auto-coherentes (el símbolo heredado ya no basta)
+AssertionError: expected [Function] to throw an error
+
+- Expected: 
+null
+
++ Received: 
+undefined
+
+ ❯ test/approval-workflow.test.ts:291:7
+    289|     expect(() =>
+    290|       wf.approve({ scope: "expediente", scopeRef: "expediente", actorI…
+    291|     ).toThrow(/InvalidInputsHashError|sello interno/);
+       |       ^
+    292|     expect(wf.listApprovals()).toHaveLength(0);
+    293|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  test/types.test.ts > stableStringify/sha256Hex — EX-EXP-18 residual: -0/NaN/Infinity ya no colisionan > -0 y 0 ya NO producen el mismo hash (antes: JSON.stringify(-0) === JSON.stringify(0) === '0')
+AssertionError: expected '5feceb66ffc86f38d952786c6d696c79c2dbc…' not to be '5feceb66ffc86f38d952786c6d696c79c2dbc…' // Object.is equality
+ ❯ test/types.test.ts:250:31
+    248| describe("stableStringify/sha256Hex — EX-EXP-18 residual: -0/NaN/Infin…
+    249|   it("-0 y 0 ya NO producen el mismo hash (antes: JSON.stringify(-0) =…
+    250|     expect(sha256Hex(-0)).not.toBe(sha256Hex(0));
+       |                               ^
+    251|   });
+    252| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  test/types.test.ts > stableStringify/sha256Hex — EX-EXP-18 residual: -0/NaN/Infinity ya no colisionan > -0 anidado dentro de un objeto tampoco colisiona con 0 en la misma posición
+AssertionError: expected '31f48ed33afe7e437efa2c30cbf97fbd62c2d…' not to be '31f48ed33afe7e437efa2c30cbf97fbd62c2d…' // Object.is equality
+ ❯ test/types.test.ts:254:42
+    252| 
+    253|   it("-0 anidado dentro de un objeto tampoco colisiona con 0 en la mis…
+    254|     expect(sha256Hex({ total: -0 })).not.toBe(sha256Hex({ total: 0 }));
+       |                                          ^
+    255|   });
+    256| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  test/types.test.ts > stableStringify/sha256Hex — EX-EXP-18 residual: -0/NaN/Infinity ya no colisionan > serializar NaN lanza explícitamente (antes: colapsaba a 'null', colisionando con null/Infinity/-Infinity)
+AssertionError: expected [Function] to throw an error
+
+- Expected: 
+null
+
++ Received: 
+undefined
+
+ ❯ test/types.test.ts:263:34
+    261| 
+    262|   it("serializar NaN lanza explícitamente (antes: colapsaba a 'null', …
+    263|     expect(() => sha256Hex(NaN)).toThrow(/no finito/);
+       |                                  ^
+    264|     expect(() => sha256Hex({ total: NaN })).toThrow(/no finito/);
+    265|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  test/types.test.ts > stableStringify/sha256Hex — EX-EXP-18 residual: -0/NaN/Infinity ya no colisionan > serializar Infinity/-Infinity lanza explícitamente (antes: ambos colapsaban a 'null')
+AssertionError: expected [Function] to throw an error
+
+- Expected: 
+null
+
++ Received: 
+undefined
+
+ ❯ test/types.test.ts:268:39
+    266| 
+    267|   it("serializar Infinity/-Infinity lanza explícitamente (antes: ambos…
+    268|     expect(() => sha256Hex(Infinity)).toThrow(/no finito/);
+       |                                       ^
+    269|     expect(() => sha256Hex(-Infinity)).toThrow(/no finito/);
+    270|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+ Test Files  2 failed (2)
+      Tests  5 failed | 58 passed (63)
+   Start at  21:49:45
+   Duration  281ms (transform 46ms, setup 0ms, collect 62ms, tests 28ms, environment 0ms, prepare 58ms)
+
+
+================================================================================
+1. Fix aplicado (packages/expediente/src/proposal-version.ts, packages/expediente/src/types.ts)
+================================================================================
+
+REVERIFY3-EXP-A: isSealedHashedInputs ahora usa Object.hasOwn(value, SEALED_MARKER)
++ Object.hasOwn(value, 'inputs')/'hash' + pertenencia a un WeakSet 'sealedInstances'
+poblado únicamente por sealInputs() (segunda barrera por identidad de objeto,
+no falsificable heredando de un HashedInputs ajeno vía Object.create).
+
+EX-EXP-18 residual: sortKeysDeep ahora lanza fail-closed ante NaN/Infinity/-Infinity
+(error de validación del insumo, no un valor hasheable) y serializa -0 con un
+marcador de tipo distinto de 0 (ya no colisionan vía JSON.stringify).
+
+================================================================================
+2. npm run -w packages/expediente typecheck lint test test:coverage (código YA corregido)
+================================================================================
+
+
+> @atiende/expediente@0.1.0 typecheck
+> tsc --noEmit
+
+EXIT typecheck: 0
+
+
+> @atiende/expediente@0.1.0 lint
+> eslint src test
+
+EXIT lint: 0
+
+
+> @atiende/expediente@0.1.0 test
+> vitest run
+
+
+ RUN  v2.1.9 /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/packages/expediente
+
+ ✓ test/requirement-matrix.test.ts (12 tests) 5ms
+ ✓ test/integrity-checklist.test.ts (11 tests) 2ms
+ ✓ test/types.test.ts (42 tests) 14ms
+ ✓ test/technical-proposal.test.ts (7 tests) 9ms
+ ✓ test/approval-workflow.test.ts (21 tests) 15ms
+ ✓ test/technical-proposal-property.test.ts (200 tests) 30ms
+ ✓ test/package-assembler.test.ts (12 tests) 46ms
+ ✓ test/expediente-flow.test.ts (3 tests) 30ms
+ ✓ test/proposal-invalidation.test.ts (10 tests) 44ms
+ ✓ test/company-data.test.ts (7 tests) 3ms
+ ✓ test/economic-proposal.test.ts (10 tests) 7ms
+ ✓ test/number-to-words.test.ts (42 tests) 3ms
+ ✓ test/money.test.ts (9 tests) 2ms
+ ✓ test/llm-extractor.test.ts (2 tests) 3ms
+ ✓ test/api-surface.test.ts (4 tests) 3ms
+ ✓ test/timezone-determinism.test.ts (6 tests) 1727ms
+   ✓ isPast — determinismo ante el TZ del proceso (EX-EXP-04, REQ-160 vigencias) > una fecha CON offset explícito produce EXACTAMENTE el mismo veredicto bajo TZ=UTC, America/Mexico_City y Asia/Tokyo 331ms
+
+ Test Files  16 passed (16)
+      Tests  398 passed (398)
+   Start at  21:50:06
+   Duration  2.26s (transform 391ms, setup 0ms, collect 840ms, tests 1.94s, environment 1ms, prepare 691ms)
+
+EXIT test: 0
+
+
+> @atiende/expediente@0.1.0 test:coverage
+> vitest run --coverage
+
+
+ RUN  v2.1.9 /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/packages/expediente
+      Coverage enabled with v8
+
+ ✓ test/technical-proposal.test.ts (7 tests) 4ms
+ ✓ test/types.test.ts (42 tests) 13ms
+ ✓ test/integrity-checklist.test.ts (11 tests) 6ms
+ ✓ test/requirement-matrix.test.ts (12 tests) 10ms
+ ✓ test/approval-workflow.test.ts (21 tests) 12ms
+ ✓ test/technical-proposal-property.test.ts (200 tests) 43ms
+ ✓ test/package-assembler.test.ts (12 tests) 44ms
+ ✓ test/proposal-invalidation.test.ts (10 tests) 29ms
+ ✓ test/expediente-flow.test.ts (3 tests) 34ms
+ ✓ test/economic-proposal.test.ts (10 tests) 5ms
+ ✓ test/company-data.test.ts (7 tests) 3ms
+ ✓ test/number-to-words.test.ts (42 tests) 4ms
+ ✓ test/money.test.ts (9 tests) 2ms
+ ✓ test/llm-extractor.test.ts (2 tests) 6ms
+ ✓ test/api-surface.test.ts (4 tests) 5ms
+ ✓ test/timezone-determinism.test.ts (6 tests) 1784ms
+   ✓ isPast — determinismo ante el TZ del proceso (EX-EXP-04, REQ-160 vigencias) > una fecha CON offset explícito produce EXACTAMENTE el mismo veredicto bajo TZ=UTC, America/Mexico_City y Asia/Tokyo 332ms
+   ✓ isPast — determinismo ante el TZ del proceso (EX-EXP-04, REQ-160 vigencias) > una fecha límite naive combinada con un asOfIso naive también se rechaza de forma consistente en las 3 zonas 311ms
+
+ Test Files  16 passed (16)
+      Tests  398 passed (398)
+   Start at  21:50:08
+   Duration  2.45s (transform 307ms, setup 0ms, collect 808ms, tests 2.00s, environment 2ms, prepare 963ms)
+
+ % Coverage report from v8
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-------------------|---------|----------|---------|---------|-------------------
+All files          |   93.07 |    90.75 |   92.43 |   93.07 |                   
+ src               |   92.93 |    90.83 |   92.17 |   92.93 |                   
+  ...l-workflow.ts |     100 |    97.77 |     100 |     100 | 120               
+  company-data.ts  |   71.11 |    84.61 |   64.28 |   71.11 | ...15-222,225-232 
+  ...c-proposal.ts |     100 |      100 |     100 |     100 |                   
+  index.ts         |     100 |      100 |     100 |     100 |                   
+  ...-checklist.ts |   89.92 |    87.09 |     100 |   89.92 | ...73-179,181-182 
+  money.ts         |    93.1 |       64 |    87.5 |    93.1 | 86-89             
+  ...r-to-words.ts |   95.42 |    86.44 |     100 |   95.42 | ...85,201-202,216 
+  ...-assembler.ts |     100 |    95.23 |     100 |     100 | 128,206           
+  ...al-version.ts |   97.16 |    95.74 |     100 |   97.16 | 299-300,327-328   
+  ...ent-matrix.ts |   93.16 |    91.22 |     100 |   93.16 | ...31-333,430-438 
+  ...l-proposal.ts |      90 |     90.9 |   66.66 |      90 | ...30,252,256,258 
+  types.ts         |   89.93 |    96.38 |   91.66 |   89.93 | ...20-121,164-167 
+ src/llm           |     100 |    83.33 |     100 |     100 |                   
+  extractor.ts     |     100 |    83.33 |     100 |     100 | 67                
+-------------------|---------|----------|---------|---------|-------------------
+EXIT test:coverage: 0
+
+================================================================================
+3. npm run -w apps/api typecheck (confirma que no se tocó apps/api y sigue compilando)
+================================================================================
+
+
+> @atiende/api@0.1.0 typecheck
+> tsc --noEmit
+
+EXIT apps/api typecheck: 0
