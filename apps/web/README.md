@@ -147,6 +147,33 @@ manteniendo divergencias deliberadas para el dominio de licitaciones:
 | Métodos de acceso | Solo enlace mágico + Google OAuth | Contraseña **y** enlace mágico (tabs), sin OAuth | El backend de licitaciones (`apps/api`) expone `/auth/login` con contraseña; no hay integración con Google configurada en esta ronda. Se documenta como decisión de producto, no como omisión accidental |
 | Roles / redirect post-login | Lógica de `superadmin` vs. `admin` específica de restaurantes | No aplica — sin backend de sesión todavía | Fuera de alcance de esta ronda (ver "Qué falta") |
 
+## Seguridad de dependencias — `npm audit` (W-04)
+
+`npm audit --workspace apps/web` reporta actualmente "5 vulnerabilities (3
+moderate, 1 high, 1 critical)" **incluso en un clon limpio**, y esto **no es
+un defecto de `apps/web`**: las 5 provienen de una copia vieja de
+`esbuild`/`vite` anidada bajo `vitest`/`vite-node`, arrastrada porque el
+resto del monorepo (`apps/api`, `packages/agents`, `packages/db`,
+`packages/expediente`, `packages/sources`) fija `"vitest": "^2.1.8"` como
+dependencia de desarrollo, mientras `apps/web` necesita `vitest@^4` (para
+Vite 6). `npm audit --workspace <nombre>` no aísla el árbol de dependencias
+reales de ese workspace cuando hay conflictos de hoisting entre workspaces
+del mismo lockfile — es una limitación conocida de `npm`, no de este código.
+Verificado con `npm ls vitest` (`docs/logs/fix-web-w04.log`): todas las
+apariciones de la versión vulnerable de `esbuild`/`vite` cuelgan de la
+`vitest@2.1.8` de otros workspaces, ninguna de la `vitest@4.1.11` que declara
+`apps/web/package.json`. Son vulnerabilidades de **herramientas de
+desarrollo/test** (servidor dev de esbuild/Vite), no de código que llegue al
+bundle de producción de `apps/web` (`vite build` no las incluye).
+
+Corrección real posible: que los workspaces que fijan `vitest@^2.1.8` (fuera
+del ámbito de `apps/web`, ver `docs/PROGRESO.md`) suban a una versión sin
+esta cadena de arrastre. Mientras tanto, no tomar el "0 vulnerabilities" de
+un `npm audit --workspace apps/web` en un clon *verdaderamente* aislado
+(solo `apps/web/` sin el resto del monorepo) como el estado real del
+lockfile compartido — ambos números son ciertos, pero miden árboles
+distintos.
+
 ## Qué falta (fuera de alcance de esta ronda)
 
 - Conectar `apps/api` real: hoy `src/lib/api.ts` apunta a `VITE_API_URL` pero

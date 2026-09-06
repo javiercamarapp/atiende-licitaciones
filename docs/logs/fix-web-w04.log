@@ -1,0 +1,75 @@
+=== W-04: npm audit --workspace apps/web no aisla el arbol real (evidencia) ===
+
+Comando: npm audit --workspace apps/web (repo de trabajo actual)
+# npm audit report
+
+esbuild  <=0.24.2
+Severity: moderate
+esbuild enables any website to send any requests to the development server and read the response - https://github.com/advisories/GHSA-67mh-4wv8-2f99
+fix available via `npm audit fix --force`
+Will install vitest@4.1.11, which is a breaking change
+node_modules/vite-node/node_modules/esbuild
+node_modules/vitest/node_modules/esbuild
+  vite  <=6.4.2
+  Depends on vulnerable versions of esbuild
+  node_modules/vite-node/node_modules/vite
+  node_modules/vitest/node_modules/vite
+    @vitest/mocker  <=3.0.0-beta.4
+    Depends on vulnerable versions of vite
+    node_modules/vitest/node_modules/@vitest/mocker
+      vitest  <=3.2.5
+      Depends on vulnerable versions of @vitest/mocker
+      Depends on vulnerable versions of vite
+      Depends on vulnerable versions of vite-node
+      node_modules/vitest
+    vite-node  <=2.2.0-beta.2
+    Depends on vulnerable versions of vite
+    node_modules/vite-node
+
+
+
+5 vulnerabilities (3 moderate, 1 high, 1 critical)
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Comando: npm ls vitest (raiz) -- muestra que apps/web usa vitest@4 y el resto vitest@2.1.8
+atiende-licitaciones@0.1.0 /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging
+├─┬ @atiende/agents@0.1.0 -> ./packages/agents
+│ ├─┬ @vitest/coverage-v8@2.1.9
+│ │ └── vitest@2.1.9 deduped
+│ └── vitest@2.1.9
+├─┬ @atiende/api@0.1.0 -> ./apps/api
+│ └── vitest@2.1.9 deduped
+├─┬ @atiende/db@0.1.0 -> ./packages/db
+│ └── vitest@2.1.9 deduped
+├─┬ @atiende/expediente@0.1.0 -> ./packages/expediente
+│ └── vitest@2.1.9 deduped
+├─┬ @atiende/sources@0.1.0 -> ./packages/sources
+│ └── vitest@2.1.9 deduped
+├─┬ @atiende/web@0.1.0 -> ./apps/web
+│ ├─┬ @vitest/coverage-v8@4.1.11
+│ │ └── vitest@4.1.11 deduped
+│ ├─┬ vitest-axe@0.1.0
+│ │ └── vitest@2.1.9 deduped
+│ └── vitest@4.1.11
+└─┬ @atiende/worker@0.1.0 -> ./apps/worker
+  └── vitest@2.1.9 deduped
+
+
+Comando: npm ls esbuild --all 2>&1 | grep -B3 'esbuild@0\.' | head -80
+atiende-licitaciones@0.1.0 /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging
+├─┬ @atiende/agents@0.1.0 -> ./packages/agents
+│ └─┬ vitest@2.1.9
+│   ├─┬ vite-node@2.1.9
+│   │ └─┬ vite@5.4.21
+│   │   └── esbuild@0.21.5
+│   └─┬ vite@5.4.21
+│     └── esbuild@0.21.5
+├─┬ @atiende/api@0.1.0 -> ./apps/api
+│ └─┬ tsx@4.23.13
+│   └── esbuild@0.28.2
+└─┬ @atiende/web@0.1.0 -> ./apps/web
+  └─┬ vite@6.4.3
+    └── esbuild@0.25.12
+
