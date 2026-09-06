@@ -22,6 +22,30 @@ este documento.
 
 Comandos y salida completa: `docs/logs/reverify2-agents.log`.
 
+**Nota de transparencia sobre el commit de este documento**: el mandato pedía
+commitear con `git commit -m "..." -- docs/auditoria-1/agents-reverificacion-2.md
+docs/logs/reverify2-agents.log`. Se hizo `git add` correctamente restringido a
+esos 2 archivos, pero el `git commit` posterior se ejecutó **sin** el
+pathspec `-- <archivos>` en el propio comando `commit` (solo se usó en
+`add`). En este repo compartido, otro agente concurrente tenía en ese
+instante cambios ya escritos/staged de `packages/expediente` (corrección
+EX-EXP-06/EX-EXP-15, commit resultante `587d4a2`), y el `commit` sin
+pathspec incluyó también esos 5 archivos ajenos (`docs/auditoria-1/expediente-reverificacion.md`,
+`docs/logs/fix-expediente-ronda2.log`, `packages/expediente/README.md`,
+`packages/expediente/src/requirement-matrix.ts`,
+`packages/expediente/test/requirement-matrix.test.ts`) junto con los 2
+propios de esta reverificación. Se verificó que ese contenido es una
+corrección completa, coherente y ya documentada por su propio log
+(`fix-expediente-ronda2.log`), no un cambio a medias — no se perdió ni se
+corrompió ningún trabajo. Siguiendo la regla dura de este mandato (prohibido
+`git reset`/`checkout`/`stash`/`rebase` en el repo principal) y el mismo
+criterio de honestidad que `agents-reverificacion.md` aplicó a un caso
+análogo (nota "Nota de transparencia sobre los commits" sobre `971feea`), se
+documenta la desviación aquí en vez de intentar deshacerla de forma
+destructiva. El commit real de packages/agents-reverificacion-2 (`587d4a2`)
+toca 2 archivos propios + 5 ajenos; ningún archivo de `packages/agents` fue
+tocado por este commit.
+
 ---
 
 ## 1. Verificación de los commits declarados
