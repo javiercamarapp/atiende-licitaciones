@@ -257,6 +257,15 @@ test.describe.serial("Expediente — flujo completo real (ronda 5)", () => {
     await expect(page.getByText(/no puede aprobar/)).toBeVisible();
     await expect(page.getByRole("button", { name: "Aprobar expediente" })).toHaveCount(0);
 
+    // Mismo motivo que el toast de la prueba anterior: `selectTender()`
+    // (arriba) acaba de cerrar el popover del Select (Radix + tailwindcss-
+    // animate, `data-[state=closed]:fade-out-0`) -- sin esperar a que esa
+    // animación de salida termine, axe puede seguir viendo la opción
+    // dentro del popover a mitad de un `opacity` en transición, midiendo
+    // un contraste mezclado (real pero espurio, nunca reproducible en el
+    // estado final en reposo).
+    await page.waitForTimeout(500);
+
     const violations = await seriousOrCriticalViolations(page);
     expect(violations, formatViolations(violations)).toEqual([]);
   });
