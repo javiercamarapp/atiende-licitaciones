@@ -73,6 +73,15 @@ const SECURITY_DEFINER_WHITELIST: Record<string, string> = {
     'REQ-044/064 (0057), mismo patrón que app.record_auth_event (0051/0054): los eventos de 2FA (enrolar/verificar/step-up) ocurren sin organización activa (credenciales de USUARIO), así que necesitan bypassing RLS SOLO para insertar con org_id=null. `p_action` restringido en SQL a una lista fija de 3 acciones de 2FA; `p_entity` restringido a `user_totp_secrets`/`step_up_sessions`; y -- a diferencia de record_auth_event, que exime `auth.login_failed` por ser pre-sesión -- aquí NO hay ninguna excepción: se exige SIEMPRE que p_actor_id coincida con app.current_user_id() ya fijado por el llamador (toda acción de 2FA ocurre con sesión ya autenticada).',
   'app.org_members(uuid)':
     'Ronda 4 (docs/logs/api-ronda4.log, item 2): NO confía en p_org_id por sí solo -- verifica DENTRO de la función que app.current_user_id() es miembro activo de esa organización (cualquier rol) o superadmin, y lanza excepción (org_members_forbidden) si no, antes de devolver ninguna fila (mismo criterio DB-01/DB-12: nunca resolver datos de una organización sin relación verificada con el llamador).',
+  // --- REQ-172..180 (0071_req172_google_oidc.sql / 0072_req177_google_auth_audit.sql): login con Google ---
+  'app.create_oauth_state(uuid,text,text,text,text,timestamp with time zone)':
+    'RLS habilitada SIN políticas sobre oauth_states (mismo patrón que refresh_tokens, 0017): no acepta ningún identificador de usuario/organización -- solo persiste PKCE/nonce/redirect_uri de un intento de login ANÓNIMO (todavía no existe ninguna identidad), bajo un `id` aleatorio (uuid v4) generado por el propio llamador, nunca adivinable ni de entrada del cliente.',
+  'app.consume_oauth_state(uuid)':
+    'Consumo ATÓMICO de un solo uso (UPDATE ... WHERE consumed_at IS NULL AND expires_at > now() RETURNING, mismo patrón check-y-mutación que app.rotate_refresh_token, 0043); p_id nunca viaja en claro al cliente (va firmado dentro del `state` JWT, ver modules/auth/google/state.ts) -- posesión de un id válido, no vencido y no consumido es equivalente a autenticarse con el propio token de refresh (mismo criterio que find_refresh_token/revoke_refresh_token).',
+  'app.find_identity_by_subject(text,text)':
+    'DB-01-style (mismo patrón que find_user_by_email, 0019): rechaza ejecutarse (raise exception) si app.current_user_id() ya está fijado -- solo utilizable en el contexto pre-sesión del login con Google para el que fue diseñada.',
+  'app.accept_pending_invitations_for_user(uuid)':
+    'Mismo endurecimiento anti-forjado que 0054 aplicó a record_auth_event tras API-14: exige que app.current_user_id() ya esté fijado e IGUAL a p_user_id (si no, lanza excepción) -- el llamador (modules/auth/google/routes.ts) lo fija al id ya verificado (encontrado por email/subject, o recién creado en la misma transacción) ANTES de invocarla. Nunca acepta un email como parámetro externo: siempre lo deriva de users.email del propio p_user_id ya verificado, jamás de una entrada de cliente sin verificar.',
 };
 
 async function fetchSecurityDefinerFunctions(db: DbClient): Promise<SecdefRow[]> {
