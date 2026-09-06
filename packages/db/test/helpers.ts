@@ -476,4 +476,15 @@ export const DOMAIN_TABLES: DomainTableSpec[] = [
       return rows[0].id;
     },
   },
+  // --- Ronda 2 (0017_ronda2_extensions.sql) ---
+  {
+    table: 'incidents',
+    async insertRow(db, orgId) {
+      const { rows } = await db.query<{ id: string }>(
+        "insert into incidents (org_id, title) values ($1, 'Incidente de prueba') returning id",
+        [orgId]
+      );
+      return rows[0].id;
+    },
+  },
 ];
