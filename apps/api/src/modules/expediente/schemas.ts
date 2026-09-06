@@ -628,3 +628,21 @@ export const renewalAlertSchema = z.object({
   status: z.string(),
   createdAt: isoTimestamp,
 });
+
+// R6-12 (docs/auditoria-2/api-ronda6-reverificacion.md, MEDIA): `GET
+// /renewals/alerts` no paginaba -- una sola consulta sin `limit` (32,4 MB /
+// 60,000 filas medidos por el reverificador con 20,000 contratos). Mismo
+// patrón keyset ya usado en `GET /organizations/:orgId/memberships`
+// (`lib/cursor.ts`): `limit`/`cursor` de entrada, `nextCursor` de salida.
+export const renewalAlertsListQuerySchema = z.object({
+  cursor: z.string().optional(),
+  limit: z
+    .string()
+    .regex(/^\d+$/, 'limit debe ser un entero positivo')
+    .optional(),
+});
+
+export const renewalAlertsListResponseSchema = z.object({
+  items: z.array(renewalAlertSchema),
+  nextCursor: z.string().nullable(),
+});

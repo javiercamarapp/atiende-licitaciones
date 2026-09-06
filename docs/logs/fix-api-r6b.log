@@ -59,3 +59,44 @@ nuevo caso R6-11):
   Test Files  1 passed (1)
        Tests  8 passed (8)
 
+## R6-12 (MEDIA) — GET /renewals/alerts sin paginación (32,4 MB / 60.000 filas)
+
+Rojo confirmado con el test nuevo (`R6-12` en
+`test/expediente-renewal-radar.test.ts`) contra el código sin paginar --
+1.000 alertas sembradas directamente en `renewal_alerts`, la primera
+llamada a `GET /expediente/renewals/alerts` respondía con el arreglo
+completo (sin `items`/`nextCursor`):
+
+  × expected false to be true // Object.is equality
+    - true
+    + false
+    at firstBody.items -- `Array.isArray(firstBody.items)`
+
+(la respuesta vieja era un arreglo plano de 1.000 elementos, no
+`{items, nextCursor}` -- `firstBody.items` era `undefined`).
+
+Fix (`apps/api/src/modules/expediente/renewal-radar.routes.ts` +
+`schemas.ts`): mismo patrón keyset ya usado en
+`GET /organizations/:orgId/memberships` (`lib/cursor.ts`, sin tocar ese
+archivo): `limit`/`cursor` de entrada (`parsePageSize`, default 100, máximo
+1000), `where (predicted_date, id) > (cursor.sortKey, cursor.id)` como par
+ordenado con desempate único (a diferencia de `predicted_date` solo, que no
+es único), columnas explícitas en vez de `select *`, `nextCursor` de salida
+(`null` cuando no hay más páginas). Se actualizaron los call-sites
+existentes en `test/expediente-renewal-radar.test.ts` (4 lugares) y
+`test/expediente-post-award-e2e-ronda6.test.ts` (2 lugares) que trataban la
+respuesta como un arreglo plano.
+
+Verde tras el fix:
+
+  ✓ test/expediente-renewal-radar.test.ts (9 tests) 42251ms
+    ✓ R6-12: GET /renewals/alerts pagina -- 1.000 alertas nunca llegan en
+      una sola respuesta, y el cursor recorre todas sin duplicar ni perder
+      ninguna 7510ms
+  ✓ test/expediente-post-award-e2e-ronda6.test.ts (2 tests) 3077ms
+  Test Files  2 passed (2)
+       Tests  11 passed (11)
+
+`npm run -w apps/api typecheck` y `lint` verdes tras el cambio (ver además
+el gate final ×2 al cierre de este log).
+

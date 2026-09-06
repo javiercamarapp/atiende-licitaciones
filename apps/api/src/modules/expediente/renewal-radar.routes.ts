@@ -50,17 +50,18 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { z } from 'zod';
 import { WRITE_ROLES } from '@atiende/db';
 import type { DbExecutor } from '@atiende/db';
 import { requireOrgRole } from '../../lib/authorize.js';
 import { recordAudit } from '../../lib/audit.js';
 import { withTx } from '../../lib/expediente/context.js';
+import { encodeCursor, decodeCursor, parsePageSize, toIsoString } from '../../lib/cursor.js';
 import { computeRenewalAlertCandidates, MAX_HISTORICAL_TENDERS, type RenewalCandidateContract } from '../../lib/expediente/renewal-radar.js';
 import {
   renewalScanRequestSchema,
   renewalRadarRunSchema,
-  renewalAlertSchema,
+  renewalAlertsListQuerySchema,
+  renewalAlertsListResponseSchema,
   renewalScanEnqueueRequestSchema,
   renewalScanEnqueueResponseSchema,
 } from './schemas.js';
@@ -364,15 +365,54 @@ export async function expedienteRenewalRadarRoutes(app: FastifyInstance): Promis
     }
   );
 
+  // R6-12 (docs/auditoria-2/api-ronda6-reverificacion.md, MEDIA): esta ruta
+  // hacía `select * ... order by predicted_date asc` SIN `limit` -- el
+  // reverificador midió 60,000 alertas / 32,4 MB en una sola respuesta tras
+  // un escaneo de 20,000 contratos, el mismo antipatrón que R6-03 ya había
+  // eliminado del lado de escritura del radar. Se pagina con el mismo
+  // patrón keyset ya usado en `GET /organizations/:orgId/memberships`
+  // (`lib/cursor.ts`): `(predicted_date, id)` como par ordenado/tiebreaker
+  // (único, a diferencia de `predicted_date` solo), columnas explícitas en
+  // vez de `select *`, `limit`/`cursor` de entrada y `nextCursor` de salida.
   server.get(
     '/renewals/alerts',
-    { preHandler: [app.authenticate, app.requireOrg], schema: { response: { 200: z.array(renewalAlertSchema) } } },
+    {
+      preHandler: [app.authenticate, app.requireOrg],
+      schema: { querystring: renewalAlertsListQuerySchema, response: { 200: renewalAlertsListResponseSchema } },
+    },
     async (request) => {
       const orgId = request.orgId!;
+      const { cursor, limit } = request.query;
+      const pageSize = parsePageSize(limit, 100, 1000);
+      const decoded = cursor ? decodeCursor(cursor) : null;
+
+      const conditions: string[] = ['org_id = $1'];
+      const params: unknown[] = [orgId];
+      if (decoded) {
+        params.push(decoded.sortKey, decoded.id);
+        conditions.push(`(predicted_date, id) > ($${params.length - 1}::date, $${params.length}::uuid)`);
+      }
+      params.push(pageSize + 1);
+
       const rows = await withTx(app.db, orgId, request.userId, async (tx) =>
-        (await tx.query<Record<string, unknown>>('select * from renewal_alerts where org_id = $1 order by predicted_date asc', [orgId])).rows
+        (
+          await tx.query<Record<string, unknown>>(
+            `select id, org_id, contract_id, tender_id, source_kind, predicted_date, lead_days, confidence, notes, job_id, status, created_at
+               from renewal_alerts
+              where ${conditions.join(' and ')}
+              order by predicted_date asc, id asc
+              limit $${params.length}`,
+            params
+          )
+        ).rows
       );
-      return rows.map(mapAlertRow);
+
+      const hasMore = rows.length > pageSize;
+      const page = hasMore ? rows.slice(0, pageSize) : rows;
+      const last = page[page.length - 1] as Record<string, unknown> | undefined;
+      const nextCursor = hasMore && last ? encodeCursor(toIsoString(last.predicted_date), String(last.id)) : null;
+
+      return { items: page.map(mapAlertRow), nextCursor };
     }
   );
 }

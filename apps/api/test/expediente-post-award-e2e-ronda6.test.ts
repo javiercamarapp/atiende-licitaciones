@@ -139,7 +139,7 @@ describe('E2E ronda 6 — post-adjudicación completa (REQ-051..055)', () => {
     expect(scan.json().alertsCreated).toBe(1);
 
     const alerts = await app.inject({ method: 'GET', url: '/expediente/renewals/alerts', headers });
-    expect(alerts.json().length).toBe(1);
+    expect(alerts.json().items.length).toBe(1);
 
     // El flujo completo terminó sin ningún envío externo -- se verifica el estado final del contrato.
     const finalContract = await app.inject({ method: 'GET', url: `/expediente/tenders/${tenderId}/contract`, headers });
@@ -193,6 +193,6 @@ describe('E2E ronda 6 — post-adjudicación completa (REQ-051..055)', () => {
     await app.inject({ method: 'PATCH', url: `/expediente/tenders/${tenderA}/contract`, headers: headersA, payload: { endDate: soon.toISOString().slice(0, 10) } });
     await app.inject({ method: 'POST', url: '/expediente/renewals/scan', headers: headersA, payload: {} });
     const alertsB = await app.inject({ method: 'GET', url: '/expediente/renewals/alerts', headers: headersB });
-    expect(alertsB.json()).toEqual([]);
+    expect(alertsB.json().items).toEqual([]);
   });
 });

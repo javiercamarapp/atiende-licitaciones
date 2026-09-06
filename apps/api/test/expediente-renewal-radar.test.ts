@@ -88,7 +88,7 @@ describe('expediente — radar de renovaciones (REQ-055)', () => {
 
     const alerts = await app.inject({ method: 'GET', url: '/expediente/renewals/alerts', headers });
     expect(alerts.statusCode).toBe(200);
-    const alertRows = alerts.json();
+    const alertRows = alerts.json().items;
     expect(alertRows.map((a: any) => a.leadDays).sort((a: number, b: number) => a - b)).toEqual([60, 90]);
     for (const a of alertRows) {
       expect(a.sourceKind).toBe('contract_end_date');
@@ -102,7 +102,7 @@ describe('expediente — radar de renovaciones (REQ-055)', () => {
     const secondScan = await app.inject({ method: 'POST', url: '/expediente/renewals/scan', headers, payload: {} });
     expect(secondScan.json().alertsCreated).toBe(0);
     const alertsAfter = await app.inject({ method: 'GET', url: '/expediente/renewals/alerts', headers });
-    expect(alertsAfter.json().length).toBe(alertRows.length);
+    expect(alertsAfter.json().items.length).toBe(alertRows.length);
   });
 
   it('90/60/30: un contrato a 20 días de vencer cruza los tres umbrales por defecto en un solo escaneo', async () => {
@@ -120,7 +120,7 @@ describe('expediente — radar de renovaciones (REQ-055)', () => {
     expect(scan.json().alertsCreated).toBe(3);
 
     const alerts = await app.inject({ method: 'GET', url: '/expediente/renewals/alerts', headers });
-    const leadDays = alerts.json().map((a: any) => a.leadDays).sort((a: number, b: number) => a - b);
+    const leadDays = alerts.json().items.map((a: any) => a.leadDays).sort((a: number, b: number) => a - b);
     expect(leadDays).toEqual([30, 60, 90]);
   });
 
@@ -140,7 +140,7 @@ describe('expediente — radar de renovaciones (REQ-055)', () => {
     expect(scan.json().alertsCreated).toBe(1);
 
     const alerts = await app.inject({ method: 'GET', url: '/expediente/renewals/alerts', headers });
-    const alert = alerts.json()[0];
+    const alert = alerts.json().items[0];
     expect(alert.notes).toContain('Convocatoria c055-hist-1');
   });
 
@@ -304,6 +304,59 @@ describe('expediente — radar de renovaciones (REQ-055)', () => {
     // ronda, ver docstring del módulo).
     const alertsCount = await db.query<{ count: string }>('select count(*)::text as count from renewal_alerts where org_id = $1', [org.id]);
     expect(Number(alertsCount.rows[0].count)).toBe(0);
+  });
+
+  /**
+   * R6-12 (docs/auditoria-2/api-ronda6-reverificacion.md, MEDIA):
+   * `GET /renewals/alerts` no paginaba en absoluto -- una sola consulta
+   * `select * ... order by predicted_date asc` sin `limit`. El
+   * reverificador midió 60.000 alertas / 32,4 MB en una sola respuesta tras
+   * un escaneo de 20.000 contratos. Este caso siembra 1.000 alertas
+   * directamente (más rápido que generarlas vía `/renewals/scan`, que no es
+   * lo que este test ejercita) y comprueba que el endpoint pagina: por
+   * defecto no devuelve las 1.000 de una vez, y recorrer todas las páginas
+   * con `nextCursor` reúne exactamente 1.000 sin duplicados ni huecos.
+   */
+  it('R6-12: GET /renewals/alerts pagina -- 1.000 alertas nunca llegan en una sola respuesta, y el cursor recorre todas sin duplicar ni perder ninguna', async () => {
+    const owner = await registerAndLogin(app, 'c055-owner-8@example.com');
+    const org = await createOrgFor(app, owner, 'C055 Org 8', 'c055-org-8');
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+
+    await db.query(
+      `insert into renewal_alerts (org_id, source_kind, predicted_date, lead_days, confidence, notes, status)
+       select $1, 'contract_end_date', current_date + (gs % 90), 90, 0.9, 'alerta de prueba ' || gs, 'queued'
+         from generate_series(1, 1000) as gs`,
+      [org.id]
+    );
+
+    const firstPage = await app.inject({ method: 'GET', url: '/expediente/renewals/alerts', headers });
+    expect(firstPage.statusCode).toBe(200);
+    const firstBody = firstPage.json();
+    // Explícito: nunca las 1.000 de un tirón, y siempre trae `nextCursor`
+    // para poder seguir -- la ausencia de límite es justo lo que R6-12
+    // denunció.
+    expect(Array.isArray(firstBody.items)).toBe(true);
+    expect(firstBody.items.length).toBeLessThan(1000);
+    expect(firstBody.nextCursor).toBeTruthy();
+
+    const seenIds = new Set<string>();
+    let cursor: string | null = null;
+    let iterations = 0;
+    for (;;) {
+      iterations += 1;
+      expect(iterations).toBeLessThan(50); // cota de seguridad: nunca debería hacer falta tanta paginación para 1,000 filas.
+      const url: string = cursor ? `/expediente/renewals/alerts?cursor=${encodeURIComponent(cursor)}` : '/expediente/renewals/alerts';
+      const res = await app.inject({ method: 'GET', url, headers });
+      expect(res.statusCode).toBe(200);
+      const body: { items: Array<{ id: string }>; nextCursor: string | null } = res.json();
+      for (const item of body.items) {
+        expect(seenIds.has(item.id)).toBe(false); // sin duplicados entre páginas.
+        seenIds.add(item.id);
+      }
+      if (!body.nextCursor) break;
+      cursor = body.nextCursor;
+    }
+    expect(seenIds.size).toBe(1000);
   });
 
   it('viewer no puede iniciar un escaneo de renovaciones', async () => {
