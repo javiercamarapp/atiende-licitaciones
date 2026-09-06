@@ -1,5 +1,5 @@
 import { hashRawPayload } from "../../util/hash.js";
-import { parseCsv, type CsvRowError } from "../../util/csv.js";
+import { parseCsv, streamCsvRows, type CsvRowError } from "../../util/csv.js";
 import { fromMexicoCityNaive } from "../../util/timezone.js";
 import { parseTenderRecord, type TenderRecord } from "../../types/tender-record.js";
 import type { DroppedRecordInfo } from "../types.js";
@@ -204,6 +204,46 @@ export interface ComprasMxHistoricoCsvParseResult {
  * SR-17 — se acumulan en `errors[]` con su número de fila, sin abortar el
  * resto del lote.
  */
+/**
+ * Mapea UNA fila ya alineada del CSV histórico (`Record<string,string>`, ver
+ * `parseCsv`/`streamCsvRows`) a `TenderRecord`. Lanza (nunca devuelve
+ * `null`) si la fila no cumple `ComprasMxHistoricoCsvRowSchema` o el
+ * `TenderRecord` resultante -- el llamador (`parseComprasMxHistoricoCsv` en
+ * lote, `parseComprasMxHistoricoCsvStreamed` en streaming) es responsable de
+ * envolver la llamada en su propio `try/catch` por fila (SR-16), para que
+ * una fila inválida nunca aborte el resto del lote. Extraída como función
+ * compartida para que AMBAS variantes (lote/streaming) apliquen EXACTAMENTE
+ * el mismo mapeo, sin divergencia.
+ */
+function mapComprasMxHistoricoCsvRow(rawRow: Record<string, string>, options: ComprasMxMapOptions & { publishingEntity: string }): TenderRecord {
+  const row = ComprasMxHistoricoCsvRowSchema.parse(rawRow);
+  const raw: unknown = {
+    source: "compras-mx",
+    externalId: row.codigo_expediente || row.codigo_contrato,
+    title: row.titulo_contrato,
+    contractingEntity: options.publishingEntity,
+    procedureType: mapProcedureType(row.tipo_contratacion ?? row.tipo_expediente),
+    procedureTypeRaw: row.tipo_expediente ?? row.tipo_contratacion,
+    classifiers: [],
+    budgetAmount: row.importe ? Number.parseFloat(row.importe) : undefined,
+    currency: row.moneda ?? "MXN",
+    dates: {
+      published: parseComprasMxDate(row.fecha_inicio ?? row.ff_fecha_inicio),
+      award: parseComprasMxDate(row.fecha_fin ?? row.ff_fecha_fin ?? row.fecha_inicio ?? row.ff_fecha_inicio),
+    },
+    status: "awarded",
+    statusRaw: "historico-compranet",
+    attachments: [],
+    snapshot: {
+      sourceUrl: options.sourceUrl,
+      fetchedAt: options.fetchedAt,
+      rawHash: hashRawPayload(rawRow),
+      httpStatus: options.httpStatus,
+    },
+  };
+  return parseTenderRecord(raw);
+}
+
 export function parseComprasMxHistoricoCsv(
   csvText: string,
   options: ComprasMxMapOptions & { publishingEntity: string },
@@ -214,32 +254,7 @@ export function parseComprasMxHistoricoCsv(
 
   for (const { row: rowNumber, values: rawRow } of rows) {
     try {
-      const row = ComprasMxHistoricoCsvRowSchema.parse(rawRow);
-      const raw: unknown = {
-        source: "compras-mx",
-        externalId: row.codigo_expediente || row.codigo_contrato,
-        title: row.titulo_contrato,
-        contractingEntity: options.publishingEntity,
-        procedureType: mapProcedureType(row.tipo_contratacion ?? row.tipo_expediente),
-        procedureTypeRaw: row.tipo_expediente ?? row.tipo_contratacion,
-        classifiers: [],
-        budgetAmount: row.importe ? Number.parseFloat(row.importe) : undefined,
-        currency: row.moneda ?? "MXN",
-        dates: {
-          published: parseComprasMxDate(row.fecha_inicio ?? row.ff_fecha_inicio),
-          award: parseComprasMxDate(row.fecha_fin ?? row.ff_fecha_fin ?? row.fecha_inicio ?? row.ff_fecha_inicio),
-        },
-        status: "awarded",
-        statusRaw: "historico-compranet",
-        attachments: [],
-        snapshot: {
-          sourceUrl: options.sourceUrl,
-          fetchedAt: options.fetchedAt,
-          rawHash: hashRawPayload(rawRow),
-          httpStatus: options.httpStatus,
-        },
-      };
-      records.push(parseTenderRecord(raw));
+      records.push(mapComprasMxHistoricoCsvRow(rawRow, options));
     } catch (error) {
       errors.push({ row: rowNumber, message: error instanceof Error ? error.message : String(error) });
     }
@@ -247,6 +262,44 @@ export function parseComprasMxHistoricoCsv(
 
   errors.sort((a, b) => a.row - b.row);
   return { records, errors };
+}
+
+/**
+ * Evento producido por `parseComprasMxHistoricoCsvStreamed`: un `TenderRecord`
+ * válido, o un error de fila (mismo criterio que la variante en lote,
+ * `ComprasMxHistoricoCsvParseResult.errors` -- SR-16/17: nunca se pierde una
+ * fila en silencio).
+ */
+export type ComprasMxHistoricoCsvStreamEvent = { kind: "record"; record: TenderRecord } | { kind: "error"; error: CsvRowError };
+
+/**
+ * Variante en STREAMING de `parseComprasMxHistoricoCsv()` (mejora de
+ * memoria, ronda 3 de corrección): consume un `AsyncIterable<string>` de
+ * chunks de texto YA DECODIFICADOS (ver
+ * `util/encoding.ts#decodeByteChunksStream`) vía `streamCsvRows()` y
+ * produce cada `TenderRecord`/`error` tan pronto como su fila está
+ * completa -- nunca arma el arreglo completo de filas/registros en
+ * memoria, a diferencia de la variante en lote (que sigue existiendo, sin
+ * cambios, para llamadores que ya tienen el CSV completo como una sola
+ * cadena). Aplica EXACTAMENTE el mismo mapeo por fila
+ * (`mapComprasMxHistoricoCsvRow`) y el mismo criterio de "nunca abortar el
+ * resto del lote por una fila inválida" (SR-16) que la variante en lote.
+ */
+export async function* parseComprasMxHistoricoCsvStreamed(
+  chunks: AsyncIterable<string>,
+  options: ComprasMxMapOptions & { publishingEntity: string },
+): AsyncGenerator<ComprasMxHistoricoCsvStreamEvent> {
+  for await (const event of streamCsvRows(chunks)) {
+    if (event.kind === "error") {
+      yield { kind: "error", error: event.error };
+      continue;
+    }
+    try {
+      yield { kind: "record", record: mapComprasMxHistoricoCsvRow(event.data.values, options) };
+    } catch (error) {
+      yield { kind: "error", error: { row: event.data.row, message: error instanceof Error ? error.message : String(error) } };
+    }
+  }
 }
 
 export type { ComprasMxApiRecord };

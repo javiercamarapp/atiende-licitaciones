@@ -1,7 +1,25 @@
 import type { ConnectorContext, DiscoverParams, SourceConnector } from "../types.js";
-import { decodeHttpResponseText } from "../../util/encoding.js";
+import { decodeByteChunksStream, extractCharset } from "../../util/encoding.js";
 import { assertLegitimateResponseBody } from "../../http/response-classifier.js";
-import { parseComprasMxHistoricoCsv } from "./comprasmx-mapper.js";
+import { parseComprasMxHistoricoCsvStreamed } from "./comprasmx-mapper.js";
+
+/**
+ * Adapta el cuerpo de una `Response` a un `AsyncIterable<Uint8Array>` sin
+ * bufferear nunca el cuerpo completo (memoria acotada, ronda 3 de
+ * corrección): `response.body` (spec WHATWG `ReadableStream`) ya es
+ * async-iterable en Node/undici, así que se usa directamente. Fallback a
+ * `arrayBuffer()` (un solo chunk) SOLO si el runtime no expone `.body` como
+ * stream -- caso excepcional, no se espera en producción (fetch real de
+ * Node siempre lo expone para una respuesta 200 con contenido).
+ */
+async function* iterateResponseBodyBytes(response: Response): AsyncGenerator<Uint8Array> {
+  if (response.body) {
+    yield* response.body as unknown as AsyncIterable<Uint8Array>;
+    return;
+  }
+  const buffer = await response.arrayBuffer();
+  if (buffer.byteLength > 0) yield new Uint8Array(buffer);
+}
 
 export interface ComprasMxHistoricalCsvConnectorConfig {
   /** URL del CSV histórico real de la SABG (dataset abierto CKAN, sin reCAPTCHA/auth). */
@@ -34,11 +52,23 @@ const DEFAULT_PUBLISHING_ENTITY = "Secretaría Anticorrupción y Buen Gobierno (
  * vigentes (todos se mapean con `status: "awarded"`, ver
  * `parseComprasMxHistoricoCsv`).
  *
- * LIMITACIÓN CONOCIDA (no resuelta en esta ronda, documentada honestamente):
- * el dataset real pesa ~951 MB; esta implementación descarga el CSV
- * completo en memoria vía `response.text()`. Para producción contra el
- * archivo real se recomienda un parser en streaming (fuera de alcance:
- * ver README §Pendientes).
+ * STREAMING (ronda 3 de corrección, ver README §Robustez del CSV histórico):
+ * `discover()` YA NO descarga el CSV completo en memoria. Consume
+ * `response.body` byte a byte (`iterateResponseBodyBytes`), decodifica en
+ * streaming (`decodeByteChunksStream`, charset declarado/BOM/heurística
+ * UTF-8-Latin1/UTF-16LE -- ver `util/encoding.ts`) y parsea fila por fila
+ * (`parseComprasMxHistoricoCsvStreamed`), produciendo cada `TenderRecord`
+ * tan pronto como su fila está completa. La memoria retenida es
+ * proporcional al lote/chunk en curso, NO al tamaño del archivo -- medido
+ * con un test de 50 MB simulados (ver `test/csv-streaming-memory.test.ts`).
+ * Límite real aceptado y documentado: la detección de captcha/bot-challenge
+ * (SR-14) y la elección de encoding corren sobre el PRIMER chunk decodificado
+ * (hasta ~64 KiB), no sobre el archivo completo -- suficiente en la práctica
+ * porque un bloqueo real es una página HTML pequeña completa, y el encoding
+ * real no cambia a mitad de una misma respuesta; UTF-16BE SIN BOM en el
+ * cuerpo tampoco se detecta en esta ruta en streaming (sí en
+ * `decodeBestEffort`, usado por conectores que no necesitan streaming) --
+ * ver README para el detalle completo.
  */
 export function createComprasMxHistoricalCsvConnector(config: ComprasMxHistoricalCsvConnectorConfig = {}): SourceConnector {
   const csvUrl = config.csvUrl ?? DEFAULT_CSV_URL;
@@ -66,33 +96,49 @@ export function createComprasMxHistoricalCsvConnector(config: ComprasMxHistorica
       if (!response.ok) {
         throw new Error(`CSV histórico de ComprasMX respondió ${response.status} en ${csvUrl}`);
       }
-      // SR-15: decodifica por bytes crudos (charset declarado / BOM / heurística UTF-8 inválido -> Latin-1) en vez
-      // de `response.text()`, que decodifica SIEMPRE como UTF-8 sin importar el charset real del servidor.
-      const csvText = await decodeHttpResponseText(response);
-      // SR-14: un 200 con cuerpo de captcha/bot-challenge (o con forma de HTML donde se esperaba CSV) no debe
-      // interpretarse como "0 registros nuevos".
-      assertLegitimateResponseBody(csvText, { url: csvUrl, expected: "csv" });
       const fetchedAt = ctx.now?.() ?? new Date();
-      const { records, errors } = parseComprasMxHistoricoCsv(csvText, {
+      // SR-15: decodifica por bytes crudos (charset declarado / BOM / heurística UTF-8-Latin1/UTF-16, ver
+      // `util/encoding.ts`) en vez de `response.text()`, que decodifica SIEMPRE como UTF-8. Streaming (ronda 3):
+      // NUNCA concatena el cuerpo completo, a diferencia de `decodeHttpResponseText`/`response.text()`.
+      const declaredCharset = extractCharset(response.headers.get("content-type"));
+      const decodedChunks = decodeByteChunksStream(iterateResponseBodyBytes(response), declaredCharset);
+
+      let checkedFirstChunk = false;
+      const validatedChunks = (async function* () {
+        for await (const textChunk of decodedChunks) {
+          if (!checkedFirstChunk) {
+            checkedFirstChunk = true;
+            // SR-14: un 200 con cuerpo de captcha/bot-challenge (o con forma de HTML donde se esperaba CSV) no
+            // debe interpretarse como "0 registros nuevos". Se verifica el PRIMER chunk decodificado (memoria
+            // acotada, ver docstring de la función) -- un bloqueo real es una página HTML pequeña COMPLETA.
+            assertLegitimateResponseBody(textChunk, { url: csvUrl, expected: "csv" });
+          }
+          yield textChunk;
+        }
+        if (!checkedFirstChunk) {
+          assertLegitimateResponseBody("", { url: csvUrl, expected: "csv" }); // cuerpo vacío: se valida igual, nunca se salta la verificación.
+        }
+      })();
+
+      let yielded = 0;
+      for await (const event of parseComprasMxHistoricoCsvStreamed(validatedChunks, {
         sourceUrl: csvUrl,
         fetchedAt,
         httpStatus: response.status,
         publishingEntity,
-      });
-
-      // SR-16/17: filas inválidas o desalineadas se registran (con su número de fila) sin perder el resto del
-      // lote; se hacen visibles vía el logger del pipeline en vez de silenciarlas.
-      for (const rowError of errors) {
-        ctx.logger?.warn(`CSV histórico de ComprasMX: fila ${rowError.row} descartada — ${rowError.message}`, {
-          source: "compras-mx-historico",
-          row: rowError.row,
-        });
-      }
-
-      let yielded = 0;
-      for (const record of records) {
+      })) {
+        if (event.kind === "error") {
+          // SR-16/17: filas inválidas o desalineadas se registran (con su número de fila) sin perder el resto del
+          // lote; se hacen visibles vía el logger Y vía `ctx.reportDropped` (SR-21) en vez de silenciarlas.
+          ctx.logger?.warn(`CSV histórico de ComprasMX: fila ${event.error.row} descartada — ${event.error.message}`, {
+            source: "compras-mx-historico",
+            row: event.error.row,
+          });
+          ctx.reportDropped?.({ index: event.error.row - 1, reason: event.error.message });
+          continue;
+        }
         if (params.limit !== undefined && yielded >= params.limit) return;
-        yield record;
+        yield event.record;
         yielded += 1;
       }
     },

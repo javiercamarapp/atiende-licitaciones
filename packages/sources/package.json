@@ -11,8 +11,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:coverage": "vitest run --coverage",
+    "test": "NODE_OPTIONS=--expose-gc vitest run",
+    "test:coverage": "NODE_OPTIONS=--expose-gc vitest run --coverage",
     "lint": "eslint src test --ext .ts"
   },
   "dependencies": {
