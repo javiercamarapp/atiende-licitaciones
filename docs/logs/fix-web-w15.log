@@ -1,0 +1,122 @@
+=== W-15: reproduccion real del fallo (sin aviso de IA), ANTES de la correccion ===
+
+[2mRunning [22m3[2m tests using [22m1[2m worker[22m
+
+  [31m✘[39m  [2m1 [22m[31m[chromium] › e2e/ai-disclosure.spec.ts:10:5 › Disclosure de IA (W-15) › /preparacion/redaccion muestra el aviso de uso de IA[39m[2m (5.3s)[22m
+  [31m✘[39m  [2m2 [22m[31m[chromium] › e2e/ai-disclosure.spec.ts:10:5 › Disclosure de IA (W-15) › /preparacion/revision muestra el aviso de uso de IA[39m[2m (5.2s)[22m
+  [31m✘[39m  [2m3 [22m[31m[chromium] › e2e/ai-disclosure.spec.ts:10:5 › Disclosure de IA (W-15) › /evaluacion/analisis-bases muestra el aviso de uso de IA[39m[2m (5.3s)[22m
+
+
+[31m  1) [chromium] › e2e/ai-disclosure.spec.ts:10:5 › Disclosure de IA (W-15) › /preparacion/redaccion muestra el aviso de uso de IA [39m
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByRole('note', { name: 'Aviso de uso de inteligencia artificial' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" getByRole('note', { name: 'Aviso de uso de inteligencia artificial' }) with timeout 5000ms[22m
+    [2m  - waiting for getByRole('note', { name: 'Aviso de uso de inteligencia artificial' })[22m
+
+
+    [0m [90m 10 |[39m     test([32m`${ruta} muestra el aviso de uso de IA`[39m[33m,[39m [36masync[39m ({ page }) [33m=>[39m {
+     [90m 11 |[39m       [36mawait[39m page[33m.[39mgoto(ruta)[33m;[39m
+    [31m[1m>[22m[39m[90m 12 |[39m       [36mawait[39m expect(page[33m.[39mgetByRole([32m"note"[39m[33m,[39m { name[33m:[39m [32m"Aviso de uso de inteligencia artificial"[39m }))[33m.[39mtoBeVisible()[33m;[39m
+     [90m    |[39m                                                                                                 [31m[1m^[22m[39m
+     [90m 13 |[39m     })[33m;[39m
+     [90m 14 |[39m   }
+     [90m 15 |[39m })[33m;[39m[0m
+    [2m    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/e2e/ai-disclosure.spec.ts:12:97[22m
+
+[2m    Error Context: test-results/ai-disclosure-Disclosure-d-cea5c-estra-el-aviso-de-uso-de-IA-chromium/error-context.md[22m
+
+[2m    attachment #2: [1mtrace[2m (application/zip) [2m─────────────────────────────────────────────────────────[2m[22m
+[2m    test-results/ai-disclosure-Disclosure-d-cea5c-estra-el-aviso-de-uso-de-IA-chromium/trace.zip[22m
+[2m    Usage:[22m
+
+[2m        npx playwright show-trace test-results/ai-disclosure-Disclosure-d-cea5c-estra-el-aviso-de-uso-de-IA-chromium/trace.zip[22m
+
+[2m    [2m────────────────────────────────────────────────────────────────────────────────────────────────[2m[22m
+
+[31m  2) [chromium] › e2e/ai-disclosure.spec.ts:10:5 › Disclosure de IA (W-15) › /preparacion/revision muestra el aviso de uso de IA [39m
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByRole('note', { name: 'Aviso de uso de inteligencia artificial' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" getByRole('note', { name: 'Aviso de uso de inteligencia artificial' }) with timeout 5000ms[22m
+    [2m  - waiting for getByRole('note', { name: 'Aviso de uso de inteligencia artificial' })[22m
+
+
+    [0m [90m 10 |[39m     test([32m`${ruta} muestra el aviso de uso de IA`[39m[33m,[39m [36masync[39m ({ page }) [33m=>[39m {
+     [90m 11 |[39m       [36mawait[39m page[33m.[39mgoto(ruta)[33m;[39m
+    [31m[1m>[22m[39m[90m 12 |[39m       [36mawait[39m expect(page[33m.[39mgetByRole([32m"note"[39m[33m,[39m { name[33m:[39m [32m"Aviso de uso de inteligencia artificial"[39m }))[33m.[39mtoBeVisible()[33m;[39m
+     [90m    |[39m                                                                                                 [31m[1m^[22m[39m
+     [90m 13 |[39m     })[33m;[39m
+     [90m 14 |[39m   }
+     [90m 15 |[39m })[33m;[39m[0m
+    [2m    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/e2e/ai-disclosure.spec.ts:12:97[22m
+
+[2m    Error Context: test-results/ai-disclosure-Disclosure-d-54c9c-estra-el-aviso-de-uso-de-IA-chromium/error-context.md[22m
+
+[2m    attachment #2: [1mtrace[2m (application/zip) [2m─────────────────────────────────────────────────────────[2m[22m
+[2m    test-results/ai-disclosure-Disclosure-d-54c9c-estra-el-aviso-de-uso-de-IA-chromium/trace.zip[22m
+[2m    Usage:[22m
+
+[2m        npx playwright show-trace test-results/ai-disclosure-Disclosure-d-54c9c-estra-el-aviso-de-uso-de-IA-chromium/trace.zip[22m
+
+[2m    [2m────────────────────────────────────────────────────────────────────────────────────────────────[2m[22m
+
+[31m  3) [chromium] › e2e/ai-disclosure.spec.ts:10:5 › Disclosure de IA (W-15) › /evaluacion/analisis-bases muestra el aviso de uso de IA [39m
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByRole('note', { name: 'Aviso de uso de inteligencia artificial' })
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" getByRole('note', { name: 'Aviso de uso de inteligencia artificial' }) with timeout 5000ms[22m
+    [2m  - waiting for getByRole('note', { name: 'Aviso de uso de inteligencia artificial' })[22m
+
+
+    [0m [90m 10 |[39m     test([32m`${ruta} muestra el aviso de uso de IA`[39m[33m,[39m [36masync[39m ({ page }) [33m=>[39m {
+     [90m 11 |[39m       [36mawait[39m page[33m.[39mgoto(ruta)[33m;[39m
+    [31m[1m>[22m[39m[90m 12 |[39m       [36mawait[39m expect(page[33m.[39mgetByRole([32m"note"[39m[33m,[39m { name[33m:[39m [32m"Aviso de uso de inteligencia artificial"[39m }))[33m.[39mtoBeVisible()[33m;[39m
+     [90m    |[39m                                                                                                 [31m[1m^[22m[39m
+     [90m 13 |[39m     })[33m;[39m
+     [90m 14 |[39m   }
+     [90m 15 |[39m })[33m;[39m[0m
+    [2m    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/e2e/ai-disclosure.spec.ts:12:97[22m
+
+[2m    Error Context: test-results/ai-disclosure-Disclosure-d-521b3-estra-el-aviso-de-uso-de-IA-chromium/error-context.md[22m
+
+[2m    attachment #2: [1mtrace[2m (application/zip) [2m─────────────────────────────────────────────────────────[2m[22m
+[2m    test-results/ai-disclosure-Disclosure-d-521b3-estra-el-aviso-de-uso-de-IA-chromium/trace.zip[22m
+[2m    Usage:[22m
+
+[2m        npx playwright show-trace test-results/ai-disclosure-Disclosure-d-521b3-estra-el-aviso-de-uso-de-IA-chromium/trace.zip[22m
+
+[2m    [2m────────────────────────────────────────────────────────────────────────────────────────────────[2m[22m
+
+[31m  3 failed[39m
+[31m    [chromium] › e2e/ai-disclosure.spec.ts:10:5 › Disclosure de IA (W-15) › /preparacion/redaccion muestra el aviso de uso de IA [39m
+[31m    [chromium] › e2e/ai-disclosure.spec.ts:10:5 › Disclosure de IA (W-15) › /preparacion/revision muestra el aviso de uso de IA [39m
+[31m    [chromium] › e2e/ai-disclosure.spec.ts:10:5 › Disclosure de IA (W-15) › /evaluacion/analisis-bases muestra el aviso de uso de IA [39m
+
+=== W-15: tras la correccion (AiDisclosureNote en Redaccion, Revision y Analisis de bases) ===
+
+[2mRunning [22m3[2m tests using [22m1[2m worker[22m
+
+  [32m✓[39m  [2m1 [22m[chromium] › e2e/ai-disclosure.spec.ts:10:5 › Disclosure de IA (W-15) › /preparacion/redaccion muestra el aviso de uso de IA[2m (313ms)[22m
+  [32m✓[39m  [2m2 [22m[chromium] › e2e/ai-disclosure.spec.ts:10:5 › Disclosure de IA (W-15) › /preparacion/revision muestra el aviso de uso de IA[2m (201ms)[22m
+  [32m✓[39m  [2m3 [22m[chromium] › e2e/ai-disclosure.spec.ts:10:5 › Disclosure de IA (W-15) › /evaluacion/analisis-bases muestra el aviso de uso de IA[2m (219ms)[22m
+
+[32m  3 passed[39m[2m (1.2s)[22m

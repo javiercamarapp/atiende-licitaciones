@@ -7,6 +7,7 @@ const Page = createModulePage({
   description: "Elaboración de la propuesta técnica y económica.",
   emptyTitle: "Aún no hay propuestas en redacción",
   emptyDescription: "Inicia una propuesta desde una convocatoria en preparación para verla aquí.",
+  disclosure: true,
 });
 
 export default Page;

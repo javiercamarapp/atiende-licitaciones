@@ -7,6 +7,7 @@ const Page = createModulePage({
   description: "Control de calidad antes de la entrega de la propuesta.",
   emptyTitle: "Aún no hay revisiones pendientes",
   emptyDescription: "Las propuestas listas para revisión aparecerán aquí antes de su entrega.",
+  disclosure: true,
 });
 
 export default Page;
