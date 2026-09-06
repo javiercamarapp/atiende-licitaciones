@@ -74,6 +74,18 @@ async function main() {
     // de `GET /healthz`). Literal fijo de esta suite, nunca usado fuera de
     // test:e2e:full.
     TOTP_ENCRYPTION_KEY: "e2e-totp-encryption-key-not-production",
+    // REQ-181..195 (apps/api): el correo transaccional exige MAIL_LINK_SECRET
+    // (mín. 16 caracteres) para firmar los enlaces de
+    // verificación/invitación/restablecimiento/baja -- sin ella `loadConfig`
+    // revienta igual que con TOTP_ENCRYPTION_KEY y la API ni siquiera llega a
+    // `GET /healthz`. Literal fijo de esta suite, nunca usado fuera de
+    // test:e2e:full. No se define `MAIL_PROVIDER` a propósito: sin ella
+    // `apps/api` degrada a `CaptureProvider` (ver src/lib/mail/env.ts), así
+    // que la suite NUNCA manda un correo real a Internet.
+    MAIL_LINK_SECRET: "e2e-mail-link-secret-not-production",
+    // `publicUrl` es la base de esos enlaces y vive donde vive apps/web
+    // (nunca la URL de esta API), así que apunta al front de esta corrida.
+    PUBLIC_URL: WEB_URL,
     // WI-05 (docs/auditoria-2/web-integrado.md): `test:e2e:full` recorre
     // ~29 rutas seguidas en `e2e/skip-link.spec.ts` (ALL_NAV_ITEMS), cada
     // una disparando varias peticiones de arranque de sesión — con el
