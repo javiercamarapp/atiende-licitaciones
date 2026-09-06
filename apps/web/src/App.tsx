@@ -12,6 +12,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { queryClient } from "@/lib/queryClient";
 
 const LoginPage = lazy(() => import("@/pages/LoginPage"));
+const PrivacyNoticePage = lazy(() => import("@/pages/PrivacyNoticePage"));
 const NotFoundPage = lazy(() => import("@/pages/NotFoundPage"));
 const PanelPage = lazy(() => import("@/pages/PanelPage"));
 const PerfilCapacidadesPage = lazy(() => import("@/pages/empresa/PerfilCapacidadesPage"));
@@ -97,6 +98,10 @@ export default function App() {
                 <Routes>
                   <Route path="/" element={<Navigate to="/panel" replace />} />
                   <Route path="/login" element={<LoginPage />} />
+                  {/* REQ-119/131: accesible SIN sesión, como cualquier aviso de
+                      privacidad real (debe poder consultarse antes de crear
+                      una cuenta). */}
+                  <Route path="/privacidad" element={<PrivacyNoticePage />} />
                   {/* W-12: todo lo que cuelga de <AppShell/> exige sesión real
                       (ver components/auth/RequireAuth.tsx) — la barrera de
                       verdad sigue siendo la API en cada petición. */}

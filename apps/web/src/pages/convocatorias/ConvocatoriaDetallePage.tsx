@@ -10,8 +10,10 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { describeApiError } from "@/hooks/useAuth";
 import { useTender, useTenderVersions, useTenderChangeEvents } from "@/hooks/useTenders";
+import { isNotFoundOrForbidden } from "@/lib/api/http";
 import type { ChangeKind } from "@/lib/api/schemas";
 import { formatDateTimeMx } from "@/lib/datetime";
+import ResourceNotFoundPage from "@/pages/ResourceNotFoundPage";
 
 const CHANGE_KIND_LABELS: Record<ChangeKind, string> = {
   publication: "Publicación",
@@ -87,6 +89,14 @@ function EventosTab({ tenderId }: { tenderId: string }) {
 export default function ConvocatoriaDetallePage() {
   const { tenderId } = useParams<{ tenderId: string }>();
   const { data: tender, isLoading, isError, error, refetch } = useTender(tenderId ?? null);
+
+  // Guard 404 de tenant cruzado (docs/TABLERO.md §6, REQ-049/065): un
+  // tenderId de OTRA organización responde 403/404 real de apps/api (RLS) —
+  // se muestra como "recurso no encontrado" dedicado, nunca como el mensaje
+  // crudo del 403 (que confirmaría implícitamente que el recurso existe).
+  if (isError && isNotFoundOrForbidden(error)) {
+    return <ResourceNotFoundPage />;
+  }
 
   return (
     <div>

@@ -21,6 +21,17 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Guard 404 de tenant cruzado (ver src/pages/ResourceNotFoundPage.tsx): un
+ * recurso de OTRA organización responde 403 o 404 real desde apps/api según
+ * la ruta (RLS/`app.requireOrg` según el caso) — para la UI, ambos casos
+ * deben tratarse igual: un recurso no accesible desde la sesión actual,
+ * nunca revelado como "existe pero no es tuyo".
+ */
+export function isNotFoundOrForbidden(err: unknown): boolean {
+  return err instanceof ApiError && (err.status === 403 || err.status === 404);
+}
+
 interface ProblemJson {
   type?: string;
   title?: string;

@@ -25,6 +25,7 @@ import {
   ListTodo,
   CircleDollarSign,
   AlertOctagon,
+  ShieldAlert,
   type LucideIcon,
 } from "lucide-react";
 
@@ -162,7 +163,13 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     id: "configuracion",
     label: "Configuración",
-    items: [{ id: "configuracion", label: "Configuración", to: "/configuracion", icon: Settings }],
+    items: [
+      { id: "configuracion", label: "Configuración", to: "/configuracion", icon: Settings },
+      // REQ-119/131: fuera de <AppShell/> a propósito (ver App.tsx) -- un
+      // aviso de privacidad debe poder consultarse sin sesión activa, igual
+      // que /login.
+      { id: "privacidad", label: "Aviso de privacidad", to: "/privacidad", icon: ShieldAlert },
+    ],
   },
 ];
 
