@@ -52,10 +52,22 @@ test.describe("Landing pública (/)", () => {
     expect(scroll.scrollWidth).toBe(scroll.clientWidth);
   });
 
-  test("el formulario de solicitar demo queda deshabilitado (sin backend de contacto)", async ({ noAuthPage: page }) => {
+  // Ronda 8b (REQ-196): el formulario ya NO está deshabilitado — `POST
+  // /public/contact` existe en apps/api. El envío REAL de punta a punta
+  // (registro + correo interno capturado) lo cubre e2e/correo-cuenta.spec.ts,
+  // que necesita la bandeja de captura; aquí solo se comprueba que el
+  // formulario está habilitado y que el honeypot sigue existiendo en el DOM
+  // real del navegador (si desapareciera, la capa 2 del anti-abuso de la API
+  // dejaría de servir sin que nada fallara a gritos).
+  test("el formulario de solicitar demo está habilitado y conserva el honeypot", async ({ noAuthPage: page }) => {
     await page.goto("/");
     await page.getByText("Solicitar demo", { exact: true }).first().click();
-    await expect(page.getByRole("button", { name: "Enviar solicitud" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Enviar solicitud" })).toBeEnabled();
+
+    const honeypot = page.locator('input[name="website"]');
+    await expect(honeypot).toHaveCount(1);
+    await expect(honeypot).toHaveValue("");
+    await expect(honeypot).toHaveAttribute("tabindex", "-1");
   });
 
   test("una sesión activa redirige la landing a /panel", async ({ page }) => {

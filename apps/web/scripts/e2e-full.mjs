@@ -8,6 +8,7 @@
 //
 // Uso: `npm run -w apps/web test:e2e:full` (ver apps/web/package.json).
 import { spawn } from "node:child_process";
+import fs from "node:fs";
 import { setTimeout as delay } from "node:timers/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -27,6 +28,15 @@ const WEB_URL = `http://127.0.0.1:${WEB_PORT}`;
 // `tenders` (ver apps/api/README.md). Literal fijo de esta suite, nunca
 // usado fuera de test:e2e:full.
 const PLATFORM_API_KEY = "e2e-seed-platform-key-not-production";
+// Ronda 8b (REQ-181): bandeja de captura de correo EN ARCHIVO. `apps/api`
+// documenta `MAIL_CAPTURE_FILE` como "ruta JSONL donde el `CaptureProvider`
+// también deja cada correo, para inspeccionarlo fuera del proceso" — es una
+// variable real del producto, no un endpoint de pruebas añadido para esto.
+// Es lo que permite que esta suite ejercite de verdad la compuerta de
+// verificación (ver `REQUIRE_EMAIL_VERIFICATION` abajo) leyendo el enlace
+// que la propia API generó, en vez de apagar la compuerta. Se borra en cada
+// arranque para que un spec nunca lea el correo de una corrida anterior.
+const MAIL_CAPTURE_FILE = path.join(WEB_ROOT, "e2e", ".artifacts", "mail-capture.jsonl");
 
 function log(msg) {
   console.log(`[test:e2e:full] ${msg}`);
@@ -57,6 +67,11 @@ async function waitForHealthz(url, timeoutMs) {
 }
 
 async function main() {
+  // Ronda 8b: bandeja de captura limpia en cada corrida — un spec nunca debe
+  // leer el correo de una corrida anterior y darlo por bueno.
+  fs.mkdirSync(path.dirname(MAIL_CAPTURE_FILE), { recursive: true });
+  fs.rmSync(MAIL_CAPTURE_FILE, { force: true });
+
   // REQ-172..180 (ronda 8a): proveedor OIDC FALSO en loopback, arrancado
   // ANTES que apps/api porque su puerto (efímero) es lo que se le pasa como
   // `OIDC_ISSUER_URL`. apps/api solo tolera `http://` contra loopback y
@@ -93,20 +108,22 @@ async function main() {
     // `apps/api` degrada a `CaptureProvider` (ver src/lib/mail/env.ts), así
     // que la suite NUNCA manda un correo real a Internet.
     MAIL_LINK_SECRET: "e2e-mail-link-secret-not-production",
-    // REQ-181..195 (ronda 8a): apps/api activó por defecto la compuerta de
-    // verificación de correo en `POST /auth/login` (403
-    // `email-not-verified`). Como esta suite NO configura ningún proveedor
-    // de correo real (ver `MAIL_PROVIDER` justo arriba: degrada a
-    // `CaptureProvider`, en memoria y sin ningún endpoint para leer el
-    // enlace capturado), el seed de e2e/global-setup.ts no tiene forma
-    // honesta de confirmar los correos que él mismo registra y TODA la
-    // suite quedaba bloqueada en el primer login. `false` es exactamente el
-    // escape que apps/api/README.md documenta para este caso ("solo
-    // mientras no haya proveedor de correo real configurado"). Consecuencia
-    // asumida y explícita: esta suite NO ejercita la compuerta de
-    // verificación — la pantalla de "verifica tu correo" es trabajo de la
-    // ronda 8b y llegará con su propia cobertura.
-    REQUIRE_EMAIL_VERIFICATION: "false",
+    MAIL_CAPTURE_FILE,
+    // REQ-181 (ronda 8b): la compuerta de verificación de correo de `POST
+    // /auth/login` (403 `email-not-verified`) queda ENCENDIDA — el valor
+    // por defecto de apps/api y el de un despliegue real.
+    //
+    // La ronda 8a la apagaba (`"false"`, el escape que apps/api/README.md
+    // documenta) por un motivo concreto y honesto: sin proveedor de correo,
+    // el seed no tenía forma de confirmar los correos que él mismo
+    // registraba y la suite entera moría en el primer login. Eso dejó de
+    // ser cierto: `MAIL_CAPTURE_FILE` (arriba) deja cada correo renderizado
+    // en un JSONL, así que `e2e/global-setup.ts` lee el enlace REAL de
+    // verificación y lo consume con `POST /auth/email/verify` — la misma
+    // llamada que hace la pantalla. Ni un dato inventado, ni la compuerta
+    // desactivada: `e2e/correo-cuenta.spec.ts` la recorre entera con un
+    // usuario nuevo.
+    REQUIRE_EMAIL_VERIFICATION: "true",
     // `publicUrl` es la base de esos enlaces y vive donde vive apps/web
     // (nunca la URL de esta API), así que apunta al front de esta corrida.
     PUBLIC_URL: WEB_URL,
@@ -179,6 +196,11 @@ async function main() {
         // (ver scripts/fake-oidc-server.mjs). Sin esta variable ese spec
         // se salta entero en vez de fingir que probó el flujo.
         E2E_OIDC_CONTROL_URL: oidc.controlUrl,
+        // Leída por e2e/mail-capture.ts (y a través de él por
+        // global-setup.ts y correo-cuenta.spec.ts) para leer los correos
+        // que la API capturó. Sin esta variable, los specs de correo se
+        // saltan enteros en vez de fingir que probaron algo.
+        E2E_MAIL_CAPTURE_FILE: MAIL_CAPTURE_FILE,
       },
     });
     exitCode = code ?? 1;

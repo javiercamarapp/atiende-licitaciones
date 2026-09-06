@@ -46,6 +46,15 @@ export function createSeedClient(apiUrl: string) {
     async register(email: string, password: string): Promise<void> {
       await request("/auth/register", { method: "POST", body: JSON.stringify({ email, password }) });
     },
+    /**
+     * REQ-181 (ronda 8b): consume el enlace de verificación de correo. Es
+     * la MISMA llamada que hace la pantalla `/verificar-correo`
+     * (src/pages/auth/VerificarCorreoPage.tsx): `d`/`s` tal cual venían en
+     * el enlace del correo, sin interpretarlos.
+     */
+    async verifyEmail(params: { d: string; s: string }): Promise<void> {
+      await request("/auth/email/verify", { method: "POST", body: JSON.stringify(params) });
+    },
     async login(email: string, password: string): Promise<Tokens> {
       return request<Tokens>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
     },

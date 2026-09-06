@@ -2,6 +2,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createSeedClient } from "./seed-client";
+import { mailCaptureFile, waitForMailLink } from "./mail-capture";
 
 // ESM real ("type": "module" en package.json): sin `__dirname` global.
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -101,6 +102,22 @@ export default async function globalSetup(): Promise<void> {
   await client.register(admin.email, admin.password);
   await client.register(writer.email, writer.password);
 
+  // REQ-181 (ronda 8b): la compuerta de verificación de correo está
+  // ENCENDIDA en esta suite (`REQUIRE_EMAIL_VERIFICATION=true`, ver
+  // scripts/e2e-full.mjs), así que estos dos usuarios no podrían iniciar
+  // sesión sin confirmar antes su correo. Se confirma por el camino REAL:
+  // se lee el enlace que la propia API acaba de generar en su bandeja de
+  // captura (`MAIL_CAPTURE_FILE`, variable documentada de apps/api) y se
+  // consume con `POST /auth/email/verify`, exactamente la misma llamada que
+  // hace la pantalla `/verificar-correo`. Nada se inventa ni se inserta a
+  // mano en la base.
+  //
+  // Hasta la ronda 8a esto no era posible y la suite APAGABA la compuerta;
+  // ver apps/web/README.md (ronda 8a, bloqueo 2) para el registro de ese
+  // límite, ya cerrado.
+  await confirmarCorreo(client, admin.email);
+  await confirmarCorreo(client, writer.email);
+
   const adminTokens = await client.login(admin.email, admin.password);
   // La organización A se crea ANTES de enrolar 2FA a propósito: R5-09
   // (migraciones 0062/0063) hizo `org_id` NOT NULL en `step_up_sessions`, y
@@ -162,4 +179,20 @@ export default async function globalSetup(): Promise<void> {
 
   const seed: SeedData = { apiUrl, admin: { ...admin, twoFactor }, writer, orgA, orgB, orgC, tender, orgD, dashboardTender };
   fs.writeFileSync(path.join(ARTIFACTS_DIR, "seed.json"), JSON.stringify(seed, null, 2));
+}
+
+/**
+ * Confirma el correo de una cuenta recién registrada consumiendo el enlace
+ * REAL que `apps/api` dejó en la bandeja de captura.
+ *
+ * Si esta corrida no tiene bandeja configurada (`MAIL_CAPTURE_FILE` sin
+ * definir, p. ej. contra una API remota), no se hace nada: el siguiente
+ * `login` fallará con el 403 real y el error dirá exactamente eso, en vez
+ * de que el seed finja una verificación que nunca ocurrió.
+ */
+async function confirmarCorreo(client: ReturnType<typeof createSeedClient>, email: string): Promise<void> {
+  if (!mailCaptureFile()) return;
+  const enlace = await waitForMailLink(email, "/verificar-correo");
+  const { searchParams } = new URL(enlace);
+  await client.verifyEmail({ d: searchParams.get("d")!, s: searchParams.get("s")! });
 }
