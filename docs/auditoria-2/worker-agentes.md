@@ -511,3 +511,14 @@ iniciar esta auditoría); el repositorio principal avanzó a otros commits
 de forma concurrente durante la sesión (otros agentes trabajando en
 paralelo) — este informe se basa exclusivamente en el código congelado del
 worktree, no en el HEAD posterior del repositorio principal.
+
+---
+
+## Estado de reparación (agente corrector, post-auditoría)
+
+Un commit por hallazgo (`git log`, mensajes `fix(worker): WK6-nn ...`);
+evidencia real de comandos y salidas en `docs/logs/fix-worker-k.log`.
+
+| Hallazgo | Severidad | Estado reparación |
+|---|---|---|
+| WK6-01 | ALTA | **REPARADO**. Las evals/tests de aislamiento ahora verifican CONTENIDO, no solo `status`. Nuevo bloque `aislamiento cross-org (WK6-01)` en `apps/worker/test/business-tools.test.ts`: un test negativo directo por cada una de las **8** herramientas de negocio, con dos organizaciones reales y datos distinguibles (`SECRETO-ORGA`), que confirma que el resultado de `orgB` nunca contiene título/score/explicación/evidencia de `orgA` (`expect(JSON.stringify(output)).not.toContain(SECRET)`); `programar_alerta` (la única de escritura) verifica que el job encolado queda con el `org_id` del contexto, nunca el de la convocatoria ajena. La eval de `analista_convocatorias` en `test/agent-evals.test.ts` añade la misma verificación de contenido (necesaria porque `agent_runs.output.toolCalls` es un resumen redactado que no incluye el `score`). Script de mutación nuevo y ejecutable: `apps/worker/scripts/wk6-01-mutation-test-org-isolation.sh` (worktree desechable + superposición del árbol de trabajo actual + mutación de `fetchTender` + limpieza garantizada; `exit 0` = mutación detectada). **Verificado en vivo**: con la mutación aplicada la suite falla con 2 fallos (`expected 100 to be null` en `proponer_matching` y la eval de aislamiento), frente a los 0 fallos que producía antes de esta reparación — el falso "mutación no detectada" de la primera corrida del script (que aún leía solo HEAD) se corrigió superponiendo el árbol de trabajo. Documentado en `apps/worker/README.md`, sección "Correcciones de la ronda K". |

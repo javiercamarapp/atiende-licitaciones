@@ -1,0 +1,144 @@
+# fix-worker-k.log — agente corrector Ronda K (WK6-01..03), apps/worker
+# Fecha: 2026-09-06T21:35:04Z  Host: Darwin 24.6.0 arm64
+# Node: v25.6.1  npm: 11.12.1
+# Repo: /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging  HEAD al iniciar: 310d54f8549b0dc04813c6cada90996e58ceab79
+# Ámbito: apps/worker/**, docs/logs/fix-worker-k.log, columna 'Estado reparación' de docs/auditoria-2/worker-agentes.md
+
+================================================================
+== WK6-01 — prueba de mutación de aislamiento por organización ==
+================================================================
+
+--- (a) PRIMERA corrida del script, ANTES de superponer el árbol de trabajo
+---     (el script solo leía HEAD): FALSO 'mutación NO detectada'.
+---     Salida real registrada abajo tal como se obtuvo:
+
+  Test Files  2 passed (2)
+       Tests  37 passed (37)
+  [wk6-01] ALERTA (regresión de WK6-01): la suite pasó igual (exit=0) sin el filtro org_id de fetchTender()
+
+--- Causa: git worktree add <HEAD> no incluye los cambios sin commitear.
+--- Corrección aplicada al script: superponer 'git diff HEAD -- apps/worker' + archivos sin rastrear.
+
+--- (b) SEGUNDA corrida, con la superposición del árbol de trabajo:
+$ ./apps/worker/scripts/wk6-01-mutation-test-org-isolation.sh
+[wk6-01] repo principal: /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging (HEAD=310d54f8549b0dc04813c6cada90996e58ceab79, sin tocar)
+[wk6-01] creando worktree desechable en: /var/folders/7l/lhfhb62s0831p83p7d0v3s6h0000gn/T//wk6-01-mutation-v7f23c
+Preparing worktree (detached HEAD 310d54f)
+HEAD is now at 310d54f docs: D-10 Opus como modelo de respaldo; INC-13; despachos #105–#109
+[wk6-01] superponiendo el estado actual del árbol de trabajo de apps/worker sobre el worktree...
+[wk6-01] cambios sin commitear de apps/worker aplicados al worktree.
+[wk6-01] archivos nuevos sin rastrear copiados al worktree: 1
+[wk6-01] aplicando mutación: fetchTender() sin filtro org_id...
+[wk6-01] mutación aplicada.
+[wk6-01] --- diff de la mutación (solo dentro del worktree temporal) ---
+diff --git a/apps/worker/src/agents/business-tools.ts b/apps/worker/src/agents/business-tools.ts
+index 8f79124..56ec0c7 100644
+--- a/apps/worker/src/agents/business-tools.ts
++++ b/apps/worker/src/agents/business-tools.ts
+@@ -82,8 +82,8 @@ interface TenderRow {
+ async function fetchTender(tx: DbExecutor, orgId: string, tenderId: string): Promise<TenderRow | undefined> {
+   const { rows } = await tx.query<TenderRow>(
+     `select id, title, status, contracting_body, cpv_codes, budget_amount, currency, submission_deadline, source
+-     from tenders where id = $1 and org_id = $2`,
+-    [tenderId, orgId],
++     from tenders where id = $1`,
++    [tenderId],
+   );
+   return rows[0];
+ }
+[wk6-01] ------------------------------------------------------------
+[wk6-01] corriendo test/business-tools.test.ts + test/agent-evals.test.ts bajo la mutación (usa --full para la suite completa)...
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/private/var/folders/7l/lhfhb62s0831p83p7d0v3s6h0000gn/T/wk6-01-mutation-v7f23c/apps/worker[39m
+
+ [31m❯[39m test/business-tools.test.ts [2m([22m[2m19 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 12634[2mms[22m[39m
+   [33m[2m✓[22m[39m business-tools.ts (Ronda 6): herramientas de negocio reales del worker[2m > [22mregistra las 8 herramientas con actionKind/declaredEffects consistentes (nunca external_send/sign/portal_action/contact_third_party) [33m1108[2mms[22m[39m
+   [33m[2m✓[22m[39m business-tools.ts (Ronda 6): herramientas de negocio reales del worker[2m > [22mninguna de las 8 herramientas acepta organizationId/orgId/tenantId del modelo: el esquema los descarta silenciosamente, nunca llegan al handler [33m650[2mms[22m[39m
+   [33m[2m✓[22m[39m business-tools.ts (Ronda 6): herramientas de negocio reales del worker[2m > [22mlistar_convocatorias: lee SOLO las convocatorias de la organización del contexto, nunca de otra [33m635[2mms[22m[39m
+   [33m[2m✓[22m[39m business-tools.ts (Ronda 6): herramientas de negocio reales del worker[2m > [22mleer_bases: expone documentos/requisitos ya extraídos, con sourcePage/sourceExcerpt reales (no fabricados) [33m652[2mms[22m[39m
+   [33m[2m✓[22m[39m business-tools.ts (Ronda 6): herramientas de negocio reales del worker[2m > [22mleer_perfil_empresa: lee perfil/capacidades/experiencia reales de la organización [33m643[2mms[22m[39m
+   [33m[2m✓[22m[39m business-tools.ts (Ronda 6): herramientas de negocio reales del worker[2m > [22mproponer_matching: score y palabras coincidentes derivados de datos reales, nunca inventados; sin capacidades -> missingProfileFields [33m634[2mms[22m[39m
+   [33m[2m✓[22m[39m business-tools.ts (Ronda 6): herramientas de negocio reales del worker[2m > [22mproponer_requisitos_matriz: extrae candidatos REALES del texto ya extraído, sin inventar número de página [33m640[2mms[22m[39m
+   [33m[2m✓[22m[39m business-tools.ts (Ronda 6): herramientas de negocio reales del worker[2m > [22mproponer_seccion_propuesta: bloquea explícitamente si no hay evidencia aprobada (nunca inventa el dato) [33m651[2mms[22m[39m
+   [33m[2m✓[22m[39m business-tools.ts (Ronda 6): herramientas de negocio reales del worker[2m > [22mproponer_seccion_propuesta: redacta un borrador citando experiencia REAL con evidencia [33m632[2mms[22m[39m
+   [33m[2m✓[22m[39m business-tools.ts (Ronda 6): herramientas de negocio reales del worker[2m > [22mresumir_cambios_convocatoria: resume eventos reales y cuenta invalidaciones reales [33m632[2mms[22m[39m
+   [33m[2m✓[22m[39m business-tools.ts (Ronda 6): herramientas de negocio reales del worker[2m > [22mprogramar_alerta: encola un job real (send_agent_alert) en la tabla jobs, deduplicado por (tenderId, kind, scheduledFor) [33m634[2mms[22m[39m
+   [33m[2m✓[22m[39m business-tools.ts (Ronda 6): herramientas de negocio reales del worker[2m > [22maislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok"[2m > [22mlistar_convocatorias: desde el contexto de orgB nunca aparece ninguna convocatoria real de orgA (contenido distinguible, no solo el conteo) [33m638[2mms[22m[39m
+[31m   [31m×[31m business-tools.ts (Ronda 6): herramientas de negocio reales del worker[2m > [22maislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok"[2m > [22mproponer_matching: tenderId real de orgA desde el contexto de orgB -> "no evaluable" explícito, sin score ni texto de orgA[33m 654[2mms[22m[31m[39m
+[31m     → expected 100 to be null[39m
+   [33m[2m✓[22m[39m business-tools.ts (Ronda 6): herramientas de negocio reales del worker[2m > [22maislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok"[2m > [22mleer_bases: tenderId real de orgA desde el contexto de orgB -> documentos/requisitos vacíos, nunca los de orgA [33m647[2mms[22m[39m
+   [33m[2m✓[22m[39m business-tools.ts (Ronda 6): herramientas de negocio reales del worker[2m > [22maislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok"[2m > [22mleer_perfil_empresa: nunca expone el perfil/capacidades de otra organización [33m640[2mms[22m[39m
+   [33m[2m✓[22m[39m business-tools.ts (Ronda 6): herramientas de negocio reales del worker[2m > [22maislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok"[2m > [22mproponer_requisitos_matriz: tenderId real de orgA desde el contexto de orgB -> sin candidatos, nunca el texto de orgA [33m630[2mms[22m[39m
+   [33m[2m✓[22m[39m business-tools.ts (Ronda 6): herramientas de negocio reales del worker[2m > [22maislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok"[2m > [22mproponer_seccion_propuesta: nunca redacta citando experiencia real de otra organización [33m636[2mms[22m[39m
+   [33m[2m✓[22m[39m business-tools.ts (Ronda 6): herramientas de negocio reales del worker[2m > [22maislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok"[2m > [22mresumir_cambios_convocatoria: tenderId real de orgA desde el contexto de orgB -> sin eventos, nunca el resumen de orgA [33m641[2mms[22m[39m
+   [33m[2m✓[22m[39m business-tools.ts (Ronda 6): herramientas de negocio reales del worker[2m > [22maislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok"[2m > [22mprogramar_alerta: el job encolado siempre queda scoped a la organización REAL del contexto (ctx.organizationId), nunca a un tenderId ajeno pasado como input [33m635[2mms[22m[39m
+ [31m❯[39m test/agent-evals.test.ts [2m([22m[2m26 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 17062[2mms[22m[39m
+   [33m[2m✓[22m[39m Ronda 6: evals deterministas por agente nombrado[2m > [22manalista_convocatorias[2m > [22mcamino feliz: bases + perfil + matching, corrida completa y persistida en agent_runs.output.toolCalls [33m1127[2mms[22m[39m
+[31m   [31m×[31m Ronda 6: evals deterministas por agente nombrado[2m > [22manalista_convocatorias[2m > [22maislamiento por org: un tenderId de otra organización nunca se lee ni se usa para matching (contenido, no solo status)[33m 682[2mms[22m[31m[39m
+[31m     → expected [ 'capabilities' ] to include 'tender'[39m
+   [33m[2m✓[22m[39m Ronda 6: evals deterministas por agente nombrado[2m > [22manalista_convocatorias[2m > [22mrol sin permiso de riesgo (consultor_externo, techo "read") deniega el primer paso "write" -> corrida denied, job falla permanente [33m653[2mms[22m[39m
+   [33m[2m✓[22m[39m Ronda 6: evals deterministas por agente nombrado[2m > [22manalista_convocatorias[2m > [22midempotencia por clave: dos corridas del mismo tenderId+org reutilizan el resultado cacheado del paso "proponer_matching" (el LLM no se vuelve a invocar) [33m658[2mms[22m[39m
+   [33m[2m✓[22m[39m Ronda 6: evals deterministas por agente nombrado[2m > [22manalista_convocatorias[2m > [22mpresupuesto excedido: con un límite por organización menor al costo del primer paso, la corrida se detiene "failed" (nunca fabrica un resultado) [33m658[2mms[22m[39m
+   [33m[2m✓[22m[39m Ronda 6: evals deterministas por agente nombrado[2m > [22manalista_bases[2m > [22mcamino feliz: propone candidatos de matriz reales a partir del texto extraído [33m641[2mms[22m[39m
+   [33m[2m✓[22m[39m Ronda 6: evals deterministas por agente nombrado[2m > [22manalista_bases[2m > [22maislamiento por org: tenderId de otra organización -> leer_bases no expone documentos ajenos [33m642[2mms[22m[39m
+   [33m[2m✓[22m[39m Ronda 6: evals deterministas por agente nombrado[2m > [22manalista_bases[2m > [22mrol sin permiso: consultor_externo denegado en el paso "write" (proponer_requisitos_matriz) [33m658[2mms[22m[39m
+   [33m[2m✓[22m[39m Ronda 6: evals deterministas por agente nombrado[2m > [22manalista_bases[2m > [22midempotencia por clave: dos corridas con el mismo tenderId no duplican la propuesta de matriz (mismo idempotencyKey) [33m644[2mms[22m[39m
+   [33m[2m✓[22m[39m Ronda 6: evals deterministas por agente nombrado[2m > [22manalista_bases[2m > [22mpresupuesto excedido detiene la corrida en el primer paso [33m634[2mms[22m[39m
+   [33m[2m✓[22m[39m Ronda 6: evals deterministas por agente nombrado[2m > [22mredactor_borrador[2m > [22mno fabricación: sin evidence_ref, la sección queda bloqueada explícitamente (needs_data), nunca redacta un dato inventado [33m641[2mms[22m[39m
+   [33m[2m✓[22m[39m Ronda 6: evals deterministas por agente nombrado[2m > [22mredactor_borrador[2m > [22mcon evidencia real, redacta la sección y completa (no queda pendiente) [33m653[2mms[22m[39m
+   [33m[2m✓[22m[39m Ronda 6: evals deterministas por agente nombrado[2m > [22mredactor_borrador[2m > [22mguardrail anticorrupción bloquea una sectionKey con lenguaje de soborno, ANTES de tocar la herramienta [33m650[2mms[22m[39m
+   [33m[2m✓[22m[39m Ronda 6: evals deterministas por agente nombrado[2m > [22mredactor_borrador[2m > [22mrol sin permiso: consultor_externo denegado en "proponer_seccion_propuesta" (write) [33m660[2mms[22m[39m
+   [33m[2m✓[22m[39m Ronda 6: evals deterministas por agente nombrado[2m > [22mredactor_borrador[2m > [22mpresupuesto excedido detiene la corrida antes de redactar [33m641[2mms[22m[39m
+   [33m[2m✓[22m[39m Ronda 6: evals deterministas por agente nombrado[2m > [22mvigilante_cambios[2m > [22mcamino feliz: resume cambios reales de la convocatoria [33m655[2mms[22m[39m
+   [33m[2m✓[22m[39m Ronda 6: evals deterministas por agente nombrado[2m > [22mvigilante_cambios[2m > [22maislamiento por org: nunca resume eventos de cambio de otra organización [33m659[2mms[22m[39m
+   [33m[2m✓[22m[39m Ronda 6: evals deterministas por agente nombrado[2m > [22mvigilante_cambios[2m > [22mconsultor_externo (techo "read") SÍ puede ejecutar este agente: es de solo lectura, dentro de su techo de riesgo [33m639[2mms[22m[39m
+   [33m[2m✓[22m[39m Ronda 6: evals deterministas por agente nombrado[2m > [22mvigilante_cambios[2m > [22midempotencia por clave: dos corridas del mismo tenderId no fallan por reejecución (idempotencyKey estable) [33m640[2mms[22m[39m
+   [33m[2m✓[22m[39m Ronda 6: evals deterministas por agente nombrado[2m > [22mvigilante_cambios[2m > [22mpresupuesto excedido detiene la corrida [33m612[2mms[22m[39m
+   [33m[2m✓[22m[39m Ronda 6: evals deterministas por agente nombrado[2m > [22mrecordatorios[2m > [22mcamino feliz: programa una alerta real (job send_agent_alert encolado) [33m611[2mms[22m[39m
+   [33m[2m✓[22m[39m Ronda 6: evals deterministas por agente nombrado[2m > [22mrecordatorios[2m > [22midempotencia por clave: dos alertas con el mismo (tenderId, kind, scheduledFor) encolan un único job de plataforma [33m603[2mms[22m[39m
+   [33m[2m✓[22m[39m Ronda 6: evals deterministas por agente nombrado[2m > [22mrecordatorios[2m > [22mguardrail anticorrupción bloquea un mensaje de alerta con lenguaje de soborno [33m605[2mms[22m[39m
+   [33m[2m✓[22m[39m Ronda 6: evals deterministas por agente nombrado[2m > [22mrecordatorios[2m > [22mrol sin permiso: consultor_externo denegado (programar_alerta es "write") [33m602[2mms[22m[39m
+   [33m[2m✓[22m[39m Ronda 6: evals deterministas por agente nombrado[2m > [22mrecordatorios[2m > [22mpresupuesto excedido: no encola la alerta si el presupuesto de la organización ya se agotó [33m600[2mms[22m[39m
+   [33m[2m✓[22m[39m Ronda 6: evals deterministas por agente nombrado[2m > [22mprohibiciones duras (runtime compartido por los 5 agentes)[2m > [22mun tool_call con actionKind "portal_action" se deniega SIEMPRE, incluso para "superadmin", sin llegar a needs_approval [33m591[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[1m[7m Failed Tests 2 [27m[22m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[31m[1m[7m FAIL [27m[22m[39m test/agent-evals.test.ts[2m > [22mRonda 6: evals deterministas por agente nombrado[2m > [22manalista_convocatorias[2m > [22maislamiento por org: un tenderId de otra organización nunca se lee ni se usa para matching (contenido, no solo status)
+[31m[1mAssertionError[22m: expected [ 'capabilities' ] to include 'tender'[39m
+[36m [2m❯[22m test/agent-evals.test.ts:[2m156:49[22m[39m
+    [90m154| [39m      [34mexpect[39m(directOutput[33m.[39mscore)[33m.[39m[34mtoBeNull[39m()[33m;[39m
+    [90m155| [39m      [34mexpect[39m(directOutput[33m.[39mmatchedKeywords)[33m.[39m[34mtoEqual[39m([])[33m;[39m
+    [90m156| [39m      [34mexpect[39m(directOutput[33m.[39mmissingProfileFields)[33m.[39m[34mtoContain[39m([32m'tender'[39m)[33m;[39m
+    [90m   | [39m                                                [31m^[39m
+    [90m157| [39m      [34mexpect[39m(directOutput[33m.[39mexplanation)[33m.[39m[34mtoMatch[39m([36m/no evaluable/i[39m)[33m;[39m
+    [90m158| [39m      [34mexpect[39m([33mJSON[39m[33m.[39m[34mstringify[39m(directOutput))[33m.[39mnot[33m.[39m[34mtoContain[39m([32m'SECRETO-ORGA[39m…
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m test/business-tools.test.ts[2m > [22mbusiness-tools.ts (Ronda 6): herramientas de negocio reales del worker[2m > [22maislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok"[2m > [22mproponer_matching: tenderId real de orgA desde el contexto de orgB -> "no evaluable" explícito, sin score ni texto de orgA
+[31m[1mAssertionError[22m: expected 100 to be null[39m
+
+[32m- Expected:[39m 
+null
+
+[31m+ Received:[39m 
+100
+
+[36m [2m❯[22m test/business-tools.test.ts:[2m316:28[22m[39m
+    [90m314| [39m      }[33m;[39m
+    [90m315| [39m
+    [90m316| [39m      [34mexpect[39m(output[33m.[39mscore)[33m.[39m[34mtoBeNull[39m()[33m;[39m
+    [90m   | [39m                           [31m^[39m
+    [90m317| [39m      [34mexpect[39m(output[33m.[39mmatchedKeywords)[33m.[39m[34mtoEqual[39m([])[33m;[39m
+    [90m318| [39m      [34mexpect[39m(output[33m.[39mmissingProfileFields)[33m.[39m[34mtoContain[39m([32m'tender'[39m)[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯[22m[39m
+
+[2m Test Files [22m [1m[31m2 failed[39m[22m[90m (2)[39m
+[2m      Tests [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m43 passed[39m[22m[90m (45)[39m
+[2m   Start at [22m 15:35:05
+[2m   Duration [22m 17.46s[2m (transform 134ms, setup 0ms, collect 296ms, tests 29.70s, environment 0ms, prepare 78ms)[22m
+
+[wk6-01] OK: la suite FALLÓ bajo la mutación (exit=1) -- la regresión de aislamiento por organización SÍ se detecta.
+[wk6-01] limpiando worktree temporal: /var/folders/7l/lhfhb62s0831p83p7d0v3s6h0000gn/T//wk6-01-mutation-v7f23c
+SCRIPT_EXIT=0

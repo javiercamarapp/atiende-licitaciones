@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { DbClient } from '@atiende/db';
 import { FakeProvider } from '@atiende/agents';
 import { createRunAgentHandler, type RunAgentHandlerDeps, type RunAgentPayload } from '../src/handlers/run-agent.js';
+import { buildBusinessToolRegistry } from '../src/agents/business-tools.js';
 import { createMigratedDb, seedOrgAndUser, silentLogger } from './helpers.js';
 import { applyProposal06 } from './proposal-06-helper.js';
 import { JobQueue } from '../src/queue/job-queue.js';
@@ -108,8 +109,15 @@ describe('Ronda 6: evals deterministas por agente nombrado', () => {
       expect(row.output.toolCalls.every((t) => t.status === 'ok')).toBe(true);
     });
 
-    it('aislamiento por org: un tenderId de otra organización nunca se lee ni se usa para matching', async () => {
+    it('aislamiento por org: un tenderId de otra organización nunca se lee ni se usa para matching (contenido, no solo status)', async () => {
       const { tenderId: tenderIdOfOrgA } = await seedTenderWithFullData('eval-ac-org-a');
+      // Dato distinguible real de orgA (más allá del título genérico del helper
+      // compartido), para poder confirmar por CONTENIDO que nunca llega a orgB.
+      await db.query(`update tenders set title = $1, contracting_body = $2 where id = $3`, [
+        'SECRETO-ORGA obra civil',
+        'SECRETO-ORGA Municipio',
+        tenderIdOfOrgA,
+      ]);
       const { orgId: orgB, userId: userB } = await seedOrgAndUser(db, 'eval-ac-org-b');
       const handler = createRunAgentHandler(baseDeps());
       const job = makeJob(
@@ -126,6 +134,28 @@ describe('Ronda 6: evals deterministas por agente nombrado', () => {
       const matchingCall = row.output.toolCalls.find((t) => t.toolName === 'proponer_matching');
       expect(matchingCall?.status).toBe('ok');
       // La convocatoria es de orgA: proponer_matching de orgB nunca la encuentra ("no evaluable"), nunca filtra datos de orgA.
+      // WK6-01 (docs/auditoria-2/worker-agentes.md, ALTA): `status: 'ok'` NO
+      // basta -- `agent_runs.output.toolCalls` es un resumen REDACTADO
+      // (`summarizeToolCalls`, `handlers/run-agent.ts`) que nunca incluye el
+      // `score`/`explanation` reales. Para verificar CONTENIDO (no solo que
+      // el tool_call "terminó bien"), se invoca la MISMA herramienta con el
+      // MISMO contexto (organizationId de orgB, tenderId real de orgA) que
+      // usó el agente, y se confirma que el resultado nunca contiene el
+      // score/explicación/keywords de la convocatoria real de orgA. Bajo la
+      // mutación de `fetchTender` sin filtro `org_id` (ver
+      // `apps/worker/scripts/wk6-01-mutation-test-org-isolation.sh`), esta
+      // aserción SÍ falla (a diferencia de `matchingCall?.status`).
+      const registry = buildBusinessToolRegistry({ db, queue, provider: new FakeProvider() });
+      const tool = registry.get('proponer_matching');
+      const directOutput = (await tool.handler(
+        { tenderId: tenderIdOfOrgA },
+        { organizationId: orgB, actorId: userB, actorRole: 'licitador', runId: 'wk6-01-content-check' },
+      )) as { score: number | null; explanation: string; matchedKeywords: string[]; missingProfileFields: string[] };
+      expect(directOutput.score).toBeNull();
+      expect(directOutput.matchedKeywords).toEqual([]);
+      expect(directOutput.missingProfileFields).toContain('tender');
+      expect(directOutput.explanation).toMatch(/no evaluable/i);
+      expect(JSON.stringify(directOutput)).not.toContain('SECRETO-ORGA');
     });
 
     it('rol sin permiso de riesgo (consultor_externo, techo "read") deniega el primer paso "write" -> corrida denied, job falla permanente', async () => {

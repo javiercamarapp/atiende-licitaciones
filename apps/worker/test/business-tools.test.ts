@@ -252,4 +252,214 @@ describe('business-tools.ts (Ronda 6): herramientas de negocio reales del worker
     const { rows } = await db.query<{ kind: string }>(`select kind from jobs where id = $1`, [first.jobId]);
     expect(rows[0].kind).toBe('send_agent_alert');
   });
+
+  /**
+   * WK6-01 (docs/auditoria-2/worker-agentes.md, ALTA): la auditoría
+   * adversarial "Ronda K" confirmó que quitar el filtro `org_id` de
+   * `fetchTender()` no hacía fallar NINGÚN test/eval existente, porque la
+   * única aserción de aislamiento de `proponer_matching` miraba
+   * `status === 'ok'`, nunca el CONTENIDO real (score/explanation/
+   * matchedKeywords) — exactamente donde viviría una fuga cross-org. Este
+   * bloque añade, para cada una de las 8 herramientas de negocio, un test
+   * DIRECTO con DOS organizaciones y datos distinguibles ("SECRETO-ORGA")
+   * que verifica que el resultado de orgB NUNCA contiene título/texto/
+   * evidencia real de orgA, no solo que la llamada "terminó bien". Repetir
+   * la prueba de mutación de `fetchTender` (ver
+   * `apps/worker/scripts/wk6-01-mutation-test-org-isolation.sh`) debe hacer
+   * fallar este bloque.
+   */
+  describe('aislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok"', () => {
+    const SECRET = 'SECRETO-ORGA';
+
+    it('listar_convocatorias: desde el contexto de orgB nunca aparece ninguna convocatoria real de orgA (contenido distinguible, no solo el conteo)', async () => {
+      const { orgId: orgA } = await seedOrgAndUser(db, 'wk601-listar-a');
+      const { orgId: orgB } = await seedOrgAndUser(db, 'wk601-listar-b');
+      await db.query(
+        `insert into tenders (org_id, source, external_id, title, contracting_body) values ($1, 'dof', 'wk601-l-a', $2, $3)`,
+        [orgA, `${SECRET} obra civil`, `${SECRET} Municipio`],
+      );
+      await db.query(
+        `insert into tenders (org_id, source, external_id, title, contracting_body) values ($1, 'dof', 'wk601-l-b', 'Convocatoria pública de orgB', 'Municipio B')`,
+        [orgB],
+      );
+
+      const registry = buildBusinessToolRegistry({ db, queue, provider: new FakeProvider() });
+      const tool = registry.get('listar_convocatorias');
+      const output = (await tool.handler({}, makeCtx(orgB))) as { tenders: { title: string }[] };
+
+      expect(output.tenders).toHaveLength(1);
+      expect(output.tenders[0].title).toBe('Convocatoria pública de orgB');
+      expect(JSON.stringify(output)).not.toContain(SECRET);
+    });
+
+    it('proponer_matching: tenderId real de orgA desde el contexto de orgB -> "no evaluable" explícito, sin score ni texto de orgA', async () => {
+      const { orgId: orgA } = await seedOrgAndUser(db, 'wk601-matching-a');
+      const { orgId: orgB } = await seedOrgAndUser(db, 'wk601-matching-b');
+      const tenderRow = await db.query<{ id: string }>(
+        `insert into tenders (org_id, source, external_id, title, contracting_body) values ($1, 'dof', 'wk601-m', $2, $3) returning id`,
+        [orgA, `${SECRET} obra civil`, `${SECRET} Municipio`],
+      );
+      const tenderIdOfOrgA = tenderRow.rows[0].id;
+      // orgB declara una capacidad que SÍ coincidiría con el título de orgA
+      // si el filtro de aislamiento fallara -- la prueba es más estricta así.
+      await db.query(`insert into capabilities (org_id, name) values ($1, 'obra civil')`, [orgB]);
+
+      const registry = buildBusinessToolRegistry({ db, queue, provider: new FakeProvider() });
+      const tool = registry.get('proponer_matching');
+      const output = (await tool.handler({ tenderId: tenderIdOfOrgA }, makeCtx(orgB))) as {
+        score: number | null;
+        explanation: string;
+        matchedKeywords: string[];
+        missingProfileFields: string[];
+      };
+
+      expect(output.score).toBeNull();
+      expect(output.matchedKeywords).toEqual([]);
+      expect(output.missingProfileFields).toContain('tender');
+      expect(output.explanation).toMatch(/no evaluable/i);
+      expect(JSON.stringify(output)).not.toContain(SECRET);
+    });
+
+    it('leer_bases: tenderId real de orgA desde el contexto de orgB -> documentos/requisitos vacíos, nunca los de orgA', async () => {
+      const { orgId: orgA } = await seedOrgAndUser(db, 'wk601-bases-a');
+      const { orgId: orgB } = await seedOrgAndUser(db, 'wk601-bases-b');
+      const tenderRow = await db.query<{ id: string }>(
+        `insert into tenders (org_id, source, external_id, title) values ($1, 'dof', 'wk601-b', 'Convocatoria orgA') returning id`,
+        [orgA],
+      );
+      const tenderIdOfOrgA = tenderRow.rows[0].id;
+      await db.query(
+        `insert into tender_documents (org_id, tender_id, document_type, storage_ref, extracted_text) values ($1, $2, 'bases', 'ref', $3)`,
+        [orgA, tenderIdOfOrgA, `${SECRET} texto de bases`],
+      );
+      await db.query(
+        `insert into requirement_items (org_id, tender_id, category, description) values ($1, $2, 'legal', $3)`,
+        [orgA, tenderIdOfOrgA, `${SECRET} requisito`],
+      );
+
+      const registry = buildBusinessToolRegistry({ db, queue, provider: new FakeProvider() });
+      const tool = registry.get('leer_bases');
+      const output = (await tool.handler({ tenderId: tenderIdOfOrgA }, makeCtx(orgB))) as {
+        documents: unknown[];
+        requirements: unknown[];
+      };
+
+      expect(output.documents).toHaveLength(0);
+      expect(output.requirements).toHaveLength(0);
+      expect(JSON.stringify(output)).not.toContain(SECRET);
+    });
+
+    it('leer_perfil_empresa: nunca expone el perfil/capacidades de otra organización', async () => {
+      const { orgId: orgA } = await seedOrgAndUser(db, 'wk601-perfil-a');
+      const { orgId: orgB } = await seedOrgAndUser(db, 'wk601-perfil-b');
+      await db.query(`insert into company_profiles (org_id, legal_name) values ($1, $2)`, [orgA, `${SECRET} Empresa SA de CV`]);
+      await db.query(`insert into capabilities (org_id, name) values ($1, $2)`, [orgA, `${SECRET} capacidad`]);
+      await db.query(`insert into company_profiles (org_id, legal_name) values ($1, 'Empresa B pública SA de CV')`, [orgB]);
+      await db.query(`insert into capabilities (org_id, name) values ($1, 'obra civil')`, [orgB]);
+
+      const registry = buildBusinessToolRegistry({ db, queue, provider: new FakeProvider() });
+      const tool = registry.get('leer_perfil_empresa');
+      const output = (await tool.handler({}, makeCtx(orgB))) as {
+        profile: { legalName: string } | null;
+        capabilities: { name: string }[];
+      };
+
+      expect(output.profile?.legalName).toBe('Empresa B pública SA de CV');
+      expect(output.capabilities.map((c) => c.name)).toEqual(['obra civil']);
+      expect(JSON.stringify(output)).not.toContain(SECRET);
+    });
+
+    it('proponer_requisitos_matriz: tenderId real de orgA desde el contexto de orgB -> sin candidatos, nunca el texto de orgA', async () => {
+      const { orgId: orgA } = await seedOrgAndUser(db, 'wk601-matriz-a');
+      const { orgId: orgB } = await seedOrgAndUser(db, 'wk601-matriz-b');
+      const tenderRow = await db.query<{ id: string }>(
+        `insert into tenders (org_id, source, external_id, title) values ($1, 'dof', 'wk601-mz', 'Convocatoria orgA') returning id`,
+        [orgA],
+      );
+      const tenderIdOfOrgA = tenderRow.rows[0].id;
+      await db.query(
+        `insert into tender_documents (org_id, tender_id, document_type, storage_ref, extracted_text) values ($1, $2, 'bases', 'ref', $3)`,
+        [orgA, tenderIdOfOrgA, `El proveedor deberá entregar ${SECRET} certificación única vigente.`],
+      );
+
+      const registry = buildBusinessToolRegistry({ db, queue, provider: new FakeProvider() });
+      const tool = registry.get('proponer_requisitos_matriz');
+      const output = (await tool.handler({ tenderId: tenderIdOfOrgA }, makeCtx(orgB))) as {
+        proposedItems: unknown[];
+      };
+
+      expect(output.proposedItems).toHaveLength(0);
+      expect(JSON.stringify(output)).not.toContain(SECRET);
+    });
+
+    it('proponer_seccion_propuesta: nunca redacta citando experiencia real de otra organización', async () => {
+      const { orgId: orgA } = await seedOrgAndUser(db, 'wk601-seccion-a');
+      const { orgId: orgB } = await seedOrgAndUser(db, 'wk601-seccion-b');
+      await db.query(
+        `insert into experience_records (org_id, title, client_name, evidence_ref) values ($1, $2, $3, 'doc-orgA')`,
+        [orgA, `${SECRET} Construcción de puente`, `${SECRET} Cliente`],
+      );
+
+      const registry = buildBusinessToolRegistry({ db, queue, provider: new FakeProvider() });
+      const tool = registry.get('proponer_seccion_propuesta');
+      const output = (await tool.handler(
+        { tenderId: '00000000-0000-0000-0000-000000000009', sectionKey: 'experiencia' },
+        makeCtx(orgB),
+      )) as { blocked: boolean; missingData: string[]; draft: string };
+
+      // orgB no tiene su propia experience_records: bloqueado explícito,
+      // NUNCA redacta citando la evidencia real de orgA.
+      expect(output.blocked).toBe(true);
+      expect(output.missingData).toContain('experience_records.evidence_ref');
+      expect(output.draft).toBe('');
+      expect(JSON.stringify(output)).not.toContain(SECRET);
+    });
+
+    it('resumir_cambios_convocatoria: tenderId real de orgA desde el contexto de orgB -> sin eventos, nunca el resumen de orgA', async () => {
+      const { orgId: orgA } = await seedOrgAndUser(db, 'wk601-cambios-a');
+      const { orgId: orgB } = await seedOrgAndUser(db, 'wk601-cambios-b');
+      const tenderRow = await db.query<{ id: string }>(
+        `insert into tenders (org_id, source, external_id, title) values ($1, 'dof', 'wk601-cc', 'Convocatoria orgA') returning id`,
+        [orgA],
+      );
+      const tenderIdOfOrgA = tenderRow.rows[0].id;
+      await db.query(
+        `insert into tender_change_events (org_id, tender_id, change_kind, summary) values ($1, $2, 'amendment', $3)`,
+        [orgA, tenderIdOfOrgA, `${SECRET} cambio de bases`],
+      );
+
+      const registry = buildBusinessToolRegistry({ db, queue, provider: new FakeProvider() });
+      const tool = registry.get('resumir_cambios_convocatoria');
+      const output = (await tool.handler({ tenderId: tenderIdOfOrgA }, makeCtx(orgB))) as {
+        changeEvents: unknown[];
+        invalidatedCounts: { requirementItems: number; complianceItems: number; proposals: number };
+      };
+
+      expect(output.changeEvents).toHaveLength(0);
+      expect(output.invalidatedCounts).toEqual({ requirementItems: 0, complianceItems: 0, proposals: 0 });
+      expect(JSON.stringify(output)).not.toContain(SECRET);
+    });
+
+    it('programar_alerta: el job encolado siempre queda scoped a la organización REAL del contexto (ctx.organizationId), nunca a un tenderId ajeno pasado como input', async () => {
+      const { orgId: orgA } = await seedOrgAndUser(db, 'wk601-alerta-a');
+      const { orgId: orgB } = await seedOrgAndUser(db, 'wk601-alerta-b');
+      const tenderRow = await db.query<{ id: string }>(
+        `insert into tenders (org_id, source, external_id, title) values ($1, 'dof', 'wk601-al', 'Convocatoria orgA') returning id`,
+        [orgA],
+      );
+      const tenderIdOfOrgA = tenderRow.rows[0].id;
+
+      const registry = buildBusinessToolRegistry({ db, queue, provider: new FakeProvider() });
+      const tool = registry.get('programar_alerta');
+      const scheduledFor = new Date(Date.now() + 60_000).toISOString();
+      const output = (await tool.handler(
+        { tenderId: tenderIdOfOrgA, kind: 'vencimiento' as const, scheduledFor, message: 'vence pronto' },
+        makeCtx(orgB),
+      )) as { jobId: string };
+
+      const { rows } = await db.query<{ org_id: string }>(`select org_id from jobs where id = $1`, [output.jobId]);
+      expect(rows[0].org_id).toBe(orgB);
+      expect(rows[0].org_id).not.toBe(orgA);
+    });
+  });
 });

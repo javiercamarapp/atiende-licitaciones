@@ -620,6 +620,76 @@ de mi ámbito esta ronda, igual que WK-04/WK-07/WK-08 en su momento):
   en `packages/agents/README.md`: pasar la suite con `FakeProvider` NO
   certifica esa integración).
 
+## Correcciones de la ronda K (corrector, WK6-01..03, `docs/auditoria-2/worker-agentes.md`)
+
+### WK6-01: aislamiento por organización verificado por CONTENIDO + prueba de mutación
+
+La auditoría adversarial de la Ronda K encontró que la red de pruebas de
+aislamiento por organización era **trivial**: quitar el filtro `org_id` de
+`fetchTender()` (`src/agents/business-tools.ts`, la única lectura detrás de
+`proponer_matching`) **no hacía fallar ninguno** de los 370 tests ni de los
+26 evals, pese a producir una fuga cross-org real y comprobada. La causa:
+la eval de aislamiento solo comprobaba `toolCall.status === 'ok'`, nunca el
+`score`/`explanation`/`matchedKeywords` — exactamente donde vive la fuga.
+(El código de producción era y sigue siendo correcto; lo que faltaba era la
+red que atrape una regresión futura.)
+
+Qué cambió:
+
+- **Tests negativos directos, con dos organizaciones y datos distinguibles
+  (`SECRETO-ORGA`), para las 8 herramientas de negocio**:
+  `test/business-tools.test.ts`, bloque `aislamiento cross-org (WK6-01)`.
+  Cada test llama al handler real desde el contexto de `orgB` con un
+  identificador real de `orgA` y verifica el CONTENIDO del resultado (no
+  solo que la llamada "terminó bien"), incluyendo
+  `expect(JSON.stringify(output)).not.toContain(SECRET)`.
+  `programar_alerta` (la única de escritura) verifica que el job encolado
+  queda con el `org_id` del contexto, nunca el de la convocatoria ajena
+  pasada como input.
+- **La eval de aislamiento de `analista_convocatorias`**
+  (`test/agent-evals.test.ts`) ahora verifica contenido además de `status`:
+  `agent_runs.output.toolCalls` es un resumen REDACTADO
+  (`summarizeToolCalls`) que nunca incluye el `score` real, así que la eval
+  invoca además la misma herramienta con el mismo contexto y confirma que
+  el resultado nunca contiene el dato de la otra organización.
+
+### Prueba de mutación automatizada (`scripts/wk6-01-mutation-test-org-isolation.sh`)
+
+Para que esta garantía no vuelva a degradarse en silencio, la mutación de
+la auditoría es ahora **reproducible con un comando**:
+
+```bash
+apps/worker/scripts/wk6-01-mutation-test-org-isolation.sh          # rápido: business-tools + agent-evals
+apps/worker/scripts/wk6-01-mutation-test-org-isolation.sh --full   # suite completa de apps/worker
+```
+
+El script crea un `git worktree` **desechable** en un directorio temporal,
+le superpone el estado actual del árbol de trabajo de `apps/worker`
+(cambios sin commitear incluidos), quita el filtro `org_id` de
+`fetchTender()` **solo dentro de ese worktree**, corre la suite ahí, y
+limpia el worktree pase lo que pase (`trap EXIT`). El árbol de trabajo
+principal nunca se modifica.
+
+Convención de salida, invertida respecto a un test normal:
+
+- **exit 0 = "mutación detectada"**: la suite FALLÓ bajo la mutación, que
+  es el resultado deseado — sí existe red de seguridad.
+- **exit 1 = regresión de WK6-01**: la suite pasó igual sin el filtro de
+  aislamiento; hay que arreglar los TESTS (el código de producción puede
+  seguir siendo correcto).
+
+Resultado real tras esta reparación (ver `docs/logs/fix-worker-k.log`): la
+suite falla bajo la mutación con 2 fallos —
+`business-tools.test.ts > ... > proponer_matching ...` (`expected 100 to be
+null`) y la eval de aislamiento de `agent-evals.test.ts` — y el script
+reporta `OK: la suite FALLÓ bajo la mutación`.
+
+**Límite honesto**: la mutación cubierta es exactamente la de `fetchTender`
+(la que la auditoría probó). Las otras 7 herramientas tienen ahora test
+negativo directo, pero el script no muta sus consultas una por una; un
+script de mutación exhaustivo sobre las 8 lecturas queda fuera de esta
+ronda.
+
 ## Pendientes / fuera de alcance de esta ronda
 
 - **Acoplamiento a un contrato "espejo", no importado directamente**:
