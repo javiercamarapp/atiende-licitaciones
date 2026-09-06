@@ -4,6 +4,12 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { NotFoundError, ConflictError } from '../../lib/errors.js';
 import { recordAudit } from '../../lib/audit.js';
+import { withOptionalEmptyJsonBody } from '../../lib/optional-empty-body.js';
+import { encodeCursor, decodeCursor, parsePageSize, toIsoString } from '../../lib/cursor.js';
+import { mapToolCall } from '../agents/routes.js';
+import { toolCallSchema } from '../agents/schemas.js';
+import { adminAuditLogListQuerySchema, auditLogListResponseSchema } from '../audit/schemas.js';
+import { mapAuditLogRow, parseDateFilter } from '../audit/routes.js';
 import {
   adminOrgSchema,
   adminConnectorFreshnessSchema,
@@ -131,55 +137,59 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
-  server.post(
-    '/jobs/:id/retry',
-    {
-      preHandler: [app.authenticate, app.requireSuperadmin],
-      schema: { params: z.object({ id: z.string().uuid() }), response: { 200: adminJobSchema } },
-    },
-    async (request) => {
-      const row = await app.db.transaction(async (tx) => {
-        await tx.query('set local role app_role');
-        await tx.query("select set_config('app.current_user_id', $1, true)", [request.userId]);
-        const before = await tx.query<{ status: string; org_id: string | null }>('select status, org_id from jobs where id = $1', [
-          request.params.id,
-        ]);
-        if (before.rows.length === 0) return null;
-        const updated = await tx.query(
-          `update jobs set status = 'queued', next_run_at = now(), locked_at = null, locked_by = null, last_error = null
-           where id = $1 returning *`,
-          [request.params.id]
-        );
-        // API-10 (docs/auditoria-1/db-api-reverificacion.md): se audita
-        // SIEMPRE, incluso cuando el job no tiene organización (jobs de
-        // plataforma/discovery) -- `audit_log.org_id` acepta NULL desde la
-        // migración 0035 precisamente para este caso.
-        await recordAudit(tx, {
-          orgId: before.rows[0].org_id,
-          actorId: request.userId!,
-          action: 'admin.job.retry',
-          entity: 'jobs',
-          entityId: request.params.id,
-          before: { status: before.rows[0].status },
-          after: { status: 'queued' },
-          requestId: request.id,
+  // Ronda 4: `/jobs/:id/retry` no lleva cuerpo -- tolera `Content-Type:
+  // application/json` con cuerpo vacío (ver `lib/optional-empty-body.ts`).
+  await withOptionalEmptyJsonBody(server, (scoped) => {
+    scoped.withTypeProvider<ZodTypeProvider>().post(
+      '/jobs/:id/retry',
+      {
+        preHandler: [app.authenticate, app.requireSuperadmin],
+        schema: { params: z.object({ id: z.string().uuid() }), response: { 200: adminJobSchema } },
+      },
+      async (request) => {
+        const row = await app.db.transaction(async (tx) => {
+          await tx.query('set local role app_role');
+          await tx.query("select set_config('app.current_user_id', $1, true)", [request.userId]);
+          const before = await tx.query<{ status: string; org_id: string | null }>('select status, org_id from jobs where id = $1', [
+            request.params.id,
+          ]);
+          if (before.rows.length === 0) return null;
+          const updated = await tx.query(
+            `update jobs set status = 'queued', next_run_at = now(), locked_at = null, locked_by = null, last_error = null
+             where id = $1 returning *`,
+            [request.params.id]
+          );
+          // API-10 (docs/auditoria-1/db-api-reverificacion.md): se audita
+          // SIEMPRE, incluso cuando el job no tiene organización (jobs de
+          // plataforma/discovery) -- `audit_log.org_id` acepta NULL desde la
+          // migración 0035 precisamente para este caso.
+          await recordAudit(tx, {
+            orgId: before.rows[0].org_id,
+            actorId: request.userId!,
+            action: 'admin.job.retry',
+            entity: 'jobs',
+            entityId: request.params.id,
+            before: { status: before.rows[0].status },
+            after: { status: 'queued' },
+            requestId: request.id,
+          });
+          return updated.rows[0];
         });
-        return updated.rows[0];
-      });
-      if (!row) throw new NotFoundError('Job no encontrado');
-      return {
-        id: (row as any).id,
-        orgId: (row as any).org_id,
-        kind: (row as any).kind,
-        status: (row as any).status,
-        attempts: (row as any).attempts,
-        maxAttempts: (row as any).max_attempts,
-        lastError: (row as any).last_error,
-        nextRunAt: (row as any).next_run_at,
-        createdAt: (row as any).created_at,
-      };
-    }
-  );
+        if (!row) throw new NotFoundError('Job no encontrado');
+        return {
+          id: (row as any).id,
+          orgId: (row as any).org_id,
+          kind: (row as any).kind,
+          status: (row as any).status,
+          attempts: (row as any).attempts,
+          maxAttempts: (row as any).max_attempts,
+          lastError: (row as any).last_error,
+          nextRunAt: (row as any).next_run_at,
+          createdAt: (row as any).created_at,
+        };
+      }
+    );
+  });
 
   server.get(
     '/costs',
@@ -261,40 +271,45 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
-  server.post(
-    '/incidents/:id/resolve',
-    {
-      preHandler: [app.authenticate, app.requireSuperadmin],
-      schema: { params: z.object({ id: z.string().uuid() }), response: { 200: incidentSchema } },
-    },
-    async (request) => {
-      const row = await app.db.transaction(async (tx) => {
-        await tx.query('set local role app_role');
-        await tx.query("select set_config('app.current_user_id', $1, true)", [request.userId]);
-        const before = await tx.query<{ status: string; org_id: string | null }>('select status, org_id from incidents where id = $1', [
-          request.params.id,
-        ]);
-        if (before.rows.length === 0) return null;
-        if (before.rows[0].status === 'resolved') throw new ConflictError('El incidente ya está resuelto');
-        const updated = await tx.query(
-          "update incidents set status = 'resolved', resolved_at = now() where id = $1 returning *",
-          [request.params.id]
-        );
-        // API-10: mismo cierre -- se audita también un incidente sin organización.
-        await recordAudit(tx, {
-          orgId: before.rows[0].org_id,
-          actorId: request.userId!,
-          action: 'admin.incident.resolve',
-          entity: 'incidents',
-          entityId: request.params.id,
-          requestId: request.id,
+  // Ronda 4: `/incidents/:id/resolve` no lleva cuerpo -- mismo tratamiento
+  // que `/jobs/:id/retry` arriba. `/incidents` (crear) NO se toca: sigue
+  // exigiendo cuerpo real (`incidentCreateSchema`), fuera de este scope.
+  await withOptionalEmptyJsonBody(server, (scoped) => {
+    scoped.withTypeProvider<ZodTypeProvider>().post(
+      '/incidents/:id/resolve',
+      {
+        preHandler: [app.authenticate, app.requireSuperadmin],
+        schema: { params: z.object({ id: z.string().uuid() }), response: { 200: incidentSchema } },
+      },
+      async (request) => {
+        const row = await app.db.transaction(async (tx) => {
+          await tx.query('set local role app_role');
+          await tx.query("select set_config('app.current_user_id', $1, true)", [request.userId]);
+          const before = await tx.query<{ status: string; org_id: string | null }>('select status, org_id from incidents where id = $1', [
+            request.params.id,
+          ]);
+          if (before.rows.length === 0) return null;
+          if (before.rows[0].status === 'resolved') throw new ConflictError('El incidente ya está resuelto');
+          const updated = await tx.query(
+            "update incidents set status = 'resolved', resolved_at = now() where id = $1 returning *",
+            [request.params.id]
+          );
+          // API-10: mismo cierre -- se audita también un incidente sin organización.
+          await recordAudit(tx, {
+            orgId: before.rows[0].org_id,
+            actorId: request.userId!,
+            action: 'admin.incident.resolve',
+            entity: 'incidents',
+            entityId: request.params.id,
+            requestId: request.id,
+          });
+          return updated.rows[0];
         });
-        return updated.rows[0];
-      });
-      if (!row) throw new NotFoundError('Incidente no encontrado');
-      return mapIncident(row);
-    }
-  );
+        if (!row) throw new NotFoundError('Incidente no encontrado');
+        return mapIncident(row);
+      }
+    );
+  });
 
   server.get(
     '/approvals',
@@ -331,6 +346,196 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       }));
     }
   );
+
+  // ---------------------------------------------------------------------
+  // Ronda 4: bitácora de auditoría de PLATAFORMA (todas las organizaciones,
+  // solo superadmin). Contraparte de `GET /audit-log` (una sola
+  // organización, `modules/audit/routes.ts`) -- reutiliza sus mismos
+  // esquemas/mapeo de fila para no duplicar la forma de la respuesta.
+  // `org_id IS NULL` es válido aquí (eventos de plataforma, API-10) y NUNCA
+  // lo es en la variante por organización.
+  // ---------------------------------------------------------------------
+  server.get(
+    '/audit-log',
+    {
+      preHandler: [app.authenticate, app.requireSuperadmin],
+      schema: {
+        description: 'Bitácora de auditoría de TODAS las organizaciones (superadmin de plataforma).',
+        querystring: adminAuditLogListQuerySchema,
+        response: { 200: auditLogListResponseSchema },
+      },
+    },
+    async (request) => {
+      const { entity, actorId, orgId, cursor, limit } = request.query;
+      const createdFrom = parseDateFilter(request.query.createdFrom, 'createdFrom');
+      const createdTo = parseDateFilter(request.query.createdTo, 'createdTo');
+      const pageSize = parsePageSize(limit);
+      const decoded = cursor ? decodeCursor(cursor) : null;
+
+      const conditions: string[] = ['1 = 1'];
+      const params: unknown[] = [];
+      if (orgId) {
+        params.push(orgId);
+        conditions.push(`org_id = $${params.length}`);
+      }
+      if (entity) {
+        params.push(entity);
+        conditions.push(`entity = $${params.length}`);
+      }
+      if (actorId) {
+        params.push(actorId);
+        conditions.push(`actor_id = $${params.length}`);
+      }
+      if (createdFrom) {
+        params.push(createdFrom.toISOString());
+        conditions.push(`created_at >= $${params.length}::timestamptz`);
+      }
+      if (createdTo) {
+        params.push(createdTo.toISOString());
+        conditions.push(`created_at <= $${params.length}::timestamptz`);
+      }
+      if (decoded) {
+        params.push(decoded.sortKey, decoded.id);
+        conditions.push(`(created_at, id) < ($${params.length - 1}::timestamptz, $${params.length}::uuid)`);
+      }
+      params.push(pageSize + 1);
+
+      const { rows } = await app.db.transaction(async (tx) => {
+        await tx.query('set local role app_role');
+        await tx.query("select set_config('app.current_user_id', $1, true)", [request.userId]);
+        // Sin `app.current_org_id`: `is_superadmin()` ya bypassea el filtro
+        // de organización de la política RLS de `audit_log` por completo
+        // (ver `app.apply_org_rls`/`sel_audit_log`, 0007/0008) -- este
+        // superadmin ve filas de CUALQUIER organización, a propósito.
+        return tx.query<Record<string, unknown>>(
+          `select * from audit_log where ${conditions.join(' and ')} order by created_at desc, id desc limit $${params.length}`,
+          params
+        );
+      });
+
+      const hasMore = rows.length > pageSize;
+      const page = hasMore ? rows.slice(0, pageSize) : rows;
+      const last = page[page.length - 1] as Record<string, unknown> | undefined;
+      const nextCursor = hasMore && last ? encodeCursor(toIsoString(last.created_at), String(last.id)) : null;
+      return { items: page.map(mapAuditLogRow), nextCursor };
+    }
+  );
+
+  // ---------------------------------------------------------------------
+  // Ronda 4: aprobación CROSS-ORG de `tool_calls` por superadmin.
+  // `GET /admin/approvals` (arriba) ya lista pendientes de TODAS las
+  // organizaciones, pero apps/web (README, "Endpoints... gaps") señaló que
+  // aprobar/denegar de verdad exigía `X-Org-Id` + rol owner/admin de ESA
+  // organización -- un superadmin no necesariamente lo es, así que la
+  // pantalla de back office quedaba de solo lectura. Estas rutas gatean
+  // por `app.requireSuperadmin` (NUNCA por membresía), sin `X-Org-Id`: la
+  // organización afectada se resuelve de la propia fila de `tool_calls`
+  // (`org_id`), nunca de un header. El `UPDATE` atómico funciona cross-org
+  // porque `is_superadmin()` bypassea el filtro `org_id = current_org_id()`
+  // de la política RLS de `tool_calls` (mismo mecanismo que el `SELECT` de
+  // arriba) -- ninguna fila de otra organización queda inaccesible para un
+  // superadmin. `audit_log` registra al actor superadmin real y la
+  // organización AFECTADA (nunca `org_id: null`, a diferencia de jobs/
+  // incidentes de plataforma: una `tool_call` siempre pertenece a una
+  // organización).
+  // ---------------------------------------------------------------------
+  await withOptionalEmptyJsonBody(server, (scoped) => {
+    const s = scoped.withTypeProvider<ZodTypeProvider>();
+
+    s.post(
+      '/tool-calls/:id/approve',
+      {
+        preHandler: [app.authenticate, app.requireSuperadmin],
+        config: {
+          rateLimit: {
+            hook: 'preHandler',
+            max: app.rateLimitSettings.sensitiveAction.max,
+            timeWindow: app.rateLimitSettings.sensitiveAction.timeWindow,
+            keyGenerator: (req: any) => `admin-tool-call-approve:${req.userId ?? 'anon'}`,
+          },
+        },
+        schema: { params: z.object({ id: z.string().uuid() }), response: { 200: toolCallSchema } },
+      },
+      async (request) => {
+        const userId = request.userId!;
+        const row = await app.db.transaction(async (tx) => {
+          await tx.query('set local role app_role');
+          await tx.query("select set_config('app.current_user_id', $1, true)", [userId]);
+          // API-09: mismo cierre atómico que `agents/routes.ts` (check +
+          // mutación en la MISMA sentencia) -- ver comentario ahí.
+          const updated = await tx.query(
+            `update tool_calls set authorization_status = 'approved', approved_by = $1, approved_at = now()
+             where id = $2 and authorization_status = 'pending' returning *`,
+            [userId, request.params.id]
+          );
+          if (updated.rows.length === 0) {
+            const existing = await tx.query('select id from tool_calls where id = $1', [request.params.id]);
+            return existing.rows.length === 0 ? { kind: 'not_found' as const } : { kind: 'not_pending' as const };
+          }
+          const toolCall = updated.rows[0] as Record<string, unknown>;
+          await recordAudit(tx, {
+            orgId: toolCall.org_id as string,
+            actorId: userId,
+            action: 'admin.tool_call.approve',
+            entity: 'tool_calls',
+            entityId: request.params.id,
+            after: { authorizationStatus: 'approved', approvedBySuperadmin: true },
+            requestId: request.id,
+          });
+          return { kind: 'ok' as const, row: toolCall };
+        });
+        if (row.kind === 'not_found') throw new NotFoundError('tool_call no encontrada');
+        if (row.kind === 'not_pending') throw new ConflictError('La tool_call ya fue resuelta (no está pendiente)');
+        return mapToolCall(row.row);
+      }
+    );
+
+    s.post(
+      '/tool-calls/:id/deny',
+      {
+        preHandler: [app.authenticate, app.requireSuperadmin],
+        config: {
+          rateLimit: {
+            hook: 'preHandler',
+            max: app.rateLimitSettings.sensitiveAction.max,
+            timeWindow: app.rateLimitSettings.sensitiveAction.timeWindow,
+            keyGenerator: (req: any) => `admin-tool-call-deny:${req.userId ?? 'anon'}`,
+          },
+        },
+        schema: { params: z.object({ id: z.string().uuid() }), response: { 200: toolCallSchema } },
+      },
+      async (request) => {
+        const userId = request.userId!;
+        const row = await app.db.transaction(async (tx) => {
+          await tx.query('set local role app_role');
+          await tx.query("select set_config('app.current_user_id', $1, true)", [userId]);
+          const updated = await tx.query(
+            `update tool_calls set authorization_status = 'denied', approved_by = $1, approved_at = now()
+             where id = $2 and authorization_status = 'pending' returning *`,
+            [userId, request.params.id]
+          );
+          if (updated.rows.length === 0) {
+            const existing = await tx.query('select id from tool_calls where id = $1', [request.params.id]);
+            return existing.rows.length === 0 ? { kind: 'not_found' as const } : { kind: 'not_pending' as const };
+          }
+          const toolCall = updated.rows[0] as Record<string, unknown>;
+          await recordAudit(tx, {
+            orgId: toolCall.org_id as string,
+            actorId: userId,
+            action: 'admin.tool_call.deny',
+            entity: 'tool_calls',
+            entityId: request.params.id,
+            after: { authorizationStatus: 'denied', deniedBySuperadmin: true },
+            requestId: request.id,
+          });
+          return { kind: 'ok' as const, row: toolCall };
+        });
+        if (row.kind === 'not_found') throw new NotFoundError('tool_call no encontrada');
+        if (row.kind === 'not_pending') throw new ConflictError('La tool_call ya fue resuelta (no está pendiente)');
+        return mapToolCall(row.row);
+      }
+    );
+  });
 }
 
 function mapIncident(r: any) {
