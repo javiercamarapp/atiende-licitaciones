@@ -232,7 +232,7 @@ Fuente: `docs/AMPLIACION-2-SALIDA.md` (D-08, `docs/DECISIONES.md`). Requisitos n
 |---|---|---|---|---|---|
 | REQ-172 | Botón "Continuar con Google" visible y funcional junto a email+contraseña en login/registro | render | apps/web | Sin código — requisito nuevo de Ampliación 2 | PENDIENTE |
 | REQ-173 | Login con Google de un email verificado que coincide con una cuenta existente vincula sin duplicar | integración | apps/api | Sin código — requiere adaptador OIDC y lógica de vinculación por email | PENDIENTE |
-| REQ-174 | Login con Google de un email nuevo crea usuario + primera organización en una sola operación | integración | apps/api | Sin código — requiere adaptador OIDC | PENDIENTE |
+| REQ-174 | Login con Google de un email nuevo crea usuario sin contraseña; con invitación pendiente entra a esa organización; sin ella `sin_acceso` (D-09) y onboarding de creación explícita | integración | apps/api (+ apps/web onboarding) | API: tests Google 11/11 (usuario nuevo, invitación aceptada, `sin_acceso`), auditoría #101 `docs/auditoria-2/api-google.md`; web: pantalla `/sin-acceso` y onboarding pendientes (ronda 8) | EN_EVIDENCIA |
 | REQ-175 | Tokens de sesión/refresh de Google comparten esquema y expiración con los de email+contraseña | integración | apps/api | Sin código | PENDIENTE |
 | REQ-176 | Cuenta con 2FA activo exige el mismo segundo factor tras login con Google | integración | apps/api | Sin código — depende del módulo 2FA ya existente (REQ-044/064, CUMPLIDO) más el adaptador OIDC nuevo | PENDIENTE |
 | REQ-177 | Cada evento de login/vinculación/creación vía Google aparece en `audit_log` | integración | apps/api + packages/db | Sin código — reutiliza el `audit_log` existente (REQ-083, CUMPLIDO), falta el emisor de eventos OIDC | PENDIENTE |
@@ -276,7 +276,7 @@ Exigidas explícitamente por la tarea de gobierno de requisitos de Ampliación 2
 
 | # | Prueba mínima | REQ relacionados | Tipo de prueba | Evidencia actual | Estado |
 |---|---|---|---|---|---|
-| S1 | Login con Google (OIDC falso) crea usuario + organización | REQ-172, REQ-174, REQ-177 | integración | Sin código — requiere adaptador OIDC y proveedor OIDC falso de prueba | PENDIENTE |
+| S1 | Login con Google (OIDC falso) crea usuario; entra por invitación o queda `sin_acceso` → onboarding crea organización (D-09) | REQ-172, REQ-174, REQ-177 | integración | Sin código — requiere adaptador OIDC y proveedor OIDC falso de prueba | PENDIENTE |
 | S2 | Login con Google vincula cuenta existente por email verificado | REQ-173, REQ-180 | integración | Sin código | PENDIENTE |
 | S3 | Google con email no verificado → rechazado, 0 cuentas creadas | REQ-179 | adversarial | Sin código | PENDIENTE |
 | S4 | Cada plantilla renderiza con variables reales y pasa validación HTML/accesibilidad básica | REQ-181, REQ-184, REQ-185 | render | Sin código — `packages/mail` aún no existe | PENDIENTE |

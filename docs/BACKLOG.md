@@ -365,3 +365,6 @@ Las 12 pruebas mínimas obligatorias S1-S12 de `docs/ACEPTACION.md` se reparten 
 ## E18 — Restos de mail (BAJA, tras reverificación #102)
 - ML-08: alinear la ventana de espera del perdedor de `reserve()` con el timeout real del proveedor (+200 ms) para evitar resultado ambiguo (nunca duplica envío).
 - ML-09: CSS de respaldo para modo oscuro en las plantillas (hoy solo meta `color-scheme: light`).
+
+## E19 — Google: desvinculación (GO-09, BAJA)
+- Endpoint para desvincular la identidad Google de una cuenta que ya tiene contraseña (nunca dejar la cuenta sin ningún método de acceso); UI en perfil/sesiones (ronda perfil).
