@@ -3,6 +3,8 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
 
+import { Route, Routes } from "react-router-dom";
+
 import { renderWithProviders } from "@/test/utils";
 import LoginPage from "@/pages/LoginPage";
 
@@ -60,6 +62,87 @@ describe("LoginPage", () => {
 
     expect(await screen.findByText(/Credenciales inválidas/)).toBeInTheDocument();
     expect(screen.getByText(/req-1/)).toBeInTheDocument();
+  });
+
+  it("ofrece el camino de recuperación de contraseña (ronda 8b)", async () => {
+    renderWithProviders(<LoginPage />);
+    expect(await screen.findByRole("link", { name: "¿Olvidaste tu contraseña?" })).toHaveAttribute(
+      "href",
+      "/recuperar-contrasena",
+    );
+  });
+
+  /**
+   * REQ-181 (ronda 8b): la compuerta de verificación de correo responde un
+   * `403 email-not-verified` DESPUÉS de validar la contraseña. Es un error
+   * distinto del 401 de credenciales y merece un camino distinto: la
+   * pantalla de "confirma tu correo", con reenvío — nunca un mensaje rojo
+   * que diría algo falso sobre la contraseña.
+   */
+  it("un 403 `email-not-verified` lleva a la pantalla de confirmación, no a un error de credenciales", async () => {
+    const { server, http, HttpResponse } = await import("@/test/msw");
+    server.use(
+      http.post("*/auth/login", () =>
+        HttpResponse.json(
+          {
+            type: "https://atiende.example/errors/email-not-verified",
+            title: "Confirma tu correo antes de iniciar sesión. Te podemos reenviar el enlace de confirmación.",
+            status: 403,
+            requestId: "req-403",
+          },
+          { status: 403 },
+        ),
+      ),
+    );
+
+    const user = userEvent.setup();
+    renderWithProviders(
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/revisa-tu-correo" element={<p>pantalla de confirmación de correo</p>} />
+      </Routes>,
+      { route: "/login" },
+    );
+
+    await user.type(await screen.findByLabelText("Correo electrónico"), "persona@empresa.com");
+    await user.type(screen.getByLabelText("Contraseña"), "12345678");
+    await user.click(screen.getByRole("button", { name: "Iniciar sesión" }));
+
+    expect(await screen.findByText("pantalla de confirmación de correo")).toBeInTheDocument();
+  });
+
+  /**
+   * ADVERSARIAL: un 403 que NO es el de la compuerta (p. ej. el de una
+   * organización sin acceso) no debe mandar al usuario a confirmar un
+   * correo que ya está confirmado — por eso se comprueba el `type`, no
+   * solo el código.
+   */
+  it("otro 403 cualquiera se muestra como error, sin desviar a la confirmación de correo", async () => {
+    const { server, http, HttpResponse } = await import("@/test/msw");
+    server.use(
+      http.post("*/auth/login", () =>
+        HttpResponse.json(
+          { type: "https://atiende.example/errors/forbidden", title: "Sin permiso", status: 403, requestId: "req-otro" },
+          { status: 403 },
+        ),
+      ),
+    );
+
+    const user = userEvent.setup();
+    renderWithProviders(
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/revisa-tu-correo" element={<p>pantalla de confirmación de correo</p>} />
+      </Routes>,
+      { route: "/login" },
+    );
+
+    await user.type(await screen.findByLabelText("Correo electrónico"), "persona@empresa.com");
+    await user.type(screen.getByLabelText("Contraseña"), "12345678");
+    await user.click(screen.getByRole("button", { name: "Iniciar sesión" }));
+
+    expect(await screen.findByText(/Sin permiso/)).toBeInTheDocument();
+    expect(screen.queryByText("pantalla de confirmación de correo")).not.toBeInTheDocument();
   });
 
   it("no tiene violaciones de accesibilidad detectables por axe", async () => {

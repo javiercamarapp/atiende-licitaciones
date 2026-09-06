@@ -95,7 +95,7 @@ export default function RestablecerPasswordPage() {
     return (
       <AuthScreen
         eyebrow="Recuperar acceso"
-        title="Este enlace ya no sirve"
+        title={link ? "Este enlace ya no sirve" : "Este enlace llegó incompleto"}
         intro={
           link
             ? "El servidor rechazó el enlace. No nos dice cuál de estos motivos fue —a propósito, para no darle pistas a quien pruebe enlaces al azar—, pero solo puede ser uno de estos:"

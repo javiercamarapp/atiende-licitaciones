@@ -15,8 +15,26 @@ function mockAuthenticatedSession() {
     http.post("*/auth/refresh", () => HttpResponse.json({ accessToken: "acc-1", refreshToken: "ref-1" })),
     http.get("*/me", () => HttpResponse.json({ id: "user-1", email: "admin@empresa.com", fullName: "Admin" })),
     http.get("*/organizations", () => HttpResponse.json([{ id: "org-a", name: "Organización A", slug: "org-a", role: "owner" }])),
+    // Ronda 8b: la tarjeta de preferencias de notificación vive en esta
+    // misma pantalla, así que TODA prueba de aquí dispara este GET. Se
+    // sirve un estado por defecto (todo activado, como una cuenta sin fila
+    // en `notification_preferences`); las pruebas que van sobre las
+    // preferencias lo sobreescriben con su propio handler.
+    http.get("*/mail/preferences", () => HttpResponse.json(TODAS_ACTIVADAS)),
   );
 }
+
+/** Estado por defecto REAL de apps/api: ausencia de fila = todo activado (lista de EXCLUSIÓN, no opt-in). */
+const TODAS_ACTIVADAS = {
+  tenderMatches: true,
+  tenderChanges: true,
+  approvals: true,
+  submission: true,
+  deadlines: true,
+  documentExpiration: true,
+  postAward: true,
+  weeklySummary: true,
+};
 
 describe("ConfiguracionPage", () => {
   beforeEach(() => {
@@ -219,5 +237,95 @@ describe("ConfiguracionPage", () => {
     // usuario puede reintentar con un código nuevo sin re-enrolar.
     expect(screen.getByText("ABCD1234EFGH5678")).toBeInTheDocument();
     expect(screen.queryByText(/2FA enrolado y verificado/)).not.toBeInTheDocument();
+  }, 15000);
+
+  // -------------------------------------------------------------------
+  // Ronda 8b (REQ-187): preferencias de notificación por correo
+  // -------------------------------------------------------------------
+
+  it("REQ-187: pinta las 8 categorías reales de apps/api, todas activadas cuando no hay fila", async () => {
+    server.use(
+      http.get("*/auth/2fa/status", () => HttpResponse.json({ enrolled: true, enrolledAt: "2026-01-01T00:00:00Z" })),
+      http.get("*/mail/preferences", () => HttpResponse.json(TODAS_ACTIVADAS)),
+    );
+
+    renderWithProviders(<ConfiguracionPage />);
+
+    const resumen = await screen.findByLabelText("Resumen semanal");
+    expect(resumen).toBeChecked();
+    expect(screen.getByLabelText("Aprobaciones pendientes")).toBeChecked();
+    // Las 8 de `OPTIONAL_CATEGORIES` (apps/api/src/lib/mail/preferences.ts),
+    // ni una más ni una menos.
+    expect(screen.getAllByRole("checkbox")).toHaveLength(8);
+  }, 15000);
+
+  it("REQ-187: apagar una categoría manda SOLO esa en el PUT y pinta lo que devuelve el servidor", async () => {
+    const user = userEvent.setup();
+    const bodies: unknown[] = [];
+    server.use(
+      http.get("*/auth/2fa/status", () => HttpResponse.json({ enrolled: true, enrolledAt: "2026-01-01T00:00:00Z" })),
+      http.get("*/mail/preferences", () => HttpResponse.json(TODAS_ACTIVADAS)),
+      http.put("*/mail/preferences", async ({ request }) => {
+        bodies.push(await request.json());
+        return HttpResponse.json({ ...TODAS_ACTIVADAS, weeklySummary: false });
+      }),
+    );
+
+    renderWithProviders(<ConfiguracionPage />);
+    await user.click(await screen.findByLabelText("Resumen semanal"));
+
+    await waitFor(() => expect(screen.getByLabelText("Resumen semanal")).not.toBeChecked());
+    // `PUT` PARCIAL: las categorías omitidas se dejan como estaban.
+    expect(bodies).toEqual([{ weeklySummary: false }]);
+    expect(screen.getByLabelText("Aprobaciones pendientes")).toBeChecked();
+  }, 15000);
+
+  /**
+   * ADVERSARIAL: si el `PUT` falla, la casilla NO puede quedarse en el
+   * valor nuevo — sería mentir sobre un cambio que el servidor no aceptó.
+   * De ahí que no haya actualización optimista.
+   */
+  it("adversarial: si el PUT falla, la casilla vuelve a su valor real y se muestra el error", async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.get("*/auth/2fa/status", () => HttpResponse.json({ enrolled: true, enrolledAt: "2026-01-01T00:00:00Z" })),
+      http.get("*/mail/preferences", () => HttpResponse.json(TODAS_ACTIVADAS)),
+      http.put("*/mail/preferences", () =>
+        HttpResponse.json({ title: "Error interno del servidor", status: 500, requestId: "req-500" }, { status: 500 }),
+      ),
+    );
+
+    renderWithProviders(
+      <>
+        <Toaster />
+        <ConfiguracionPage />
+      </>,
+    );
+    await user.click(await screen.findByLabelText("Resumen semanal"));
+
+    expect(await screen.findByText(/request_id: req-500/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Resumen semanal")).toBeChecked();
+  }, 15000);
+
+  it("REQ-187: dice que los correos de seguridad de la cuenta no se pueden desactivar", async () => {
+    server.use(http.get("*/auth/2fa/status", () => HttpResponse.json({ enrolled: true, enrolledAt: "2026-01-01T00:00:00Z" })));
+    renderWithProviders(<ConfiguracionPage />);
+
+    expect(await screen.findByText(/Los correos de seguridad de la cuenta no se pueden desactivar/)).toBeInTheDocument();
+  }, 15000);
+
+  it("un fallo al leer las preferencias no rompe el resto de la pantalla (2FA sigue visible)", async () => {
+    server.use(
+      http.get("*/auth/2fa/status", () => HttpResponse.json({ enrolled: true, enrolledAt: "2026-01-01T00:00:00Z" })),
+      http.get("*/mail/preferences", () =>
+        HttpResponse.json({ title: "Error interno del servidor", status: 500, requestId: "req-pref" }, { status: 500 }),
+      ),
+    );
+
+    renderWithProviders(<ConfiguracionPage />);
+
+    expect(await screen.findByText(/request_id: req-pref/)).toBeInTheDocument();
+    expect(screen.getByText("Enrolado")).toBeInTheDocument();
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
   }, 15000);
 });

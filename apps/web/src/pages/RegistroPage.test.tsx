@@ -14,6 +14,7 @@ function renderRegistro() {
       <Route path="/registro" element={<RegistroPage />} />
       <Route path="/panel" element={<p>Panel real</p>} />
       <Route path="/sin-acceso" element={<p>Pantalla sin acceso</p>} />
+      <Route path="/revisa-tu-correo" element={<p>Pantalla revisa tu correo</p>} />
     </Routes>,
     { route: "/registro" },
   );
@@ -109,6 +110,36 @@ describe("RegistroPage (REQ-172)", () => {
 
     expect(await screen.findByText(/Error interno del servidor/)).toBeInTheDocument();
     expect(screen.queryByText("Panel real")).not.toBeInTheDocument();
+  });
+
+  /**
+   * REQ-181 (ronda 8b): con la compuerta de verificación ACTIVA (el valor
+   * por defecto de apps/api), el login encadenado responde `403
+   * email-not-verified`. Eso NO es un fallo del registro: la cuenta quedó
+   * creada y el correo de confirmación salió. La pantalla lleva al aviso
+   * "revisa tu correo" en vez de pintar un error rojo por algo que salió
+   * bien.
+   */
+  it("con la compuerta de verificación activa, el 403 del login encadenado lleva al aviso de revisar el correo", async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.post("*/auth/register", () => HttpResponse.json({ id: "user-1", email: "persona@empresa.com" }, { status: 201 })),
+      http.post("*/auth/login", () =>
+        problemJson({
+          status: 403,
+          title: "Confirma tu correo antes de iniciar sesión. Te podemos reenviar el enlace de confirmación.",
+          type: "https://atiende.example/errors/email-not-verified",
+        }),
+      ),
+    );
+
+    renderRegistro();
+    await user.type(screen.getByLabelText("Correo electrónico"), "persona@empresa.com");
+    await user.type(screen.getByLabelText("Contraseña"), "ContraseñaSegura123");
+    await user.type(screen.getByLabelText("Repite la contraseña"), "ContraseñaSegura123");
+    await user.click(screen.getByRole("button", { name: "Crear cuenta" }));
+
+    expect(await screen.findByText("Pantalla revisa tu correo")).toBeInTheDocument();
   });
 
   it("REQ-178: el 503 de Google también deshabilita el alta con Google aquí, sin afectar al alta por contraseña", async () => {
