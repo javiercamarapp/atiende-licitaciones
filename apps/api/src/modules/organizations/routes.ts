@@ -6,6 +6,7 @@ import { MEMBERSHIP_ADMIN_ROLES, type DbExecutor } from '@atiende/db';
 import { ConflictError, ForbiddenError, UnauthorizedError } from '../../lib/errors.js';
 import { recordAudit } from '../../lib/audit.js';
 import { runIdempotent, hashRequestBody } from '../../lib/idempotency.js';
+import { encodeCursor, decodeCursor, parsePageSize, toIsoString } from '../../lib/cursor.js';
 import {
   createOrgBodySchema,
   orgSchema,
@@ -16,6 +17,9 @@ import {
   memberParamsSchema,
   acceptInvitationBodySchema,
   acceptedInvitationSchema,
+  membershipListParamsSchema,
+  membershipListQuerySchema,
+  membershipListResponseSchema,
 } from './schemas.js';
 
 const UNIQUE_VIOLATION = '23505';
@@ -373,6 +377,67 @@ export async function organizationRoutes(app: FastifyInstance): Promise<void> {
       });
 
       return { orgId: result.org_id, role: result.role as any };
+    }
+  );
+
+  // ---------------------------------------------------------------------
+  // Ronda 4: `GET /organizations/:orgId/memberships` -- lista los miembros
+  // de una organización con su rol (email/nombre incluidos vía
+  // `app.org_members`, SECURITY DEFINER, packages/db/migrations/0052).
+  // Visible para cualquier miembro activo ("member+": cualquier rol,
+  // incluido `viewer`) -- misma política que la RLS real de `memberships`
+  // (0008, `sel_memberships`), sin restricción adicional en la aplicación.
+  // El `:orgId` de la ruta se valida contra `X-Org-Id` (fuente real de la
+  // organización activa, `app.requireOrg`): nunca se confía en el
+  // parámetro de la URL por sí solo, mismo criterio que el resto de esta
+  // API (ver DB-01/API-04).
+  // ---------------------------------------------------------------------
+  server.get(
+    '/:orgId/memberships',
+    {
+      preHandler: [app.authenticate, app.requireOrg],
+      schema: {
+        params: membershipListParamsSchema,
+        querystring: membershipListQuerySchema,
+        response: { 200: membershipListResponseSchema },
+      },
+    },
+    async (request) => {
+      const orgId = request.orgId!;
+      if (request.params.orgId !== orgId) {
+        throw new ForbiddenError('El orgId de la ruta no coincide con el encabezado X-Org-Id');
+      }
+      const { cursor, limit } = request.query;
+      const pageSize = parsePageSize(limit);
+      const decoded = cursor ? decodeCursor(cursor) : null;
+
+      const conditions: string[] = [];
+      const params: unknown[] = [orgId];
+      if (decoded) {
+        params.push(decoded.sortKey, decoded.id);
+        conditions.push(`(joined_at, user_id) > ($${params.length - 1}::timestamptz, $${params.length}::uuid)`);
+      }
+      params.push(pageSize + 1);
+      const where = conditions.length > 0 ? `where ${conditions.join(' and ')}` : '';
+
+      const { rows } = await app.db.transaction(async (tx) => {
+        await tx.query('set local role app_role');
+        await tx.query("select set_config('app.current_org_id', $1, true)", [orgId]);
+        await tx.query("select set_config('app.current_user_id', $1, true)", [request.userId]);
+        return tx.query<{ user_id: string; email: string; full_name: string | null; role: string; status: string; joined_at: string }>(
+          `select * from app.org_members($1) ${where} order by joined_at asc, user_id asc limit $${params.length}`,
+          params
+        );
+      });
+
+      const hasMore = rows.length > pageSize;
+      const page = hasMore ? rows.slice(0, pageSize) : rows;
+      const last = page[page.length - 1];
+      const nextCursor = hasMore && last ? encodeCursor(toIsoString(last.joined_at), last.user_id) : null;
+      return {
+        items: page.map((r) => ({ userId: r.user_id, email: r.email, fullName: r.full_name, role: r.role as any, status: r.status as any, joinedAt: r.joined_at })),
+        nextCursor,
+      };
     }
   );
 }

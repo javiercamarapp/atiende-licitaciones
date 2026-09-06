@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ORG_ROLES } from '@atiende/db';
+import { isoTimestamp } from '../../lib/schema-helpers.js';
 
 const orgRoleEnum = z.enum(ORG_ROLES as unknown as [string, ...string[]]);
 
@@ -50,4 +51,33 @@ export const acceptInvitationBodySchema = z.object({
 export const acceptedInvitationSchema = z.object({
   orgId: z.string().uuid(),
   role: orgRoleEnum,
+});
+
+// ---------------------------------------------------------------------------
+// Ronda 4: `GET /organizations/:orgId/memberships` (apps/web README,
+// "Endpoints... gaps": no existía forma de LISTAR los miembros de una
+// organización). Ver `app.org_members` (packages/db/migrations/0052).
+// ---------------------------------------------------------------------------
+export const membershipSchema = z.object({
+  userId: z.string().uuid(),
+  email: z.string(),
+  fullName: z.string().nullable(),
+  role: orgRoleEnum,
+  status: z.enum(['active', 'suspended']),
+  joinedAt: isoTimestamp,
+});
+
+export const membershipListParamsSchema = z.object({ orgId: z.string().uuid() });
+
+export const membershipListQuerySchema = z.object({
+  cursor: z.string().optional(),
+  limit: z
+    .string()
+    .regex(/^\d+$/, 'limit debe ser un entero positivo')
+    .optional(),
+});
+
+export const membershipListResponseSchema = z.object({
+  items: z.array(membershipSchema),
+  nextCursor: z.string().nullable(),
 });
