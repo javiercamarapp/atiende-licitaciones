@@ -237,13 +237,29 @@ ESTÁTICO que falla si aparece ese patrón en cualquier otro archivo de `src/`.
 
 `MatchingEngine` (`src/matching/matching-engine.ts`): perfil de organización
 (`classifierCodes`, `keywords`, `excludedKeywords`, `entities`,
-`budgetRange`, `states`) -> score 0-100 con explicación por criterio. Solo
-participan en el score los criterios que el perfil define (el peso de los
-ausentes se redistribuye proporcionalmente, nunca penaliza un perfil
-incompleto). Una palabra clave excluida anula el match. Sin LLM; el punto de
-extensión para narrar el resultado con LLM es `MatchExplanationEnricher`
-(`src/matching/types.ts`) — el score en sí debe seguir siendo determinista
-siempre; el LLM solo podría narrar, nunca recalcular.
+`budgetRange`, `states`) -> `MatchResult` con DOS valores independientes
+(REQ-168, AMPLIACION-BACKOFFICE §4):
+
+- `score`/`criteria`: **relevancia** (afinidad léxica/temática) 0-100, con
+  explicación por criterio. Solo participan los criterios que el perfil
+  define (el peso de los ausentes se redistribuye proporcionalmente, nunca
+  penaliza un perfil incompleto). Una palabra clave excluida anula el
+  match (score 0, visible en `criteria`).
+- `eligibility` (`src/matching/types.ts`, `EligibilityResult`):
+  **elegibilidad** (cumplimiento de requisitos duros: presupuesto,
+  cobertura geográfica, exclusiones) como `cumple` / `no_cumple` /
+  `no_evaluable`, cada criterio con su propia explicación y referencia al
+  requisito (`EligibilityCriterionResult.requirement`). Dato ausente en la
+  convocatoria SIEMPRE produce `no_evaluable` para ese criterio (nunca se
+  infiere "cumple" ni "no_cumple" por ausencia de dato); sin ningún
+  criterio de elegibilidad configurado, el agregado es `no_evaluable` (no
+  se asume "cumple" por defecto). `no_cumple` tiene prioridad sobre
+  `no_evaluable` al agregar el estado.
+
+Sin LLM; el punto de extensión para narrar el resultado con LLM es
+`MatchExplanationEnricher` (`src/matching/types.ts`) — el score/elegibilidad
+en sí deben seguir siendo deterministas siempre; el LLM solo podría narrar,
+nunca recalcular.
 
 ## Comandos
 

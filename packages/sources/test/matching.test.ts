@@ -103,6 +103,67 @@ describe("MatchingEngine", () => {
     expect(result.score).toBe(50);
   });
 
+  it("SR-11: separa eligibility de score/criteria (relevancia); sin criterios de elegibilidad configurados, eligibility es 'no_evaluable' (nunca 'cumple' inventado)", () => {
+    const result = engine.score(record(), { id: "org-1" });
+    expect(result.eligibility.status).toBe("no_evaluable");
+    expect(result.eligibility.criteria).toEqual([]);
+  });
+
+  it("SR-11: presupuesto ausente da eligibility 'no_evaluable' para 'budget' (nunca 0/no_cumple silencioso)", () => {
+    const profile: OrganizationProfile = { id: "org-1", budgetRange: { min: 1, max: 2 } };
+    const result = engine.score(record({ budgetAmount: undefined }), profile);
+    expect(result.eligibility.status).toBe("no_evaluable");
+    const budgetCriterion = result.eligibility.criteria.find((c) => c.requirement === "budget");
+    expect(budgetCriterion?.status).toBe("no_evaluable");
+    expect(budgetCriterion?.explanation).toMatch(/no publica presupuesto|no disponible/i);
+    // La relevancia (score/criteria) NO cambia: sigue siendo un campo independiente.
+    expect(result.score).toBe(50);
+  });
+
+  it("SR-11: presupuesto dentro/fuera de rango da eligibility 'cumple'/'no_cumple' explícitos", () => {
+    const profile: OrganizationProfile = { id: "org-1", budgetRange: { min: 1_000_000, max: 3_000_000 } };
+    const dentro = engine.score(record({ budgetAmount: 2_000_000 }), profile);
+    expect(dentro.eligibility.status).toBe("cumple");
+
+    const fuera = engine.score(record({ budgetAmount: 10_000_000 }), profile);
+    expect(fuera.eligibility.status).toBe("no_cumple");
+  });
+
+  it("SR-11: estado ausente da eligibility 'no_evaluable' para 'states'; estado que no coincide da 'no_cumple'", () => {
+    const profile: OrganizationProfile = { id: "org-1", states: ["Jalisco"] };
+    const ausente = engine.score(record({ state: undefined }), profile);
+    expect(ausente.eligibility.status).toBe("no_evaluable");
+
+    const noCoincide = engine.score(record({ state: "Sonora" }), profile);
+    expect(noCoincide.eligibility.status).toBe("no_cumple");
+
+    const coincide = engine.score(record({ state: "Jalisco" }), profile);
+    expect(coincide.eligibility.status).toBe("cumple");
+  });
+
+  it("SR-11: una palabra clave excluida marca eligibility 'no_cumple' explícito (además del veto de score ya existente)", () => {
+    const profile: OrganizationProfile = {
+      id: "org-1",
+      keywords: ["equipo de cómputo"],
+      excludedKeywords: ["escuelas rurales"],
+    };
+    const result = engine.score(record(), profile);
+    expect(result.score).toBe(0); // veto de relevancia ya existente, sin cambios
+    expect(result.eligibility.status).toBe("no_cumple");
+    const excludedCriterion = result.eligibility.criteria.find((c) => c.requirement === "excludedKeywords");
+    expect(excludedCriterion?.status).toBe("no_cumple");
+  });
+
+  it("SR-11: no_cumple tiene prioridad sobre no_evaluable al agregar el estado de elegibilidad", () => {
+    const profile: OrganizationProfile = {
+      id: "org-1",
+      budgetRange: { min: 10_000_000 }, // no cumple (presupuesto real está por debajo)
+      states: ["Jalisco"], // no evaluable (estado ausente en el record)
+    };
+    const result = engine.score(record({ budgetAmount: 1, state: undefined }), profile);
+    expect(result.eligibility.status).toBe("no_cumple");
+  });
+
   it("respeta pesos personalizados pasados al constructor", () => {
     const customEngine = new MatchingEngine({ keywords: 100, classifiers: 0, budget: 0, entities: 0, states: 0 });
     const profile: OrganizationProfile = { id: "org-1", keywords: ["cómputo"], entities: ["No existe"] };

@@ -1,6 +1,13 @@
 import { sourceKey, type TenderRecord } from "../types/tender-record.js";
 import { normalizeText, normalizedIncludes } from "../util/text.js";
-import type { MatchCriterionResult, MatchResult, OrganizationProfile } from "./types.js";
+import type {
+  EligibilityCriterionResult,
+  EligibilityResult,
+  EligibilityStatus,
+  MatchCriterionResult,
+  MatchResult,
+  OrganizationProfile,
+} from "./types.js";
 
 export interface MatchWeights {
   classifiers: number;
@@ -34,6 +41,7 @@ export class MatchingEngine {
   }
 
   score(record: TenderRecord, profile: OrganizationProfile): MatchResult {
+    const eligibility = this.evaluateEligibility(record, profile);
     const applicable: Array<{ criterion: MatchCriterionResult["criterion"]; weight: number; compute: () => MatchCriterionResult }> = [];
 
     if (profile.classifierCodes && profile.classifierCodes.length > 0) {
@@ -59,6 +67,7 @@ export class MatchingEngine {
         criteria: [
           { criterion: "keywords", score: 0, maxScore: 0, explanation: "El perfil de la organización no define ningún criterio de matching." },
         ],
+        eligibility,
       };
     }
 
@@ -82,10 +91,75 @@ export class MatchingEngine {
         maxScore: 0,
         explanation: `El título contiene una palabra clave excluida por la organización.`,
       });
-      return { tenderKey: sourceKey(record), score: 0, criteria };
+      return { tenderKey: sourceKey(record), score: 0, criteria, eligibility };
     }
 
-    return { tenderKey: sourceKey(record), score: round2(clamp(totalScore, 0, 100)), criteria };
+    return { tenderKey: sourceKey(record), score: round2(clamp(totalScore, 0, 100)), criteria, eligibility };
+  }
+
+  /**
+   * Evalúa elegibilidad (REQ-168): requisitos duros configurados por el
+   * perfil — presupuesto, cobertura geográfica (estados) y exclusiones —
+   * como un valor INDEPENDIENTE de la relevancia/score léxico. Dato
+   * ausente en la convocatoria SIEMPRE produce "no_evaluable" para ese
+   * criterio, nunca "cumple" ni "no_cumple" inventados.
+   */
+  private evaluateEligibility(record: TenderRecord, profile: OrganizationProfile): EligibilityResult {
+    const criteria: EligibilityCriterionResult[] = [];
+
+    if (profile.budgetRange && (profile.budgetRange.min !== undefined || profile.budgetRange.max !== undefined)) {
+      if (record.budgetAmount === undefined) {
+        criteria.push({
+          requirement: "budget",
+          status: "no_evaluable",
+          explanation:
+            "La convocatoria no publica presupuesto/monto estimado; no es posible determinar si cumple el rango " +
+            "configurado por la organización (dato ausente nunca se marca elegible por defecto).",
+        });
+      } else {
+        const { min, max } = profile.budgetRange;
+        const within = (min === undefined || record.budgetAmount >= min) && (max === undefined || record.budgetAmount <= max);
+        criteria.push({
+          requirement: "budget",
+          status: within ? "cumple" : "no_cumple",
+          explanation: within
+            ? `Presupuesto ${record.budgetAmount} ${record.currency} dentro del rango configurado [${min ?? "-∞"}, ${max ?? "∞"}].`
+            : `Presupuesto ${record.budgetAmount} ${record.currency} fuera del rango configurado [${min ?? "-∞"}, ${max ?? "∞"}].`,
+        });
+      }
+    }
+
+    if (profile.states && profile.states.length > 0) {
+      if (!record.state) {
+        criteria.push({
+          requirement: "states",
+          status: "no_evaluable",
+          explanation: "La convocatoria no especifica entidad federativa; no es posible determinar si cae dentro de la cobertura geográfica configurada.",
+        });
+      } else {
+        const matched = profile.states.some((s) => normalizeText(s) === normalizeText(record.state!));
+        criteria.push({
+          requirement: "states",
+          status: matched ? "cumple" : "no_cumple",
+          explanation: matched
+            ? `El estado "${record.state}" está dentro de la cobertura geográfica configurada.`
+            : `El estado "${record.state}" no está dentro de la cobertura geográfica configurada (${profile.states.join(", ")}).`,
+        });
+      }
+    }
+
+    if (profile.excludedKeywords && profile.excludedKeywords.length > 0) {
+      const hit = profile.excludedKeywords.find((kw) => normalizedIncludes(record.title, kw));
+      criteria.push({
+        requirement: "excludedKeywords",
+        status: hit ? "no_cumple" : "cumple",
+        explanation: hit
+          ? `El título contiene la palabra clave excluida "${hit}" configurada por la organización.`
+          : "El título no contiene ninguna palabra clave excluida por la organización.",
+      });
+    }
+
+    return { status: aggregateEligibility(criteria), criteria };
   }
 
   private scoreClassifiers(record: TenderRecord, profile: OrganizationProfile): MatchCriterionResult {
@@ -172,6 +246,23 @@ export class MatchingEngine {
         : `El estado "${record.state}" no está en la lista de cobertura del perfil (${states.join(", ")}).`,
     };
   }
+}
+
+/**
+ * Agrega el resultado de todos los criterios de elegibilidad configurados:
+ * "no_cumple" tiene prioridad (un solo requisito duro incumplido basta para
+ * descalificar); si ninguno incumple pero al menos uno es "no_evaluable",
+ * el agregado es "no_evaluable" (nunca se "redondea" a "cumple" con datos
+ * incompletos); "cumple" solo si TODOS los criterios configurados cumplen.
+ * Si no hay ningún criterio de elegibilidad configurado, el agregado es
+ * "no_evaluable" (nunca se asume "cumple" por defecto ante la ausencia
+ * total de configuración).
+ */
+function aggregateEligibility(criteria: EligibilityCriterionResult[]): EligibilityStatus {
+  if (criteria.length === 0) return "no_evaluable";
+  if (criteria.some((c) => c.status === "no_cumple")) return "no_cumple";
+  if (criteria.some((c) => c.status === "no_evaluable")) return "no_evaluable";
+  return "cumple";
 }
 
 function clamp(value: number, min: number, max: number): number {
