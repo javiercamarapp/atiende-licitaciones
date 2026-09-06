@@ -15,7 +15,7 @@ async function createTender(app: FastifyInstance, orgId: string, externalId = 'p
     method: 'POST',
     url: '/internal/tenders/ingest',
     headers: { 'x-platform-api-key': TEST_PLATFORM_API_KEY },
-    payload: { records: [{ source: 'compras-mx', externalId, title: 'Servicio de consultoría', sourceVersion: 'v1' }], organizationIds: [orgId] },
+    payload: { records: [{ source: 'compras-mx', externalId, title: 'Servicio de consultoría', sourceVersion: 'v1', submissionDeadline: '2099-01-01T00:00:00Z' }], organizationIds: [orgId] },
   });
   expect(res.statusCode).toBe(200);
   return res.json().results[0].tenderId;

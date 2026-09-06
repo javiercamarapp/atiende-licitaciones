@@ -17,7 +17,7 @@ import { NotFoundError, ValidationAppError } from '../../lib/errors.js';
 import { withTx, requireTender, getOrCreateProposal } from '../../lib/expediente/context.js';
 import { loadCompanyDataResolver } from '../../lib/expediente/company-data-resolver.pg.js';
 import { loadApprovalEvents, replayWorkflow, appendApprovalEvent, persistApprovalSnapshot } from '../../lib/expediente/approval-store.pg.js';
-import { nowIso, timestampToIso } from '../../lib/expediente/dates.js';
+import { nowIso, timestampToIso, resolveExpedienteAsOfIso } from '../../lib/expediente/dates.js';
 import { proposalSchema, technicalGenerateSchema, economicGenerateSchema, proposalSectionSchema, sectionUpdateSchema } from './schemas.js';
 
 function mapProposalRow(r: Record<string, unknown>): any {
@@ -164,10 +164,11 @@ export async function expedienteProposalRoutes(app: FastifyInstance): Promise<vo
       const userId = request.userId!;
       requireOrgRole(request, WRITE_ROLES, 'Se requiere un rol de escritura para generar la propuesta técnica');
 
-      const asOfIso = request.body.asOfIso ?? nowIso();
-
       const row = await withTx(app.db, orgId, userId, async (tx) => {
         const tender = await requireTender(tx, orgId, request.params.tenderId);
+        // AE-01: `asOfIso` del cuerpo de la petición se ignora por completo;
+        // ver lib/expediente/dates.ts (resolveExpedienteAsOfIso).
+        const asOfIso = resolveExpedienteAsOfIso(tender);
         const proposal = await getOrCreateProposal(tx, orgId, request.params.tenderId, userId, `Expediente — ${tender.title}`);
 
         const requirementsRes = await tx.query<Record<string, unknown>>(
@@ -278,10 +279,12 @@ export async function expedienteProposalRoutes(app: FastifyInstance): Promise<vo
       const orgId = request.orgId!;
       const userId = request.userId!;
       requireOrgRole(request, WRITE_ROLES, 'Se requiere un rol de escritura para generar la propuesta económica');
-      const asOfIso = request.body.asOfIso ?? nowIso();
 
       const row = await withTx(app.db, orgId, userId, async (tx) => {
         const tender = await requireTender(tx, orgId, request.params.tenderId);
+        // AE-01: `asOfIso` del cuerpo de la petición se ignora por completo;
+        // ver lib/expediente/dates.ts (resolveExpedienteAsOfIso).
+        const asOfIso = resolveExpedienteAsOfIso(tender);
         const proposal = await getOrCreateProposal(tx, orgId, request.params.tenderId, userId, `Expediente — ${tender.title}`);
 
         const { resolver } = await loadCompanyDataResolver(tx, orgId, asOfIso);

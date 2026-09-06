@@ -100,6 +100,15 @@ export const requirementMappingSchema = z.object({
 export const technicalGenerateSchema = z.object({
   mappings: z.array(requirementMappingSchema).default([]),
   conditionEvaluations: z.record(z.string(), z.boolean()).default({}),
+  /**
+   * AE-01 (docs/auditoria-2/api-expediente.md, ALTA): campo IGNORADO por
+   * completo por el servidor -- se mantiene solo por compatibilidad con
+   * clientes existentes que ya lo envían. La fecha de evaluación de
+   * vigencia SIEMPRE se deriva de `tenders.submission_deadline` (ver
+   * `resolveExpedienteAsOfIso` en lib/expediente/dates.ts); un cliente
+   * nunca puede "revivir" una tarifa/documento vencido enviando una fecha
+   * distinta aquí.
+   */
   asOfIso: z.string().datetime({ offset: true }).optional(),
 });
 
@@ -111,6 +120,7 @@ export const economicLineItemRequestSchema = z.object({
 
 export const economicGenerateSchema = z.object({
   lineItems: z.array(economicLineItemRequestSchema).min(1),
+  /** AE-01: ignorado por el servidor -- ver nota en `technicalGenerateSchema.asOfIso`. */
   asOfIso: z.string().datetime({ offset: true }).optional(),
 });
 
@@ -149,6 +159,7 @@ export const checklistRunSchema = z.object({
   requiredSignatures: z.array(z.object({ role: z.string(), userConfirmedSigned: z.boolean() })).default([]),
   /** Declaración EXPLÍCITA del llamador de qué anexos obligatorios (por `topicKey` o `requirementId`) ya están adjuntos al expediente -- este proyecto no modela todavía un "casillero" de anexo adjunto por requisito, así que se declara aquí en vez de inferirse. */
   presentAnnexRefs: z.array(z.string()).default([]),
+  /** AE-01: ignorado por el servidor -- ver nota en `technicalGenerateSchema.asOfIso`. */
   asOfIso: z.string().datetime({ offset: true }).optional(),
 });
 

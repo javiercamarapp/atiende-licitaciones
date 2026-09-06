@@ -9,6 +9,8 @@
  * HASTA el final de ese día), "start" para inicios de vigencia.
  */
 
+import { ValidationAppError } from '../errors.js';
+
 const MEXICO_CITY_OFFSET = '-06:00';
 
 /** Normaliza un valor de columna `timestamptz`/`date` del driver (Date o string) a "YYYY-MM-DD". */
@@ -36,4 +38,36 @@ export function timestampToIso(value: string | Date | null): string | null {
 /** "Ahora" en ISO con offset explícito ("Z"), para usarse como `asOfIso` por defecto cuando no hay fecha límite de convocatoria conocida. */
 export function nowIso(): string {
   return new Date().toISOString();
+}
+
+/**
+ * AE-01 (docs/auditoria-2/api-expediente.md, ALTA): la fecha de evaluación
+ * de vigencia de tarifas y documentos de empresa del expediente ("¿es
+ * válido A LA FECHA DEL ACTO?", REQ-023) NUNCA la decide el cliente -- un
+ * `asOfIso` libre en el cuerpo de la petición permitía "revivir" una
+ * tarifa/documento que YA estará vencido para cuando se presente la
+ * propuesta, generando la propuesta con un `asOfIso` de un momento en que
+ * sí era válido. Se deriva SIEMPRE de `tenders.submission_deadline` (la
+ * versión vigente de la convocatoria, ya resuelta por `requireTender`) --
+ * el mismo campo que corrige DB-02/DB-10 a nivel de Postgres (migración
+ * 0042/0050) para `proposal_pricing_lines`, así que ambas capas quedan
+ * coherentes entre sí. Cualquier `asOfIso` que el cliente envíe en el
+ * cuerpo se IGNORA por completo (nunca se usa, ni siquiera como techo).
+ *
+ * Si la convocatoria todavía no tiene `submission_deadline` fijado, NO se
+ * usa "ahora" como aproximación (eso reabriría exactamente el patrón que
+ * este hallazgo cierra): se bloquea explícitamente con 422, obligando a
+ * declarar la fecha límite de presentación antes de generar la propuesta
+ * económica/técnica o ejecutar el checklist de integridad.
+ */
+export function resolveExpedienteAsOfIso(tender: Record<string, unknown>): string {
+  const deadline = (tender.submission_deadline ?? null) as string | Date | null;
+  const iso = timestampToIso(deadline);
+  if (iso === null) {
+    throw new ValidationAppError({
+      submissionDeadline:
+        'fecha de presentación desconocida: esta convocatoria no tiene "submission_deadline" fijado, así que no se puede evaluar de forma segura la vigencia de tarifas/documentos de empresa a la fecha del acto. Declare la fecha límite de presentación de la convocatoria antes de generar la propuesta o ejecutar el checklist.',
+    });
+  }
+  return iso;
 }

@@ -19,7 +19,7 @@ import { requireOrgRole } from '../../lib/authorize.js';
 import { recordAudit } from '../../lib/audit.js';
 import { withTx, requireTender, requireProposal, readGenerationReport } from '../../lib/expediente/context.js';
 import { loadCompanyDataResolver } from '../../lib/expediente/company-data-resolver.pg.js';
-import { nowIso } from '../../lib/expediente/dates.js';
+import { nowIso, resolveExpedienteAsOfIso } from '../../lib/expediente/dates.js';
 import { checklistRunSchema, checklistReportSchema } from './schemas.js';
 
 function mapComplianceRow(r: Record<string, unknown>): any {
@@ -58,10 +58,12 @@ export async function expedienteChecklistRoutes(app: FastifyInstance): Promise<v
       const orgId = request.orgId!;
       const userId = request.userId!;
       requireOrgRole(request, WRITE_ROLES, 'Se requiere un rol de escritura para ejecutar el checklist de integridad');
-      const asOfIso = request.body.asOfIso ?? nowIso();
 
       const report = await withTx(app.db, orgId, userId, async (tx) => {
-        await requireTender(tx, orgId, request.params.tenderId);
+        const tender = await requireTender(tx, orgId, request.params.tenderId);
+        // AE-01: `asOfIso` del cuerpo de la petición se ignora por completo;
+        // ver lib/expediente/dates.ts (resolveExpedienteAsOfIso).
+        const asOfIso = resolveExpedienteAsOfIso(tender);
         const proposal = await requireProposal(tx, orgId, request.params.tenderId);
         const generationReport = await readGenerationReport(tx, orgId, proposal.id as string);
 

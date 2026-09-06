@@ -43,7 +43,7 @@ describe('expediente — flujo E2E completo (E6-E11)', () => {
       method: 'POST',
       url: '/internal/tenders/ingest',
       headers: { 'x-platform-api-key': TEST_PLATFORM_API_KEY },
-      payload: { records: [{ source: 'compras-mx', externalId: 'e2e-001', title: 'Servicio integral de mantenimiento', sourceVersion: 'v1' }], organizationIds: [org.id] },
+      payload: { records: [{ source: 'compras-mx', externalId: 'e2e-001', title: 'Servicio integral de mantenimiento', sourceVersion: 'v1', submissionDeadline: '2099-01-01T00:00:00Z' }], organizationIds: [org.id] },
     });
     expect(ingest.statusCode).toBe(200);
     const tenderId = ingest.json().results[0].tenderId;
