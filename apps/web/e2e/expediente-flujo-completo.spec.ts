@@ -208,6 +208,18 @@ test.describe.serial("Expediente — flujo completo real (ronda 5)", () => {
     await expect(page.getByText(/Propuesta económica generada/)).toBeVisible();
     await expect(page.getByText("Bloqueado / pendiente")).toHaveCount(0);
 
+    // El toast (Sonner) recién aparecido todavía está en su transición de
+    // entrada (400ms, `opacity`/`transform`) -- `toBeVisible()` de
+    // Playwright solo exige que el elemento esté en el DOM y no oculto,
+    // NO que una transición CSS haya terminado. Escanear con axe a mitad
+    // de esa transición mide un color de texto MEZCLADO (opacity parcial
+    // entre el texto real y el fondo), un "serious" de contraste real
+    // pero espurio -- nunca reproducible mirando el color final en reposo
+    // (encontrado real corriendo test:e2e:full: el color medido cambiaba
+    // en cada corrida). Esperar a que la transición termine antes de
+    // escanear.
+    await page.waitForTimeout(500);
+
     const violations = await seriousOrCriticalViolations(page);
     expect(violations, formatViolations(violations)).toEqual([]);
   });
