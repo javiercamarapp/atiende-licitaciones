@@ -500,3 +500,27 @@ una revisión de UI de 2FA/calendario/aviso de privacidad en esta ronda) ni
 se profundizó en `apps/worker` más allá de `typecheck`+`test` — ambos en
 verde, sin hallazgos de regresión. El worktree `audit-api5` se eliminó al
 cierre de esta auditoría.
+
+---
+
+## Estado reparación (corrector, post-auditoría)
+
+Agregado por el agente corrector Sonnet, ámbito exclusivo `apps/api/**` +
+`packages/db/migrations/0058-0064` + `packages/db/test/<nuevos>`. Evidencia
+de comandos reales en `docs/logs/fix-api-ronda5.log`.
+
+| Hallazgo | Estado | Commit / evidencia |
+| --- | --- | --- |
+| R5-01 (CRÍTICA) | **CORREGIDO** | `loadOfficialHolidays` normalizado con `toDateOnlyString`; `calendarNote` solo afirma inclusión para feriados en rango real. Test: `apps/api/test/security-r501-calendar-holidays-effect.test.ts` (feriado en rango/fuera de rango/fin de semana/aceptación en fin de semana/propiedad N feriados). Commit `fix(api): R5-01 ...`. |
+| R5-02 (CRÍTICA) | **CORREGIDO** | Tier `twoFactor` (5/5min, mínimo garantizado no relajable por `RATE_LIMIT_PROFILE=e2e`) + contador de fallos por usuario en DB (`twofa_lockouts`, migración `0058_r502_twofa_lockout.sql`) con bloqueo progresivo. Test: `apps/api/test/security-r502-r503-twofa-brute-force.test.ts`. Commit `fix(api\|db): R5-02/R5-03/R5-05 ...`. |
+| R5-03 (MEDIA) | **CORREGIDO** | `twofa.verification_failed`/`twofa.step_up_denied` agregados a la whitelist de `app.record_security_event` (migración `0059_r503_twofa_failure_audit.sql`, misma firma); cada rama de rechazo de `twofa/routes.ts` audita, en una transacción SEPARADA del `throw` (para no perder la escritura por rollback). Test en el mismo archivo que R5-02. |
+| R5-04 (MEDIA) | **CORREGIDO** (en el ámbito de `apps/api`) | `correlation_id` agregado a `tenders`/`tender_versions` (migración `0060_r504_correlation_id_tenders.sql`); nace en `POST /internal/tenders/ingest` y se hereda ahí y en el `audit_log` de ingesta. Test: `apps/api/test/security-r504-correlation-id-ingest.test.ts` (traza real ingest -> manifiesto). **Nota de alcance**: el otro extremo señalado por la auditoría (`apps/worker/src/source-runs/source-runs-repository.ts` nunca incluye `correlation_id` en su INSERT a `source_runs`) queda **fuera del ámbito exclusivo de este corrector** (`apps/worker` no está en la lista de rutas autorizadas) — no se tocó. |
+| R5-05 (BAJA-MEDIA, diseño) | **CORREGIDO** (alcance opcional) | `step_up_sessions.org_id`/`purpose` OPCIONALES (migración `0061_r505_step_up_scope.sql`); `requireStepUp` rechaza una reutilización cruzada de organización/acción SI el cliente los declaró al pedir el step-up. Una sesión "genérica" (sin declararlos) preserva el comportamiento previo -- decisión deliberada para no romper la suite existente (incluidos los tests de atomicidad WI-04, que reutilizan deliberadamente el mismo `stepUpToken` en llamadas concurrentes a la MISMA acción). Test: `apps/api/test/security-r505-stepup-scope.test.ts` (reutilización cruzada de purpose y de organización, ambas rechazadas). |
+| R5-06 (BAJA) | **CORREGIDO** | `sourceUrl` de `calendar_holidays` restringido a `http`/`https` (`.refine` en `admin/schemas.ts`). Test en `apps/api/test/security-r506-r507-calendar-holiday-input-validation.test.ts`. |
+| R5-07 (BAJA) | **CORREGIDO** | `date`/`sourceConsultedOn` validados con `realCalendarDateString` (`lib/schema-helpers.ts`) -- fecha calendario real, no solo el patrón; `"2026-02-30"` ahora responde `422`. Test en el mismo archivo que R5-06. |
+| R5-08 (BAJA, documentación) | **FUERA DE ÁMBITO** | `docs/TABLERO.md`/`docs/BACKLOG.md` no están dentro de `apps/api/**`/`packages/db/**` -- el ámbito exclusivo de este corrector no permite tocarlos. Sin cambios; queda pendiente para un agente con ámbito de documentación general. |
+
+Verificación final (`docs/logs/fix-api-ronda5.log`): `apps/api`
+typecheck/lint/test (227 tests), `packages/db` test (158 tests),
+`apps/worker` typecheck/test (298 tests) -- las tres áreas en verde tras
+todas las reparaciones anteriores.

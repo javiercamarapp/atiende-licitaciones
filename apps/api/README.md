@@ -114,13 +114,40 @@ cuenta, válido para cualquier organización de la que sea miembro.
   confirma el enrolamiento (`verified_at`) y devuelve de una vez un
   `stepUpToken` vigente (confirmar el enrolamiento ya prueba posesión del
   TOTP).
-- `POST /auth/2fa/step-up` — body `{code}` (TOTP de 6 dígitos, o un código
-  de respaldo `XXXX-XXXX`): emite un `stepUpToken` (id de una fila de
+- `POST /auth/2fa/step-up` — body `{code, purpose?}` (TOTP de 6 dígitos, o
+  un código de respaldo `XXXX-XXXX`; `purpose` opcional, ver "step-up
+  atado a org/acción" abajo): emite un `stepUpToken` (id de una fila de
   `step_up_sessions`, vigente `STEP_UP_WINDOW_MINUTES`), a usar como
   `X-Step-Up` en una aprobación económica sensible. Replay rechazado: un
   código de un "time step" TOTP igual o anterior al último aceptado para
   ese usuario se rechaza siempre, aunque siga siendo válido dentro de su
   ventana de tolerancia; un código de respaldo ya usado también se rechaza.
+
+**Anti-fuerza-bruta (ronda 5, R5-02/R5-03)**: `enroll`/`verify-enrollment`/
+`step-up` aplican un límite de tasa por IP de **5 intentos / 5 minutos**
+(tier `twoFactor`, `lib/rate-limit-settings.ts`) — a diferencia de
+`global`/`auth`/`sensitiveAction`, este tier es un **mínimo garantizado**:
+`RATE_LIMIT_PROFILE=e2e` nunca lo relaja. Además, un contador de fallos
+**por usuario** persiste en `twofa_lockouts` (migración 0058) con bloqueo
+**progresivo** (5, 10, 20, 40... minutos, tope 24h) — independiente de que
+el atacante rote de IP; el bloqueo activo responde `429` con `Retry-After`.
+Cada rechazo (código inválido, replay, backup code inválido/usado, cuenta
+bloqueada) queda en `audit_log` (`twofa.verification_failed`/
+`twofa.step_up_denied`), igual que `auth.login_failed` (API-13).
+
+**step-up atado a org/acción (ronda 5, R5-05, opcional)**: por defecto un
+`stepUpToken` es "genérico" (sirve para cualquier acción, dentro de la
+ventana de vigencia — comportamiento histórico, coherente con que 2FA es
+de cuenta y no de organización). Un cliente que quiera un alcance más
+estricto puede declarar `X-Org-Id` y/o `purpose` (string libre, p. ej.
+`"company.rate_approval"`) al pedir el step-up (`verify-enrollment` o
+`step-up`) — `requireStepUp` (`lib/step-up.ts`) exige entonces que la
+acción que lo consuma declare el MISMO org/purpose, o lo rechaza (403,
+"OTRA organización"/"OTRA acción"). `POST /company/rates/:id/approve` y
+`POST .../approval/approve` ya declaran sus propios `purpose` internos
+(`company.rate_approval`/`expediente.approval`) al llamar a
+`requireStepUp` — solo se aplican si el `stepUpToken` presentado también
+los declaró al crearse.
 
 ### organizations
 - `POST /organizations`, `GET /organizations`.
@@ -205,7 +232,13 @@ sensibles) y aprueban tarifas.
   toda la API que bypassea `SET LOCAL ROLE app_role` deliberadamente** (ver
   comentario de diseño en `internal-ingest.routes.ts`): replica una
   convocatoria pública a N organizaciones a la vez, algo que ninguna
-  identidad de usuario individual debería poder hacer.
+  identidad de usuario individual debería poder hacer. Acepta/propaga
+  `X-Correlation-Id` igual que cualquier otra ruta (plugin global) y, desde
+  la ronda 5 (R5-04), ese `correlation_id` **nace aquí y se hereda** en
+  `tenders`/`tender_versions` (migración 0060) y en el `audit_log` de
+  ingesta — antes la convocatoria (primer eslabón de la cadena
+  "convocatoria -> matriz -> propuesta -> paquete -> archivo") nunca
+  quedaba correlacionada, aunque el resto de la cadena sí.
 
 ### matching (E5)
 - `GET /matching/tenders/:tenderId`, `GET /matching/tenders` — relevancia
@@ -256,7 +289,11 @@ organizaciones.
   PLATAFORMA (sin `org_id`, mismo patrón que `source_runs`). `POST
   /admin/calendar-holidays` (solo superadmin) exige `sourceUrl`+
   `sourceConsultedOn` (nunca una fecha "de memoria" — la tabla se
-  despliega VACÍA, ver `apps/api/docs/e11-cobertura.md`).
+  despliega VACÍA, ver `apps/api/docs/e11-cobertura.md`). `date`/
+  `sourceConsultedOn` deben ser una fecha calendario REAL, no solo el
+  patrón "YYYY-MM-DD" (ronda 5, R5-07: `"2026-02-30"` responde `422`
+  explícito, ya no un `500` de Postgres); `sourceUrl` debe usar esquema
+  `http`/`https` (ronda 5, R5-06).
 
 ### expediente (E6-E9/E11 — expediente de participación real)
 Integra `@atiende/expediente` (paquete puro, sin DB) sobre `packages/db`
@@ -376,7 +413,12 @@ mutar, `viewer` solo lee), salvo aprobar (ver más abajo).
   todos los vencidos/próximos de la organización. El cómputo de días
   hábiles combina el calendario OFICIAL cargado en `calendar_holidays`
   (ver `GET/POST /admin/calendar-holidays` abajo) con los `holidays` que el
-  llamador declare a mano.
+  llamador declare a mano — un feriado oficial cargado SÍ excluye el día
+  real del cómputo (ronda 5, R5-01: antes se serializaba mal la fecha de
+  la DB y nunca tenía efecto real, ver "Reparaciones — ronda 5" abajo);
+  `calendarNote` solo afirma que un feriado "fue excluido del plazo" para
+  los que de verdad cayeron dentro de la ventana `[verifiedOn, dueDate]` de
+  ese cómputo concreto (nunca por todos los cargados para el año).
 
 Todas las rutas devuelven errores en `application/problem+json` (RFC 7807):
 `{ type, title, status, detail?, requestId }`. En producción, un error 500
@@ -647,3 +689,48 @@ solo, pasa establemente en <2s por caso).
   (`migrations/0050`/`0051`) y `lib/audit.ts` (`recordAuthAudit`) — vigencia
   de tarifas evaluada siempre en `America/Mexico_City`, y eventos de
   autenticación (login/refresh/reutilización/logout) en `audit_log`.
+
+## Reparaciones — auditoría adversarial ronda 5 (`docs/auditoria-2/api-ronda5.md`)
+
+- **R5-01 (CRÍTICA)**: `loadOfficialHolidays` (`post-award.routes.ts`)
+  serializaba la columna `date` con `String(dateObject)`
+  (`Date.prototype.toString()`, dependiente de `TZ` del proceso) en vez de
+  `toISOString()` -- un feriado oficial cargado NUNCA excluía el día real
+  del plazo de pago, mientras `calendarNote` afirmaba lo contrario. Fijado
+  con `toDateOnlyString` (getters UTC); `calendarNote` ahora solo afirma
+  inclusión para los feriados que de verdad cayeron dentro de la ventana
+  `[verifiedOn, dueDate]` de ese cómputo (antes contaba todos los cargados
+  para el año, cayeran o no en rango, o aunque el régimen fuera de días
+  naturales).
+- **R5-02 (CRÍTICA)**: `/auth/2fa/{enroll,verify-enrollment,step-up}` sin
+  límite de tasa específico (solo el `global`, 300/min por IP). Tier
+  `twoFactor` (5/5min, mínimo garantizado, no relajado por
+  `RATE_LIMIT_PROFILE=e2e`) + contador de fallos por usuario en DB
+  (`twofa_lockouts`, migración 0058) con bloqueo progresivo.
+- **R5-03 (MEDIA)**: fallos de verificación de 2FA no quedaban en
+  `audit_log` (asimetría con `auth.login_failed`). Se agregan
+  `twofa.verification_failed`/`twofa.step_up_denied` (migración 0059,
+  misma función `app.record_security_event`).
+- **R5-04 (MEDIA)**: `tenders`/`tender_versions` sin `correlation_id`
+  (migración 0060) -- la convocatoria (primer eslabón de la cadena
+  REQ-171) nunca era correlacionable. Ahora nace en
+  `POST /internal/tenders/ingest` y se hereda en ambas tablas y en el
+  `audit_log` de ingesta.
+- **R5-05 (BAJA-MEDIA, diseño)**: `step_up_sessions` sin columna de
+  organización/acción -- un `stepUpToken` servía para cualquier
+  tarifa/expediente en cualquier organización dentro de la ventana. Se
+  agregan `org_id`/`purpose` OPCIONALES (migración 0061): si el cliente
+  los declara al pedir el step-up, `requireStepUp` exige que coincidan
+  exactamente o rechaza. Sin declararlos (comportamiento previo), la
+  sesión sigue siendo "genérica" -- no rompe clientes existentes.
+- **R5-06 (BAJA)**: `sourceUrl` de `calendar_holidays` restringido a
+  esquema `http`/`https` (antes aceptaba `javascript:`/`data:`/`ftp:`).
+- **R5-07 (BAJA)**: `date`/`sourceConsultedOn` de `calendar_holidays`
+  ahora exigen una fecha calendario REAL (`realCalendarDateString`,
+  `lib/schema-helpers.ts`) -- antes una fecha inexistente como
+  `"2026-02-30"` pasaba la validación de Zod y reventaba en Postgres con
+  500 en vez de 422.
+- **R5-08 (documentación, `docs/TABLERO.md`/`docs/BACKLOG.md`)**: fuera
+  del ámbito de este corrector (ver "Nota de alcance" de
+  `docs/auditoria-2/api-ronda5.md`) -- ninguno de esos dos archivos está
+  dentro de `apps/api/**`/`packages/db/**`.
