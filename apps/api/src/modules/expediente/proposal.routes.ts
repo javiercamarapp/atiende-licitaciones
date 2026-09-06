@@ -109,16 +109,43 @@ export async function expedienteProposalRoutes(app: FastifyInstance): Promise<vo
         ]);
         if (existing.rows.length === 0) throw new NotFoundError('Sección no encontrada');
         const nextVersion = Number(existing.rows[0].version) + 1;
+        const contentChanged = String(existing.rows[0].content ?? '') !== request.body.content;
         const updated = await tx.query<Record<string, unknown>>(
           `update proposal_sections set content = $1, version = $2, updated_by = $3 where org_id = $4 and proposal_id = $5 and section_key = $6 returning *`,
           [request.body.content, nextVersion, userId, orgId, proposal.rows[0].id, request.params.sectionKey]
         );
-        // REQ-162: editar manualmente una sección ya aprobada invalida la
-        // aprobación afectada (registrado como record_change al evaluarse
-        // el hash actual en approval.routes.ts -- aquí basta con que el
-        // insumo cambió realmente en la tabla; la invalidación automática
-        // de aprobaciones ocurre en la próxima evaluación vía
-        // isFullyApprovedForCurrentHash, ver approval-store.pg.ts).
+        // AE-02 (docs/auditoria-2/api-expediente.md, ALTA): a diferencia de
+        // lo que afirmaba el comentario anterior de este handler, el
+        // contenido de `proposal_sections` NUNCA forma parte de
+        // `ExpedienteInputs` (ver lib/expediente/inputs.ts) -- así que
+        // `isFullyApprovedForCurrentHash` NUNCA detectaría por sí sola esta
+        // edición. Se invalida EXPLÍCITAMENTE aquí, con el mismo mecanismo
+        // (recordChange + evento persistido) que ya usa
+        // `conditionEvaluations` más abajo en este mismo archivo: cualquier
+        // aprobación vigente que cubra esta sección (la propia sección, el
+        // documento que la contiene, o el expediente completo -- ver
+        // `ancestorsOf` en @atiende/expediente) queda invalidada de
+        // inmediato, sin esperar a la próxima evaluación de hash.
+        if (contentChanged) {
+          const events = await loadApprovalEvents(tx, orgId, proposal.rows[0].id as string);
+          const workflow = replayWorkflow(events);
+          const scopeRef = `seccion:${request.params.sectionKey}`;
+          const reason = `seccion_editada:${request.params.sectionKey}`;
+          const change = workflow.recordChange({ scope: 'seccion', scopeRef, reason });
+          if (change.invalidatedApprovalIds.length > 0) {
+            await appendApprovalEvent(tx, { orgId, proposalId: proposal.rows[0].id as string, kind: 'record_change', actorId: userId, actorRole: request.orgRole!, scope: 'seccion', scopeRef, reason });
+            await persistApprovalSnapshot(tx, orgId, proposal.rows[0].id as string, workflow);
+            await recordAudit(tx, {
+              orgId,
+              actorId: userId,
+              action: 'approval.invalidate_by_section_edit',
+              entity: 'proposal_approvals',
+              entityId: proposal.rows[0].id as string,
+              after: { sectionKey: request.params.sectionKey, invalidatedApprovalIds: change.invalidatedApprovalIds },
+              requestId: request.id,
+            });
+          }
+        }
         await recordAudit(tx, { orgId, actorId: userId, action: 'proposal_section.edit', entity: 'proposal_sections', entityId: existing.rows[0].id as string, before: existing.rows[0], after: updated.rows[0], requestId: request.id });
         return updated.rows[0];
       });
