@@ -69,6 +69,17 @@ function buildDemoToolRegistry(provider: LLMProvider): ToolRegistry {
     outputSchema: z.object({ content: z.string() }),
     riskLevel: 'read',
     actionKind: 'read',
+    // WK-13 (docs/auditoria-1/worker.md, hallazgo de re-verificación):
+    // `packages/agents` (commit 480d183, AG-05) volvió `declaredEffects`
+    // obligatorio y exige que sea consistente con `riskLevel`/`actionKind`
+    // — un registro sin este campo ahora rompe `typecheck` (falta
+    // `declaredEffects` en `ToolDefinition`) y por tanto `build`/`test` de
+    // este worker. "llm_complete" solo lee (pasa un prompt al proveedor y
+    // regresa texto): no escribe nada ni produce ningún efecto externo real
+    // (no envía nada a un portal, no firma, no persiste), así que el único
+    // efecto declarado coherente con `riskLevel: 'read'`/`actionKind: 'read'`
+    // es `'read_only'`.
+    declaredEffects: ['read_only'],
     idempotent: true,
     tenantScoped: false,
     handler: async (input) => {

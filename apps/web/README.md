@@ -16,11 +16,15 @@ npm run -w apps/web build          # build de producción (tsc -b && vite build)
 npm run -w apps/web preview        # sirve el build de dist/
 
 npm run -w apps/web lint           # eslint .
-npm run -w apps/web typecheck      # tsc -b --noEmit (modo estricto)
-npm run -w apps/web test           # vitest run
+npm run -w apps/web typecheck      # tsc -b --noEmit (modo estricto, incluye e2e/)
+npm run -w apps/web test           # vitest run (pruebas de componente, jsdom)
 npm run -w apps/web test:watch     # vitest en modo watch
 npm run -w apps/web test:coverage  # vitest run --coverage
+npm run -w apps/web test:e2e       # build de producción + Playwright (navegador real) + axe-core
 ```
+
+La primera vez que se corre `test:e2e`, instala el navegador de Playwright
+con `npx playwright install chromium` (una sola vez por máquina/CI).
 
 Variables de entorno (`.env`, ver `.env.example`):
 
@@ -43,6 +47,8 @@ src/
   components/
     AtiendeLogo.tsx         # AtiendeMark / AtiendeWordmark (mismo glifo que atiende-restaurantes)
     ThemeSelector.tsx        # claro/sistema/oscuro, persistido en localStorage, clase .dark en <html>
+    SkipLink.tsx              # "saltar a..." con foco real (.focus() explícito, no solo href="#id")
+    AiDisclosureNote.tsx       # aviso de uso de IA (REQ-115), antepuesto a módulos con `disclosure: true`
     layout/
       AppShell.tsx            # layout raíz: sidebar desktop + drawer móvil (Sheet) + header + main
       SidebarNav.tsx           # contenido de navegación (compartido entre sidebar y drawer)
@@ -53,7 +59,8 @@ src/
                               # scroll-area, skeleton, badge, empty-state, error-state, loading-state,
                               # source-status-badge, package-status-badge)
   pages/
-    LoginPage.tsx            # contraseña + magic link, ambos validados con zod
+    LoginPage.tsx            # pantalla partida (kicker + h1 serif + lámina), contraseña + magic link
+    login.css                 # fuente Fraunces del titular, exclusiva de esta pantalla
     NotFoundPage.tsx
     createModulePage.tsx     # fábrica: SectionHeader + EmptyState honesto por módulo
     empresa/                 # Perfil y capacidades, Documentos y vigencias, Firmantes, Tarifas
@@ -66,6 +73,14 @@ src/
   test/
     setup.ts                 # extiende expect con jest-dom + vitest-axe, limpia entre tests
     utils.tsx                # renderWithProviders() (QueryClient + Router + TooltipProvider)
+e2e/                          # suite Playwright + axe-core sobre el navegador real (REQ-049/065)
+  fixtures.ts                 # test/expect propios: goto() espera networkidle (rutas con lazy())
+  recorrido.spec.ts            # login→shell, las 24 rutas del sidebar, drawer móvil, tema oscuro,
+                                # Fuentes y frescura, Paquete "Borrador", sin scroll horizontal a 390px
+  contraste.spec.ts, heading-order.spec.ts, login-landmarks.spec.ts, login-parity.spec.ts,
+  skip-link.spec.ts, touch-targets.spec.ts, ai-disclosure.spec.ts  # regresión por hallazgo (ver
+                                                                     # docs/auditoria-1/web.md)
+playwright.config.ts          # sirve dist/ con `vite preview` (webServer), proyecto chromium
 ```
 
 ## Decisiones de esta ronda

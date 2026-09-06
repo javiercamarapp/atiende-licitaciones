@@ -36,7 +36,21 @@ cada `*-connector.ts`). `verified: true` en este paquete solo se usa para el
 parser OCDS 1.1 genérico (validado contra el estándar público, no contra un
 endpoint mexicano) y para el CSV histórico de ComprasMX.
 
-### ComprasMX (sucesor de CompraNet)
+### ComprasMX (sitio operativo de la Plataforma Digital de Contrataciones Públicas)
+
+**Fundamento legal vigente (verificado en `docs/legal/verificacion-legal.md`,
+DECISIONES D-07, no re-verificado por esta ronda de correcciones — se cita
+tal cual)**: la LAASSP nueva (DOF 16-abr-2025, en vigor desde 17-abr-2025)
+sustituyó el nombre legal "CompraNet"/"ComprasMX" por la **"Plataforma
+Digital de Contrataciones Públicas"** (Art. 5 fr. XI) y renombró a la
+autoridad de la materia como **Secretaría Anticorrupción y Buen Gobierno**
+(Art. 5 fr. XVII, antes Secretaría de la Función Pública). **ComprasMX**
+(`comprasmx.buengobierno.gob.mx`) sigue siendo el nombre del SITIO
+OPERATIVO vigente de esa Plataforma — es la marca real que confirma la
+propia SPA en producción (ver abajo) — por lo que este conector mantiene
+su `SourceId` técnico `"compras-mx"` (sin cambios, para no romper a
+`apps/worker`) mientras usa la nomenclatura legal vigente al describir el
+fundamento normativo.
 
 - El portal vigente es **`https://comprasmx.buengobierno.gob.mx/`** (SPA
   Angular real, `GET / -> 200`, confirmado 2026-09-05), operado por la
@@ -59,6 +73,20 @@ endpoint mexicano) y para el CSV histórico de ComprasMX.
   payload de respuesta real. **PENDIENTE VERIFICACIÓN REAL** contra un
   payload 200 legítimo (requiere que SABG habilite acceso sin CAPTCHA, o que
   el proveedor exponga una llave de servidor a servidor).
+- **SR-09 (auditoría ronda 1)**: una petición de solo lectura independiente
+  repetida el mismo día contra el mismo endpoint, sin cabeceras de
+  reCAPTCHA, devolvió `403 {"success":false,"error":"Acceso no permitido.",
+  "details":"Acceso no permitido. - /whitney/sitiopublico/expedientes -
+  None","pid":null}` — un CÓDIGO Y CUERPO distintos del `401
+  {"details":"Unauthorized"}` documentado arriba. Ambos resultados
+  significan lo mismo (**el endpoint está protegido y este proyecto no
+  intenta eludirlo**); la diferencia probablemente sea una huella de
+  cliente distinta entre un WAF/edge (403) y el backend aplicativo (401).
+  `classifySourceFailure()` clasifica 401 y 403 igual
+  (`permission_missing`, ver más abajo), así que la clasificación funcional
+  es robusta a esta variación — pero el código/cuerpo exacto de bloqueo NO
+  debe tratarse como una constante estable en el tiempo ni usarse para nada
+  más que esa clasificación ya robusta.
 - Bonus real y 100% verificado: dataset abierto
   `contratos_expedientes_sistema_historico_compranet` (SABG, CKAN de
   `www.datos.gob.mx`, CSV de 951 MB, `last-modified: 2025-07-03`, sin

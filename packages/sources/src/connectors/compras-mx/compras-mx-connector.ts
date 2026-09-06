@@ -18,10 +18,17 @@ export interface ComprasMxConnectorConfig {
 const DEFAULT_BASE_URL = "https://upcp-cnetservicios.buengobierno.gob.mx/whitney/sitiopublico/";
 
 /**
- * Conector a ComprasMX (portal federal mexicano, sucesor de CompraNet,
- * operado por la Secretaría Anticorrupción y Buen Gobierno — SABG — bajo el
- * dominio `comprasmx.buengobierno.gob.mx`). Ver README §ComprasMX para la
- * evidencia completa de verificación en vivo intentada el 2026-09-05:
+ * Conector a ComprasMX, el SITIO OPERATIVO vigente de la "Plataforma
+ * Digital de Contrataciones Públicas" (fundamento legal: LAASSP nueva, DOF
+ * 16-abr-2025, Art. 5 fr. XI — ver `docs/legal/verificacion-legal.md`,
+ * DECISIONES D-07; sustituye el nombre legal "CompraNet"/"ComprasMX" de la
+ * ley anterior, aunque "ComprasMX" sigue siendo la marca real del sitio en
+ * producción). Operado por la Secretaría Anticorrupción y Buen Gobierno —
+ * SABG, Art. 5 fr. XVII de la misma ley, antes Secretaría de la Función
+ * Pública — bajo el dominio `comprasmx.buengobierno.gob.mx`. El `SourceId`
+ * técnico se mantiene como `"compras-mx"` (sin cambios, para no romper a
+ * `apps/worker`). Ver README §ComprasMX para la evidencia completa de
+ * verificación en vivo intentada el 2026-09-05:
  * - El host `comprasmx.buengobierno.gob.mx` responde 200 (SPA Angular real).
  * - Se ubicó el endpoint real `POST {baseUrl}expedientes?rows=&page=` leyendo
  *   el bundle JS público; una petición de solo lectura SIN cabeceras de
