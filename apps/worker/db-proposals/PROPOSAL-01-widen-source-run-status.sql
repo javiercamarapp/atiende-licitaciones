@@ -1,0 +1,66 @@
+-- PROPOSAL-01-widen-source-run-status.sql
+-- PENDIENTE esquema (WK-07, docs/auditoria-1/worker.md).
+--
+-- Propuesta de apps/worker para quien mantiene packages/db. Fuera de mi
+-- ámbito (solo apps/worker/**, docs/logs/fix-worker-*.log y la columna
+-- "Estado reparación" de docs/auditoria-1/worker.md): NO se aplicó, NO se
+-- añadió a packages/db/migrations/. El número final de archivo real
+-- (00NN_*.sql) lo asigna quien la incorpore a packages/db/migrations/,
+-- coordinado con cualquier otra migración concurrente (al momento de
+-- escribir esto, la siguiente migración libre observada es posterior a
+-- 0024_go_no_go_reviewer.sql).
+--
+-- Problema (WK-07): `source_run_status` (packages/db/migrations/
+-- 0013_source_runs.sql) solo tiene 6 valores
+-- (ok|failed|captcha|interface_changed|permission_missing|down), pero
+-- apps/worker distingue 8 estados finos reales
+-- (apps/worker/src/source-runs/source-run-status.ts, `SourceRunFineState`):
+-- agrega `rate_limited`, `not_configured` e `ingest_failed` (este último,
+-- agregado en esta ronda para WK-03). Los 3 se proyectan hoy a `failed` en
+-- la columna `status`; el detalle real solo vive en `evidence.fineState`
+-- (jsonb sin schema). Riesgo: cualquier consumidor futuro (back office,
+-- REQ-148/149) que filtre por `status = 'failed'` sin inspeccionar
+-- `evidence.fineState` pierde la distinción entre "nunca verificado"
+-- (acción de gobierno), "limitado por tasa" (transitorio) e "ingesta
+-- falló pero la fuente sí respondió" (problema del lado de apps/api, no de
+-- la fuente).
+--
+-- `ALTER TYPE ... ADD VALUE` no puede ejecutarse dentro de una transacción
+-- que después use el valor nuevo en la misma transacción (limitación de
+-- Postgres); por eso van en sentencias separadas, cada una fuera de un
+-- bloque `do $$ ... $$` transaccional explícito de la migración (el
+-- runner de packages/db ejecuta cada archivo como su propia transacción
+-- implícita salvo que se indique lo contrario: verificar con quien aplique
+-- esto cuál es el patrón real de packages/db/src/migrator.ts antes de
+-- fusionar).
+
+alter type source_run_status add value if not exists 'rate_limited';
+alter type source_run_status add value if not exists 'not_configured';
+alter type source_run_status add value if not exists 'ingest_failed';
+
+-- Adaptación de compatibilidad recomendada para
+-- apps/worker/src/source-runs/source-run-status.ts (`toDbStatus`), UNA VEZ
+-- que esta migración esté aplicada en todos los entornos (no antes, o
+-- Postgres real rechazará el valor por no existir todavía en el enum):
+--
+--   const FINE_TO_DB: Record<SourceRunFineState, SourceRunDbStatus> = {
+--     ok: 'ok',
+--     down: 'down',
+--     captcha_detected: 'captcha',
+--     interface_changed: 'interface_changed',
+--     permission_missing: 'permission_missing',
+--     rate_limited: 'rate_limited',       // antes: 'failed'
+--     not_configured: 'not_configured',   // antes: 'failed'
+--     ingest_failed: 'failed',            // sigue sin equivalente 1:1; sin
+--                                         // evidencia de que amerite un
+--                                         // estado propio en el enum (es un
+--                                         // fallo de TRANSPORTE hacia
+--                                         // apps/api, no de la fuente) —
+--                                         // decisión a confirmar con
+--                                         // quien diseñe el back office.
+--   };
+--
+-- `SourceRunDbStatus` también debe ampliarse con `'rate_limited'` y
+-- `'not_configured'`. Este cambio es retrocompatible con datos existentes
+-- (ninguna fila cambia de valor; solo deja de perderse precisión en
+-- corridas NUEVAS).
