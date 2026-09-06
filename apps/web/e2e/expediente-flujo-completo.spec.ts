@@ -164,7 +164,7 @@ test.describe.serial("Expediente — flujo completo real (ronda 5)", () => {
     await page.getByRole("button", { name: "Ensamblar paquete" }).click();
 
     await expect(page.getByText("Borrador", { exact: true })).toBeVisible();
-    await expect(page.getByText("Listo para presentar")).toHaveCount(0);
+    await expect(page.getByText("Listo para presentar", { exact: true })).toHaveCount(0);
   });
 
   test("Redacción: genera la propuesta técnica mapeando el requisito a un dato real de empresa", async ({ page }) => {
@@ -290,7 +290,7 @@ test.describe.serial("Expediente — flujo completo real (ronda 5)", () => {
     await selectTender(page, seed.tender!.title);
     await page.getByRole("button", { name: "Ensamblar paquete" }).click();
 
-    await expect(page.getByText("Listo para presentar")).toBeVisible();
+    await expect(page.getByText("Listo para presentar", { exact: true })).toBeVisible();
   });
 
   test("descarga autenticada del paquete listo", async ({ page }) => {
@@ -346,7 +346,7 @@ test.describe.serial("Expediente — flujo completo real (ronda 5)", () => {
     await page.goto("/entrega/paquete-descargable");
     await selectTender(page, seed.tender!.title);
     await expect(page.getByText("Borrador", { exact: true })).toBeVisible();
-    await expect(page.getByText("Listo para presentar")).toHaveCount(0);
+    await expect(page.getByText("Listo para presentar", { exact: true })).toHaveCount(0);
   });
 
   test("320×568 y 390×844: Análisis de bases y Redacción sin scroll horizontal con datos reales", async ({ page }) => {
