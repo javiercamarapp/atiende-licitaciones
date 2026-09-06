@@ -40,20 +40,41 @@ function TotpQrCode({ otpauthUrl }: { otpauthUrl: string }) {
     let cancelled = false;
     setFailed(false);
     const canvas = canvasRef.current;
-    if (!canvas) return;
-    QRCode.toCanvas(canvas, otpauthUrl, { width: 176, margin: 1 }).catch(() => {
+    if (!canvas) {
+      setFailed(true);
+      return;
+    }
+    try {
+      QRCode.toCanvas(canvas, otpauthUrl, { width: 176, margin: 1 }).catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    } catch {
+      // `qrcode` normalmente rechaza la promesa (ver el `.catch` de arriba),
+      // pero algunos entornos (p. ej. un <canvas> sin `getContext` real)
+      // pueden lanzar de forma síncrona en vez de rechazar -- sin este
+      // try/catch, esa excepción escaparía del efecto y rompería el render.
       if (!cancelled) setFailed(true);
-    });
+    }
     return () => {
       cancelled = true;
     };
   }, [otpauthUrl]);
 
-  // Si la generación falla (entrada inválida, navegador sin <canvas>), no
-  // se muestra un recuadro vacío ni se rompe la página -- el secreto/URL en
-  // texto (siempre presentes junto a este componente) siguen siendo
-  // suficientes para completar el enrolamiento.
-  if (failed) return null;
+  // Si la generación falla (entrada inválida, navegador sin <canvas> real),
+  // no se rompe la página -- se ofrece un texto accesible en el lugar del
+  // QR; el secreto/URL en texto (siempre presentes junto a este componente)
+  // siguen siendo suficientes para completar el enrolamiento.
+  if (failed) {
+    return (
+      <p
+        role="status"
+        className="max-w-[176px] rounded-lg border border-dashed border-border bg-muted/40 p-3 text-xs text-muted-foreground"
+      >
+        No se pudo generar el código QR en este dispositivo. Usa el secreto o el enlace de la derecha para
+        completar el enrolamiento.
+      </p>
+    );
+  }
 
   return (
     <canvas

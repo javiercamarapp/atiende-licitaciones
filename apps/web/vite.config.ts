@@ -140,6 +140,26 @@ export default defineConfig(({ command }) => ({
     // defecto (5s) sin que haya ningún bug real -- `retry: 1` deja que una
     // prueba genuinamente rota siga fallando dos veces seguidas, mientras
     // absorbe ese ruido de entorno en vez de mostrar un rojo espurio.
+    //
+    // docs/logs/fix-web-ci4.log: reproducido en vivo -- `vitest run` (sin
+    // `--coverage`) pasa 114-115/115 en ~40s TANTO en un run limpio COMO
+    // bajo la contención real de esta máquina (load average ~10 en 10
+    // cores, con el reverificador de otro agente corriendo Playwright/Chrome
+    // en paralelo -- el equipo de CPU está compartido, ver README). Solo
+    // `vitest run --coverage` (instrumentación v8, más CPU por archivo) llegó
+    // a fallar por timeout bajo esa MISMA contención, y en cada intento
+    // fallaron pruebas DISTINTAS (EntregasPage/AnalisisBasesPage/... en un
+    // intento; RevisionPage/PaqueteDescargablePage en otro) -- ninguna
+    // prueba concreta falla de forma reproducible; es contención real de
+    // CPU, no un `waitFor` con condición imposible ni un handler MSW
+    // faltante. NO se sube este valor: los archivos que efectivamente
+    // fallaron bajo `--coverage` fijan su PROPIO timeout explícito como
+    // tercer argumento de `it(...)` (p. ej. `RevisionPage.test.tsx`,
+    // `EntregasPage.test.tsx`), que gana sobre este default global -- subir
+    // este número no les habría cambiado nada (verificado: se probó en 45s
+    // y las mismas pruebas siguieron fallando a los 20s de SU propio
+    // timeout). Tocar esos timeouts por archivo queda fuera del ámbito de
+    // esta corrección (solo el componente de QR y este archivo de config).
     testTimeout: 20000,
     retry: 1,
     // La suite Playwright/axe vive en e2e/ (W-14) y usa su propio test

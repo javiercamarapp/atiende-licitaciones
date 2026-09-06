@@ -103,4 +103,34 @@ describe("ConfiguracionPage", () => {
 
     toCanvasSpy.mockRestore();
   }, 15000);
+
+  // RF-03: si `qrcode` no puede dibujar el QR (canvas no disponible, entrada
+  // inválida, etc.), la pantalla no debe quedar en blanco ni romperse --
+  // debe ofrecer un texto accesible en el lugar del QR. El secreto y el
+  // enlace en texto (siempre presentes junto a este componente) ya
+  // cubrían el enrolamiento sin QR; este texto adicional deja explícito
+  // que la generación visual falló, en vez de un hueco silencioso.
+  it("RF-03: si el QR no se puede generar, ofrece un fallback textual accesible sin romper la pantalla", async () => {
+    const user = userEvent.setup();
+    const toCanvasSpy = vi.spyOn(QRCode, "toCanvas").mockRejectedValue(new Error("sin canvas real"));
+    server.use(
+      http.get("*/auth/2fa/status", () => HttpResponse.json({ enrolled: false, enrolledAt: null })),
+      http.post("*/auth/2fa/enroll", () =>
+        HttpResponse.json(
+          { secretBase32: "ABCD1234EFGH5678", otpauthUrl: "otpauth://totp/x", backupCodes: ["AAAA-1111"] },
+          { status: 201 },
+        ),
+      ),
+    );
+
+    renderWithProviders(<ConfiguracionPage />);
+    await user.click(await screen.findByRole("button", { name: "Enrolar 2FA" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(/no se pudo generar el código qr/i);
+    expect(screen.queryByRole("img", { name: /código qr/i })).not.toBeInTheDocument();
+    // El secreto en texto (alternativa accesible) sigue disponible.
+    expect(screen.getByText("ABCD1234EFGH5678")).toBeInTheDocument();
+
+    toCanvasSpy.mockRestore();
+  }, 15000);
 });

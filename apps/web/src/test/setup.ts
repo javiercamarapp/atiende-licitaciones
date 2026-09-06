@@ -1,9 +1,36 @@
-import { expect, afterEach, afterAll, beforeAll } from "vitest";
+import { expect, afterEach, afterAll, beforeAll, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 import * as jestDomMatchers from "@testing-library/jest-dom/matchers";
 import * as axeMatchers from "vitest-axe/matchers";
 import { clearTokens, writeStoredOrgId } from "@/lib/api/session";
 import { server } from "@/test/msw";
+
+// RF-03 (ConfiguracionPage.tsx, TotpQrCode): `qrcode` dibuja el QR real del
+// 2FA sobre un <canvas> real. jsdom no implementa
+// `HTMLCanvasElement.prototype.getContext` (falta el paquete opcional
+// `canvas` nativo): cualquier prueba que renderice esa pantalla sin mockear
+// `qrcode` disparaba "Error: Not implemented: HTMLCanvasElement.prototype.
+// getContext" en cada intento de dibujar (ver docs/logs/ci-local-4.log).
+// Se descarta a propósito stubear `HTMLCanvasElement.prototype.getContext`
+// aquí: axe-core (vitest-axe, usado en varias pruebas de accesibilidad de
+// esta suite) llama a ese MISMO método para detectar ligaduras de icono en
+// su regla de contraste de color -- fingir un contexto 2D "suficiente" para
+// `qrcode` cambiaría también ese resultado de axe-core en pruebas que nada
+// tienen que ver con el QR, un efecto colateral fuera de este arreglo. En
+// su lugar se mockea el módulo `qrcode` completo: `toCanvas` resuelve sin
+// dibujar nada real (jsdom no puede pintarlo de todas formas), dejando el
+// componente en su camino feliz en vez de su `catch` de último recurso. La
+// prueba RF-03 (ConfiguracionPage.test.tsx) que sí necesita verificar la
+// llamada real usa su propio `vi.spyOn` sobre este mismo mock; la
+// generación visual real la cubre `test:e2e` (navegador real, canvas real).
+vi.mock("qrcode", () => ({
+  default: {
+    toCanvas: vi.fn().mockResolvedValue(undefined),
+    toDataURL: vi.fn().mockResolvedValue(""),
+    toString: vi.fn().mockResolvedValue(""),
+    create: vi.fn(),
+  },
+}));
 
 // Se extiende `expect` manualmente con los matchers en vez de usar el import
 // de conveniencia "@testing-library/jest-dom/vitest" (o "vitest-axe/extend-expect"):
