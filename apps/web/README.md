@@ -137,11 +137,25 @@ extremo). Se conecta todo desde `apps/web` en la misma ronda:
   filtro por `correlationId` y un botón "Ver traza" por fila para
   reconstruir el flujo completo (perfil → tarifa → propuesta →
   checklist → aprobación → paquete) desde un solo evento.
-- **E2E real con 2FA**: `e2e/expediente-flujo-completo.spec.ts` enrola
-  2FA de verdad (mismo algoritmo TOTP que `apps/api`, vía `otplib`
-  como devDependency de `apps/web`) antes de las dos aprobaciones con
-  step-up, y reutiliza códigos de respaldo de un solo uso para
-  completarlas — nunca simula el segundo factor.
+- **E2E real con 2FA**: el enrolamiento (mismo algoritmo TOTP que
+  `apps/api`, vía `otplib` como devDependency de `apps/web`) ocurre UNA
+  SOLA VEZ en `e2e/global-setup.ts` — un único proceso Node, ejecutado
+  antes de que arranque cualquier test — y el secreto queda persistido en
+  `.artifacts/seed.json`, nunca solo en memoria de un archivo de prueba.
+  **Corrección real encontrada**: una primera versión enrolaba 2FA desde
+  un test vía UI, cacheando el secreto/códigos de respaldo en un módulo
+  compartido; asumía que `workers: 1` (modo "full") bastaba para que ese
+  estado sobreviviera entre archivos y reintentos, pero Playwright
+  reintenta un test fallido en un worker **nuevo** por defecto, perdiendo
+  la caché en memoria mientras el enrolamiento del lado del servidor
+  seguía existiendo — el guard del helper fallaba con "ya tiene 2FA
+  enrolado pero este worker no cacheó". Ahora `e2e/two-factor-helpers.ts`
+  solo expone `getAdminStepUpCode(seed)` (calcula un código TOTP VIGENTE
+  en el momento de cada llamada, leyendo siempre `seed.json`) y
+  `completeStepUp(page, code)`, usados por
+  `e2e/ronda3-flujo-real.spec.ts` y `e2e/expediente-flujo-completo.spec.ts`
+  — nunca se reutiliza un código ya usado, así que ni el rechazo de replay
+  de `apps/api` ni un reintento de Playwright rompen el flujo.
 
 ## Ronda 4 — correcciones de la auditoría adversarial (WI-01..05)
 
