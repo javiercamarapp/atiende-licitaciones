@@ -80,3 +80,4 @@
 2026-09-06 04:13  DESPERTAR  #66 (web fix) reanudado tras estancamiento; clasificador intermitente; en curso #64,#66.
 2026-09-06 04:18  INCIDENTE  429 del servidor cortó #64 (api ronda 4) tras suite completa exit 0; reanudado para cierre documental; en curso #64,#66.
 2026-09-06 04:19  INCIDENTE  429 del servidor cortó #64 y #66; reanudados por SendMessage; en curso #64,#66.
+2026-09-06 04:22  DESPERTAR  web fix (#66) completado: 79 unit, E2E full 97/0; INC-09 leve; en curso #64 (cierre documental api ronda 4).
