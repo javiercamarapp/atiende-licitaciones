@@ -38,3 +38,4 @@
 2026-09-05 20:43  LATIDO-CRON  a1c165a2 disparó; bucle dinámico ScheduleWakeup VIVO (próximo despertar programado); 6 agentes sonnet en curso (#14,#31,#32,#33,#34,#35); sin acción adicional.
 2026-09-05 20:44  DESPERTAR  reverificación 2 agents (#33): AG-17/18 cerrados, AG-19/20 parciales + AG-21/22; corrector vuelta 3 (#36) despachado; en curso #14,#31,#32,#34,#35.
 2026-09-05 20:47  DESPERTAR  reverificación sources (#32): 7C/3P + 7 nuevos (2 ALTA); corrector vuelta 2 (#37) despachado; en curso #14,#31,#34,#35,#36.
+2026-09-05 20:47  DESPERTAR  corrector expediente vuelta 2 (#31) 364/364; reverificador 2 (#38) despachado; en curso #14,#34,#35,#36,#37.
