@@ -89,6 +89,17 @@ const API_PROXY_PATHS = [
   "/admin",
   "/expediente",
   "/audit-log",
+  // Ronda 8b (REQ-181..196): preferencias/baja de un clic (`/mail/*`) y
+  // formulario de contacto público (`/public/contact`). Sin esto quedaban
+  // como peticiones cross-origin reales en `test:e2e:full`, expuestas al
+  // mismo bug de CORS de apps/api que este proxy mitiga para el resto.
+  // Ninguna PANTALLA de la SPA cuelga de estos dos prefijos (las de correo
+  // son /verificar-correo, /restablecer-contrasena, /recuperar-contrasena,
+  // /revisa-tu-correo, /invitaciones/aceptar, /preferencias/baja y
+  // /unsubscribe), así que no necesitan entrar en
+  // SPA_ROUTES_UNDER_PROXIED_PREFIXES.
+  "/mail",
+  "/public",
   "/healthz",
   "/readyz",
   "/docs",

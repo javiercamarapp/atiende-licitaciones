@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { UserPlus } from "lucide-react";
-import { Link, Navigate, useLocation } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 
 import { AtiendeWordmark } from "@/components/AtiendeLogo";
 import { SkipLink } from "@/components/SkipLink";
@@ -12,7 +12,9 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { ErrorState } from "@/components/ui/error-state";
 import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
+import { ApiError } from "@/lib/api/http";
 import { register as registerAccount } from "@/lib/api/auth";
+import { redirectAfterAuth } from "@/lib/redirectAfterAuth";
 import { useAuth, describeApiError } from "@/hooks/useAuth";
 import { useDocumentMeta } from "@/hooks/useDocumentMeta";
 import { toast } from "@/components/ui/sonner";
@@ -54,14 +56,19 @@ type RegistroValues = z.infer<typeof registroSchema>;
  * contraseña, ese login falla con el 401 real de la API y el usuario ve el
  * motivo honesto en vez de una falsa confirmación.
  *
- * REQ-181..195: apps/api dispara el correo de verificación aquí (sin
- * esperarlo, ver la ruta) — la pantalla de "verifica tu correo" en sí queda
- * para la ronda 8b (ver apps/web/README.md).
+ * REQ-181 (ronda 8b): apps/api dispara el correo de verificación al
+ * registrar (sin esperarlo). Con la compuerta activa —el valor por defecto—
+ * el login encadenado responde `403 email-not-verified`, y eso NO es un
+ * fallo: es la señal de que la cuenta quedó creada y falta confirmar el
+ * correo. Ese caso lleva a `/revisa-tu-correo` (RevisaTuCorreoPage.tsx), que
+ * también ofrece reenviar el enlace. Con la compuerta apagada
+ * (`REQUIRE_EMAIL_VERIFICATION=false`) el login entra directo, como antes.
  */
 export default function RegistroPage() {
   useDocumentMeta({ title: "Crear cuenta" });
   const { status, login } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const form = useForm<RegistroValues>({
@@ -72,8 +79,7 @@ export default function RegistroPage() {
   // Mismo criterio que LoginPage: con sesión ya activa esta pantalla no
   // tiene nada que hacer.
   if (status === "authenticated") {
-    const from = (location.state as { from?: { pathname: string } } | null)?.from?.pathname ?? "/panel";
-    return <Navigate to={from} replace />;
+    return <Navigate to={redirectAfterAuth(location.state)} replace />;
   }
 
   const onSubmit = async (values: RegistroValues) => {
@@ -88,6 +94,17 @@ export default function RegistroPage() {
       await login({ email: values.email, password: values.password });
       toast.success("Cuenta lista. Te llevamos al siguiente paso.");
     } catch (err) {
+      // REQ-181 (ronda 8b): con la compuerta de verificación ACTIVA
+      // (`REQUIRE_EMAIL_VERIFICATION`, el valor por defecto de apps/api),
+      // este login encadenado responde `403 email-not-verified` — no es un
+      // fallo del registro, es exactamente el flujo esperado: la cuenta
+      // quedó creada y el correo de confirmación salió. Se lleva al usuario
+      // al aviso "revisa tu correo" (que además ofrece reenviarlo) en vez de
+      // mostrarle un error rojo por algo que salió bien.
+      if (err instanceof ApiError && err.status === 403 && (err.type ?? "").includes("email-not-verified")) {
+        navigate("/revisa-tu-correo", { state: { email: values.email, motivo: "registro" } });
+        return;
+      }
       setError(describeApiError(err));
     } finally {
       setSubmitting(false);

@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { Link, Navigate } from "react-router-dom";
 import {
   Radar,
@@ -22,7 +25,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useAuth } from "@/hooks/useAuth";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { ErrorState } from "@/components/ui/error-state";
+import { submitContactRequest } from "@/lib/api/public";
+import { useAuth, describeApiError } from "@/hooks/useAuth";
 import { useDocumentMeta } from "@/hooks/useDocumentMeta";
 
 /**
@@ -394,19 +400,79 @@ function FaqSection() {
 }
 
 /**
- * "Solicitar demo" (docs/investigacion/salida-promocion-referencias.md):
- * NO hay ningún endpoint de contacto en apps/api (se verificó el listado
- * completo de rutas en apps/api/README.md) — enviar este formulario a
- * cualquier lado sería fingir una integración que no existe. En vez de
- * ocultar la sección o simular un envío exitoso, los campos son
- * capturables (para que quien la use vea la forma real que tendrá) pero el
- * botón de enviar queda deshabilitado con una nota honesta + un canal de
- * contacto real (correo) como alternativa mientras tanto. Ver
- * docs/BACKLOG.md — pendiente para una ronda futura: `POST
- * /contact/demo-request` (o equivalente) en apps/api.
+ * REQ-196 (ronda 8b): "Solicitar demo" contra `POST /public/contact`, REAL.
+ *
+ * En la ronda 7 esta sección tenía los campos capturables pero el botón
+ * deshabilitado con una nota honesta: no existía ningún endpoint de
+ * contacto en apps/api y simular un envío exitoso habría sido fingir una
+ * integración. Ese endpoint ya existe (Ampliación 2 §2), así que la nota
+ * desaparece porque dejó de ser cierta — no porque se haya decidido
+ * ocultarla.
+ *
+ * Tres cosas que este formulario respeta del contrato REAL de la API
+ * (apps/api/src/modules/public/contact.routes.ts):
+ *
+ *  1. **Honeypot `website`.** Se pinta de verdad en el DOM (fuera de la
+ *     pantalla, `tabIndex={-1}`, `autoComplete="off"`, `aria-hidden`) para
+ *     que un bot que rellena todo lo rellene también. Si llega con
+ *     contenido, la API descarta la petición EN SILENCIO: mismo 202, sin
+ *     registro ni correo. Esta pantalla tampoco avisa de nada — decirle
+ *     "detectamos un bot" a un bot solo le enseña a evitar el campo.
+ *  2. **Las longitudes del esquema del servidor**, ni más estrictas ni más
+ *     laxas: nombre 2-120, correo válido ≤254, empresa ≤160, mensaje
+ *     10-4000. Validarlas aquí evita un 422 que no aporta nada; la validez
+ *     de verdad la decide el servidor igual.
+ *  3. **El 429 se muestra tal cual.** El límite del tier `auth` (5/min por
+ *     IP) es lo que impide usar este endpoint anónimo —que MANDA CORREO—
+ *     como cañón de spam, así que el cliente no lo reintenta a espaldas de
+ *     nadie (`retries = 0`, ver lib/api/public.ts).
+ *
+ * Lo que la pantalla NO afirma: que alguien vaya a leerlo en un plazo
+ * concreto. La API deja el registro en `contact_requests` y manda un correo
+ * interno; el resto es una promesa comercial que este código no puede
+ * garantizar.
  */
+const contactoSchema = z.object({
+  name: z.string().trim().min(2, "Escribe tu nombre.").max(120, "Máximo 120 caracteres."),
+  email: z.string().min(1, "Escribe tu correo.").email("Escribe un correo válido.").max(254, "Máximo 254 caracteres."),
+  company: z.string().trim().max(160, "Máximo 160 caracteres.").optional(),
+  message: z.string().trim().min(10, "Cuéntanos un poco más (mínimo 10 caracteres).").max(4000, "Máximo 4000 caracteres."),
+});
+type ContactoValues = z.infer<typeof contactoSchema>;
+
 function DemoRequestSection() {
-  const [form, setForm] = useState({ name: "", email: "", company: "", message: "" });
+  const [enviado, setEnviado] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
+  // El honeypot vive FUERA de react-hook-form a propósito: no es un campo
+  // del usuario, no se valida y no debe aparecer en los errores del
+  // formulario si un bot lo llena.
+  const [honeypot, setHoneypot] = useState("");
+  const form = useForm<ContactoValues>({
+    resolver: zodResolver(contactoSchema),
+    defaultValues: { name: "", email: "", company: "", message: "" },
+  });
+
+  const onSubmit = async (values: ContactoValues) => {
+    setError(null);
+    setEnviando(true);
+    try {
+      const company = values.company?.trim();
+      await submitContactRequest({
+        name: values.name,
+        email: values.email,
+        message: values.message,
+        ...(company ? { company } : {}),
+        website: honeypot,
+      });
+      setEnviado(true);
+      form.reset();
+    } catch (err) {
+      setError(describeApiError(err));
+    } finally {
+      setEnviando(false);
+    }
+  };
 
   return (
     <section id="demo" className="border-t border-border bg-muted/40 py-16 sm:py-20">
@@ -418,7 +484,7 @@ function DemoRequestSection() {
           </p>
           <p className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
             <Mail className="h-4 w-4 shrink-0" aria-hidden="true" />
-            Mientras tanto, escríbenos directamente a{" "}
+            También puedes escribirnos directamente a{" "}
             <a href="mailto:hola@atiende.mx" className="font-medium text-primary underline-offset-4 hover:underline">
               hola@atiende.mx
             </a>
@@ -426,57 +492,107 @@ function DemoRequestSection() {
         </div>
         <Card>
           <CardContent className="pt-6">
-            <form
-              className="space-y-4"
-              onSubmit={(event) => {
-                // No hay backend de contacto todavía (ver docstring de la
-                // función): el botón está deshabilitado, así que este
-                // manejador nunca debería dispararse — se conserva solo
-                // como defensa en profundidad (p. ej. Enter dentro de un
-                // campo) para no navegar a ningún lado si algún día se
-                // habilita sin código de envío real.
-                event.preventDefault();
-              }}
-            >
-              <div>
-                <label htmlFor="demo-name" className="mb-1.5 block text-sm font-medium text-foreground">
-                  Nombre
-                </label>
-                <Input id="demo-name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} autoComplete="name" />
+            {enviado ? (
+              <div className="space-y-4">
+                <div role="status" className="rounded-2xl border border-border bg-card p-4 text-sm">
+                  <p className="font-medium text-foreground">Recibimos tu mensaje.</p>
+                  <p className="mt-1 text-muted-foreground">
+                    Queda registrado y le llega un aviso al equipo. Te contactamos al correo que dejaste.
+                  </p>
+                </div>
+                <Button type="button" variant="outline" className="w-full" onClick={() => setEnviado(false)}>
+                  Enviar otro mensaje
+                </Button>
               </div>
-              <div>
-                <label htmlFor="demo-email" className="mb-1.5 block text-sm font-medium text-foreground">
-                  Correo de trabajo
-                </label>
-                <Input
-                  id="demo-email"
-                  type="email"
-                  value={form.email}
-                  onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                  autoComplete="email"
-                />
-              </div>
-              <div>
-                <label htmlFor="demo-company" className="mb-1.5 block text-sm font-medium text-foreground">
-                  Empresa
-                </label>
-                <Input id="demo-company" value={form.company} onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))} autoComplete="organization" />
-              </div>
-              <div>
-                <label htmlFor="demo-message" className="mb-1.5 block text-sm font-medium text-foreground">
-                  ¿Qué tipo de convocatorias te interesan?
-                </label>
-                <Textarea id="demo-message" rows={3} value={form.message} onChange={(e) => setForm((f) => ({ ...f, message: e.target.value }))} />
-              </div>
-              <Button type="submit" className="w-full" disabled title="Formulario aún no conectado a un backend de contacto">
-                Enviar solicitud
-              </Button>
-              <p className="text-xs text-muted-foreground" role="status">
-                Este formulario todavía no está conectado a ningún backend de contacto — envío deshabilitado a
-                propósito. Se habilitará cuando exista un endpoint real de contacto (ver nota de alcance en el pie de
-                página).
-              </p>
-            </form>
+            ) : (
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Nombre</FormLabel>
+                        <FormControl>
+                          <Input autoComplete="name" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Correo de trabajo</FormLabel>
+                        <FormControl>
+                          <Input type="email" autoComplete="email" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="company"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Empresa (opcional)</FormLabel>
+                        <FormControl>
+                          <Input autoComplete="organization" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="message"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>¿Qué tipo de convocatorias te interesan?</FormLabel>
+                        <FormControl>
+                          <Textarea rows={3} {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Honeypot: invisible para una persona (fuera de la
+                      pantalla, sin foco ni lectura por lector de pantalla),
+                      pero un campo real del DOM que un bot rellenará. Se
+                      manda SIEMPRE; vacío en un envío legítimo. No se usa
+                      `display:none` porque algunos bots ignoran los campos
+                      ocultos de esa forma. */}
+                  <div aria-hidden="true" className="absolute left-[-9999px] top-auto h-px w-px overflow-hidden">
+                    <label htmlFor="contacto-website">No llenes este campo</label>
+                    <input
+                      id="contacto-website"
+                      name="website"
+                      type="text"
+                      tabIndex={-1}
+                      autoComplete="off"
+                      value={honeypot}
+                      onChange={(event) => setHoneypot(event.target.value)}
+                    />
+                  </div>
+
+                  {error && <ErrorState message={error} onRetry={() => setError(null)} />}
+                  <Button type="submit" className="w-full" disabled={enviando}>
+                    {enviando ? "Enviando…" : "Enviar solicitud"}
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Al enviarlo guardamos tu mensaje para poder responderte. Consulta el{" "}
+                    <Link to="/privacidad" className="underline underline-offset-4">
+                      aviso de privacidad
+                    </Link>
+                    .
+                  </p>
+                </form>
+              </Form>
+            )}
           </CardContent>
         </Card>
       </div>

@@ -32,6 +32,21 @@ export function isNotFoundOrForbidden(err: unknown): boolean {
   return err instanceof ApiError && (err.status === 403 || err.status === 404);
 }
 
+/**
+ * Ronda 8b: un 429 de `apps/api` NO trae un mensaje presentable. El límite
+ * lo aplica `@fastify/rate-limit` (nunca un `AppError` propio), así que el
+ * manejador de errores de la API cae en su rama genérica y el `title` que
+ * llega es el literal en inglés del plugin ("Rate limit exceeded, retry in
+ * 1 minute") — verificado en apps/api/src/plugins/error-handler.ts. Las
+ * pantallas que disparan las rutas del tier `auth` (recuperación,
+ * reenvío de verificación, contacto público) lo detectan con esto y
+ * escriben su propio mensaje honesto en español, en vez de mostrarle al
+ * usuario el texto interno de una dependencia.
+ */
+export function isRateLimited(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 429;
+}
+
 interface ProblemJson {
   type?: string;
   title?: string;

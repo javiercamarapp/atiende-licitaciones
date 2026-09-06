@@ -1,5 +1,5 @@
 import { Component, Suspense, lazy, type ReactNode } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClientProvider } from "@tanstack/react-query";
 
 import { AtiendeMark } from "@/components/AtiendeLogo";
@@ -15,6 +15,18 @@ const LandingPage = lazy(() => import("@/pages/LandingPage"));
 const LoginPage = lazy(() => import("@/pages/LoginPage"));
 const RegistroPage = lazy(() => import("@/pages/RegistroPage"));
 const GoogleCallbackPage = lazy(() => import("@/pages/auth/GoogleCallbackPage"));
+// Ronda 8b (REQ-181..196): las seis pantallas públicas de los flujos de
+// correo. Cuatro de sus rutas NO son negociables desde aquí — apps/api las
+// fija al FIRMAR cada enlace (`/verificar-correo`,
+// `/restablecer-contrasena`, `/invitaciones/aceptar`, `/preferencias/baja`,
+// ver apps/api/src/lib/mail/triggers.ts y links.ts): renombrarlas aquí
+// rompería todos los correos ya enviados.
+const VerificarCorreoPage = lazy(() => import("@/pages/auth/VerificarCorreoPage"));
+const RevisaTuCorreoPage = lazy(() => import("@/pages/auth/RevisaTuCorreoPage"));
+const RecuperarPasswordPage = lazy(() => import("@/pages/auth/RecuperarPasswordPage"));
+const RestablecerPasswordPage = lazy(() => import("@/pages/auth/RestablecerPasswordPage"));
+const AceptarInvitacionPage = lazy(() => import("@/pages/auth/AceptarInvitacionPage"));
+const PreferenciasBajaPage = lazy(() => import("@/pages/PreferenciasBajaPage"));
 const PrivacyNoticePage = lazy(() => import("@/pages/PrivacyNoticePage"));
 const TermsPage = lazy(() => import("@/pages/TermsPage"));
 const DemoPage = lazy(() => import("@/pages/DemoPage"));
@@ -121,6 +133,34 @@ export default function App() {
                       sesión. `GOOGLE_REDIRECT_URI` (apps/api) apunta AQUÍ,
                       nunca a apps/api directo — ver GoogleCallbackPage.tsx. */}
                   <Route path="/auth/google/callback" element={<GoogleCallbackPage />} />
+                  {/* REQ-181/186 (ronda 8b): flujos de correo de cuenta.
+                      PÚBLICAS por necesidad — quien abre uno de estos
+                      enlaces, por definición, no puede iniciar sesión
+                      todavía (o ni siquiera tiene cuenta). La barrera real
+                      es la firma HMAC del enlace + el token de un solo uso,
+                      ambos verificados en apps/api, nunca aquí. */}
+                  <Route path="/verificar-correo" element={<VerificarCorreoPage />} />
+                  <Route path="/revisa-tu-correo" element={<RevisaTuCorreoPage />} />
+                  <Route path="/recuperar-contrasena" element={<RecuperarPasswordPage />} />
+                  <Route path="/restablecer-contrasena" element={<RestablecerPasswordPage />} />
+                  {/* Aceptar la invitación SÍ exige sesión (la API da de alta
+                      a un usuario concreto y valida que el correo coincida),
+                      pero la ruta es pública: la pantalla ofrece entrar o
+                      crear cuenta conservando el enlace firmado, en vez de
+                      rebotar a /login y perderlo. */}
+                  <Route path="/invitaciones/aceptar" element={<AceptarInvitacionPage />} />
+                  {/* Baja de un clic (RFC 8058). `/preferencias/baja` es la
+                      ruta que firma apps/api en el pie de cada correo
+                      opcional; `/unsubscribe` es un alias en inglés para el
+                      enlace que un cliente de correo pueda mostrar. */}
+                  <Route path="/preferencias/baja" element={<PreferenciasBajaPage />} />
+                  <Route path="/unsubscribe" element={<PreferenciasBajaPage />} />
+                  {/* `buildPreferencesUrl` (apps/api) apunta a /preferencias:
+                      el centro de preferencias real vive dentro de
+                      /configuracion (exige sesión), así que esta ruta solo
+                      redirige allí — RequireAuth se encarga de pedir login
+                      si hace falta. */}
+                  <Route path="/preferencias" element={<Navigate to="/configuracion" replace />} />
                   {/* REQ-119/131: accesible SIN sesión, como cualquier aviso de
                       privacidad real (debe poder consultarse antes de crear
                       una cuenta). */}

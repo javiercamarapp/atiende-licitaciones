@@ -32,6 +32,24 @@ export async function acceptInvitation(token: string): Promise<{ orgId: string; 
   return apiRequest("/organizations/invitations/accept", { method: "POST", body: { token } });
 }
 
+/**
+ * REQ-186 (ronda 8b): aceptar la invitación desde el ENLACE FIRMADO del
+ * correo. Es el mismo endpoint y la misma credencial que `acceptInvitation`
+ * — no hay dos tokens, hay dos formas de presentar el mismo: el token en
+ * claro (lo que devuelve `POST /organizations/invitations` una única vez, y
+ * lo que teclea quien lo recibió por otro canal) o el par `d`/`s` del
+ * enlace, cuyo payload firmado LO CONTIENE. Mandar `d`/`s` es
+ * estrictamente mejor: la API verifica firma y expiración ANTES de tocar
+ * `app.accept_invitation` (ver apps/api/src/modules/organizations/routes.ts).
+ *
+ * Exige sesión: la invitación se acepta PARA un usuario concreto y la API
+ * comprueba que el correo de la sesión coincide con el de la invitación
+ * (401 `invitation_email_mismatch` si no).
+ */
+export async function acceptInvitationFromLink(params: { d: string; s: string }): Promise<{ orgId: string; role: OrgRole }> {
+  return apiRequest("/organizations/invitations/accept", { method: "POST", body: params });
+}
+
 // --- memberships (ronda 4: GET /organizations/:orgId/memberships) --------------
 // Antes (ronda 3) esta pantalla ("Usuarios y roles") quedaba honestamente
 // vacía: `GET /organizations` solo devolvía las organizaciones del usuario

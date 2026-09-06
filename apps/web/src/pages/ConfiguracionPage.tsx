@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import QRCode from "qrcode";
-import { Settings, ShieldAlert, ShieldCheck, KeyRound } from "lucide-react";
+import { Settings, ShieldAlert, ShieldCheck, KeyRound, BellRing } from "lucide-react";
 
 import { SectionHeader } from "@/components/layout/SectionHeader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +16,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { toast } from "@/components/ui/sonner";
 import { describeApiError } from "@/hooks/useAuth";
 import { useTwoFactorStatus, useEnrollTwoFactor, useVerifyTwoFactorEnrollment } from "@/hooks/useTwoFactor";
+import { useNotificationPreferences, useUpdateNotificationPreferences } from "@/hooks/useNotificationPreferences";
+import type { NotificationPreferences } from "@/lib/api/mail";
 import { formatDateTimeMx } from "@/lib/datetime";
 import type { EnrollTwoFactorResponse } from "@/lib/api/schemas";
 
@@ -217,6 +219,113 @@ function TwoFactorSection() {
   );
 }
 
+
+/**
+ * Las 8 categorías APAGABLES, en el mismo orden y con las mismas claves
+ * (camelCase) que devuelve `GET /mail/preferences` — que son
+ * `OPTIONAL_CATEGORIES` de apps/api traducidas por `COLUMN_TO_KEY`. La
+ * lista es cerrada: una categoría que la API no conozca no se puede
+ * inventar aquí (el `PUT` la rechazaría con 422).
+ */
+const CATEGORIAS_NOTIFICACION: { key: keyof NotificationPreferences; label: string; description: string }[] = [
+  { key: "tenderMatches", label: "Convocatorias que coinciden con tu perfil", description: "Cuando el matching encuentra una convocatoria relevante para tu empresa." },
+  { key: "tenderChanges", label: "Cambios en convocatorias que sigues", description: "Modificaciones de bases, prórrogas y aclaraciones." },
+  { key: "approvals", label: "Aprobaciones pendientes", description: "Cuando alguien de tu organización necesita tu aprobación." },
+  { key: "submission", label: "Presentación y entrega", description: "Paquete listo para descargar y recordatorios de presentación." },
+  { key: "deadlines", label: "Plazos próximos a vencer", description: "Fechas límite de convocatorias en las que participas." },
+  { key: "documentExpiration", label: "Vencimiento de documentos", description: "Documentos de la empresa que están por caducar." },
+  { key: "postAward", label: "Seguimiento post-adjudicación", description: "Plazos de contrato, entregas y pagos tras una adjudicación." },
+  { key: "weeklySummary", label: "Resumen semanal", description: "Un correo con lo que pasó en tus convocatorias esta semana." },
+];
+
+/**
+ * REQ-187 (ronda 8b): centro de preferencias de notificación
+ * (`GET`/`PUT /mail/preferences`).
+ *
+ * Es una lista de EXCLUSIÓN, no de opt-in: sin fila en
+ * `notification_preferences` todo llega activado (ver
+ * `DEFAULT_NOTIFICATION_PREFERENCES` en packages/mail). Un aviso de plazo
+ * que nunca llegó porque nadie marcó una casilla es peor que uno de más —
+ * por eso los interruptores arrancan encendidos y lo que el usuario hace
+ * aquí es APAGAR.
+ *
+ * Cada interruptor manda su propia categoría (`PUT` parcial: las omitidas
+ * se dejan como estaban) y pinta lo que DEVUELVE el servidor, nunca un
+ * estado optimista: si el `PUT` falla, la casilla se queda donde estaba en
+ * vez de mentir sobre un cambio que no se guardó.
+ */
+function NotificationPreferencesSection() {
+  const { data: preferences, isLoading, isError, error, refetch } = useNotificationPreferences();
+  const update = useUpdateNotificationPreferences();
+  const [pendiente, setPendiente] = useState<keyof NotificationPreferences | null>(null);
+
+  const onToggle = async (key: keyof NotificationPreferences, value: boolean) => {
+    setPendiente(key);
+    try {
+      await update.mutateAsync({ [key]: value } as Partial<NotificationPreferences>);
+    } catch (err) {
+      toast.error(describeApiError(err));
+    } finally {
+      setPendiente(null);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <BellRing className="h-5 w-5 text-primary" aria-hidden="true" />
+          Notificaciones por correo
+        </CardTitle>
+        <CardDescription>
+          Todas llegan activadas: aquí apagas las que no quieras. El cambio aplica a tu cuenta, en todas tus
+          organizaciones.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isLoading && <LoadingState label="Cargando tus preferencias…" />}
+        {isError && <ErrorState message={describeApiError(error)} onRetry={() => refetch()} />}
+
+        {preferences && (
+          <ul className="space-y-3">
+            {CATEGORIAS_NOTIFICACION.map((categoria) => (
+              <li key={categoria.key} className="flex items-start gap-3 rounded-xl border border-border p-3">
+                <input
+                  id={`pref-${categoria.key}`}
+                  type="checkbox"
+                  className="mt-1 h-4 w-4 shrink-0 accent-[hsl(var(--primary))]"
+                  checked={preferences[categoria.key]}
+                  disabled={pendiente !== null}
+                  onChange={(event) => void onToggle(categoria.key, event.target.checked)}
+                />
+                <div className="min-w-0">
+                  <label htmlFor={`pref-${categoria.key}`} className="block text-sm font-medium text-foreground">
+                    {categoria.label}
+                  </label>
+                  <p className="text-xs text-muted-foreground">{categoria.description}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {/* REQ-187: la parte que esta pantalla está obligada a decir. Los
+            correos de seguridad de cuenta (`account_security`) NO son
+            apagables -- no están en `OPTIONAL_CATEGORIES` de apps/api y
+            `isCategoryEnabled` de packages/mail ni siquiera consulta las
+            preferencias para ellos. Ocultarlo generaría la queja legítima
+            de "apagué todo y me siguen llegando correos". */}
+        <p className="rounded-xl border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">Los correos de seguridad de la cuenta no se pueden desactivar</span>{" "}
+          (confirmación de correo, restablecimiento de contraseña, activación de 2FA y códigos de respaldo): son los que te
+          avisan si alguien intenta entrar a tu cuenta. Tampoco se apagan desde el enlace de baja de un clic del pie de
+          cada correo, que solo afecta a las categorías de arriba.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
 /**
  * Ronda 8a: inventario HONESTO de lo que esta pantalla de seguridad NO
  * puede ofrecer todavía, con el motivo real de cada hueco. Se comprobó
@@ -269,10 +378,11 @@ export default function ConfiguracionPage() {
       <SectionHeader
         icon={Settings}
         title="Configuración"
-        description="Seguridad de tu cuenta. Fuentes de convocatorias, reglas de matching, notificaciones e integraciones siguen sin conectar."
+        description="Seguridad de tu cuenta y notificaciones por correo (ronda 8b). Fuentes de convocatorias, reglas de matching e integraciones siguen sin conectar."
       />
       <div className="space-y-6">
         <TwoFactorSection />
+        <NotificationPreferencesSection />
         <SecurityGapsCard />
       </div>
     </div>

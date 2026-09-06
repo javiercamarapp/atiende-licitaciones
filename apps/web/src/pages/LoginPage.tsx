@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Lock } from "lucide-react";
-import { Link, Navigate, useLocation } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 
 import { AtiendeWordmark } from "@/components/AtiendeLogo";
 import { SkipLink } from "@/components/SkipLink";
@@ -12,6 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { ErrorState } from "@/components/ui/error-state";
 import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
+import { ApiError } from "@/lib/api/http";
+import { redirectAfterAuth } from "@/lib/redirectAfterAuth";
 import { useAuth, describeApiError } from "@/hooks/useAuth";
 import { toast } from "@/components/ui/sonner";
 import "./login.css";
@@ -22,8 +24,24 @@ const passwordSchema = z.object({
 });
 type PasswordValues = z.infer<typeof passwordSchema>;
 
+/**
+ * REQ-181 (ronda 8b): la compuerta de verificación de correo de
+ * `POST /auth/login`. Es un 403 con `type` PROPIO —distinto del 401 de
+ * credenciales inválidas— justamente para que esta pantalla pueda ofrecer
+ * "reenviar confirmación" en vez de un "contraseña incorrecta" que sería
+ * mentira (apps/api/src/lib/errors.ts, `EmailNotVerifiedError`).
+ *
+ * Se comprueba el `type` y no solo el 403: cualquier otro 403 de la API
+ * (por ejemplo el de una organización sin acceso) no debe mandar al usuario
+ * a confirmar un correo que ya está confirmado.
+ */
+function esCorreoSinVerificar(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 403 && (err.type ?? "").includes("email-not-verified");
+}
+
 function PasswordLoginForm() {
   const { login } = useAuth();
+  const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const form = useForm<PasswordValues>({
@@ -38,6 +56,15 @@ function PasswordLoginForm() {
       await login(values);
       toast.success("Sesión iniciada correctamente.");
     } catch (err) {
+      if (esCorreoSinVerificar(err)) {
+        // El correo viaja en `state`, nunca en la query: es un dato personal
+        // y una URL termina en el historial y en el `Referer`. Llegar aquí
+        // ya probó que quien lo intentó sabe la contraseña de esa cuenta
+        // (la compuerta va DESPUÉS de validarla), así que mostrárselo no
+        // filtra nada a un tercero.
+        navigate("/revisa-tu-correo", { state: { email: values.email, motivo: "login" } });
+        return;
+      }
       setError(describeApiError(err));
     } finally {
       setSubmitting(false);
@@ -73,6 +100,11 @@ function PasswordLoginForm() {
             </FormItem>
           )}
         />
+        <p className="text-sm">
+          <Link to="/recuperar-contrasena" className="font-medium text-primary underline-offset-4 hover:underline">
+            ¿Olvidaste tu contraseña?
+          </Link>
+        </p>
         {error && <ErrorState message={error} onRetry={() => setError(null)} />}
         <Button type="submit" className="w-full gap-2" disabled={submitting}>
           <Lock className="h-4 w-4" aria-hidden="true" />
@@ -91,8 +123,7 @@ export default function LoginPage() {
   // recargar /login directamente), no tiene sentido mostrar el formulario:
   // se redirige a la ruta que se pedía originalmente o al panel.
   if (status === "authenticated") {
-    const from = (location.state as { from?: { pathname: string } } | null)?.from?.pathname ?? "/panel";
-    return <Navigate to={from} replace />;
+    return <Navigate to={redirectAfterAuth(location.state)} replace />;
   }
 
   return (

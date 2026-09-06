@@ -6,6 +6,7 @@ import {
   clearTokens,
   getMe,
   getTokens,
+  isRateLimited,
   listMyOrganizations,
   login as apiLogin,
   logout as apiLogout,
@@ -205,8 +206,21 @@ export function useAuth(): AuthContextValue {
   return ctx;
 }
 
+/**
+ * Ronda 8b: mensaje propio para el 429. El límite de tasa lo aplica
+ * `@fastify/rate-limit` en apps/api, NUNCA un `AppError` con texto
+ * cuidado, así que el `title` que llega es el literal en inglés del plugin
+ * ("Rate limit exceeded, retry in 1 minute") — mostrarlo tal cual sería
+ * enseñarle al usuario el mensaje interno de una dependencia. Se traduce
+ * aquí, en el único lugar por el que pasan todos los errores de API que la
+ * UI pinta.
+ */
+export const RATE_LIMIT_MESSAGE =
+  "Demasiados intentos desde esta conexión. Espera un minuto e inténtalo de nuevo: estas rutas están limitadas a 5 peticiones por minuto para que nadie las use para mandar correo en volumen.";
+
 /** Extrae un mensaje honesto de cualquier error de la capa API (incluye el request_id si la API lo trae). */
 export function describeApiError(err: unknown): string {
+  if (isRateLimited(err)) return RATE_LIMIT_MESSAGE;
   if (err instanceof ApiError) {
     return err.requestId ? `${err.message} (request_id: ${err.requestId})` : err.message;
   }
