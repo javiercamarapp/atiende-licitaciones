@@ -174,6 +174,73 @@ describe('expediente — redactor de inconformidades (REQ-053)', () => {
     expect(alreadyReviewed.statusCode).toBe(409);
   });
 
+  it('R6-07: con un feriado oficial CARGADO dentro de la ventana, el plazo de 6 días hábiles lo excluye correctamente (no solo sábado/domingo)', async () => {
+    const owner = await registerAndLogin(app, 'c053-owner-6@example.com');
+    const org = await createOrgFor(app, owner, 'C053 Org 6', 'c053-org-6');
+    const tenderId = await createTender(app, org.id, 'c053-006');
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+
+    // Carga directa de un feriado oficial "federal" (equivalente a lo que
+    // haría un superadmin vía POST /admin/calendar-holidays, ver
+    // apps/api/test/admin-calendar-holidays.test.ts) -- 2026-01-08 es
+    // jueves, un día hábil ordinario dentro de la ventana de cómputo de
+    // este caso.
+    await db.query(
+      `insert into calendar_holidays (jurisdiction, year, holiday_date, label, source_url, source_consulted_on)
+       values ('federal', 2026, '2026-01-08', 'Feriado de prueba (R6-07)', 'https://www.gob.mx/ejemplo', '2026-01-01')`
+    );
+
+    // Sin el feriado: 2026-01-05 (lunes) + 6 días hábiles = 2026-01-13
+    // (martes), ver el primer caso de este archivo. CON el feriado del
+    // 2026-01-08 (jueves) excluido además de sábado/domingo, el cómputo
+    // debe correrse un día hábil más: 2026-01-14 (miércoles).
+    const create = await app.inject({
+      method: 'POST',
+      url: `/expediente/tenders/${tenderId}/inconformidad`,
+      headers,
+      payload: {
+        falloNotifiedOn: '2026-01-05',
+        bajoTratados: false,
+        hechos: ['Se publicó el fallo el 2026-01-05.'],
+        agravios: ['El fallo no motiva ni funda el desechamiento conforme al Art. 49.'],
+        pruebas: ['Copia del fallo notificado.'],
+      },
+    });
+    expect(create.statusCode).toBe(201);
+    const draft = create.json();
+    expect(draft.plazo.diasHabiles).toBe(6);
+    expect(draft.plazo.fechaLimite).toContain('2026-01-14');
+    expect(draft.plazo.fechaLimite).not.toContain('2026-01-13');
+  });
+
+  it('R6-08: guardrail anti-frivolidad clasifica "media" cuando hay menos pruebas que agravios (sin bloquear la generación)', async () => {
+    const owner = await registerAndLogin(app, 'c053-owner-7@example.com');
+    const org = await createOrgFor(app, owner, 'C053 Org 7', 'c053-org-7');
+    const tenderId = await createTender(app, org.id, 'c053-007');
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+
+    // 2 agravios, 1 prueba: pruebas.length (1) < agravios.length (2) ->
+    // rama "media" de assessViability (ni "baja", 0 pruebas; ni "alta",
+    // una prueba por cada agravio).
+    const create = await app.inject({
+      method: 'POST',
+      url: `/expediente/tenders/${tenderId}/inconformidad`,
+      headers,
+      payload: {
+        falloNotifiedOn: '2026-01-05',
+        bajoTratados: false,
+        hechos: ['Se publicó el fallo el 2026-01-05.'],
+        agravios: ['El fallo no motiva ni funda el desechamiento conforme al Art. 49.', 'El acta de fallo omite la evaluación técnica de la propuesta.'],
+        pruebas: ['Copia del fallo notificado.'],
+      },
+    });
+    expect(create.statusCode).toBe(201); // NUNCA bloquea, solo clasifica/advierte.
+    const draft = create.json();
+    expect(draft.viability).toBe('media');
+    expect(draft.viabilityRecommendation).toContain('1 prueba');
+    expect(draft.viabilityRecommendation).toContain('2 agravio');
+  });
+
   it('viewer no puede generar un borrador de inconformidad', async () => {
     const owner = await registerAndLogin(app, 'c053-owner-5@example.com');
     const org = await createOrgFor(app, owner, 'C053 Org 5', 'c053-org-5');
