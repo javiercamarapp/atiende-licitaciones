@@ -184,7 +184,11 @@ describe("Flujo integrado del expediente de participación (A6-A15)", () => {
     expect(approvalResult.ok).toBe(true);
     expect(workflow.isFullyApproved()).toBe(true);
 
-    // 8. Ensamblado del paquete final: debe quedar "ready".
+    // 8. Ensamblado del paquete final: debe quedar "ready". Antes de
+    // ensamblar, se revalida la aprobación contra el hash ACTUAL (aquí no
+    // cambió nada, así que no invalida nada) — este es el paso que
+    // `apps/api` debe llamar en cada evaluación (REQ-162/EX-EXP-01).
+    expect(workflow.isFullyApprovedForCurrentHash(version.hash)).toBe(true);
     const assembler = new PackageAssembler();
     const { manifest, zip, suggestedFileName } = await assembler.assemble({
       expedienteId: "expediente-2026-001",
@@ -194,7 +198,6 @@ describe("Flujo integrado del expediente de participación (A6-A15)", () => {
       ],
       checklist,
       approvals: workflow.listApprovals(),
-      isFullyApproved: workflow.isFullyApprovedForCurrentHash(version.hash),
       currentInputsHash: version.hash,
     });
 
@@ -243,7 +246,6 @@ describe("Flujo integrado del expediente de participación (A6-A15)", () => {
       documents: [{ documentId: "tecnica", label: "Propuesta técnica", required: true, filename: "tecnica.pdf", content: "x" }],
       checklist,
       approvals: workflow.listApprovals(),
-      isFullyApproved: workflow.isFullyApprovedForCurrentHash("h"),
       currentInputsHash: "h",
     });
 

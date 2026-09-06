@@ -57,7 +57,6 @@ function assembleInputFor(overrides: Partial<AssembleInput>): AssembleInput {
     documents: [{ documentId: "economica", label: "Propuesta económica", required: true, filename: "economica.pdf", content: "x" }],
     checklist: GREEN_CHECKLIST,
     approvals: [],
-    isFullyApproved: false,
     currentInputsHash: "",
     ...overrides,
   };
@@ -132,9 +131,7 @@ describe("EX-EXP-01: invalidación automática de la aprobación cuando cambia u
       },
     ];
     const assembler = new PackageAssembler();
-    const { manifest } = await assembler.assemble(
-      assembleInputFor({ approvals: staleApprovals, isFullyApproved: true, currentInputsHash: versionV2.hash }),
-    );
+    const { manifest } = await assembler.assemble(assembleInputFor({ approvals: staleApprovals, currentInputsHash: versionV2.hash }));
 
     expect(manifest.status).toBe("draft");
     expect(manifest.watermark).toBe("BORRADOR");
@@ -144,7 +141,7 @@ describe("EX-EXP-01: invalidación automática de la aprobación cuando cambia u
     // ensamblado normal (usando el estado real post-revalidación) también
     // queda en "draft".
     const { manifest: manifestReal } = await assembler.assemble(
-      assembleInputFor({ approvals: workflow.listApprovals(), isFullyApproved: workflow.isFullyApproved(), currentInputsHash: versionV2.hash }),
+      assembleInputFor({ approvals: workflow.listApprovals(), currentInputsHash: versionV2.hash }),
     );
     expect(manifestReal.status).toBe("draft");
   });

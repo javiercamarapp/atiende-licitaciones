@@ -56,22 +56,29 @@ export interface AssembleInput {
   documents: PackageDocumentInput[];
   checklist: ChecklistReport;
   approvals: Approval[];
-  /** El expediente se considera aprobado de punta a punta si hay una aprobación vigente de alcance "expediente". */
-  isFullyApproved: boolean;
   /**
    * Hash ACTUAL de los insumos cubiertos por el alcance "expediente" (p. ej.
    * `ProposalVersionRegistry.latest().hash`, recalculado justo antes de
    * ensamblar — tarifas, documentos, datos de empresa, versión de bases).
    * El assembler lo compara contra el `inputsHash` registrado en cada
-   * aprobación: aunque `isFullyApproved` diga que sí y exista una
-   * aprobación `"vigente"`, si su hash no coincide con el actual NUNCA
-   * cuenta como válida (REQ-161/REQ-162/EX-EXP-01) — protege contra que el
-   * llamador haya olvidado invalidar la aprobación (vía
+   * aprobación: si su hash no coincide con el actual NUNCA cuenta como
+   * válida (REQ-161/REQ-162/EX-EXP-01) — protege contra que el llamador
+   * haya olvidado invalidar la aprobación (vía
    * `ApprovalWorkflow.revalidateAgainstCurrentHash`) tras un cambio de
    * insumos.
    */
   currentInputsHash: string;
 }
+
+/**
+ * NOTA (REQ-159/REQ-163/EX-EXP-02): deliberadamente NO existe un campo
+ * `isFullyApproved: boolean` en `AssembleInput`. Antes de esta corrección,
+ * el assembler confiaba en un booleano calculado por el llamador (que podía
+ * estar mal calculado, o simplemente forzado a `true`) sin verificar por sí
+ * mismo el `scope` de la aprobación. Ahora "¿está aprobado?" se DERIVA
+ * exclusivamente de `approvals` dentro de `buildManifest` — nunca se
+ * declara desde afuera.
+ */
 
 export interface AssembleResult {
   manifest: PackageManifest;
@@ -98,14 +105,18 @@ export class PackageAssembler {
 
     const checklistOk = input.checklist.overallStatus === "verde";
     const noMissing = missing.length === 0;
-    // REQ-161/REQ-162/EX-EXP-01: una aprobación "vigente" NO basta por sí
-    // sola — su `inputsHash` debe coincidir exactamente con el hash ACTUAL
-    // de los insumos que el llamador acaba de recalcular. Si alguien
-    // triplicó una tarifa después de aprobar y olvidó invalidar la
-    // aprobación, el hash ya no calza y el assembler lo detecta aquí,
-    // independientemente de lo que diga `isFullyApproved`.
-    const hashValidApproval = input.approvals.find((a) => a.status === "vigente" && a.inputsHash === input.currentInputsHash);
-    const approvedOk = input.isFullyApproved && hashValidApproval !== undefined;
+    // REQ-159/REQ-163/EX-EXP-02: "aprobado" se DERIVA aquí, nunca se acepta
+    // como booleano declarado por el llamador — debe existir una aprobación
+    // cuyo `scope` sea EXACTAMENTE "expediente" (una aprobación de
+    // "documento"/"sección" nunca basta, sin importar cuántas haya).
+    // REQ-161/REQ-162/EX-EXP-01: además, su `inputsHash` debe coincidir con
+    // el hash ACTUAL de los insumos que el llamador acaba de recalcular; si
+    // alguien cambió una tarifa después de aprobar y olvidó invalidar la
+    // aprobación, el hash ya no calza y el assembler lo detecta aquí.
+    const hashValidExpedienteApproval = input.approvals.find(
+      (a) => a.scope === "expediente" && a.status === "vigente" && a.inputsHash === input.currentInputsHash,
+    );
+    const approvedOk = hashValidExpedienteApproval !== undefined;
 
     // Regla dura REQ-163/REQ-159: "ready" únicamente cuando las tres
     // condiciones se cumplen simultáneamente. Cualquier combinación de
@@ -116,15 +127,15 @@ export class PackageAssembler {
     if (status === "draft") {
       if (!checklistOk) draftReasons.push(`checklist_no_verde:${input.checklist.overallStatus}`);
       if (!noMissing) draftReasons.push(`documentos_faltantes:${missing.join(",")}`);
-      if (!input.isFullyApproved) {
-        draftReasons.push("sin_aprobacion_completa_declarada");
-      } else if (!hashValidApproval) {
-        const vigentes = input.approvals.filter((a) => a.status === "vigente");
-        draftReasons.push(
-          vigentes.length === 0
-            ? "sin_aprobacion_vigente"
-            : `aprobacion_vigente_con_hash_insumos_divergente:aprobado=${vigentes.map((a) => a.inputsHash).join("|")}:actual=${input.currentInputsHash}`,
-        );
+      if (!approvedOk) {
+        const vigentesExpediente = input.approvals.filter((a) => a.scope === "expediente" && a.status === "vigente");
+        if (vigentesExpediente.length === 0) {
+          draftReasons.push("sin_aprobacion_vigente_de_alcance_expediente");
+        } else {
+          draftReasons.push(
+            `aprobacion_vigente_con_hash_insumos_divergente:aprobado=${vigentesExpediente.map((a) => a.inputsHash).join("|")}:actual=${input.currentInputsHash}`,
+          );
+        }
       }
     }
 

@@ -45,7 +45,6 @@ function baseInput(overrides: Partial<AssembleInput> = {}): AssembleInput {
     ],
     checklist: GREEN_CHECKLIST,
     approvals: [approvalVigente()],
-    isFullyApproved: true,
     currentInputsHash: "hash-1",
     ...overrides,
   };
@@ -89,7 +88,7 @@ describe("PackageAssembler — A13 expediente completo descargable (REQ-048/REQ-
 
   it("nunca produce 'ready' por defecto: un assemble sin aprobaciones vigentes de alcance expediente es 'draft'", async () => {
     const assembler = new PackageAssembler();
-    const { manifest } = await assembler.assemble(baseInput({ isFullyApproved: false, approvals: [] }));
+    const { manifest } = await assembler.assemble(baseInput({ approvals: [] }));
     expect(manifest.status).toBe("draft");
   });
 });
@@ -101,11 +100,10 @@ describe("PackageAssembler — A14 expediente incompleto nunca 'listo' (REQ-159/
       "documento obligatorio faltante",
       { documents: [{ documentId: "tecnica", label: "Propuesta técnica", required: true, filename: "tecnica.pdf", content: undefined }] },
     ],
-    ["sin aprobación vigente de alcance expediente", { isFullyApproved: false, approvals: [] }],
+    ["sin aprobación vigente de alcance expediente", { approvals: [] }],
     [
       "aprobación existente pero invalidada",
       {
-        isFullyApproved: false,
         approvals: [{ ...approvalVigente(), status: "invalidada", invalidatedAt: "2026-10-05T00:00:00-06:00", invalidatedReason: "cambio" }],
       },
     ],
@@ -137,7 +135,7 @@ describe("PackageAssembler — EX-EXP-01: invalidación automática por hash de 
     // pero el hash de insumos recalculado en este ensamblaje (p. ej. porque
     // una tarifa cambió después de la aprobación) ya no coincide.
     const { manifest } = await assembler.assemble(
-      baseInput({ approvals: [approvalVigente()], isFullyApproved: true, currentInputsHash: "hash-DISTINTO-tras-cambio-de-tarifa" }),
+      baseInput({ approvals: [approvalVigente()], currentInputsHash: "hash-DISTINTO-tras-cambio-de-tarifa" }),
     );
 
     expect(manifest.status).toBe("draft");
@@ -150,5 +148,20 @@ describe("PackageAssembler — EX-EXP-01: invalidación automática por hash de 
     const { manifest } = await assembler.assemble(baseInput({ currentInputsHash: "hash-1" }));
     expect(manifest.status).toBe("ready");
     expect(manifest.draftReasons).toHaveLength(0);
+  });
+});
+
+describe("PackageAssembler — EX-EXP-02: 'ready' exige aprobación vigente de alcance 'expediente' (REQ-159/REQ-163)", () => {
+  it("una única aprobación vigente de alcance 'documento' (con hash correcto) NUNCA produce 'ready': no existe forma de forzarlo desde afuera", async () => {
+    const assembler = new PackageAssembler();
+    const documentoApproval = approvalVigente("documento"); // scope: "documento", nunca "expediente"
+
+    const { manifest } = await assembler.assemble(
+      baseInput({ approvals: [documentoApproval], currentInputsHash: documentoApproval.inputsHash }),
+    );
+
+    expect(manifest.status).toBe("draft");
+    expect(manifest.watermark).toBe("BORRADOR");
+    expect(manifest.draftReasons.length).toBeGreaterThan(0);
   });
 });
