@@ -1,0 +1,122 @@
+=== auditoría adversarial ronda 6, apps/api + packages/db (REQ-051..055) ===
+
+Agente: auditor adversarial independiente, contexto separado. Rol: SOLO
+encuentra — ningún archivo de apps/api, packages/db, apps/web, apps/worker
+fue modificado por este agente. Worktree: `git worktree add <scratchpad>/
+audit-api6 HEAD` (HEAD real al iniciar: 4a42996) + `npm install` real.
+Sesión interrumpida varias veces por 429 masivo de la plataforma (afectó a
+subagentes lanzados y a llamadas de herramienta propias); se retomó sin
+relanzar subagentes, completando los ataques restantes directamente en el
+worktree. Worktree eliminado al cierre.
+
+--- Reproducción independiente ---
+
+$ npm install (worktree) -- 761 paquetes, sin errores de instalación.
+
+$ npx vitest run   (packages/db, worktree)
+Test Files  25 passed (25)
+Tests  168 passed (168)
+Incluye: "migraciones > se pueden aplicar dos veces sin error (idempotente):
+la segunda vez no repite nada" -- PASA.
+
+$ npx vitest run   (apps/api, worktree) -- corrida completa, 2 veces
+Test Files  1 failed | 64 passed (65)
+Tests  1 failed | 262 passed (263)
+Fallo: test/expediente-documents-and-matrix.test.ts > "sube un PDF real con
+texto, lo extrae vía pdf-parse y construye la matriz de requisitos"
+  AssertionError: expected 'failed' to be 'extracted'
+Reproducido IDÉNTICO en ambas corridas completas + 3 corridas aisladas del
+archivo solo (5/5 total). Ver hallazgo R6-01 más abajo -- NO es flake de
+iCloud (el worktree vive en /private/tmp, fuera de iCloud Drive).
+
+--- Repro directa de la causa raíz (R6-01) ---
+
+$ node repro.mjs   (genera PDF con pdf-lib, igual que el test, y lo pasa a
+pdf-parse/lib/pdf-parse.js directamente)
+Warning: Invalid stream: "FormatError: Unknown compression method in flate
+stream: 77, 111"
+Warning: Indexing all PDF objects
+ERROR Invalid PDF structure
+  at InvalidPDFExceptionClosure (.../pdf-parse/lib/pdf.js/v1.10.100/build/pdf.js:452)
+
+$ node repro2.mjs  (mismo PDF pero con doc.save({useObjectStreams:false}))
+ERROR bad XRef entry
+
+$ textutil -convert rtf ...; cupsfilter sample.txt > sample_cups.pdf
+  (PDF 1.3, xref tabla clásica, SIN cross-reference streams)
+$ node repro4.mjs (mismo pdf-parse contra ese PDF)
+OK 1 "\n\nTexto de prueba para verificar extraccion de PDF. ..."
+
+Conclusión: pdf-parse@1.1.1 (empaqueta pdf.js v1.10.100, ~2017) no soporta
+el formato de cross-reference STREAM (PDF 1.5+) que `pdf-lib` siempre
+genera; sí soporta el formato clásico de xref-tabla (PDF <=1.4). El propio
+código del proyecto ya documenta esta incompatibilidad exacta en
+apps/api/test/expediente-text-extraction.test.ts (comentario de cabecera),
+pero docs/logs/api-ronda6.log / apps/api/docs/e11-cobertura.md atribuyen la
+MISMA firma de error a "corrupción intermitente de iCloud" (INC-10).
+
+--- Ataques adversariales ejecutados en vivo (worktree, apps/api + packages/db) ---
+
+1) REQ-051 — exhaustividad de 409 (script temporal
+   apps/api/test/zz-audit-transitions.test.ts, borrado al terminar):
+   AUDIT punto1: combinaciones invalidas probadas=78, correctas
+   (409+detail+sin-cambio)=78, FALLAS=0
+   -> Las 78 combinaciones (fromStatus,toStatus) NO listadas en
+   CONTRACT_TRANSITIONS, sobre los 11 estados, devuelven 409 con
+   allowedNextStates exacto y el contrato NUNCA cambia de estado. PASA.
+
+2) REQ-051 — inmutabilidad de contract_status_history, app_role normal Y
+   superadmin (script temporal apps/api/test/zz-audit-history-immutable.test.ts):
+   AUDIT punto2: UPDATE como app_role normal -> error=null rowCount=0
+   AUDIT punto2: DELETE como app_role normal -> error=null rowCount=0
+   AUDIT punto2: UPDATE como superadmin -> error=null rowCount=0
+   AUDIT punto2: DELETE como superadmin -> error=null rowCount=0
+   AUDIT punto2: fila final tras todos los intentos -> reason sin cambios
+   -> PASA (ni el rol normal ni un actor con platform_admins puede alterar
+   el historial; RLS sin política de UPDATE/DELETE + app_role NOBYPASSRLS).
+   Confirmado también con un script node --import tsx independiente
+   (mismo resultado: update rowCount 0).
+
+3) REQ-051 — step-up con propósito correcto (script temporal
+   apps/api/test/zz-audit-stepup.test.ts): 11/14 sub-casos PASAN:
+   - rescindido/penalizado/modificado: sin step-up -> 403, estado sin
+     cambio; step-up de OTRO propósito -> 403; step-up correcto -> 200.
+   - transición normal (adjudicado->contrato_firmado_declarado) SIN
+     step-up -> 200 (no exige step-up de más, sin falso positivo).
+   3 sub-casos de "en_inconformidad" fallaron por un bug del propio script
+   de prueba (slug de organización `zz-audit-3-nostepup-en_inconformidad`
+   con guion bajo, rechazado por el regex de slugs de la API -- 422 antes
+   de llegar a probar nada) -- NO es un defecto de la aplicación auditada.
+
+4) REQ-055 — rendimiento con 5000 contratos simulados (script temporal
+   apps/api/test/zz-audit-perf-radar.test.ts):
+   AUDIT-PERF seedMs=127..130 scanMs=16647..27945 status=200
+     body alertsCreated=15000 evaluatedContracts=5000
+   AUDIT-PERF-DEDUPE scan2Ms=2076 status=200 body alertsCreated=0
+   -> El primer escaneo (5000 contratos, cada uno cruzando los 3 umbrales
+   por defecto = 15000 alertas) tomó 16.6-28s en UNA sola petición HTTP /
+   transacción, contra PGlite EN MEMORIA (sin latencia de red). El
+   re-escaneo (dedupe) confirma 0 alertas nuevas pero aun así tardó ~2s
+   (N+1 de verificación de existencia por candidato). Ver hallazgo R6-03.
+
+Todos los scripts de prueba temporales (zz-audit-*.test.ts, debug-repro*.mjs,
+repro*.mjs) fueron borrados del worktree al terminar cada verificación;
+ninguno se commiteó ni se dejó en el árbol principal.
+
+--- Verificaciones estáticas adicionales ---
+
+$ grep -rniE "fetch\(|axios|http\.request|https\.request|nodemailer|smtp" \
+    apps/api/src/modules/expediente apps/api/src/lib/expediente
+(sin resultados) -- confirma "sin envío externo" en los 5 módulos de ronda 6.
+
+$ grep -rln "contract_state_alert|renewal_radar_alert" apps/worker/src
+(sin resultados) -- ningún handler de apps/worker consume estos jobs
+(consistente con la limitación documentada, no oculta).
+
+git diff --stat de los 6 commits de ronda 6 (98dfcd3..4a42996): 30 archivos,
+ninguno huérfano/duplicado; cada módulo de rutas nuevo se registra UNA sola
+vez en apps/api/src/app.ts (grep confirmado). No quedan restos de las
+migraciones 0065 duplicadas descritas en la nota de transparencia, salvo
+un comentario de cabecera desactualizado (ver R6-06).
+
+=== fin de la sesión de auditoría ===
