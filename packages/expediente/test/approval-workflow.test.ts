@@ -107,6 +107,46 @@ describe("ApprovalWorkflow — A11 edición invalida aprobación (REQ-155/REQ-16
   });
 });
 
+describe("ApprovalWorkflow — EX-EXP-01: invalidación AUTOMÁTICA por hash de insumos divergente (REQ-162)", () => {
+  beforeEach(() => resetApprovalCounters());
+
+  it("revalidateAgainstCurrentHash invalida automáticamente una aprobación 'vigente' cuando el hash actual difiere, sin que nadie llame recordChange a mano", () => {
+    const wf = new ApprovalWorkflow();
+    wf.approve({ scope: "expediente", scopeRef: "expediente", actorId: "user-reviewer", actorRole: "reviewer", inputsHash: "hash-aprobado" });
+    expect(wf.isFullyApproved()).toBe(true);
+
+    const change = wf.revalidateAgainstCurrentHash({ scopeRef: "expediente", currentInputsHash: "hash-nuevo-tras-cambio-de-tarifa" });
+
+    expect(change).not.toBeNull();
+    expect(change!.invalidatedApprovalIds).toHaveLength(1);
+    expect(wf.isFullyApproved()).toBe(false);
+    expect(wf.listApprovals()[0].status).toBe("invalidada");
+    expect(wf.listApprovals()[0].invalidatedReason).toContain("hash_insumos_divergente");
+    expect(wf.listChanges()).toHaveLength(1);
+  });
+
+  it("revalidateAgainstCurrentHash no hace nada si el hash actual coincide con el aprobado", () => {
+    const wf = new ApprovalWorkflow();
+    wf.approve({ scope: "expediente", scopeRef: "expediente", actorId: "user-reviewer", actorRole: "reviewer", inputsHash: "hash-x" });
+
+    const change = wf.revalidateAgainstCurrentHash({ scopeRef: "expediente", currentInputsHash: "hash-x" });
+
+    expect(change).toBeNull();
+    expect(wf.isFullyApproved()).toBe(true);
+    expect(wf.listChanges()).toHaveLength(0);
+  });
+
+  it("isFullyApprovedForCurrentHash recalcula y refleja la invalidación automática en una sola llamada", () => {
+    const wf = new ApprovalWorkflow();
+    wf.approve({ scope: "expediente", scopeRef: "expediente", actorId: "user-reviewer", actorRole: "reviewer", inputsHash: "hash-v1" });
+
+    expect(wf.isFullyApprovedForCurrentHash("hash-v1")).toBe(true);
+    // La tarifa cambió: el hash recalculado ya no es el mismo.
+    expect(wf.isFullyApprovedForCurrentHash("hash-v2-tarifa-cambiada")).toBe(false);
+    expect(wf.listApprovals()[0].status).toBe("invalidada");
+  });
+});
+
 describe("ApprovalWorkflow — comentarios y trazabilidad", () => {
   beforeEach(() => resetApprovalCounters());
 

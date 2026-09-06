@@ -190,6 +190,49 @@ export class ApprovalWorkflow {
   listChanges(): ChangeDetected[] {
     return [...this.changes];
   }
+
+  /**
+   * Revalida (REQ-162, invalidación AUTOMÁTICA — EX-EXP-01) si la aprobación
+   * vigente de `scopeRef` sigue reflejando los insumos actuales: compara su
+   * `inputsHash` registrado contra `currentInputsHash` (recién recalculado
+   * por el llamador, p. ej. con `ProposalVersionRegistry.createVersion(...).hash`
+   * sobre el estado actual de tarifas/documentos/datos de empresa/bases). Si
+   * difiere, invalida automáticamente esa aprobación llamando a
+   * `recordChange` internamente — deja el evento en `listChanges()` y el
+   * `Approval.invalidatedReason` explícito — sin que nadie tenga que
+   * acordarse de invocar `recordChange` a mano cuando cambia un insumo.
+   *
+   * Debe llamarse en cada evaluación de "¿sigue aprobado?" antes de
+   * ensamblar el paquete (ver `isFullyApprovedForCurrentHash`); además,
+   * `PackageAssembler.buildManifest` hace su propia verificación
+   * independiente del hash, así que ni siquiera un llamador que omita esta
+   * llamada puede producir un `"ready"` con insumos divergentes.
+   */
+  revalidateAgainstCurrentHash(input: { scopeRef: string; currentInputsHash: string; reason?: string }): ChangeDetected | null {
+    const stale = this.approvals.filter(
+      (a) => a.status === "vigente" && a.scopeRef === input.scopeRef && a.inputsHash !== input.currentInputsHash,
+    );
+    if (stale.length === 0) return null;
+    return this.recordChange({
+      scope: stale[0].scope,
+      scopeRef: input.scopeRef,
+      reason: input.reason ?? `hash_insumos_divergente:aprobado=${stale[0].inputsHash}:actual=${input.currentInputsHash}`,
+    });
+  }
+
+  /**
+   * Combina `revalidateAgainstCurrentHash` (alcance "expediente") con
+   * `isFullyApproved()` en una sola llamada: recalcula automáticamente si
+   * los insumos cubiertos por la aprobación de expediente cambiaron desde
+   * que se aprobó y, si es así, la invalida antes de responder. Este es el
+   * método que `apps/api` debe llamar en cada evaluación de "¿está listo?",
+   * en vez de confiar en `isFullyApproved()` a secas (que no sabe nada del
+   * hash actual de los insumos).
+   */
+  isFullyApprovedForCurrentHash(currentInputsHash: string): boolean {
+    this.revalidateAgainstCurrentHash({ scopeRef: "expediente", currentInputsHash });
+    return this.isFullyApproved();
+  }
 }
 
 /** Utilidad de solo pruebas: resetea contadores globales para IDs deterministas entre tests. */

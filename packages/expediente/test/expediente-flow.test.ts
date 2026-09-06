@@ -194,7 +194,8 @@ describe("Flujo integrado del expediente de participación (A6-A15)", () => {
       ],
       checklist,
       approvals: workflow.listApprovals(),
-      isFullyApproved: workflow.isFullyApproved(),
+      isFullyApproved: workflow.isFullyApprovedForCurrentHash(version.hash),
+      currentInputsHash: version.hash,
     });
 
     expect(manifest.status).toBe("ready");
@@ -242,7 +243,8 @@ describe("Flujo integrado del expediente de participación (A6-A15)", () => {
       documents: [{ documentId: "tecnica", label: "Propuesta técnica", required: true, filename: "tecnica.pdf", content: "x" }],
       checklist,
       approvals: workflow.listApprovals(),
-      isFullyApproved: workflow.isFullyApproved(),
+      isFullyApproved: workflow.isFullyApprovedForCurrentHash("h"),
+      currentInputsHash: "h",
     });
 
     expect(manifest.status).toBe("draft");

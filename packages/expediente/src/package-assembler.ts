@@ -45,6 +45,8 @@ export interface PackageManifest {
   checklist: ChecklistReport;
   approvals: Approval[];
   missing: string[];
+  /** Motivos explícitos por los que el paquete quedó en "draft" (vacío si "ready"); REQ-162/REQ-163/EX-EXP-01. */
+  draftReasons: string[];
   notice: string;
   watermark: string | null;
 }
@@ -56,6 +58,19 @@ export interface AssembleInput {
   approvals: Approval[];
   /** El expediente se considera aprobado de punta a punta si hay una aprobación vigente de alcance "expediente". */
   isFullyApproved: boolean;
+  /**
+   * Hash ACTUAL de los insumos cubiertos por el alcance "expediente" (p. ej.
+   * `ProposalVersionRegistry.latest().hash`, recalculado justo antes de
+   * ensamblar — tarifas, documentos, datos de empresa, versión de bases).
+   * El assembler lo compara contra el `inputsHash` registrado en cada
+   * aprobación: aunque `isFullyApproved` diga que sí y exista una
+   * aprobación `"vigente"`, si su hash no coincide con el actual NUNCA
+   * cuenta como válida (REQ-161/REQ-162/EX-EXP-01) — protege contra que el
+   * llamador haya olvidado invalidar la aprobación (vía
+   * `ApprovalWorkflow.revalidateAgainstCurrentHash`) tras un cambio de
+   * insumos.
+   */
+  currentInputsHash: string;
 }
 
 export interface AssembleResult {
@@ -83,12 +98,35 @@ export class PackageAssembler {
 
     const checklistOk = input.checklist.overallStatus === "verde";
     const noMissing = missing.length === 0;
-    const approvedOk = input.isFullyApproved && input.approvals.some((a) => a.status === "vigente");
+    // REQ-161/REQ-162/EX-EXP-01: una aprobación "vigente" NO basta por sí
+    // sola — su `inputsHash` debe coincidir exactamente con el hash ACTUAL
+    // de los insumos que el llamador acaba de recalcular. Si alguien
+    // triplicó una tarifa después de aprobar y olvidó invalidar la
+    // aprobación, el hash ya no calza y el assembler lo detecta aquí,
+    // independientemente de lo que diga `isFullyApproved`.
+    const hashValidApproval = input.approvals.find((a) => a.status === "vigente" && a.inputsHash === input.currentInputsHash);
+    const approvedOk = input.isFullyApproved && hashValidApproval !== undefined;
 
     // Regla dura REQ-163/REQ-159: "ready" únicamente cuando las tres
     // condiciones se cumplen simultáneamente. Cualquier combinación de
     // pendientes deja el paquete en "draft".
     const status: PackageStatus = checklistOk && noMissing && approvedOk ? "ready" : "draft";
+
+    const draftReasons: string[] = [];
+    if (status === "draft") {
+      if (!checklistOk) draftReasons.push(`checklist_no_verde:${input.checklist.overallStatus}`);
+      if (!noMissing) draftReasons.push(`documentos_faltantes:${missing.join(",")}`);
+      if (!input.isFullyApproved) {
+        draftReasons.push("sin_aprobacion_completa_declarada");
+      } else if (!hashValidApproval) {
+        const vigentes = input.approvals.filter((a) => a.status === "vigente");
+        draftReasons.push(
+          vigentes.length === 0
+            ? "sin_aprobacion_vigente"
+            : `aprobacion_vigente_con_hash_insumos_divergente:aprobado=${vigentes.map((a) => a.inputsHash).join("|")}:actual=${input.currentInputsHash}`,
+        );
+      }
+    }
 
     return {
       expedienteId: input.expedienteId,
@@ -98,6 +136,7 @@ export class PackageAssembler {
       checklist: input.checklist,
       approvals: input.approvals,
       missing,
+      draftReasons,
       notice: USER_RESPONSIBILITY_NOTICE,
       watermark: status === "draft" ? "BORRADOR" : null,
     };
@@ -119,6 +158,7 @@ export class PackageAssembler {
           "BORRADOR — este expediente NO está listo para presentar.",
           `Documentos faltantes: ${manifest.missing.length > 0 ? manifest.missing.join(", ") : "ninguno"}.`,
           `Checklist: ${manifest.checklist.overallStatus}.`,
+          `Motivo(s) explícito(s): ${manifest.draftReasons.length > 0 ? manifest.draftReasons.join(" | ") : "ver checklist/missing arriba"}.`,
         ].join("\n"),
       );
     }

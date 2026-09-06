@@ -46,6 +46,7 @@ function baseInput(overrides: Partial<AssembleInput> = {}): AssembleInput {
     checklist: GREEN_CHECKLIST,
     approvals: [approvalVigente()],
     isFullyApproved: true,
+    currentInputsHash: "hash-1",
     ...overrides,
   };
 }
@@ -117,6 +118,7 @@ describe("PackageAssembler — A14 expediente incompleto nunca 'listo' (REQ-159/
     expect(manifest.status).toBe("draft");
     expect(manifest.watermark).toBe("BORRADOR");
     expect(suggestedFileName).toContain("BORRADOR_");
+    expect(manifest.draftReasons.length).toBeGreaterThan(0);
 
     const loaded = await JSZip.loadAsync(zip);
     const fileNames = Object.keys(loaded.files);
@@ -125,5 +127,28 @@ describe("PackageAssembler — A14 expediente incompleto nunca 'listo' (REQ-159/
 
     const manifestFromZip = JSON.parse(await loaded.file("BORRADOR_manifiesto.json")!.async("string"));
     expect(manifestFromZip.status).toBe("draft");
+  });
+});
+
+describe("PackageAssembler — EX-EXP-01: invalidación automática por hash de insumos divergente (REQ-161/REQ-162)", () => {
+  it("una aprobación con status 'vigente' pero inputsHash distinto del hash ACTUAL de insumos nunca produce 'ready', con motivo explícito", async () => {
+    const assembler = new PackageAssembler();
+    // La aprobación sigue "vigente" (nadie llamó recordChange manualmente),
+    // pero el hash de insumos recalculado en este ensamblaje (p. ej. porque
+    // una tarifa cambió después de la aprobación) ya no coincide.
+    const { manifest } = await assembler.assemble(
+      baseInput({ approvals: [approvalVigente()], isFullyApproved: true, currentInputsHash: "hash-DISTINTO-tras-cambio-de-tarifa" }),
+    );
+
+    expect(manifest.status).toBe("draft");
+    expect(manifest.watermark).toBe("BORRADOR");
+    expect(manifest.draftReasons.some((r) => r.includes("hash_insumos_divergente"))).toBe(true);
+  });
+
+  it("cuando el hash actual SÍ coincide con el de la aprobación vigente, el paquete puede quedar 'ready'", async () => {
+    const assembler = new PackageAssembler();
+    const { manifest } = await assembler.assemble(baseInput({ currentInputsHash: "hash-1" }));
+    expect(manifest.status).toBe("ready");
+    expect(manifest.draftReasons).toHaveLength(0);
   });
 });
