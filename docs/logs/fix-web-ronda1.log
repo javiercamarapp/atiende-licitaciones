@@ -405,3 +405,20 @@ computing gzip size...
 
 [32m  44 passed[39m[2m (24.5s)[22m
 EXIT: 0
+
+=== NOTA DE TRAZABILIDAD ===
+Los cambios de este commit de cierre (columna "Estado reparación" en
+docs/auditoria-1/web.md, actualizaciones de apps/web/README.md y este mismo
+log) quedaron registrados en el commit `3bc21f6` ("docs(sources): SR-09
+README anota variación 401/403 y nomenclatura legal vigente"), NO en un
+commit propio de este agente `fix(web)`. Esto ocurrió por una condición de
+carrera sobre el índice de git compartido entre agentes concurrentes: entre
+`git add` y `git commit -- <paths>` de este agente, otro agente ejecutó su
+propio `git add`/`git commit` sin pathspec restringido y su commit incluyó
+el contenido ya escrito en el árbol de trabajo de este agente. El contenido
+en sí es correcto y verificable (ver diff de `3bc21f6` sobre
+`docs/auditoria-1/web.md`, `apps/web/README.md` y este archivo); solo la
+atribución del commit de cierre no corresponde a un commit `fix(web)`
+dedicado. Los 12 commits de corrección por hallazgo (W-02, W-05/W-06, W-07,
+W-08/W-09, W-04, W-11, W-12, W-10, W-13, W-15, W-16, W-14) sí están
+correctamente atribuidos y verificados uno por uno.
