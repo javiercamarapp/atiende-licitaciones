@@ -1,0 +1,301 @@
+=== fix-api-auditoria2.log ===
+Fecha: 2026-09-06T08:37:47Z
+HEAD: f7654e2d0256011212f61ec89b9754cf5267ee61
+
+--- npm run -w apps/api typecheck ---
+
+> @atiende/api@0.1.0 typecheck
+> tsc --noEmit
+
+exit: 0
+
+--- npm run -w apps/api lint ---
+
+> @atiende/api@0.1.0 lint
+> eslint src test
+
+exit: 0
+
+--- npm run -w apps/api test ---
+
+> @atiende/api@0.1.0 test
+> vitest run
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/api[39m
+
+ [32m✓[39m test/expediente-proposal.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 5431[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — propuesta técnica/económica (E7)[2m > [22mgenera la propuesta técnica real: capacidad aprobada resuelve en texto trazable; sin mapeo declarado queda PENDIENTE (nunca inventa) [33m2351[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — propuesta técnica/económica (E7)[2m > [22mA8: propuesta económica con tarifa NO aprobada se rechaza de punta a punta (sin total parcial); tras aprobar la tarifa, el cálculo procede [33m1043[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — propuesta técnica/económica (E7)[2m > [22mviewer no puede editar una sección de la propuesta; writer sí, con nueva versión [33m1072[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — propuesta técnica/económica (E7)[2m > [22mcoordinación packages/expediente (expediente-cierre.md): cambiar la aplicabilidad de un requisito condicional invalida explícitamente una aprobación vigente (no forma parte de ExpedienteInputs, así que el hash no cambia por sí solo) [33m963[2mms[22m[39m
+ [32m✓[39m test/expediente-documents-and-matrix.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 5453[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — documentos de bases y matriz de requisitos (E6)[2m > [22msube un PDF real con texto, lo extrae vía pdf-parse y construye la matriz de requisitos [33m2383[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — documentos de bases y matriz de requisitos (E6)[2m > [22mun documento de formato no soportado (ni PDF ni texto reconocible) queda "failed" explícito, nunca texto vacío en silencio [33m1033[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — documentos de bases y matriz de requisitos (E6)[2m > [22mviewer no puede subir documentos ni editar la matriz; writer sí puede editar responsable/estado [33m1104[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — documentos de bases y matriz de requisitos (E6)[2m > [22mA6: dos versiones de bases con plazos distintos para el mismo tema generan un conflicto escalado, y la matriz vieja queda invalidada preservando historial [33m932[2mms[22m[39m
+ [32m✓[39m test/company-profile.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 7450[2mms[22m[39m
+   [33m[2m✓[22m[39m perfil de empresa (E2)[2m > [22mPUT /company/profile (owner) crea el perfil con procedencia por campo; viewer no puede escribirlo [33m2335[2mms[22m[39m
+   [33m[2m✓[22m[39m perfil de empresa (E2)[2m > [22mwriter puede crear una capability (rol de escritura); viewer no puede [33m1113[2mms[22m[39m
+   [33m[2m✓[22m[39m perfil de empresa (E2)[2m > [22mexperiencia sin evidenceRef queda marcada verifiable=false (REQ-143) [33m973[2mms[22m[39m
+   [33m[2m✓[22m[39m perfil de empresa (E2)[2m > [22mcompany_documents: documento vencido se refleja con status expired (REQ-023, A7) [33m904[2mms[22m[39m
+   [33m[2m✓[22m[39m perfil de empresa (E2)[2m > [22mA8: approved_rates -- writer propone (draft), solo owner/admin aprueban; tarifa no aprobada no es utilizable [33m968[2mms[22m[39m
+   [33m[2m✓[22m[39m perfil de empresa (E2)[2m > [22mA5/aislamiento: capabilities de una organización no son visibles para otra [33m1157[2mms[22m[39m
+ [32m✓[39m test/expediente-e2e-flow.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 1803[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — flujo E2E completo (E6-E11)[2m > [22mrecorre bases -> matriz -> perfil -> propuesta -> checklist -> aprobación -> paquete ready -> descarga -> cambio de bases -> invalidación -> draft [33m1802[2mms[22m[39m
+ [32m✓[39m test/tenders-and-ingest.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 7794[2mms[22m[39m
+   [33m[2m✓[22m[39m convocatorias e ingesta interna (E3/E4)[2m > [22mPOST /internal/tenders/ingest sin X-Platform-Api-Key es rechazado (401/403) [33m2059[2mms[22m[39m
+   [33m[2m✓[22m[39m convocatorias e ingesta interna (E3/E4)[2m > [22mA1: nueva publicación crea la convocatoria y una versión inicial [33m932[2mms[22m[39m
+   [33m[2m✓[22m[39m convocatorias e ingesta interna (E3/E4)[2m > [22mA2: reingestar exactamente la misma versión es un no-op idempotente (0 filas nuevas) [33m938[2mms[22m[39m
+   [33m[2m✓[22m[39m convocatorias e ingesta interna (E3/E4)[2m > [22mA3: una modificación con nueva versión de origen adelanta el plazo, crea evento e invalida dependientes [33m875[2mms[22m[39m
+   [33m[2m✓[22m[39m convocatorias e ingesta interna (E3/E4)[2m > [22mlista de convocatorias no filtra entre organizaciones (aislamiento por org_id) [33m893[2mms[22m[39m
+   [33m[2m✓[22m[39m convocatorias e ingesta interna (E3/E4)[2m > [22mviewer no puede escribir en go/no-go pero sí lee tenders (viewer solo lee) [33m1124[2mms[22m[39m
+   [33m[2m✓[22m[39m convocatorias e ingesta interna (E3/E4)[2m > [22mGET /tenders/sources/freshness responde para cualquier usuario autenticado (sin X-Org-Id) [33m972[2mms[22m[39m
+ [32m✓[39m test/expediente-package-and-submission.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 4087[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — paquete final y presentación declarada (E8/E9)[2m > [22mA14: expediente incompleto (sin checklist verde ni aprobación) nunca ensambla "ready", siempre "draft" con motivos explícitos [33m1601[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — paquete final y presentación declarada (E8/E9)[2m > [22mA13: expediente completo (checklist verde real + aprobación vigente con hash coincidente) ensambla "ready" y el ZIP se relee con el manifiesto correcto [33m1034[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — paquete final y presentación declarada (E8/E9)[2m > [22mA15: submissions solo registra la declaración del usuario (fecha + acuse subido); nunca envía nada, y el módulo no importa ningún cliente HTTP saliente [33m1451[2mms[22m[39m
+ [32m✓[39m test/matching-and-go-no-go.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 3136[2mms[22m[39m
+   [33m[2m✓[22m[39m matching y go/no-go (E5)[2m > [22mA5: dos organizaciones con perfiles distintos no filtran datos entre sí en matching [33m1072[2mms[22m[39m
+ [32m✓[39m test/expediente-checklist-and-approval.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 4079[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — checklist de integridad y flujo de aprobación (E8)[2m > [22mejecuta el checklist real (7 dimensiones) y lo persiste en compliance_items [33m1934[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — checklist de integridad y flujo de aprobación (E8)[2m > [22mA12: writer no puede aprobar (solo reviewer/admin/owner); autoaprobación (mismo actor) prohibida; comentarios visibles [33m1202[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — checklist de integridad y flujo de aprobación (E8)[2m > [22mA11: cambiar un insumo real (perfil de empresa) después de aprobar invalida la aprobación automáticamente [33m942[2mms[22m[39m
+ [32m✓[39m test/agent-persistence.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 4677[2mms[22m[39m
+   [33m[2m✓[22m[39m persistencia de packages/agents (RunStore/ToolCallStore sobre Postgres)[2m > [22mPgRunStore: createRun/getRun/updateRun persisten y sobreviven una relectura real (no solo en memoria) [33m1779[2mms[22m[39m
+   [33m[2m✓[22m[39m persistencia de packages/agents (RunStore/ToolCallStore sobre Postgres)[2m > [22mPgToolCallStore: recordToolCall/listToolCalls persisten trazas reales por paso [33m844[2mms[22m[39m
+   [33m[2m✓[22m[39m persistencia de packages/agents (RunStore/ToolCallStore sobre Postgres)[2m > [22maprobación de tool_calls pendientes: writer no puede aprobar; owner sí, y queda en audit_log [33m1080[2mms[22m[39m
+   [33m[2m✓[22m[39m persistencia de packages/agents (RunStore/ToolCallStore sobre Postgres)[2m > [22mGET /agents/runs y /agents/tool-calls no filtran entre organizaciones [33m973[2mms[22m[39m
+ [32m✓[39m test/security-ae01-asofiso-server-derived.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 3490[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-01: asOfIso NUNCA lo decide el cliente -- se deriva de tenders.submission_deadline[2m > [22mbloquea con 422 explícito ("fecha de presentación desconocida") si el tender no tiene submission_deadline [33m1462[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-01: asOfIso NUNCA lo decide el cliente -- se deriva de tenders.submission_deadline[2m > [22mrechaza una tarifa vigente HOY pero vencida a la fecha de presentación, aunque el cliente envíe un asOfIso de "hoy" para intentar revivirla [33m971[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-01: asOfIso NUNCA lo decide el cliente -- se deriva de tenders.submission_deadline[2m > [22macepta una tarifa vigente tanto hoy como a la fecha de presentación (no bloquea el caso correcto) [33m1057[2mms[22m[39m
+ [32m✓[39m test/security-ae02-section-edit-invalidates-approval.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 2843[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-02: editar el contenido de una sección tras una aprobación vigente la invalida[2m > [22maprobar -> editar sección -> el expediente vuelve a estado "sin aprobar" (fullyApproved:false, aprobación invalidada) [33m1563[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-02: editar el contenido de una sección tras una aprobación vigente la invalida[2m > [22meditar una sección SIN cambiar el contenido (mismo texto) no invalida ninguna aprobación vigente [33m1280[2mms[22m[39m
+ [32m✓[39m test/auth-and-orgs-flow.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 1896[2mms[22m[39m
+ [32m✓[39m test/audit-api01-refresh-rotation.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 1826[2mms[22m[39m
+ [32m✓[39m test/admin-backoffice.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 6813[2mms[22m[39m
+   [33m[2m✓[22m[39m back office / superadmin (E10)[2m > [22mun usuario normal recibe 403 en cualquier ruta /admin/*; superadmin ve datos reales [33m1342[2mms[22m[39m
+   [33m[2m✓[22m[39m back office / superadmin (E10)[2m > [22mGET /admin/connectors/freshness expone el estado explícito de source_runs (nunca lista vacía silenciosa, A4) [33m1149[2mms[22m[39m
+   [33m[2m✓[22m[39m back office / superadmin (E10)[2m > [22mjobs: listar y reintentar un job fallido lo regresa a queued [33m1127[2mms[22m[39m
+   [33m[2m✓[22m[39m back office / superadmin (E10)[2m > [22mcostos por organización: agregado real desde agent_runs, marcado explícitamente como estimado [33m1065[2mms[22m[39m
+   [33m[2m✓[22m[39m back office / superadmin (E10)[2m > [22mincidentes: crear y resolver; un usuario normal no puede [33m1158[2mms[22m[39m
+   [33m[2m✓[22m[39m back office / superadmin (E10)[2m > [22maprobaciones pendientes: el back office ve tool_calls pendientes de TODAS las organizaciones [33m972[2mms[22m[39m
+ [32m✓[39m test/security-api13-auth-audit-log.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 5557[2mms[22m[39m
+   [33m[2m✓[22m[39m API-13: eventos de autenticación quedan en audit_log[2m > [22mlogin exitoso registra auth.login_succeeded con actor, ip, user-agent y request_id (sin contraseña) [33m1605[2mms[22m[39m
+   [33m[2m✓[22m[39m API-13: eventos de autenticación quedan en audit_log[2m > [22mlogin fallido (contraseña incorrecta y email inexistente) registra auth.login_failed sin la contraseña [33m1081[2mms[22m[39m
+   [33m[2m✓[22m[39m API-13: eventos de autenticación quedan en audit_log[2m > [22mreutilizar un refresh token ya rotado registra auth.refresh_reuse_detected (revocación de familia visible en audit_log) [33m1025[2mms[22m[39m
+   [33m[2m✓[22m[39m API-13: eventos de autenticación quedan en audit_log[2m > [22mun refresh simplemente inválido/inexistente NO genera un evento de reuso (solo el reuso real tiene valor de auditoría) [33m935[2mms[22m[39m
+   [33m[2m✓[22m[39m API-13: eventos de autenticación quedan en audit_log[2m > [22mlogout con token válido registra auth.logout; logout con token inválido no registra nada (no filtra información) [33m911[2mms[22m[39m
+ [32m✓[39m test/security-api08-invite-owner-escalation.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 4667[2mms[22m[39m
+   [33m[2m✓[22m[39m API-08: solo un owner puede invitar con el rol owner[2m > [22mun admin (no-owner) NO puede invitar a un tercero con role:owner [33m1610[2mms[22m[39m
+   [33m[2m✓[22m[39m API-08: solo un owner puede invitar con el rol owner[2m > [22mextremo a extremo: si la invitación como owner se hubiera creado, aceptarla NO debe terminar en rol owner (defensa en profundidad) [33m970[2mms[22m[39m
+   [33m[2m✓[22m[39m API-08: solo un owner puede invitar con el rol owner[2m > [22mun admin SÍ puede invitar hasta el rol admin (no se rompe el caso legítimo) [33m859[2mms[22m[39m
+   [33m[2m✓[22m[39m API-08: solo un owner puede invitar con el rol owner[2m > [22mun owner SÍ puede invitar con role:owner [33m1228[2mms[22m[39m
+ [32m✓[39m test/security-db09-agent-run-context-cache.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 2252[2mms[22m[39m
+   [33m[2m✓[22m[39m DB-09 residual — la caché de PgRunStore/PgToolCallStore evita el oracle en el camino común[2m > [22mPgRunStore: updateRun/getRun de un run creado por la MISMA instancia funciona sin el oracle; una instancia NUEVA sí lo necesita y falla si está revocado [33m1494[2mms[22m[39m
+   [33m[2m✓[22m[39m DB-09 residual — la caché de PgRunStore/PgToolCallStore evita el oracle en el camino común[2m > [22mPgToolCallStore: listToolCalls de un run grabado por la MISMA instancia funciona sin el oracle; una instancia NUEVA sí lo necesita [33m757[2mms[22m[39m
+ [32m✓[39m test/security-ae09-payment-deadline-calendar-and-regime.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 4400[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-09: calendarNote y legalRegime (REQ-050) en el plazo de pago[2m > [22mconvocatoria publicada bajo la ley nueva (>= 2025-04-17): 17 días hábiles, Art. 73, calendarNote explícito [33m1572[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-09: calendarNote y legalRegime (REQ-050) en el plazo de pago[2m > [22mconvocatoria publicada ANTES de la reforma (< 2025-04-17): 20 días naturales, Art. 51 (régimen abrogado) [33m841[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-09: calendarNote y legalRegime (REQ-050) en el plazo de pago[2m > [22msin fecha de convocatoria conocida, usa por defecto el régimen vigente (ley nueva), nunca la ley abrogada sin evidencia [33m976[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-09: calendarNote y legalRegime (REQ-050) en el plazo de pago[2m > [22mun hito genérico (kind != "pago") no incluye calendarNote/legalRegime (null) [33m1010[2mms[22m[39m
+ [32m✓[39m test/expediente-post-award.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 3360[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — seguimiento post-adjudicación (E11)[2m > [22mcrea un hito genérico con recordatorio encolado en jobs (sin envío externo) [33m1359[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — seguimiento post-adjudicación (E11)[2m > [22mkind="pago" calcula el vencimiento a 17 días hábiles (LAASSP Art. 73) desde la verificación de la factura, con fuente legal citada [33m1047[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — seguimiento post-adjudicación (E11)[2m > [22mviewer no puede crear ni actualizar seguimientos; writer sí [33m953[2mms[22m[39m
+ [32m✓[39m test/isolation-and-idempotency.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 2654[2mms[22m[39m
+[90mstdout[2m | test/security-ae03-ae05-magic-bytes-fullscan-zip.test.ts[2m > [22m[2mAE-03/AE-05: magic bytes en todo el buffer + rechazo de ZIP (anti zip-bomb)[2m > [22m[2msigue aceptando un PDF real y completo (%PDF-...%%EOF) sin falsos positivos
+[22m[39mWarning: Indexing all PDF objects
+
+ [32m✓[39m test/security-ae03-ae05-magic-bytes-fullscan-zip.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 7199[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-03/AE-05: magic bytes en todo el buffer + rechazo de ZIP (anti zip-bomb)[2m > [22mrechaza un ejecutable MZ precedido de padding cero (firma NO en offset 0) [33m1559[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-03/AE-05: magic bytes en todo el buffer + rechazo de ZIP (anti zip-bomb)[2m > [22mrechaza un PDF válido con un stub MZ completo anexado AL FINAL (polígloto) [33m942[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-03/AE-05: magic bytes en todo el buffer + rechazo de ZIP (anti zip-bomb)[2m > [22mrechaza un PDF válido con la firma MZ incrustada EN MEDIO del contenido [33m967[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-03/AE-05: magic bytes en todo el buffer + rechazo de ZIP (anti zip-bomb)[2m > [22mrechaza un archivo que declara ser PDF (%PDF- en el header) pero NO contiene %%EOF [33m817[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-03/AE-05: magic bytes en todo el buffer + rechazo de ZIP (anti zip-bomb)[2m > [22mrechaza un ZIP genérico (magic bytes PK\x03\x04) como documento -- protección anti zip-bomb [33m962[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-03/AE-05: magic bytes en todo el buffer + rechazo de ZIP (anti zip-bomb)[2m > [22msigue aceptando un PDF real y completo (%PDF-...%%EOF) sin falsos positivos [33m902[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-03/AE-05: magic bytes en todo el buffer + rechazo de ZIP (anti zip-bomb)[2m > [22msigue aceptando texto plano legítimo sin falsos positivos [33m1049[2mms[22m[39m
+ [32m✓[39m test/security-ae04-sanitize-extracted-text.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 2414[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-04: el texto extraído se sanitiza (sin HTML/script) antes de persistir[2m > [22mun documento de texto plano con <script> embebido se persiste SIN el script (sanitizado) [33m1513[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-04: el texto extraído se sanitiza (sin HTML/script) antes de persistir[2m > [22mun documento que es ÍNTEGRAMENTE HTML/script queda "failed" (nunca "extracted" con texto vacío) [33m901[2mms[22m[39m
+ [32m✓[39m test/audit-api02-role-escalation.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 2590[2mms[22m[39m
+   [33m[2m✓[22m[39m API-02: escalada de rol y protección del último owner[2m > [22mun owner SÍ puede promover a otro miembro a owner [33m922[2mms[22m[39m
+ [32m✓[39m test/audit-db07-tenant-context-pattern.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 7[2mms[22m[39m
+ [32m✓[39m test/security-api09-tool-calls-atomic.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 2385[2mms[22m[39m
+   [33m[2m✓[22m[39m API-09 — aprobación/denegación de tool_calls es atómica (check-then-act sin ventana TOCTOU)[2m > [22mdos aprobaciones concurrentes de la MISMA tool_call: exactamente una tiene éxito (200), la otra 409 -- nunca las dos 200 [33m1347[2mms[22m[39m
+   [33m[2m✓[22m[39m API-09 — aprobación/denegación de tool_calls es atómica (check-then-act sin ventana TOCTOU)[2m > [22mapprove y deny concurrentes de la MISMA tool_call: exactamente uno tiene éxito, nunca ambos [33m1038[2mms[22m[39m
+ [32m✓[39m test/security-api10-audit-log-null-org.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 2564[2mms[22m[39m
+   [33m[2m✓[22m[39m API-10 — audit_log registra eventos de plataforma sin organización (org_id NULL)[2m > [22mreintentar un job SIN org_id (discovery/plataforma) queda auditado con org_id = null [33m1472[2mms[22m[39m
+   [33m[2m✓[22m[39m API-10 — audit_log registra eventos de plataforma sin organización (org_id NULL)[2m > [22mcrear y resolver un incidente SIN organización queda auditado con org_id = null [33m1091[2mms[22m[39m
+ [32m✓[39m test/expediente-text-extraction.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 21[2mms[22m[39m
+ [32m✓[39m test/security-api11-file-magic-bytes.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 4449[2mms[22m[39m
+   [33m[2m✓[22m[39m API-11 — subida de documentos rechaza ejecutables y llaves/certificados por magic bytes[2m > [22mun ejecutable PE (MZ) se rechaza con 422, sin escribir ningún archivo [33m1409[2mms[22m[39m
+   [33m[2m✓[22m[39m API-11 — subida de documentos rechaza ejecutables y llaves/certificados por magic bytes[2m > [22muna llave privada PEM se rechaza con 422 [33m941[2mms[22m[39m
+   [33m[2m✓[22m[39m API-11 — subida de documentos rechaza ejecutables y llaves/certificados por magic bytes[2m > [22mun certificado DER en bruto (.cer binario) se rechaza con 422 [33m1037[2mms[22m[39m
+   [33m[2m✓[22m[39m API-11 — subida de documentos rechaza ejecutables y llaves/certificados por magic bytes[2m > [22mun documento legítimo (texto plano) se sigue aceptando sin falsos positivos [33m1061[2mms[22m[39m
+ [32m✓[39m test/audit-api03-register-enumeration.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 1583[2mms[22m[39m
+ [32m✓[39m test/security-ae10-bounded-cache.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+ [32m✓[39m test/security-api12-platform-key-constant-time.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 5301[2mms[22m[39m
+   [33m[2m✓[22m[39m API-12 — comparación de X-Platform-Api-Key sigue siendo correcta con timingSafeEqual[2m > [22mla clave correcta autentica (200) [33m1387[2mms[22m[39m
+   [33m[2m✓[22m[39m API-12 — comparación de X-Platform-Api-Key sigue siendo correcta con timingSafeEqual[2m > [22muna clave más CORTA que la esperada se rechaza (401), no lanza por longitud desigual [33m981[2mms[22m[39m
+   [33m[2m✓[22m[39m API-12 — comparación de X-Platform-Api-Key sigue siendo correcta con timingSafeEqual[2m > [22muna clave más LARGA que la esperada se rechaza (401), no lanza por longitud desigual [33m833[2mms[22m[39m
+   [33m[2m✓[22m[39m API-12 — comparación de X-Platform-Api-Key sigue siendo correcta con timingSafeEqual[2m > [22muna clave de la misma longitud pero distinta en el ÚLTIMO byte se rechaza (401) [33m795[2mms[22m[39m
+   [33m[2m✓[22m[39m API-12 — comparación de X-Platform-Api-Key sigue siendo correcta con timingSafeEqual[2m > [22muna clave de la misma longitud pero distinta en el PRIMER byte se rechaza (401) [33m650[2mms[22m[39m
+   [33m[2m✓[22m[39m API-12 — comparación de X-Platform-Api-Key sigue siendo correcta con timingSafeEqual[2m > [22msin encabezado se rechaza (401) [33m653[2mms[22m[39m
+ [32m✓[39m test/rate-limit-and-health.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 3351[2mms[22m[39m
+   [33m[2m✓[22m[39m salud (healthz/readyz)[2m > [22mGET /healthz siempre responde 200 sin tocar la base de datos [33m682[2mms[22m[39m
+   [33m[2m✓[22m[39m salud (healthz/readyz)[2m > [22mGET /readyz responde 200 con la base de datos disponible [33m648[2mms[22m[39m
+   [33m[2m✓[22m[39m salud (healthz/readyz)[2m > [22mGET /readyz responde 503 si la base de datos no está disponible [33m666[2mms[22m[39m
+ [32m✓[39m test/audit-api04-org-id-validation.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 1066[2mms[22m[39m
+ [32m✓[39m test/audit-api06-docs-json-gate.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 979[2mms[22m[39m
+[90mstdout[2m | test/security-api03-login-timing.test.ts[2m > [22m[2mAPI-03: /auth/login no es un oráculo de timing de existencia de cuenta[2m > [22m[2mla mediana de latencia de login con email existente (password incorrecta) y con email inexistente difiere menos de 1.5x en 50 muestras por lado
+[22m[39mAPI-03 login timing: mediana existente=31.31ms, mediana inexistente=26.52ms, ratio=1.18x
+
+ [32m✓[39m test/security-api03-login-timing.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 18077[2mms[22m[39m
+   [33m[2m✓[22m[39m API-03: /auth/login no es un oráculo de timing de existencia de cuenta[2m > [22mla mediana de latencia de login con email existente (password incorrecta) y con email inexistente difiere menos de 1.5x en 50 muestras por lado [33m18077[2mms[22m[39m
+ [32m✓[39m test/audit-api05-security-headers.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 851[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m36 passed[39m[22m[90m (36)[39m
+[2m      Tests [22m [1m[32m121 passed[39m[22m[90m (121)[39m
+[2m   Start at [22m 02:38:01
+[2m   Duration [22m 43.32s[2m (transform 487ms, setup 0ms, collect 7.68s, tests 136.51s, environment 3ms, prepare 1.18s)[22m
+
+exit: 0
+
+--- npm run -w packages/db typecheck ---
+
+> @atiende/db@0.1.0 typecheck
+> tsc --noEmit
+
+exit: 0
+
+--- npm run -w packages/db lint ---
+
+> @atiende/db@0.1.0 lint
+> eslint src test
+
+exit: 0
+
+--- npm run -w packages/db test ---
+
+> @atiende/db@0.1.0 test
+> vitest run
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/packages/db[39m
+
+ [32m✓[39m test/audit-db05-change-event-invalidation.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 3986[2mms[22m[39m
+ [32m✓[39m test/ronda2-extensions.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 4138[2mms[22m[39m
+ [32m✓[39m test/backoffice-extension.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 4156[2mms[22m[39m
+ [32m✓[39m test/rls-roles.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 4322[2mms[22m[39m
+ [32m✓[39m test/rls-ronda3-expediente.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 4445[2mms[22m[39m
+ [31m❯[39m test/security-definer-audit.test.ts [2m([22m[2m5 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 4504[2mms[22m[39m
+[31m   [31m×[31m security-definer-audit: inventario completo de funciones SECURITY DEFINER (app.*)[2m > [22mtoda función SECURITY DEFINER de app.* está en la lista blanca justificada (o el test falla y exige revisión)[90m 6[2mms[22m[31m[39m
+[31m     → expected [ Array(1) ] to deeply equal [][39m
+ [32m✓[39m test/security-db10-rate-validity-submission-deadline.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 4505[2mms[22m[39m
+ [32m✓[39m test/migration-0026b-duplicate-jobs-safety-net.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 7871[2mms[22m[39m
+   [33m[2m✓[22m[39m 0026b: resuelve duplicados activos preexistentes antes del índice único de 0027[2m > [22muna base con jobs activos duplicados por (kind, jobKey) migra limpiamente hasta el final [33m4556[2mms[22m[39m
+   [33m[2m✓[22m[39m 0026b: resuelve duplicados activos preexistentes antes del índice único de 0027[2m > [22mapp.resolve_duplicate_active_jobs() es idempotente: una segunda ejecución no toca nada más [33m3315[2mms[22m[39m
+ [32m✓[39m test/security-db13-rate-validity-timezone.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 3721[2mms[22m[39m
+ [32m✓[39m test/audit-db02-rate-validity.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 3764[2mms[22m[39m
+ [32m✓[39m test/jobs-locking.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 3919[2mms[22m[39m
+ [32m✓[39m test/audit-db01-security-definer-scope.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 4072[2mms[22m[39m
+ [32m✓[39m test/audit-db06-audit-log-hash-chain.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 3949[2mms[22m[39m
+ [32m✓[39m test/audit-db03-rate-reapproval.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 3985[2mms[22m[39m
+ [32m✓[39m test/worker-role-and-job-proposals.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 9385[2mms[22m[39m
+ [32m✓[39m test/idempotency-and-audit.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 5457[2mms[22m[39m
+ [32m✓[39m test/org-bootstrap.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 2008[2mms[22m[39m
+ [32m✓[39m test/security-db09-agent-run-context.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 1886[2mms[22m[39m
+ [32m✓[39m test/rls-isolation.test.ts [2m([22m[2m70 tests[22m[2m)[22m[33m 2317[2mms[22m[39m
+ [32m✓[39m test/migrate.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 3279[2mms[22m[39m
+   [33m[2m✓[22m[39m migraciones[2m > [22maplican todas sin error y quedan registradas en schema_migrations [33m1701[2mms[22m[39m
+   [33m[2m✓[22m[39m migraciones[2m > [22mse pueden aplicar dos veces sin error (idempotente): la segunda vez no repite nada [33m568[2mms[22m[39m
+   [33m[2m✓[22m[39m migraciones[2m > [22mensureMigrationsTable es idempotente [33m451[2mms[22m[39m
+   [33m[2m✓[22m[39m migraciones[2m > [22mcrea todas las tablas de dominio esperadas [33m558[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[1m[7m Failed Tests 1 [27m[22m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[31m[1m[7m FAIL [27m[22m[39m test/security-definer-audit.test.ts[2m > [22msecurity-definer-audit: inventario completo de funciones SECURITY DEFINER (app.*)[2m > [22mtoda función SECURITY DEFINER de app.* está en la lista blanca justificada (o el test falla y exige revisión)
+[31m[1mAssertionError[22m: expected [ Array(1) ] to deeply equal [][39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- Array [][39m
+[31m+ Array [[39m
+[31m+   "app.record_auth_event(text,uuid,jsonb,text)",[39m
+[31m+ ][39m
+
+[36m [2m❯[22m test/security-definer-audit.test.ts:[2m109:22[22m[39m
+    [90m107| [39m
+    [90m108| [39m    [35mconst[39m unlisted [33m=[39m rows[33m.[39m[34mmap[39m((r) [33m=>[39m r[33m.[39msignature)[33m.[39m[34mfilter[39m((sig) [33m=>[39m [33m![39m(si…
+    [90m109| [39m    [34mexpect[39m(unlisted)[33m.[39m[34mtoEqual[39m([])[33m;[39m
+    [90m   | [39m                     [31m^[39m
+    [90m110| [39m  })[33m;[39m
+    [90m111| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m19 passed[39m[22m[90m (20)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m146 passed[39m[22m[90m (147)[39m
+[2m   Start at [22m 02:39:06
+[2m   Duration [22m 12.46s[2m (transform 226ms, setup 0ms, collect 657ms, tests 85.67s, environment 2ms, prepare 951ms)[22m
+
+npm error Lifecycle script `test` failed with error:
+npm error code 1
+npm error path /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/packages/db
+npm error workspace @atiende/db@0.1.0
+npm error location /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/packages/db
+npm error command failed
+npm error command sh -c vitest run
+exit: 1
+
+--- (corregido: se agregó app.record_auth_event a la lista blanca de security-definer-audit.test.ts, commit 668a082) ---
+--- npm run -w packages/db test (segunda corrida, en verde) ---
+
+> @atiende/db@0.1.0 test
+> vitest run
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/packages/db[39m
+
+ [32m✓[39m test/audit-db05-change-event-invalidation.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 4352[2mms[22m[39m
+ [32m✓[39m test/ronda2-extensions.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 4562[2mms[22m[39m
+ [32m✓[39m test/rls-ronda3-expediente.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 4623[2mms[22m[39m
+ [32m✓[39m test/backoffice-extension.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 4716[2mms[22m[39m
+ [32m✓[39m test/security-definer-audit.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 4793[2mms[22m[39m
+ [32m✓[39m test/security-db10-rate-validity-submission-deadline.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 4908[2mms[22m[39m
+ [32m✓[39m test/rls-roles.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 4958[2mms[22m[39m
+ [32m✓[39m test/migration-0026b-duplicate-jobs-safety-net.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 7895[2mms[22m[39m
+   [33m[2m✓[22m[39m 0026b: resuelve duplicados activos preexistentes antes del índice único de 0027[2m > [22muna base con jobs activos duplicados por (kind, jobKey) migra limpiamente hasta el final [33m4827[2mms[22m[39m
+   [33m[2m✓[22m[39m 0026b: resuelve duplicados activos preexistentes antes del índice único de 0027[2m > [22mapp.resolve_duplicate_active_jobs() es idempotente: una segunda ejecución no toca nada más [33m3066[2mms[22m[39m
+ [32m✓[39m test/security-db13-rate-validity-timezone.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 3803[2mms[22m[39m
+ [32m✓[39m test/audit-db02-rate-validity.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 3592[2mms[22m[39m
+ [32m✓[39m test/audit-db01-security-definer-scope.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 3669[2mms[22m[39m
+ [32m✓[39m test/audit-db06-audit-log-hash-chain.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 3791[2mms[22m[39m
+ [32m✓[39m test/audit-db03-rate-reapproval.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 3744[2mms[22m[39m
+ [32m✓[39m test/jobs-locking.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 3920[2mms[22m[39m
+ [32m✓[39m test/worker-role-and-job-proposals.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 9845[2mms[22m[39m
+ [32m✓[39m test/idempotency-and-audit.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 5328[2mms[22m[39m
+ [32m✓[39m test/org-bootstrap.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 1917[2mms[22m[39m
+ [32m✓[39m test/security-db09-agent-run-context.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 1886[2mms[22m[39m
+ [32m✓[39m test/rls-isolation.test.ts [2m([22m[2m70 tests[22m[2m)[22m[33m 2470[2mms[22m[39m
+ [32m✓[39m test/migrate.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 3203[2mms[22m[39m
+   [33m[2m✓[22m[39m migraciones[2m > [22maplican todas sin error y quedan registradas en schema_migrations [33m1606[2mms[22m[39m
+   [33m[2m✓[22m[39m migraciones[2m > [22mse pueden aplicar dos veces sin error (idempotente): la segunda vez no repite nada [33m582[2mms[22m[39m
+   [33m[2m✓[22m[39m migraciones[2m > [22mensureMigrationsTable es idempotente [33m455[2mms[22m[39m
+   [33m[2m✓[22m[39m migraciones[2m > [22mcrea todas las tablas de dominio esperadas [33m560[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m20 passed[39m[22m[90m (20)[39m
+[2m      Tests [22m [1m[32m147 passed[39m[22m[90m (147)[39m
+[2m   Start at [22m 02:40:14
+[2m   Duration [22m 12.58s[2m (transform 385ms, setup 0ms, collect 807ms, tests 87.98s, environment 2ms, prepare 991ms)[22m
+
+exit: 0
+
+=== RESUMEN FINAL ===
+HEAD final: 668a0821e8cd8c67de971b4555ae548f4230e1f6
+apps/api: typecheck OK, lint OK, test 36/36 archivos, 121/121 tests OK
+packages/db: typecheck OK, lint OK, test 20/20 archivos, 147/147 tests OK
