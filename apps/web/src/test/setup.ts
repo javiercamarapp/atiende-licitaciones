@@ -34,6 +34,35 @@ afterEach(() => {
   writeStoredOrgId(null);
 });
 
+// jsdom no implementa estas APIs del DOM real que Radix UI (Select/Dialog)
+// usa internamente para su comportamiento de puntero/desplazamiento — sin
+// estos no-ops, cualquier prueba que abra un <Select/> real (ronda 5: los
+// selectores de convocatoria de los módulos del expediente) lanza
+// "target.hasPointerCapture is not a function" al hacer click.
+if (!Element.prototype.hasPointerCapture) {
+  Element.prototype.hasPointerCapture = () => false;
+}
+if (!Element.prototype.setPointerCapture) {
+  Element.prototype.setPointerCapture = () => {};
+}
+if (!Element.prototype.releasePointerCapture) {
+  Element.prototype.releasePointerCapture = () => {};
+}
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {};
+}
+// jsdom no implementa ResizeObserver: <SelectContent/> (Radix) lo usa para
+// medir su viewport al abrirse; sin este stub, abrir un <Select/> real en
+// una prueba nunca completa el ciclo de render (queda colgado, no lanza).
+if (!("ResizeObserver" in globalThis)) {
+  class ResizeObserverStub {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+  (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = ResizeObserverStub;
+}
+
 // jsdom no implementa matchMedia; ThemeSelector y useIsMobile lo necesitan.
 if (!window.matchMedia) {
   window.matchMedia = (query: string) => ({
