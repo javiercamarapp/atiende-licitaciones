@@ -6,6 +6,8 @@ import { MEMBERSHIP_ADMIN_ROLES, type DbExecutor } from '@atiende/db';
 import { ConflictError, ForbiddenError, UnauthorizedError } from '../../lib/errors.js';
 import { recordAudit } from '../../lib/audit.js';
 import { runIdempotent, hashRequestBody } from '../../lib/idempotency.js';
+import { fireAndForgetMail } from '../../lib/mail/pending.js';
+import { sendOrganizationInviteEmail } from '../../lib/mail/triggers.js';
 import { encodeCursor, decodeCursor, parsePageSize, toIsoString } from '../../lib/cursor.js';
 import {
   createOrgBodySchema,
@@ -23,6 +25,53 @@ import {
 } from './schemas.js';
 
 const UNIQUE_VIOLATION = '23505';
+
+/** REQ-181: `invitations.expires_at` se fija a `now() + 7 days` en el INSERT
+ *  de abajo -- el enlace firmado del correo usa exactamente el mismo plazo,
+ *  para que la firma nunca sobreviva a la invitación ni al revés. */
+const INVITATION_TTL_MINUTES = 7 * 24 * 60;
+
+/** Nombre legible del rol dentro del correo de invitación (el `role` crudo
+ *  es un enum de base, no algo que se le enseñe a quien recibe el correo). */
+const ROLE_LABELS: Record<string, string> = {
+  owner: 'Propietario',
+  admin: 'Administrador',
+  analyst: 'Analista',
+  writer: 'Redactor',
+  reviewer: 'Revisor',
+  viewer: 'Solo lectura',
+};
+
+/**
+ * Datos que el correo de invitación necesita y que la transacción de la
+ * invitación no devuelve: el nombre de la organización y el de quien invita.
+ * Se leen CON el contexto RLS de quien invita (ya autenticado y miembro,
+ * verificado por `app.requireOrg`), nunca con una función SECURITY DEFINER
+ * nueva. Si algo faltara, se cae a un texto genérico antes que a un fallo:
+ * la invitación ya existe, el correo no puede tumbarla.
+ */
+async function invitationMailContext(
+  app: FastifyInstance,
+  orgId: string,
+  inviterId: string
+): Promise<{ organizationName: string; inviterName: string }> {
+  const { rows } = await app.db.transaction(async (tx) => {
+    await tx.query('set local role app_role');
+    await tx.query("select set_config('app.current_org_id', $1, true)", [orgId]);
+    await tx.query("select set_config('app.current_user_id', $1, true)", [inviterId]);
+    return tx.query<{ org_name: string | null; inviter_name: string | null; inviter_email: string | null }>(
+      `select (select name from organizations where id = $1) as org_name,
+              (select full_name from users where id = $2) as inviter_name,
+              (select email from users where id = $2) as inviter_email`,
+      [orgId, inviterId]
+    );
+  });
+  const row = rows[0];
+  return {
+    organizationName: row?.org_name ?? 'tu organización',
+    inviterName: row?.inviter_name?.trim() || row?.inviter_email?.split('@')[0] || 'el equipo',
+  };
+}
 
 /**
  * Protección del último owner (cierre de pendiente ronda 1): una
@@ -198,6 +247,28 @@ export async function organizationRoutes(app: FastifyInstance): Promise<void> {
         }
         throw err;
       }
+
+      // REQ-181 (plantilla `organization-invite`): el correo de invitación.
+      // Reutiliza la MISMA invitación y el MISMO token que ya emitió la
+      // transacción de arriba (no se emite otro): el correo solo lo envuelve
+      // en un enlace firmado con expiración -- ver `lib/mail/triggers.ts`.
+      // Va sin `await` por la misma razón que el registro (un fallo del
+      // proveedor no puede convertir una invitación ya creada en un 500), y
+      // es idempotente por `messageKey`, así que un reintento con la misma
+      // `Idempotency-Key` nunca manda dos correos.
+      const contexto = await invitationMailContext(app, orgId, userId);
+      fireAndForgetMail(app, 'organization-invite', () =>
+        sendOrganizationInviteEmail(app, {
+          invitationId: result.body.id,
+          email: result.body.email,
+          organizationId: orgId,
+          organizationName: contexto.organizationName,
+          inviterName: contexto.inviterName,
+          roleLabel: ROLE_LABELS[result.body.role] ?? result.body.role,
+          token: result.body.token,
+          expiresInMinutes: INVITATION_TTL_MINUTES,
+        })
+      );
 
       reply.code(201);
       return result.body;

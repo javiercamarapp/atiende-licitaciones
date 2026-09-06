@@ -32,9 +32,14 @@ export const invitationSchema = z.object({
   status: z.string(),
   // Token en claro devuelto SOLO en la respuesta de creación (no se persiste
   // en claro, solo su hash en `invitations.token_hash`): es la única vez que
-  // el sistema lo expone, igual que una API key. El invitador debe
-  // transmitirlo fuera de banda (esta ronda no envía email); ver
+  // el sistema lo expone por esta vía, igual que una API key. Ver
   // `POST /organizations/invitations/accept`.
+  //
+  // REQ-181: desde la integración de `@atiende/mail`, ese mismo token
+  // también viaja dentro de un ENLACE FIRMADO en el correo de invitación
+  // (plantilla `organization-invite`), así que ya no hace falta
+  // transmitirlo fuera de banda -- se sigue devolviendo aquí para el
+  // back office y para un despliegue sin proveedor de correo configurado.
   token: z.string().optional(),
 });
 
