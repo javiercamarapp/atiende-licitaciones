@@ -1,5 +1,5 @@
 import { hashRawPayload } from "../../util/hash.js";
-import { parseCsv } from "../../util/csv.js";
+import { parseCsv, type CsvRowError } from "../../util/csv.js";
 import { fromMexicoCityNaive } from "../../util/timezone.js";
 import { parseTenderRecord, type TenderRecord } from "../../types/tender-record.js";
 import { ComprasMxApiRecordSchema, ComprasMxHistoricoCsvRowSchema, type ComprasMxApiRecord } from "./comprasmx-types.js";
@@ -113,6 +113,12 @@ export function mapComprasMxApiRecords(rawRecords: unknown[], options: ComprasMx
   return out;
 }
 
+export interface ComprasMxHistoricoCsvParseResult {
+  records: TenderRecord[];
+  /** Filas descartadas (por número de fila, 1-based tras el encabezado) con el motivo — SR-16/17: nunca vacían el resto del lote. */
+  errors: CsvRowError[];
+}
+
 /**
  * Parsea el CSV histórico REAL de contratos/expedientes de CompraNet
  * (verificado en vivo el 2026-09-05, ver README §ComprasMX). Es un dataset
@@ -121,39 +127,70 @@ export function mapComprasMxApiRecords(rawRecords: unknown[], options: ComprasMx
  * `contractingEntity` usa el nombre documentado de la entidad publicadora
  * del dataset como mejor aproximación disponible (limitación conocida,
  * documentada en README).
+ *
+ * `fecha_inicio`/`fecha_fin` (con `ff_fecha_inicio`/`ff_fecha_fin` como
+ * respaldo) pasan por `parseComprasMxDate()` -> `fromMexicoCityNaive()`
+ * (SR-12): este conector fue agregado DESPUÉS del fix de SR-02 y mapeaba
+ * esas fechas DIRECTO a `TenderDatesSchema` (`z.coerce.date()` -> `new
+ * Date(string)`), reintroduciendo la misma dependencia del TZ del proceso
+ * para una fila naive (sin offset) que SR-02 cerró para el API en vivo. El
+ * dataset real verificado siempre trae offset explícito, así que
+ * `fromMexicoCityNaive` es hoy un no-op idéntico en la práctica, pero deja
+ * de serlo en silencio si el formato del export cambia.
+ *
+ * Cada fila se valida/mapea en su PROPIO `try/catch` (SR-16): antes de este
+ * fix, una sola fila inválida en cualquier punto del archivo (p.ej.
+ * `importe` no numérico) hacía que la función completa lanzara, perdiendo
+ * TODAS las filas válidas del lote (esta función no hace streaming: arma el
+ * array completo de `TenderRecord` antes de que el conector empiece a
+ * producir el primero). Las filas inválidas — incluidas las que `parseCsv`
+ * ya descartó explícitamente por tener MÁS columnas que el encabezado,
+ * SR-17 — se acumulan en `errors[]` con su número de fila, sin abortar el
+ * resto del lote.
  */
-export function parseComprasMxHistoricoCsv(csvText: string, options: ComprasMxMapOptions & { publishingEntity: string }): TenderRecord[] {
-  const rows = parseCsv(csvText);
+export function parseComprasMxHistoricoCsv(
+  csvText: string,
+  options: ComprasMxMapOptions & { publishingEntity: string },
+): ComprasMxHistoricoCsvParseResult {
+  const { rows, errors: csvErrors } = parseCsv(csvText);
   const records: TenderRecord[] = [];
-  for (const rawRow of rows) {
-    const row = ComprasMxHistoricoCsvRowSchema.parse(rawRow);
-    const raw: unknown = {
-      source: "compras-mx",
-      externalId: row.codigo_expediente || row.codigo_contrato,
-      title: row.titulo_contrato,
-      contractingEntity: options.publishingEntity,
-      procedureType: mapProcedureType(row.tipo_contratacion ?? row.tipo_expediente),
-      procedureTypeRaw: row.tipo_expediente ?? row.tipo_contratacion,
-      classifiers: [],
-      budgetAmount: row.importe ? Number.parseFloat(row.importe) : undefined,
-      currency: row.moneda ?? "MXN",
-      dates: {
-        published: row.fecha_inicio,
-        award: row.fecha_inicio,
-      },
-      status: "awarded",
-      statusRaw: "historico-compranet",
-      attachments: [],
-      snapshot: {
-        sourceUrl: options.sourceUrl,
-        fetchedAt: options.fetchedAt,
-        rawHash: hashRawPayload(rawRow),
-        httpStatus: options.httpStatus,
-      },
-    };
-    records.push(parseTenderRecord(raw));
+  const errors: CsvRowError[] = [...csvErrors];
+
+  for (const { row: rowNumber, values: rawRow } of rows) {
+    try {
+      const row = ComprasMxHistoricoCsvRowSchema.parse(rawRow);
+      const raw: unknown = {
+        source: "compras-mx",
+        externalId: row.codigo_expediente || row.codigo_contrato,
+        title: row.titulo_contrato,
+        contractingEntity: options.publishingEntity,
+        procedureType: mapProcedureType(row.tipo_contratacion ?? row.tipo_expediente),
+        procedureTypeRaw: row.tipo_expediente ?? row.tipo_contratacion,
+        classifiers: [],
+        budgetAmount: row.importe ? Number.parseFloat(row.importe) : undefined,
+        currency: row.moneda ?? "MXN",
+        dates: {
+          published: parseComprasMxDate(row.fecha_inicio ?? row.ff_fecha_inicio),
+          award: parseComprasMxDate(row.fecha_fin ?? row.ff_fecha_fin ?? row.fecha_inicio ?? row.ff_fecha_inicio),
+        },
+        status: "awarded",
+        statusRaw: "historico-compranet",
+        attachments: [],
+        snapshot: {
+          sourceUrl: options.sourceUrl,
+          fetchedAt: options.fetchedAt,
+          rawHash: hashRawPayload(rawRow),
+          httpStatus: options.httpStatus,
+        },
+      };
+      records.push(parseTenderRecord(raw));
+    } catch (error) {
+      errors.push({ row: rowNumber, message: error instanceof Error ? error.message : String(error) });
+    }
   }
-  return records;
+
+  errors.sort((a, b) => a.row - b.row);
+  return { records, errors };
 }
 
 export type { ComprasMxApiRecord };

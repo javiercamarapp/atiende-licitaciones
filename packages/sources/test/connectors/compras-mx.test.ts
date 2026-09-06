@@ -66,12 +66,13 @@ describe("ComprasMX: mapeo de estatus/tipo de procedimiento (cobertura de ramas,
 describe("ComprasMX: CSV histórico REAL (verificado en vivo 2026-09-05, ver README)", () => {
   it("parsea el fixture descargado en vivo de datos.gob.mx (SABG) sin errores y con montos correctos", () => {
     const csv = readFileSync(path.join(fixturesDir, "compranet-historico-real-sample.csv"), "utf8");
-    const records = parseComprasMxHistoricoCsv(csv, {
+    const { records, errors } = parseComprasMxHistoricoCsv(csv, {
       fetchedAt: new Date("2026-09-05T00:00:00Z"),
       sourceUrl: "https://repodatos.atdt.gob.mx/api_update/sabg/contratos_expedientes_sistema_historico_compranet/compranet_historico.csv",
       publishingEntity: "Secretaría Anticorrupción y Buen Gobierno (dataset histórico Compranet)",
     });
 
+    expect(errors).toEqual([]);
     expect(records.length).toBeGreaterThan(5);
     const first = records[0];
     expect(first.externalId).toBe("2161394");
@@ -79,6 +80,44 @@ describe("ComprasMX: CSV histórico REAL (verificado en vivo 2026-09-05, ver REA
     expect(first.currency).toBe("MXN");
     expect(first.budgetAmount).toBe(89012);
     expect(first.status).toBe("awarded");
+    // SR-12: fecha_inicio/fecha_fin del fixture real ya traen offset explícito (+00:00) -- fromMexicoCityNaive
+    // debe respetarlo tal cual (no reinterpretarlo como hora de México), igual que hacía z.coerce.date() antes.
+    expect(first.dates.published?.toISOString()).toBe("2020-07-22T05:00:00.000Z");
+    expect(first.dates.award?.toISOString()).toBe("2020-08-27T04:59:00.000Z");
+  });
+
+  it("SR-16: una fila inválida en medio de filas válidas se registra en errors[] con su número de fila, sin perder las filas válidas", () => {
+    const csv =
+      "codigo_contrato,codigo_expediente,proveedor,titulo_contrato,importe,moneda,fecha_inicio,fecha_fin\n" +
+      "C1,E1,Prov1,Titulo1,1000,MXN,2020-01-01 00:00:00.000000 +00:00,2020-02-01 00:00:00.000000 +00:00\n" +
+      "C2,E2,Prov2,Titulo2,no-es-numero,MXN,2020-01-01 00:00:00.000000 +00:00,2020-02-01 00:00:00.000000 +00:00\n" +
+      "C3,E3,Prov3,Titulo3,3000,MXN,2020-01-01 00:00:00.000000 +00:00,2020-02-01 00:00:00.000000 +00:00\n";
+
+    const { records, errors } = parseComprasMxHistoricoCsv(csv, {
+      fetchedAt: new Date("2026-09-05T00:00:00Z"),
+      publishingEntity: "Entidad de prueba",
+    });
+
+    expect(records).toHaveLength(2);
+    expect(records.map((r) => r.externalId)).toEqual(["E1", "E3"]);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].row).toBe(2);
+  });
+
+  it("SR-17: una fila con MÁS columnas que el encabezado (coma sin escapar en un campo no entrecomillado) se registra en errors[] en vez de desalinear el resto de la fila", () => {
+    const csv =
+      "codigo_contrato,codigo_expediente,proveedor,titulo_contrato,importe,moneda,fecha_inicio,fecha_fin\n" +
+      "C1,E1,Fulano, S.A. de C.V.,Titulo1,1000,MXN,2020-01-01 00:00:00.000000 +00:00,2020-02-01 00:00:00.000000 +00:00\n";
+
+    const { records, errors } = parseComprasMxHistoricoCsv(csv, {
+      fetchedAt: new Date("2026-09-05T00:00:00Z"),
+      publishingEntity: "Entidad de prueba",
+    });
+
+    expect(records).toHaveLength(0);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].row).toBe(1);
+    expect(errors[0].message).toMatch(/columnas/i);
   });
 });
 

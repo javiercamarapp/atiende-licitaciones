@@ -1,4 +1,6 @@
 import type { ConnectorContext, DiscoverParams, SourceConnector } from "../types.js";
+import { decodeHttpResponseText } from "../../util/encoding.js";
+import { assertLegitimateResponseBody } from "../../http/response-classifier.js";
 import { parseComprasMxHistoricoCsv } from "./comprasmx-mapper.js";
 
 export interface ComprasMxHistoricalCsvConnectorConfig {
@@ -64,14 +66,28 @@ export function createComprasMxHistoricalCsvConnector(config: ComprasMxHistorica
       if (!response.ok) {
         throw new Error(`CSV histórico de ComprasMX respondió ${response.status} en ${csvUrl}`);
       }
-      const csvText = await response.text();
+      // SR-15: decodifica por bytes crudos (charset declarado / BOM / heurística UTF-8 inválido -> Latin-1) en vez
+      // de `response.text()`, que decodifica SIEMPRE como UTF-8 sin importar el charset real del servidor.
+      const csvText = await decodeHttpResponseText(response);
+      // SR-14: un 200 con cuerpo de captcha/bot-challenge (o con forma de HTML donde se esperaba CSV) no debe
+      // interpretarse como "0 registros nuevos".
+      assertLegitimateResponseBody(csvText, { url: csvUrl, expected: "csv" });
       const fetchedAt = ctx.now?.() ?? new Date();
-      const records = parseComprasMxHistoricoCsv(csvText, {
+      const { records, errors } = parseComprasMxHistoricoCsv(csvText, {
         sourceUrl: csvUrl,
         fetchedAt,
         httpStatus: response.status,
         publishingEntity,
       });
+
+      // SR-16/17: filas inválidas o desalineadas se registran (con su número de fila) sin perder el resto del
+      // lote; se hacen visibles vía el logger del pipeline en vez de silenciarlas.
+      for (const rowError of errors) {
+        ctx.logger?.warn(`CSV histórico de ComprasMX: fila ${rowError.row} descartada — ${rowError.message}`, {
+          source: "compras-mx-historico",
+          row: rowError.row,
+        });
+      }
 
       let yielded = 0;
       for (const record of records) {
