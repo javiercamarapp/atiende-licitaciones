@@ -85,7 +85,20 @@ export interface TenderIngestClientOptions {
   retryBaseDelayMs?: number;
 }
 
-const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
+/**
+ * WK-17 (docs/auditoria-1/worker-reverificacion.md, cierre de WK-10
+ * PARCIAL): 408 (Request Timeout) y 425 (Too Early) son, semánticamente,
+ * errores TRANSITORIOS de HTTP estándar — el mismo request probablemente
+ * tendría éxito en un reintento inmediato (timeout momentáneo del lado del
+ * servidor bajo carga, o una ventana de reintento temprano detectada por el
+ * servidor) — no un rechazo permanente del payload como un 400/401/422.
+ * Antes de esta ronda, 408 caía fuera de este set y `IngestApiError.permanent`
+ * lo clasificaba como PERMANENTE (cualquier 4xx no retryable), así que un
+ * 408 real mataba el job en el primer intento (`deadLetterPermanent`) en vez
+ * de dársele el ciclo normal de backoff. Ver tabla de verdad completa en
+ * `apps/worker/test/ingest-client.test.ts` ("WK-17").
+ */
+const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
 
 /**
  * Cliente HTTP para `POST {baseUrl}/internal/tenders/ingest`. Es la ÚNICA

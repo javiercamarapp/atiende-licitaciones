@@ -29,7 +29,9 @@ class FakeIngestServer {
   server: http.Server;
   baseUrl = '';
   received: Array<{ headers: http.IncomingHttpHeaders; body: unknown }> = [];
-  behavior: 'ok' | 'fail-then-ok' | 'always-500' | 'always-401' = 'ok';
+  behavior: 'ok' | 'fail-then-ok' | 'always-500' | 'always-401' | 'always-status' = 'ok';
+  /** Solo usado con `behavior = 'always-status'` (tabla de verdad WK-17). */
+  status = 500;
   private failuresLeft = 1;
 
   constructor() {
@@ -40,6 +42,11 @@ class FakeIngestServer {
         const body = raw ? JSON.parse(raw) : undefined;
         this.received.push({ headers: req.headers, body });
 
+        if (this.behavior === 'always-status') {
+          res.writeHead(this.status, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ error: `status-${this.status}` }));
+          return;
+        }
         if (this.behavior === 'always-401') {
           res.writeHead(401, { 'content-type': 'application/json' });
           res.end(JSON.stringify({ error: 'unauthorized' }));
@@ -171,5 +178,80 @@ describe('TenderIngestClient contra un servidor HTTP real', () => {
     await client.ingest({ records: [makeRecord('EXP-OTRO')] });
     const key3 = fakeServer.received[2].headers['idempotency-key'];
     expect(key3).not.toBe(key1);
+  });
+
+  /**
+   * WK-17 (docs/auditoria-1/worker-reverificacion.md, cierre de WK-10
+   * PARCIAL): tabla de verdad completa de clasificación transitorio vs.
+   * permanente contra un servidor HTTP real (nunca un mock de `fetch`).
+   * Antes de esta ronda, 408 caía FUERA de `RETRYABLE_STATUS` y por tanto
+   * `IngestApiError.permanent` lo marcaba permanente — `Worker.process()`
+   * lo dead-letraba en el primer intento en vez de darle el ciclo normal de
+   * backoff. 425 (Too Early) tenía el mismo problema y nunca se había
+   * verificado explícitamente. Esta tabla fija, de una vez, el contrato
+   * completo para los códigos relevantes: transitorio (`retryable=true`,
+   * `permanent=false`, el cliente SÍ reintenta hasta `maxRetries`) vs.
+   * permanente (`retryable=false`, `permanent=true`, CERO reintentos —
+   * `received.length === 1`).
+   */
+  describe('WK-17: tabla de verdad — transitorio vs. permanente por código HTTP', () => {
+    const maxRetries = 2;
+
+    it.each([
+      // [status, ¿transitorio?, motivo]
+      [408, true, 'Request Timeout — semánticamente transitorio (fix WK-17, antes permanente)'],
+      [425, true, 'Too Early — semánticamente transitorio (fix WK-17, nunca antes verificado)'],
+      [429, true, 'Too Many Requests — ya era transitorio antes de esta ronda'],
+      [500, true, 'Internal Server Error — ya era transitorio'],
+      [502, true, 'Bad Gateway — ya era transitorio'],
+      [503, true, 'Service Unavailable — ya era transitorio'],
+      [504, true, 'Gateway Timeout — ya era transitorio'],
+      [400, false, 'Bad Request — dato mal formado, reintentar no cambia el resultado'],
+      [401, false, 'Unauthorized — credenciales inválidas, reintentar no cambia el resultado'],
+      [403, false, 'Forbidden — permiso denegado, reintentar no cambia el resultado'],
+      [404, false, 'Not Found — recurso inexistente, reintentar no cambia el resultado'],
+      [422, false, 'Unprocessable Entity — validación de esquema, reintentar no cambia el resultado'],
+    ] as const)('status %i -> transitorio=%s (%s)', async (status, transitorio) => {
+      fakeServer.behavior = 'always-status';
+      fakeServer.status = status;
+      const client = new TenderIngestClient({ baseUrl: fakeServer.baseUrl, retryBaseDelayMs: 5, maxRetries });
+
+      let caught: IngestApiError | undefined;
+      try {
+        await client.ingest({ records: [makeRecord(`EXP-${status}`)] });
+      } catch (error) {
+        caught = error as IngestApiError;
+      }
+
+      expect(caught).toBeInstanceOf(IngestApiError);
+      expect(caught!.status).toBe(status);
+      expect(caught!.retryable).toBe(transitorio);
+      expect(caught!.permanent).toBe(!transitorio);
+
+      if (transitorio) {
+        // Reintenta hasta agotar maxRetries: intento inicial + maxRetries.
+        expect(fakeServer.received.length).toBe(maxRetries + 1);
+      } else {
+        // CERO reintentos: el primer 4xx permanente termina la operación de inmediato.
+        expect(fakeServer.received.length).toBe(1);
+      }
+    });
+
+    it('error de red sin status HTTP (servidor caído) es transitorio (retryable=true, permanent=false)', async () => {
+      await fakeServer.close();
+      const client = new TenderIngestClient({ baseUrl: fakeServer.baseUrl, retryBaseDelayMs: 5, maxRetries: 1, timeoutMs: 500 });
+
+      let caught: IngestApiError | undefined;
+      try {
+        await client.ingest({ records: [makeRecord('EXP-NETWORK')] });
+      } catch (error) {
+        caught = error as IngestApiError;
+      }
+
+      expect(caught).toBeInstanceOf(IngestApiError);
+      expect(caught!.status).toBeUndefined();
+      expect(caught!.retryable).toBe(true);
+      expect(caught!.permanent).toBe(false);
+    });
   });
 });
