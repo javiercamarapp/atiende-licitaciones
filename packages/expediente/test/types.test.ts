@@ -55,6 +55,14 @@ describe("assertExplicitOffset — EX-EXP-04/EX-EXP-13: rango de offset y valide
     expect(() => assertExplicitOffset("   ")).toThrow();
   });
 
+  it("defensa final: una cadena con forma de offset válida ('Z') pero que no es una fecha real también se rechaza", () => {
+    // No matchea el formato "AAAA-MM-DD..." (así que `assertValidCalendarComponents`
+    // no la detecta) ni tiene un offset numérico "±HH:MM" que validar, pero
+    // termina en "Z" — ejercita la defensa final `Number.isNaN` de
+    // `assertExplicitOffset`, no las validaciones de rango/calendario.
+    expect(() => assertExplicitOffset("not-a-date-Z")).toThrow(/no representa una fecha válida/);
+  });
+
   it("rechaza null/undefined/no-string sin lanzar un TypeError distinto al esperado", () => {
     // @ts-expect-error prueba deliberada de un valor no-string
     expect(() => assertExplicitOffset(null)).toThrow();
