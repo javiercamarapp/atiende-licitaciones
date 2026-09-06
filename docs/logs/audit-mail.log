@@ -1,0 +1,101 @@
+=== Auditoría adversarial packages/mail — log de comandos ===
+Worktree aislado: git worktree add <scratchpad>/audit-mail HEAD (commit f9dd6bd)
+
+=== $ npm install (worktree) ===
+added 818 packages, and audited 827 packages
+7 vulnerabilities (3 moderate, 1 high, 3 critical) [ver npm audit abajo]
+
+=== $ npm run -w packages/mail typecheck ===
+> tsc --noEmit
+(sin errores)
+
+=== $ npm run -w packages/mail lint ===
+> eslint src test scripts
+(sin errores)
+
+=== $ npm run -w packages/mail test ===
+Test Files  24 passed (24)
+     Tests  220 passed (220)
+Duration  1.45s (reproducido 2 veces, valores similares al log de ronda 6)
+
+=== $ npm run -w packages/mail test:coverage ===
+Test Files  24 passed (24)
+     Tests  220 passed (220)
+All files: 96.48% stmts | 83.65% branch | 96.47% funcs | 96.48% lines
+(por encima de umbrales declarados en vitest.config.ts: 85/80/85/85)
+
+=== $ npm run -w packages/mail build ===
+> tsc -p tsconfig.build.json
+(sin errores)
+
+=== $ npm run -w packages/mail preview ===
+Vista previa generada: 16 plantillas en .../packages/mail/preview
+(subjects reproducidos idénticos al log de ronda 6)
+
+=== Verificación adicional del auditor sobre preview/*.html ===
+$ grep -il likida preview/*.html          -> (vacío) 0 menciones a Likida
+$ grep -l "<svg" preview/*.html            -> (vacío) sin <svg> en ningún HTML
+$ wc -c preview/*.html                     -> 16 archivos, 7-12 KB c/u (159793 bytes total)
+
+=== npm audit (root del worktree) ===
+$ npm audit                 -> 7 vulnerabilidades (3 critical, 1 high, 3 moderate)
+   Todas en devDependencies: @vitest/coverage-v8, vitest, vite, esbuild, html-validate
+   Más severa: GHSA-5xrq-8626-4rwp (CVSS 9.8, RCE vía servidor UI de Vitest, no usado en scripts del repo)
+$ npm audit --omit=dev      -> 0 vulnerabilidades (runtime de producción limpio)
+
+=== grep de secretos hardcodeados (src/scripts) ===
+$ grep -rniE "api[_-]?key\s*[:=]\s*['\"][a-z0-9]|secret\s*[:=]\s*['\"][a-z0-9]{10}|whsec_...|password\s*[:=]\s*['\"][a-z]" src scripts
+-> (vacío)
+$ grep -rn "console.log|console.error" src -> (vacío)
+
+=== grep List-Unsubscribe (RFC 8058) ===
+$ grep -rn "List-Unsubscribe" src test scripts README.md
+-> solo 1 ocurrencia, en un comentario de provider/types.ts (nunca se construye ni se envía)
+   ver hallazgo ML-02 en docs/auditoria-2/mail.md
+
+=== Prueba adversarial: inyección HTML en variable (organizationName) ===
+Script ad-hoc: render(organization-invite, { organizationName: '<script>alert(1)</script> Empresa Maliciosa' })
+Resultado:
+  contains raw <script>: false
+  contains escaped:      true  (&lt;script&gt;...&lt;/script&gt;)
+-> Comprobado correcto: React Email/JSX escapa el contenido de variables.
+
+=== Prueba adversarial: idempotencia bajo concurrencia (messageKey) ===
+Script ad-hoc: Promise.all([service.send(input), service.send(input)]) con el mismo messageKey
+Resultado:
+  calls to provider: 2
+  outcome A: sent   outcome B: sent
+-> HALLAZGO ML-01 (severidad alta): la idempotencia NO se sostiene bajo llamadas concurrentes
+   reales; el test existente de la suite solo cubre el caso secuencial.
+
+=== Prueba adversarial: safeUrl con host que empieza por "localhost" ===
+node -e 'console.log(/^http:\/\/localhost/i.test("http://localhost.evil-attacker.com/phish"))'
+-> true
+-> HALLAZGO ML-03 (severidad media): regex sin anclar acepta hosts arbitrarios que empiezan con
+   "localhost".
+
+=== Cálculo de contraste WCAG para colors.faint (no cubierto por test/theme/contrast.test.ts) ===
+faint (#8291a3) vs surface (#ffffff): 3.22:1
+faint (#8291a3) vs canvas  (#f7f9fc): 3.05:1
+(umbral AA texto normal = 4.5:1) -> HALLAZGO ML-04 (severidad media)
+
+=== Verificación de replay de webhook (Svix) ===
+Lectura de verifyResendWebhookSignature: solo valida ventana de tolerancia de timestamp (300s
+default), sin deduplicación por svix-id. Sin prueba en verify-signature.test.ts que ejercite un
+svix-id repetido dentro de la ventana. -> HALLAZGO ML-05 (severidad media, impacto acotado por
+idempotencia de los handlers de bounce/queja).
+
+=== Verificación de integración real con apps/api ===
+$ grep -rl "@atiende/mail" apps/
+-> (vacío) — apps/api y apps/worker aún no importan el paquete; no existe endpoint
+   POST /api/correo/eventos ni disparo real de envío desde un flujo de la app.
+-> contexto para HALLAZGO ML-07 (trazabilidad de docs/ACEPTACION.md).
+
+=== Capturas de pantalla (Playwright, Chromium) ===
+Templates: email-verification, new-tender-match, deadline-reminder, weekly-summary,
+backup-codes-generated. Viewports: desktop 680x900, movil 375 (imagen resultante 632x900 por
+tabla de ancho fijo 600px, ver nota de reproducibilidad en el informe).
+Guardadas en docs/auditoria-2/capturas-mail/ (10 archivos PNG).
+
+=== Limpieza ===
+git worktree remove <scratchpad>/audit-mail (al finalizar la auditoría)
