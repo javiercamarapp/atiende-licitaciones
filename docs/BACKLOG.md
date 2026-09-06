@@ -371,3 +371,6 @@ Las 12 pruebas mínimas obligatorias S1-S12 de `docs/ACEPTACION.md` se reparten 
 
 ## E20 — Índice de correlation_id en agent_runs (BAJA, tras WK6-02)
 - Migración en packages/db: columna `agent_runs.correlation_id` (poblada desde output JSONB) + índice; adaptar la consulta REQ-171 del worker. Un solo escritor de migraciones a la vez (hoy el agente de correos #109).
+
+## E21 — API: perfil y sesiones (paridad Likida/Restaurantes; detectado en web 8a)
+- Endpoints: desactivar 2FA con step-up, regenerar códigos de respaldo, listar/cerrar sesiones activas (refresh families), cambiar contraseña con step-up, desvincular Google (E19). Luego UI en `/configuracion` sustituyendo los huecos declarados.
