@@ -211,6 +211,13 @@ describe('TenderIngestClient contra un servidor HTTP real', () => {
       [403, false, 'Forbidden — permiso denegado, reintentar no cambia el resultado'],
       [404, false, 'Not Found — recurso inexistente, reintentar no cambia el resultado'],
       [422, false, 'Unprocessable Entity — validación de esquema, reintentar no cambia el resultado'],
+      // WK-20 (docs/auditoria-1/worker-cierre.md, MEDIA): antes de esta ronda
+      // esta "zona gris" (501, 505-599) no estaba clasificada ni como
+      // transitorio ni como permanente explícito.
+      [501, false, 'Not Implemented — falla ESTRUCTURAL declarada por el servidor (WK-20): reintentar el mismo request nunca cambia el resultado, permanente explícito'],
+      [505, false, 'HTTP Version Not Supported — falla ESTRUCTURAL de protocolo (WK-20), permanente explícito igual que 501'],
+      [506, true, 'Variant Also Negotiates — "zona gris" 506-599 (WK-20): transitorio, mismo trato que cualquier otro 5xx no estructural'],
+      [599, true, 'código 5xx no estandarizado en el límite superior del rango — "zona gris" (WK-20): transitorio'],
     ] as const)('status %i -> transitorio=%s (%s)', async (status, transitorio, _motivo) => {
       fakeServer.behavior = 'always-status';
       fakeServer.status = status;
@@ -253,5 +260,82 @@ describe('TenderIngestClient contra un servidor HTTP real', () => {
       expect(caught!.retryable).toBe(true);
       expect(caught!.permanent).toBe(false);
     });
+  });
+
+  /**
+   * WK-20 (docs/auditoria-1/worker-cierre.md, MEDIA): "tabla de verdad
+   * exhaustiva" pedida explícitamente — TODOS los 200 códigos 400-599 (no
+   * solo una muestra), verificando que la clasificación es completa
+   * (`retryable`/`permanent` nunca ambos `true`, nunca ambos `false` para
+   * un `status` HTTP real) — antes de esta ronda, 96 de estos 200 códigos
+   * (501, 505-599) caían en el hueco "ninguno de los dos". `maxRetries: 0`
+   * mantiene la corrida rápida (una sola llamada HTTP real por código, sin
+   * esperar ningún backoff) sin afectar la clasificación en sí (`.status`/
+   * `.retryable`/`.permanent` se calculan antes de decidir si reintentar).
+   */
+  describe('WK-20: tabla de verdad exhaustiva — los 200 códigos 400-599, ninguno sin clasificar', () => {
+    const allStatuses = Array.from({ length: 200 }, (_, i) => 400 + i);
+
+    it.each(allStatuses)('status %i: exactamente uno de retryable/permanent es true (clasificación completa)', async (status) => {
+      fakeServer.behavior = 'always-status';
+      fakeServer.status = status;
+      const client = new TenderIngestClient({ baseUrl: fakeServer.baseUrl, retryBaseDelayMs: 1, maxRetries: 0 });
+
+      let caught: IngestApiError | undefined;
+      try {
+        await client.ingest({ records: [makeRecord(`EXP-${status}`)] });
+      } catch (error) {
+        caught = error as IngestApiError;
+      }
+
+      expect(caught).toBeInstanceOf(IngestApiError);
+      if (status === 407) {
+        // WK-21: caso especial DENTRO del propio barrido 400-599 — undici
+        // nunca entrega un Response real para 407 (ver test WK-21 dedicado
+        // abajo), así que `.status` queda undefined en vez de 407. La
+        // clasificación sigue siendo completa (permanente explícito de
+        // configuración de proxy), solo por una vía distinta a `.status`.
+        expect(caught!.status).toBeUndefined();
+      } else {
+        expect(caught!.status).toBe(status);
+      }
+      // Invariante WK-17 (nunca ambos true) + cierre WK-20 (nunca ambos
+      // false): con un fallo real de este endpoint, exactamente uno de los
+      // dos es true.
+      expect(caught!.retryable).not.toBe(caught!.permanent);
+    });
+  });
+
+  /**
+   * WK-21 (docs/auditoria-1/worker-cierre.md, BAJA): contra un servidor
+   * HTTP real (nunca un mock de `fetch`) que responde 407 directamente.
+   * Node/undici SIEMPRE convierte esa respuesta en un `TypeError: fetch
+   * failed` genérico (WHATWG fetch spec, paso de status 407 con
+   * window='no-window') — el cliente nunca ve un `Response` con
+   * `status===407`. Antes de esta ronda, ese error caía en la rama
+   * genérica de "fallo de red" (retryable=true, permanent=false,
+   * indistinguible de un DNS/ECONNRESET real). Ahora se clasifica
+   * explícitamente como error PERMANENTE de configuración de proxy.
+   */
+  it('WK-21: HTTP 407 devuelto directamente por el servidor se clasifica como error PERMANENTE de configuración de proxy (mensaje explícito)', async () => {
+    fakeServer.behavior = 'always-status';
+    fakeServer.status = 407;
+    const client = new TenderIngestClient({ baseUrl: fakeServer.baseUrl, retryBaseDelayMs: 5, maxRetries: 2 });
+
+    let caught: IngestApiError | undefined;
+    try {
+      await client.ingest({ records: [makeRecord('EXP-407')] });
+    } catch (error) {
+      caught = error as IngestApiError;
+    }
+
+    expect(caught).toBeInstanceOf(IngestApiError);
+    // undici nunca entrega un Response real para 407: no hay `.status`.
+    expect(caught!.status).toBeUndefined();
+    expect(caught!.retryable).toBe(false);
+    expect(caught!.permanent).toBe(true);
+    expect(caught!.message).toMatch(/proxy/i);
+    // Permanente: CERO reintentos, aunque maxRetries lo permitiera.
+    expect(fakeServer.received).toHaveLength(1);
   });
 });
