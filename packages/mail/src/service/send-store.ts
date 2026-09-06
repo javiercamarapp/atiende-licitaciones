@@ -38,14 +38,65 @@ export interface SendRecord {
  * `resumen-semanal:<organizationId>:<semanaISO>`) de modo que un reintento
  * de SU lado (una cola que reprocesa, un doble clic) nunca duplique el
  * envío.
+ *
+ * ## ML-01 — reserve(): la operación atómica que falta para concurrencia real
+ *
+ * get()+save() por sí solos son un patrón check-then-act: si dos llamadas
+ * concurrentes (mismo messageKey) hacen get() casi al mismo tiempo, AMBAS ven
+ * "no existe" y ambas terminan llamando al MailProvider real antes de que
+ * ninguna alcance a hacer save(). reserve() es la operación de
+ * compare-and-set que cierra esa ventana: MailService.send() la invoca justo
+ * ANTES de tocar el proveedor, y solo quien reciba true continúa — quien
+ * reciba false nunca llama al proveedor.
+ *
+ * La implementación real sobre Postgres (apps/api/apps/worker) resuelve esto
+ * con una restricción UNIQUE sobre dedupe_key y:
+ *
+ *   INSERT INTO messaging_outbox (dedupe_key, status, ...)
+ *   VALUES ($1, 'pending', ...)
+ *   ON CONFLICT (dedupe_key) DO NOTHING;
+ *   -- reserve() === true  si rowCount === 1 (esta llamada ganó la reserva)
+ *   -- reserve() === false si rowCount === 0 (alguien más ya la tenía)
+ *
+ * InMemorySendRecordStore.reserve() reproduce la misma semántica con un Map
+ * y una comprobación-y-escritura SÍNCRONA (sin ningún await de por medio):
+ * JavaScript no interrumpe código síncrono a medio camino, así que dos
+ * llamadas que compiten por la misma messageKey (p. ej. dentro de un
+ * Promise.all) nunca pueden ver ambas "libre" — la primera en ejecutar la
+ * comprobación ya dejó la marca puesta antes de que la segunda alcance a
+ * leerla. Es la contraparte en memoria de la "promesa en vuelo": mientras la
+ * reserva sigue viva, cualquier otra llamada para la misma llave pierde de
+ * inmediato, sin esperar a que el envío real termine.
  */
 export interface SendRecordStore {
   get(messageKey: string): Promise<SendRecord | undefined>;
   save(record: SendRecord): Promise<void>;
+  /**
+   * Compare-and-set atómico: `true` SOLO para quien gana la reserva de esta
+   * `messageKey` (ni ya está `sent`, ni alguien más la tiene reservada en
+   * este momento) — quien gana debe, tarde o temprano, llamar a `save()`
+   * (o a `release()` si aborta antes de tocar el proveedor) para esa misma
+   * llave. `false` para cualquier otra llamada concurrente o posterior
+   * mientras la reserva sigue viva.
+   */
+  reserve(messageKey: string): Promise<boolean>;
+  /**
+   * Libera una reserva de `reserve()` SIN escribir un registro final —
+   * úsese solo cuando el envío se abortó ANTES de intentar el proveedor
+   * (p. ej. `not_configured`) y se quiere permitir que una llamada
+   * POSTERIOR (no concurrente) con la misma `messageKey` pueda reintentar.
+   * Opcional: una implementación real sobre Postgres puede simplemente
+   * borrar la fila `pending` que dejó `reserve()` (o dejarla expirar por
+   * `lease_until`) si no quiere exponer esta operación por separado.
+   */
+  release?(messageKey: string): Promise<void>;
 }
 
 export class InMemorySendRecordStore implements SendRecordStore {
   private readonly records = new Map<string, SendRecord>();
+  /** Reservas en vuelo (ver `reserve()` en la interfaz de arriba) — separado
+   *  de `records` porque una reserva NO es todavía un resultado final. */
+  private readonly reservations = new Set<string>();
 
   async get(messageKey: string): Promise<SendRecord | undefined> {
     return this.records.get(messageKey);
@@ -53,6 +104,21 @@ export class InMemorySendRecordStore implements SendRecordStore {
 
   async save(record: SendRecord): Promise<void> {
     this.records.set(record.messageKey, record);
+    this.reservations.delete(record.messageKey);
+  }
+
+  async reserve(messageKey: string): Promise<boolean> {
+    // Todo lo de aquí abajo es SÍNCRONO a propósito (sin `await`): es lo que
+    // hace que la comprobación-y-escritura sea atómica frente a llamadas
+    // concurrentes — ver el comentario de la interfaz.
+    if (this.records.get(messageKey)?.status === "sent") return false;
+    if (this.reservations.has(messageKey)) return false;
+    this.reservations.add(messageKey);
+    return true;
+  }
+
+  async release(messageKey: string): Promise<void> {
+    this.reservations.delete(messageKey);
   }
 
   /** Conveniencia de pruebas: todos los registros guardados hasta ahora. */

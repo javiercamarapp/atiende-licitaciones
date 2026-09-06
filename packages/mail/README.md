@@ -168,6 +168,35 @@ propias columnas de `lease_until`/`fence_token` si varios workers reclaman
 envíos sin pisarse. `InMemorySendRecordStore` es solo para pruebas y para un
 `MailService` de desarrollo sin persistencia.
 
+**Idempotencia bajo concurrencia real (`reserve()`/`release()`).**
+`get()`+`save()` por sí solos son un patrón *check-then-act*: dos llamadas
+concurrentes con la misma `messageKey` (reintento de una cola *at-least-once*,
+doble clic que dispara dos peticiones casi simultáneas) verían ambas "no
+existe" en el `get()` y ambas llegarían a mandar el correo de verdad.
+`SendRecordStore.reserve(messageKey): Promise<boolean>` es la operación
+atómica de compare-and-set que cierra esa ventana — `MailService.send()` la
+invoca justo ANTES de tocar el `MailProvider`, y solo quien recibe `true`
+continúa; quien recibe `false` espera (acotado) a que quien ganó termine de
+escribir su resultado con `store.get()`, y devuelve ESE resultado (nunca
+llama al proveedor por su cuenta). La implementación real sobre Postgres
+resuelve `reserve()` con la restricción `UNIQUE` de `dedupe_key`:
+
+```sql
+INSERT INTO messaging_outbox (dedupe_key, status, ...)
+VALUES ($1, 'pending', ...)
+ON CONFLICT (dedupe_key) DO NOTHING;
+-- reserve() === true  si rowCount === 1 (esta llamada ganó la reserva)
+-- reserve() === false si rowCount === 0 (alguien más ya la tenía)
+```
+
+`store.release(messageKey)` (opcional en la interfaz) libera una reserva SIN
+escribir un registro final — solo se usa cuando el envío se abortó ANTES de
+intentar el proveedor (`not_configured`), para permitir que una llamada
+POSTERIOR (no concurrente) con la misma llave reintente. Prueba de
+regresión: `test/service/mail-service.test.ts` ("ML-01") dispara 10
+`service.send()` con la misma `messageKey` dentro de un solo `Promise.all` y
+verifica que el `MailProvider` real se llama exactamente una vez.
+
 ### La lista de supresión (`SuppressionStore`)
 
 Deny-all y **fail-closed**: si la consulta a la lista de supresión falla,

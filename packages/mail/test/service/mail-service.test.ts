@@ -68,6 +68,44 @@ describe("MailService.send", () => {
     expect(sendSpy).toHaveBeenCalledTimes(1);
   });
 
+  it("ML-01: es idempotente bajo llamadas CONCURRENTES (Promise.all) con la misma messageKey — exactamente 1 llega al provider", async () => {
+    // Provider con latencia real simulada (setTimeout, no un `await` que se
+    // resuelve en el mismo tick): si la idempotencia solo funcionara para el
+    // caso secuencial (el registro `sent` ya escrito antes de la segunda
+    // llamada), este escenario con 10 llamadas disparadas EN PARALELO sobre
+    // la misma `messageKey` reproduciría 10 envíos reales al proveedor.
+    let providerCalls = 0;
+    const provider: MailProvider = {
+      name: "fake",
+      async send() {
+        providerCalls++;
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        return { ok: true, providerMessageId: `p-${providerCalls}` };
+      },
+    };
+    const store = new InMemorySendRecordStore();
+    const service = new MailService({
+      provider,
+      store,
+      retryPolicy: { maxAttempts: 3, baseDelayMs: 1, maxDelayMs: 5, jitterRatio: 0 },
+      random: () => 0.5,
+    });
+
+    const input = {
+      to: RECIPIENT,
+      templateId: emailVerificationTemplate.id,
+      variables: VALID_VARS,
+      messageKey: "verificacion:concurrente-u1",
+    };
+
+    const outcomes = await Promise.all(Array.from({ length: 10 }, () => service.send(input)));
+
+    expect(providerCalls).toBe(1);
+    expect(outcomes.filter((o) => o.status === "sent")).toHaveLength(1);
+    expect(outcomes.filter((o) => o.status === "already_sent")).toHaveLength(9);
+    expect((await store.get("verificacion:concurrente-u1"))?.status).toBe("sent");
+  });
+
   it("reintenta ante 429/5xx y termina en éxito (backoff)", async () => {
     const { provider } = fakeProvider([
       { ok: false, kind: "retryable", statusCode: 429, detail: "rate limited" },

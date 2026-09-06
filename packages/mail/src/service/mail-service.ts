@@ -7,7 +7,7 @@ import type { LinkSigner, SignedLinkPayload, VerifySignedLinkResult } from "../s
 import type { SuppressionStore } from "../suppression/types";
 import { computeBackoffDelay, DEFAULT_RETRY_POLICY, type RetryPolicy } from "./retry";
 import { UnlimitedRateLimiter, type RateLimiter } from "./rate-limiter";
-import { InMemorySendRecordStore, type SendRecordStore } from "./send-store";
+import { InMemorySendRecordStore, type SendRecord, type SendRecordStore } from "./send-store";
 import type { ZodIssue } from "zod";
 
 export interface SendMailInput<V = unknown> {
@@ -141,6 +141,30 @@ export class MailService {
     const toAddresses = recipients.map((r) => r.email);
     const rateLimitKey = toAddresses[0] ?? input.messageKey;
 
+    // ML-01: reserva atómica JUSTO ANTES de tocar el proveedor real — ver el
+    // comentario de `SendRecordStore.reserve()`. Sin esto, dos llamadas
+    // concurrentes con la misma `messageKey` ya pasaron el `get()` de arriba
+    // viendo ambas "no existe" y ambas llegarían al `MailProvider`.
+    const claimed = await this.store.reserve(input.messageKey);
+    if (!claimed) {
+      const record = await this.waitForReservedRecord(input.messageKey);
+      if (record?.status === "sent") {
+        return { status: "already_sent", messageKey: input.messageKey, providerMessageId: record.providerMessageId };
+      }
+      if (record?.status === "failed_permanent") {
+        return { status: "failed_permanent", messageKey: input.messageKey, detail: record.lastError ?? "" };
+      }
+      if (record?.status === "dead") {
+        return { status: "dead", messageKey: input.messageKey, detail: record.lastError ?? "" };
+      }
+      // Quien ganó la reserva no terminó de escribir un resultado final
+      // dentro de la ventana de espera (o abortó sin guardar, p. ej.
+      // `not_configured`): se trata como ya en curso, para nunca duplicar el
+      // envío desde este lado — un reintento posterior del llamador, con la
+      // misma `messageKey`, hará su propio `get()`/`reserve()` de nuevo.
+      return { status: "already_sent", messageKey: input.messageKey };
+    }
+
     let lastDetail = "";
     for (let attempt = 1; attempt <= this.retryPolicy.maxAttempts; attempt++) {
       if (!this.rateLimiter.tryConsume(rateLimitKey)) {
@@ -174,6 +198,11 @@ export class MailService {
       }
 
       if (result.kind === "not_configured") {
+        // Se abortó antes de un resultado final del proveedor: libera la
+        // reserva para que una llamada POSTERIOR (no concurrente) con la
+        // misma messageKey pueda intentarlo de nuevo una vez que se
+        // configure un proveedor real.
+        await this.store.release?.(input.messageKey);
         return { status: "not_configured", messageKey: input.messageKey };
       }
 
@@ -215,5 +244,23 @@ export class MailService {
     } catch {
       return true;
     }
+  }
+
+  /**
+   * Quien PIERDE `store.reserve()` espera a que quien la ganó termine de
+   * escribir el registro final (`save()`), en vez de asumir cualquier
+   * resultado a ciegas — así una llamada concurrente que pierde la carrera
+   * puede devolver el `providerMessageId` real del envío que sí se hizo.
+   * Espera acotada (nunca indefinida): si nadie escribe un registro dentro
+   * del presupuesto, `send()` trata la llave como "ya en curso" y no
+   * reintenta por su cuenta (ver el llamador).
+   */
+  private async waitForReservedRecord(messageKey: string, maxAttempts = 40): Promise<SendRecord | undefined> {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const record = await this.store.get(messageKey);
+      if (record) return record;
+      await this.sleep(5);
+    }
+    return this.store.get(messageKey);
   }
 }

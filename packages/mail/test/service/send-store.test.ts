@@ -34,4 +34,42 @@ describe("InMemorySendRecordStore", () => {
     await store.save({ messageKey: "k2", templateId: "t", status: "failed_permanent", attempts: 1, maxAttempts: 4, updatedAt: "b" });
     expect(store.all()).toHaveLength(2);
   });
+
+  describe("reserve()/release() (ML-01 — compare-and-set)", () => {
+    it("reserve() devuelve true la primera vez para una llave nunca vista", async () => {
+      const store = new InMemorySendRecordStore();
+      expect(await store.reserve("k1")).toBe(true);
+    });
+
+    it("reserve() devuelve false para una llave ya reservada (en vuelo)", async () => {
+      const store = new InMemorySendRecordStore();
+      expect(await store.reserve("k1")).toBe(true);
+      expect(await store.reserve("k1")).toBe(false);
+    });
+
+    it("reserve() devuelve false para una llave ya guardada como sent", async () => {
+      const store = new InMemorySendRecordStore();
+      await store.save({ messageKey: "k1", templateId: "t", status: "sent", attempts: 1, maxAttempts: 4, updatedAt: "a" });
+      expect(await store.reserve("k1")).toBe(false);
+    });
+
+    it("save() libera la reserva en vuelo (queda un registro final, no una reserva colgada)", async () => {
+      const store = new InMemorySendRecordStore();
+      await store.reserve("k1");
+      await store.save({ messageKey: "k1", templateId: "t", status: "failed_permanent", attempts: 1, maxAttempts: 4, updatedAt: "a" });
+      // Una nueva reserva para la misma llave sigue bloqueada porque ya hay
+      // un registro final (failed_permanent) — pero release() explícito de
+      // una reserva SIN registro sí debe permitir reservar de nuevo:
+      const store2 = new InMemorySendRecordStore();
+      await store2.reserve("k2");
+      await store2.release("k2");
+      expect(await store2.reserve("k2")).toBe(true);
+    });
+
+    it("Promise.all de 10 reservas concurrentes para la misma llave: exactamente 1 gana", async () => {
+      const store = new InMemorySendRecordStore();
+      const results = await Promise.all(Array.from({ length: 10 }, () => store.reserve("carrera")));
+      expect(results.filter(Boolean)).toHaveLength(1);
+    });
+  });
 });
