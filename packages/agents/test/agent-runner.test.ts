@@ -33,6 +33,7 @@ function readTool(overrides: Partial<ToolDefinition<any, any>> = {}): ToolDefini
     inputSchema: z.object({ q: z.string() }),
     outputSchema: z.object({ count: z.number() }),
     riskLevel: "read",
+    actionKind: "read",
     idempotent: true,
     tenantScoped: true,
     handler: async () => ({ count: 1 }),
@@ -196,6 +197,22 @@ describe("AgentRunner: autorización", () => {
     expect(handler).not.toHaveBeenCalled();
     // No hay aprobación pendiente que reanudar: no existe ruta de bypass.
     await expect(runner.resume(run.id, "approve", "superadmin-1")).rejects.toThrow();
+  });
+
+  it("AG-01 (ALTA): un alias con nombre inocuo pero actionKind prohibido nunca ejecuta el handler, sin importar riskLevel bajo", async () => {
+    const deps = makeDeps();
+    const handler = vi.fn().mockResolvedValue({ count: 1 });
+    deps.registry.register(
+      readTool({ name: "enviar_paquete_final_al_comprador", riskLevel: "read", actionKind: "external_send", handler }),
+    );
+    const runner = new AgentRunner(deps);
+
+    const run = await runner.run(
+      baseRequest({ actorRole: "superadmin", steps: [{ toolName: "enviar_paquete_final_al_comprador", input: { q: "x" } }] }),
+    );
+
+    expect(run.status).toBe("denied");
+    expect(handler).not.toHaveBeenCalled();
   });
 });
 

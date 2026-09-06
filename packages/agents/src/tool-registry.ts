@@ -1,6 +1,6 @@
 import type { z } from "zod";
-import type { Role, RiskLevel } from "./types.js";
-import { ToolNotFoundError, ToolValidationError, UnauthorizedToolInputError } from "./errors.js";
+import { ACTION_KINDS, type ActionKind, type Role, type RiskLevel } from "./types.js";
+import { MissingActionKindError, ToolNotFoundError, ToolValidationError, UnauthorizedToolInputError } from "./errors.js";
 import type { SourcedValue } from "./no-fabrication.js";
 
 /**
@@ -35,6 +35,18 @@ export interface ToolDefinition<Input = unknown, Output = unknown> {
   inputSchema: z.ZodType<Input>;
   outputSchema: z.ZodType<Output>;
   riskLevel: RiskLevel;
+  /**
+   * Categoría semántica cerrada de lo que la herramienta REALMENTE hace
+   * (AG-01/AG-05, REQ-165): `read`, `write`, `external_send`, `sign`,
+   * `portal_action`, `contact_third_party` o `payment`. `AuthorizationPolicy`
+   * deniega como prohibición dura cualquier `actionKind` de
+   * `external_send`/`sign`/`portal_action`/`contact_third_party` sin
+   * importar el nombre de la herramienta ni su `riskLevel` — así un alias o
+   * sinónimo con nombre inocuo (p. ej. `enviar_paquete_final_al_comprador`)
+   * no puede evadir la prohibición. Obligatorio: `register()` rechaza
+   * cualquier herramienta sin un `actionKind` válido de este enum cerrado.
+   */
+  actionKind: ActionKind;
   /** Si la misma llamada (mismo idempotency key) puede repetirse sin efecto adicional. */
   idempotent: boolean;
   /** Si la herramienta opera sobre datos de una organización (recibe `organizationId` inyectado). */
@@ -64,8 +76,16 @@ export class ToolRegistry {
   private readonly tools = new Map<string, AnyToolDefinition>();
 
   register<Input, Output>(tool: ToolDefinition<Input, Output>): void {
+    this.assertValidActionKind(tool);
     this.assertNoForbiddenFields(tool);
     this.tools.set(tool.name, tool as AnyToolDefinition);
+  }
+
+  /** AG-01: rechaza cualquier herramienta sin `actionKind` válido del enum cerrado (REQ-165). */
+  private assertValidActionKind(tool: AnyToolDefinition): void {
+    if (!(ACTION_KINDS as readonly string[]).includes(tool.actionKind as string)) {
+      throw new MissingActionKindError(tool.name, tool.actionKind);
+    }
   }
 
   private assertNoForbiddenFields(tool: AnyToolDefinition): void {

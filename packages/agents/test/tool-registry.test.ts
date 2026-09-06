@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { ToolRegistry, type ToolDefinition } from "../src/tool-registry.js";
-import { ToolNotFoundError, ToolValidationError, UnauthorizedToolInputError } from "../src/errors.js";
+import { MissingActionKindError, ToolNotFoundError, ToolValidationError, UnauthorizedToolInputError } from "../src/errors.js";
+import { ACTION_KINDS } from "../src/types.js";
 
 function makeTool(overrides: Partial<ToolDefinition<any, any>> = {}): ToolDefinition<any, any> {
   return {
@@ -10,6 +11,7 @@ function makeTool(overrides: Partial<ToolDefinition<any, any>> = {}): ToolDefini
     inputSchema: z.object({ tenderId: z.string() }),
     outputSchema: z.object({ title: z.string() }),
     riskLevel: "read",
+    actionKind: "read",
     idempotent: true,
     tenantScoped: true,
     handler: async (input: { tenderId: string }) => ({ title: `convocatoria ${input.tenderId}` }),
@@ -86,5 +88,26 @@ describe("ToolRegistry", () => {
   it("permite esquemas de entrada sin campos de tenant", () => {
     const registry = new ToolRegistry();
     expect(() => registry.register(makeTool())).not.toThrow();
+  });
+
+  describe("AG-01: actionKind obligatorio (REQ-165)", () => {
+    it("rechaza el registro si la herramienta no declara actionKind", () => {
+      const registry = new ToolRegistry();
+      const toolWithoutActionKind = { ...makeTool(), actionKind: undefined } as unknown as ToolDefinition<any, any>;
+      expect(() => registry.register(toolWithoutActionKind)).toThrow(MissingActionKindError);
+    });
+
+    it("rechaza el registro si actionKind no pertenece al enum cerrado", () => {
+      const registry = new ToolRegistry();
+      const toolWithBadActionKind = { ...makeTool(), actionKind: "hazlo_todo" } as unknown as ToolDefinition<any, any>;
+      expect(() => registry.register(toolWithBadActionKind)).toThrow(MissingActionKindError);
+    });
+
+    it("acepta cualquier valor del enum cerrado de actionKind", () => {
+      const registry = new ToolRegistry();
+      for (const actionKind of ACTION_KINDS) {
+        expect(() => registry.register(makeTool({ name: `tool_${actionKind}`, actionKind }))).not.toThrow();
+      }
+    });
   });
 });

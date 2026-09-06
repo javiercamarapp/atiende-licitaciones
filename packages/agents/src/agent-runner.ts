@@ -250,6 +250,10 @@ export class AgentRunner {
       riskLevel: tool.riskLevel,
       actorRole: request.actorRole,
       requiresAuthorizationForRole,
+      // AG-01: siempre se pasa la categoría semántica declarada de la
+      // herramienta, no solo su nombre, para que un alias con nombre
+      // inocuo no pueda evadir una prohibición dura.
+      actionKind: tool.actionKind,
     });
 
     // Una denegación NUNCA se puede saltar, incluso reanudando una

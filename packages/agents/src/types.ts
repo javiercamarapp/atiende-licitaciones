@@ -38,6 +38,28 @@ export const RISK_LEVEL_ORDER: Record<RiskLevel, number> = {
 /** Resultado de la política de autorización. */
 export type AuthorizationDecision = "auto" | "pending" | "denied";
 
+/**
+ * Categoría semántica cerrada de lo que una herramienta REALMENTE hace,
+ * declarada explícitamente por su autor en `ToolDefinition.actionKind`
+ * (AG-01/AG-05, REQ-165). A diferencia del nombre libre de la herramienta
+ * (que puede tener alias/sinónimos no listados, p. ej.
+ * `enviar_paquete_final_al_comprador`), `actionKind` es un enum cerrado que
+ * `AuthorizationPolicy` usa para denegar prohibiciones duras por
+ * CATEGORÍA, sin importar cómo se llame la tool. `ToolRegistry.register()`
+ * rechaza cualquier herramienta sin un `actionKind` válido de esta lista.
+ */
+export const ACTION_KINDS = [
+  "read",
+  "write",
+  "external_send",
+  "sign",
+  "portal_action",
+  "contact_third_party",
+  "payment",
+] as const;
+
+export type ActionKind = (typeof ACTION_KINDS)[number];
+
 /** Los tres niveles de modelo por costo definidos en REQ-124. */
 export type ModelTier = "economico" | "estandar" | "premium";
 

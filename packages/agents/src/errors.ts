@@ -23,6 +23,18 @@ export class ToolNotFoundError extends AgentsError {
   }
 }
 
+export class MissingActionKindError extends AgentsError {
+  constructor(readonly toolName: string, readonly actionKind: unknown) {
+    super(
+      `La herramienta "${toolName}" no declara un "actionKind" válido (recibido: ${JSON.stringify(actionKind)}); ` +
+        "es obligatorio declarar la categoría semántica real de la acción (read/write/external_send/sign/" +
+        "portal_action/contact_third_party/payment) para que AuthorizationPolicy pueda denegar prohibiciones " +
+        "duras por categoría, no solo por nombre (REQ-165)",
+      false,
+    );
+  }
+}
+
 export class UnauthorizedToolInputError extends AgentsError {
   constructor(readonly toolName: string, readonly field: string) {
     super(

@@ -1,4 +1,4 @@
-import type { AuthorizationDecision, Role, RiskLevel } from "./types.js";
+import type { ActionKind, AuthorizationDecision, Role, RiskLevel } from "./types.js";
 import { RISK_LEVEL_ORDER } from "./types.js";
 
 /**
@@ -83,12 +83,36 @@ export interface AuthorizationRequest {
   actorRole: Role;
   /** Override por-herramienta desde el `ToolDefinition.requiresAuthorization`. */
   requiresAuthorizationForRole?: boolean;
+  /**
+   * Categoría semántica real de la herramienta (`ToolDefinition.actionKind`,
+   * AG-01). Cuando está presente y pertenece a
+   * `HARD_PROHIBITED_ACTION_KINDS`, se deniega como prohibición dura sin
+   * importar el nombre de la herramienta. Opcional aquí (para no romper
+   * llamadores directos de `AuthorizationPolicy` fuera de `AgentRunner`),
+   * pero `ToolRegistry.register()` lo exige siempre, así que todo lo que
+   * pasa por `AgentRunner` siempre lo trae.
+   */
+  actionKind?: ActionKind;
 }
 
 export interface AuthorizationResult {
   decision: AuthorizationDecision;
   reason: string;
 }
+
+/**
+ * Categorías de `ActionKind` que SIEMPRE son prohibición dura (REQ-165),
+ * sin importar el nombre de la herramienta ni el rol (AG-01). A diferencia
+ * de `DEFAULT_HARD_PROHIBITED_ACTIONS` (por nombre, ampliable pero nunca
+ * reducible — ver AG-03), esta lista NO tiene ninguna opción de
+ * constructor: es un enum cerrado fijo, no inyectable de ninguna forma.
+ */
+const HARD_PROHIBITED_ACTION_KINDS: ReadonlySet<ActionKind> = new Set<ActionKind>([
+  "external_send",
+  "sign",
+  "portal_action",
+  "contact_third_party",
+]);
 
 export class AuthorizationPolicy {
   private readonly hardProhibitedActions: Set<string>;
@@ -113,8 +137,17 @@ export class AuthorizationPolicy {
   }
 
   decide(request: AuthorizationRequest): AuthorizationResult {
-    // Prohibiciones duras primero, sin importar el rol: ni superadmin puede
-    // hacer que el sistema ejecute esto automáticamente. Nunca son
+    // AG-01: clasificación por actionKind semántico PRIMERO — no depende en
+    // absoluto del nombre de la herramienta, así que un alias/sinónimo con
+    // nombre inocuo (p. ej. "enviar_paquete_final_al_comprador") no puede
+    // evadir la prohibición si su actionKind real es
+    // external_send/sign/portal_action/contact_third_party.
+    if (request.actionKind && HARD_PROHIBITED_ACTION_KINDS.has(request.actionKind)) {
+      return { decision: "denied", reason: "prohibicion_dura_por_actionKind_solo_humano_fuera_del_sistema" };
+    }
+
+    // Prohibiciones duras por nombre, sin importar el rol: ni superadmin
+    // puede hacer que el sistema ejecute esto automáticamente. Nunca son
     // "pending" — no hay ruta de aprobación dentro del sistema para ellas.
     if (this.hardProhibitedActions.has(request.toolName)) {
       return { decision: "denied", reason: "prohibicion_dura_solo_humano_fuera_del_sistema" };

@@ -132,5 +132,45 @@ describe("AuthorizationPolicy", () => {
         expect(policy.decide({ toolName, riskLevel: "write", actorRole: "director" }).decision).toBe("denied");
       }
     });
+
+    it("AG-01 (ALTA): un actionKind prohibido deniega SIN IMPORTAR el nombre de la herramienta (alias/sinónimo)", () => {
+      const policy = new AuthorizationPolicy();
+      // Nombre completamente inocuo, no listado en DEFAULT_HARD_PROHIBITED_ACTIONS,
+      // pero cuya categoría semántica real es "enviar oferta al comprador".
+      const result = policy.decide({
+        toolName: "enviar_paquete_final_al_comprador",
+        riskLevel: "read",
+        actorRole: "superadmin",
+        actionKind: "external_send",
+      });
+      expect(result.decision).toBe("denied");
+    });
+
+    it("AG-01: cubre las 4 categorías de actionKind prohibido con un nombre inocuo cualquiera", () => {
+      const policy = new AuthorizationPolicy();
+      const prohibitedKinds = ["external_send", "sign", "portal_action", "contact_third_party"] as const;
+      for (const actionKind of prohibitedKinds) {
+        const result = policy.decide({
+          toolName: "nombre_totalmente_inocuo_sin_relacion",
+          riskLevel: "read",
+          actorRole: "superadmin",
+          actionKind,
+        });
+        expect(result.decision, `actionKind ${actionKind}`).toBe("denied");
+      }
+    });
+
+    it("AG-01: actionKind read/write/payment con nombre inocuo NO se ve afectado por la prohibición dura por categoría", () => {
+      const policy = new AuthorizationPolicy();
+      for (const actionKind of ["read", "write"] as const) {
+        const result = policy.decide({
+          toolName: "nombre_totalmente_inocuo_sin_relacion",
+          riskLevel: "read",
+          actorRole: "director",
+          actionKind,
+        });
+        expect(result.decision).toBe("auto");
+      }
+    });
   });
 });

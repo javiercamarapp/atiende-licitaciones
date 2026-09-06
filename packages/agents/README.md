@@ -38,7 +38,11 @@ src/
 ### ToolRegistry (REQ-069)
 
 Cada herramienta declara `inputSchema`/`outputSchema` (zod), `riskLevel`
-(`read`/`write`/`external`/`irreversible`), `idempotent` y `tenantScoped`.
+(`read`/`write`/`external`/`irreversible`), `actionKind` (AG-01: categoría
+semántica cerrada de lo que la herramienta REALMENTE hace —
+`read`/`write`/`external_send`/`sign`/`portal_action`/`contact_third_party`/
+`payment` — obligatoria; `register()` rechaza cualquier herramienta sin un
+`actionKind` válido de este enum), `idempotent` y `tenantScoped`.
 `register()` **rechaza** cualquier esquema de entrada que declare
 `organizationId`/`tenant_id`/`org_id` (o variantes): el tenant lo inyecta
 siempre el runtime en `ToolExecutionContext`, nunca el modelo — mismo patrón
@@ -51,14 +55,26 @@ argumentos no validen contra el esquema.
 
 `decide()` resuelve `auto | pending | denied` en este orden:
 
-1. **Prohibiciones duras** (`DEFAULT_HARD_PROHIBITED_ACTIONS`): presentar/
-   enviar ofertas, firmar o suplantar firma, actuar en portales oficiales,
-   contactar terceros. Siempre `denied`, **sin importar el rol** —ni
-   `superadmin`— y sin ruta de aprobación dentro del sistema: solo el
+1. **Prohibición dura por `actionKind` semántico** (AG-01, REQ-165):
+   `HARD_PROHIBITED_ACTION_KINDS` (`external_send`, `sign`, `portal_action`,
+   `contact_third_party`) es un enum cerrado **sin ninguna opción de
+   constructor** — ni siquiera se puede añadir a esta lista, a diferencia
+   de las prohibiciones por nombre. `ToolDefinition.actionKind` declara la
+   categoría real de lo que la herramienta hace; `ToolRegistry.register()`
+   la exige siempre. Esto cierra el hueco de que un alias/sinónimo con
+   nombre inocuo (p. ej. `enviar_paquete_final_al_comprador`) evadiera la
+   prohibición por no coincidir con ningún nombre de la lista.
+2. **Prohibiciones duras por nombre** (`DEFAULT_HARD_PROHIBITED_ACTIONS`):
+   presentar/enviar ofertas, firmar o suplantar firma, actuar en portales
+   oficiales, contactar terceros. Siempre `denied`, **sin importar el rol**
+   —ni `superadmin`— y sin ruta de aprobación dentro del sistema: solo el
    humano las realiza, y siempre *fuera* del sistema (firma en su propio
    dispositivo, sube el acuse a mano, etc.). `AgentRunner` nunca permite que
    un `resume('approve')` las ejecute, porque nunca llegan a quedar en
-   `pendingApprovals` en primer lugar.
+   `pendingApprovals` en primer lugar. **Invariante de código (AG-03)**: el
+   constructor de `AuthorizationPolicy` solo puede AÑADIR nombres a esta
+   lista — pasar `hardProhibitedActions: []` (o cualquier iterable) nunca
+   la reemplaza ni la reduce, siempre se une con el default.
 2. **Techo de riesgo por rol**: `consultor_externo` es el único rol capado
    en `read` — no puede ni *pedir* nada por encima (REQ-062: "nunca 2/2").
    El resto de roles operativos puede llegar hasta `irreversible` en modo
