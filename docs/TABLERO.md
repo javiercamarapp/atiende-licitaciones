@@ -1,28 +1,77 @@
 # TABLERO — Atiende Licitaciones
 
-**Fecha**: 2026-09-06, ~11:2x CST. **Commit HEAD**: `071263a` (cierre de ronda 5). Último commit de evidencia técnica: `b99a72f` (reverificación adversarial de RF-01..04/R5-11/R5-12, ronda 5). Snapshot previo: `e61156e`/HEAD `b362e62` (cierre de ronda 4).
+**Fecha**: 2026-09-06, ~17:3x CST. **Commit HEAD auditado**: `9a12173`. Snapshot previo: `a644803` (cierre de ronda 5, tablero anterior). Fuente primaria: `docs/ACEPTACION.md` (**237 filas** = 210 REQ + 15 pruebas mínimas A1–A15 + 12 pruebas mínimas S1–S12), todos los `docs/auditoria-1/*.md` y `docs/auditoria-2/*.md`, `docs/PROGRESO.md`, `docs/BLOQUEOS.md`, `docs/DECISIONES.md` y los logs de test citados fila a fila.
 
-**Este es el cierre formal de la ronda 5**, que suma a lo ya cerrado en ronda 4: **2FA/step-up TOTP** de extremo a extremo (enrolamiento, verificación, límite de tasa + bloqueo progresivo + auditoría de fallos con IP, atado a `(usuario, org, propósito)` de un solo uso, extendido a la aprobación de `tool_calls` org-scoped y cross-org de superadmin, conectado en `apps/web` con diálogos de step-up reales — REQ-044/064); **E11 estructurado** (hitos/garantías/facturación/penalizaciones tipados, alertas de vencimiento, calendario oficial de días inhábiles con el bug de cómputo corregido — REQ-050 CUMPLIDO, REQ-056 bloqueado externo parcial por falta de fuente oficial en línea, REQ-051..055 confirmados pendientes); **procedencia vinculante** (REQ-142, ahora sí aplicada, no solo registrada); **`correlation_id` de extremo a extremo** desde la ingesta (REQ-171); **aviso de privacidad** publicado como borrador honesto (REQ-119/131); y **el resto de `apps/web`** conectado — expediente completo (seccs. 4-9: Análisis de bases, Cumplimiento, Redacción, Revisión, Expediente, Aprobaciones, Entregas, Paquete descargable, Seguimiento) y back office completo (Usuarios/roles, Auditoría, Aprobaciones cross-org — REQ-170). Cadena completa auditoría→corrección→reverificación independiente para cada hallazgo, ver sección 4.
+**Qué es este pase.** No es el cierre de una ronda de construcción: es un **pase de trazabilidad**. Desde el tablero anterior se construyeron y cerraron seis bloques de trabajo (login con Google en `apps/api` y `apps/web`, `packages/mail`, integración de correos en `apps/api`, `infra/`, `apps/web` rondas 7 y 8a, `apps/api` ronda 6 y `apps/worker` ronda K) que `docs/ACEPTACION.md` **no reflejaba**: su sección de Ampliación 2 seguía declarando «Sin código / PENDIENTE» para casi todo. Eso era el hallazgo **ML-07** (MEDIA, trazabilidad), levantado en `docs/auditoria-2/mail.md` y reconfirmado sin corregir en `mail-reverificacion.md`. **Este pase lo cierra**: se abrió el test, log o commit que cubre cada fila y se reescribió su evidencia y su estado.
 
-**Regla de lectura**: ningún estado `CUMPLIDO` en este tablero corresponde a un mock, fixture, o integración simulada — cada uno cita un informe de reverificación independiente con veredicto CERRADO explícito. `LÍMITE_ACEPTADO` es distinto de un defecto abierto: es un hallazgo residual de severidad ≤MEDIA, documentado con causa, tras 3 vueltas de corrección (regla Likida), sin cuarta vuelta. Fuente primaria de cada fila: `docs/ACEPTACION.md` (186 filas: 171 REQ + 15 pruebas mínimas A1-A15), todos los `docs/auditoria-1/*.md` y `docs/auditoria-2/*.md` (incl. `api-ronda5.md`, `api-ronda5-reverificacion.md`, `api-r5-09-10-reverificacion.md`, `ronda5-final.md`, `ronda5-final-reverificacion.md`), `docs/PROGRESO.md`, `docs/BLOQUEOS.md`, `docs/DECISIONES.md`, `apps/api/docs/e11-cobertura.md`, y los logs de test más recientes (`docs/logs/api-ronda5.log`, `web-ronda5.log`, `fix-web-ci4.log`, `reverify-ronda5-final.log`, `ci-local-5.log` en curso al momento de escribir este tablero).
+**Regla de lectura, sin cambios.** Ningún `CUMPLIDO` corresponde a un mock, fixture o integración simulada: cada uno cita un informe de reverificación independiente con veredicto CERRADO explícito. `LÍMITE_ACEPTADO` no es un defecto abierto: es un residual de severidad ≤MEDIA documentado tras tres vueltas de corrección. `BLOQUEADO_EXTERNO` es dependencia de credencial, acceso o herramienta que el entorno no tiene (hoy: credenciales de Google Cloud, proveedor de correo, **Docker no instalado**, facturación de GitHub Actions, Deployment Protection de Vercel, validación por abogado).
+
+**Advertencia principal de este pase, dicha sin adorno.** La Ampliación 2 tiene mucho código real y mucha prueba real en verde, pero **casi nada llega a CUMPLIDO porque le falta el eslabón de reverificación independiente que exige REQ-210**. No existe informe de auditoría de `apps/web` rondas 7/8a ni de `infra/`; la auditoría del login con Google no tiene reverificación de sus correcciones (una de ellas, GO-10, era ALTA); la auditoría de la integración de correos en `apps/api` está en curso. Solo `packages/mail` tiene la cadena completa.
 
 ---
 
-## 1. Conteo por estado (docs/ACEPTACION.md, 186 filas = 171 REQ + 15 A)
+## 1. Conteo por estado (`docs/ACEPTACION.md`, 237 filas)
 
-| Estado | Filas | % | Antes de ronda 5 (`e61156e`) | Antes de ronda 4 (`d8e6d29`) |
+| Estado | Filas | % | Antes de este pase (`a644803`) | Antes de ronda 5 (`e61156e`, 186 filas) |
 |---|---:|---:|---:|---:|
-| CUMPLIDO | 54 | 29.0% | 47 | 7 |
-| EN_EVIDENCIA | 53 | 28.5% | 53 | 82 |
-| PENDIENTE | 69 | 37.1% | 77 | 92 |
-| LÍMITE_ACEPTADO | 5 | 2.7% | 5 | 0 (categoría no existía) |
-| NO_APLICA_A_PAQUETE | 3 | 1.6% | 3 | 4 |
-| BLOQUEADO_EXTERNO | 2 | 1.1% | 1 | 1 |
-| **Total** | **186** | **100%** | **186** | **186** |
+| CUMPLIDO | 57 | 24.1% | 54 | 47 |
+| EN_EVIDENCIA | 101 | 42.6% | 54 | 53 |
+| PENDIENTE | 65 | 27.4% | 117 | 77 |
+| BLOQUEADO_EXTERNO | 6 | 2.5% | 4 | 1 |
+| LÍMITE_ACEPTADO | 5 | 2.1% | 5 | 5 |
+| NO_APLICA_A_PAQUETE | 3 | 1.3% | 3 | 3 |
+| **Total** | **237** | **100%** | **237** | **186** |
 
-Los 54 `CUMPLIDO` (43 REQ + 11 A1-A15) cubren, además de lo ya cerrado en ronda 4 (dinero/números en expediente REQ-029/031; reglas duras de seguridad de agentes REQ-027/043/046/062/073/085/086/124/125/140; el aparato multi-tenant RLS+idempotencia REQ-024/033/057/058/059/063/073/152/167; el ciclo de aprobación/invalidación/checklist/paquete del expediente REQ-048/157/159/160/162/163; el motor de detección de cambios/versiones REQ-151/152/153/154/166; la suite Playwright+axe del portal REQ-065/089; A1, A2, A5, A6, A7, A8, A11, A12, A14, A15), los 7 cierres nuevos de la ronda 5: **REQ-044/064** (2FA/step-up TOTP end-to-end, incl. `tool_calls`), **REQ-050** (motor de plazos con calendario oficial real, R5-01 cerrado), **REQ-142** (procedencia vinculante ya aplicada, no solo registrada), **REQ-170** (los 6 módulos de back office conectados), **REQ-171** (`correlation_id` extremo a extremo desde la ingesta), y **A13** (descarga autenticada real del paquete desde `apps/web`). Los 5 `LÍMITE_ACEPTADO` son AG-05, AG-12 (×2 REQ cada uno: 068/069 y 072/114) y REQ-165 (composite, ver nota) — sin cambio en ronda 5. Ninguno depende de una integración externa real ni de un mock disfrazado de integración.
+**Cómo leer el salto de −52 en PENDIENTE.** No es trabajo hecho hoy: es deuda de trazabilidad saldada. 46 de esas 52 filas son de la Ampliación 2, que se había escrito el 2026-09-06 por la mañana declarando «Sin código» para todo y nunca se actualizó tras las rondas 6–8a; las otras 6 son REQ-051..055 (construidos en la ronda 6 de `apps/api`) y REQ-169 (panel real de la ronda 7 de `apps/web`).
 
-## 2. Conteo por épica (E0-E12, `docs/BACKLOG.md`)
+**Los 3 CUMPLIDO nuevos** son REQ-181 (catálogo de plantillas), REQ-184 (previsualización) y S4 (render + validación HTML/accesibilidad de las 16 plantillas) — **todos de `packages/mail`**, el único paquete de esta ampliación con cadena auditoría→corrección→reverificación cerrada (`mail.md` → ML-01..ML-06 → `mail-reverificacion.md`). Ninguna otra fila de la Ampliación 2 califica hoy.
+
+**Los 2 BLOQUEADO_EXTERNO nuevos** son REQ-199 y REQ-200 (Dockerfiles y compose de producción): los archivos existen y pasan validación estática, pero `docker build` / `docker compose up` no se han ejecutado jamás porque **Docker no está instalado en esta máquina** — reverificado hoy: `which docker` → *not found*.
+
+### 1.1 Desglose de la Ampliación 2 (51 filas: 39 REQ + 12 S)
+
+| Estado | REQ-172..210 | S1–S12 | Total | Antes de este pase |
+|---|---:|---:|---:|---:|
+| CUMPLIDO | 2 | 1 | 3 | 0 |
+| EN_EVIDENCIA | 32 | 10 | 42 | 1 |
+| PENDIENTE | 2 | 0 | 2 | 48 |
+| BLOQUEADO_EXTERNO | 3 | 1 | 4 | 2 |
+| **Total** | **39** | **12** | **51** | **51** |
+
+Las **2 filas que siguen genuinamente PENDIENTE** son las únicas sin código que las implemente: **REQ-193** (estados vacíos con guía de siguiente acción — el componente `EmptyState` acepta `actionLabel`/`onAction`, pero ninguna de las 29 páginas que lo usan se los pasa) y **REQ-198** (analítica sin PII — no hay analítica de ningún tipo en `apps/web`).
+
+### 1.2 Ampliación 2 por paquete responsable primario (39 REQ)
+
+| Paquete | PENDIENTE | EN_EVIDENCIA | CUMPLIDO | BLOQUEADO_EXTERNO | Total |
+|---|---:|---:|---:|---:|---:|
+| apps/api | 0 | 12 | 0 | 1 | 13 |
+| apps/web | 2 | 9 | 0 | 0 | 11 |
+| packages/mail | 0 | 6 | 2 | 0 | 8 |
+| infra/ | 0 | 2 | 0 | 2 | 4 |
+| transversal / gobierno | 0 | 2 | 0 | 0 | 2 |
+| packages/db | 0 | 1 | 0 | 0 | 1 |
+| **Total** | **2** | **32** | **2** | **3** | **39** |
+
+### 1.3 Épicas E13–E21 (Ampliación 2, `docs/BACKLOG.md`)
+
+| Épica | Estado real | Qué falta para cerrar |
+|---|---|---|
+| E13 — Autenticación con Google (OIDC) | **Construida y auditada, sin reverificar** | Reverificación independiente de GO-03/GO-07/**GO-10 (ALTA)**; prueba de contrato de REQ-175; patrón de client secret de Google en `scripts/check-secrets.sh`; credenciales reales (BLOQUEADO_EXTERNO) |
+| E14 — Correos transaccionales con plantillas | **`packages/mail` CERRADO; integración en `apps/api` sin auditar** | Auditoría de la integración (#115, en curso); handler `mail_retry` de `apps/worker` (#116, sin commitear); test estático de REQ-182; credenciales de proveedor + `RESEND_WEBHOOK_SECRET` (BLOQUEADO_EXTERNO) |
+| E15 — Onboarding de producto | **Construida, sin auditar** | Los 2 pasos que faltan del criterio de REQ-191 (verificación de correo, primera convocatoria); REQ-193 sin implementar; auditoría de la ronda 7 |
+| E16 — Páginas públicas y legales | **Construida, sin auditar, con huecos** | Cablear el formulario de contacto al `POST /public/contact` que ya existe; `sitemap.xml`; analítica (REQ-198); validación por abogado (BLOQUEADO_EXTERNO); auditoría de la ronda 7 |
+| E17 — Preparación de despliegue | **Escrita y validada estáticamente** | `docker build` y `docker compose up` reales (Docker no disponible); healthcheck de `apps/worker` y consumo de healthchecks en el compose; auditoría de infra (no existe) |
+| E18 — Restos de mail (BAJA) | ML-06, ML-08, ML-09 abiertos, documentados | Decisión de si se abre una vuelta más; hoy no bloquean |
+| E19 — Google: desvinculación (GO-09, BAJA) | No construido | Ningún REQ vigente lo exige; nota de diseño |
+| E20 — Índice de `correlation_id` en `agent_runs` | En curso (#116, migración 0088 sin commitear) | Commit + test |
+| E21 — API: perfil y sesiones | No construido | Brecha de paridad detectada en la ronda 8a de `apps/web` (`/configuracion` declara honestamente que la API no expone desactivar 2FA, códigos de respaldo ni sesiones) |
+
+---
+
+## 2. Conteo por épica E0–E12 (`docs/BACKLOG.md`) — **ámbito: las 186 filas de REQ-001..171 + A1–A15**
+
+> **Alcance de las secciones 2 y 3.** Ambas tablas se calcularon en el cierre de la ronda 5 sobre las 186 filas originales y **no incluyen las 51 filas de la Ampliación 2** (REQ-172..210, S1–S12), cuyos conteos por paquete y por épica están en las secciones 1.2 y 1.3 de arriba. Se conservan aquí sin recalcular porque las épicas E0–E12 no cambiaron de contenido en las rondas 6–8a; **sí cambiaron dos de sus filas de estado**, ya reflejadas en `docs/ACEPTACION.md` y no en estas dos tablas: REQ-051..055 (E11) pasan de PENDIENTE a EN_EVIDENCIA con la ronda 6 de `apps/api`, y REQ-169 (E10) pasa de PENDIENTE a EN_EVIDENCIA con el panel real de la ronda 7. Recalcular las tablas 2 y 3 completas exige un pase de mapeo REQ→épica que este pase no ejecutó; se declara como deuda en vez de inventarse.
+
 
 Las épicas se solapan por diseño (dependencia técnica, no partición) — un REQ puede pertenecer a más de una épica; por eso las filas no sumarán 171 (suman 184: 13 REQ contados en 2 épicas).
 
@@ -44,7 +93,7 @@ Las épicas se solapan por diseño (dependencia técnica, no partición) — un 
 
 **Lectura**: E1, E3, E4, E7 y E9 ya cerraban con reverificación independiente desde ronda 4. La ronda 5 no cierra épicas nuevas por completo, pero corrige la fila más inexacta del tablero anterior (**E11**, que decía "0% construido" pese a tener código real desde ronda 3) y hace avances reales en **E8** (2FA/step-up TOTP, incl. `tool_calls`) y **E10** (back office completo salvo el dashboard de métricas). E6 (análisis de bases/OCR, motor) y E5 (pgvector) siguen sin trabajo de código nuevo: dependen de decisiones de alcance (gold sets, embeddings reales) no tomadas.
 
-## 3. Conteo por paquete responsable (primario)
+## 3. Conteo por paquete responsable primario — **ámbito: los 171 REQ de REQ-001..171**
 
 Cada REQ se asignó a **un solo paquete primario** (el primero listado en su columna "Paquete(s)" de `docs/ACEPTACION.md`) para que las columnas sumen 171; esto es distinto del conteo por épica (que sí solapa). Nota de transparencia: REQ-165 es un caso compuesto real (CUMPLIDO para `packages/expediente`, LÍMITE_ACEPTADO para `packages/agents` por AG-05) — aquí se cuenta una sola vez bajo `packages/expediente`, por lo que la fila de `packages/agents` (LÍMITE_ACEPTADO=4) no incluye ese REQ; el conteo total de LÍMITE_ACEPTADO de la sección 1 (5) sigue siendo la cifra autoritativa.
 
@@ -69,114 +118,110 @@ Cada REQ se asignó a **un solo paquete primario** (el primero listado en su col
 
 **Lectura**: `apps/web` deja de ser el paquete con más deuda relativa — ronda 5 conecta el resto de módulos de dominio y todo el back office (ver E7/E10 en la sección 2); su PENDIENTE remanente (7) es sobre todo dashboard de métricas (REQ-169, PanelPage) y detalles de rol/firmante en Empresa (REQ-144/145). `apps/worker` sigue siendo el único paquete sin filas en PENDIENTE. `packages/agents` sigue siendo el paquete con más filas de `LÍMITE_ACEPTADO` (AG-05 y AG-12, sin cambio en ronda 5).
 
-## 4. Defectos abiertos por severidad (estado real a este commit)
+## 4. Defectos abiertos por severidad (estado real a `9a12173`)
 
-### 4.1 Genuinamente abiertos (sin veredicto de cierre)
+### 4.1 ALTAS y MEDIAS abiertas o reparadas sin reverificar
 
-| ID | Paquete | Severidad | Estado | Resumen |
+| ID | Paquete | Severidad | Estado real | Resumen y evidencia |
 |---|---|---|---|---|
-| R5-12 | apps/web | BAJA | Sin corrección (fuera del alcance de la corrección de RF-01..04) | `apps/web/src/lib/api/twofa.ts:33-35` describe incorrectamente el comportamiento de `apps/api`: afirma que `/2fa/verify-enrollment` "no fue actualizada para EXIGIR orgId/purpose... como sí lo está `/2fa/step-up`", cuando ambas rutas los exigen por igual. Comentario, sin código ejecutable ni impacto funcional. Citado en `docs/auditoria-2/api-r5-09-10-reverificacion.md`, reconfirmado sin corregir en `ronda5-final.md` y `ronda5-final-reverificacion.md`. |
+| R6-11 | apps/api | **ALTA** | **REPARADO, sin reverificación independiente** | Los límites anti «PDF bomb» se evaluaban DESPUÉS de extraer todo el texto: 263 KB de entrada = 42 s de CPU en el handler HTTP, y el límite de 500 páginas ni se disparaba. Corregido en `260a4df`: `extractPdfPages` comprueba `pdf.numPages` inmediatamente tras `getDocument`, acumula caracteres y tiempo página a página, aborta al cruzar cualquier límite y cede el bucle de eventos cada 20 páginas. Reproducción real del ataque del auditor (20.000 páginas en blanco, ~260 KB, generadas con `pdf-lib`): código viejo en rojo (52,8 s), nuevo en verde (<2 s), `apps/api/test/expediente-text-extraction.test.ts` caso «R6-11». Levantado en `docs/auditoria-2/api-ronda6-reverificacion.md`. **Falta la vuelta de reverificación independiente del arreglo.** |
+| GO-10 | apps/api | **ALTA** | **REPARADO, sin reverificación independiente** | El login repetido con Google (identidad ya vinculada) no fijaba `app.current_user_id`, de modo que `app.my_organizations()` y la política RLS de `user_totp_secrets` no veían nada: la sesión caía en `sin_acceso` indebido y **el segundo factor no se exigía** (bypass de REQ-176). Corregido en `0e130ae`; 2 tests nuevos en `apps/api/test/google-oidc-login.test.ts`, verificados en rojo antes del arreglo (`sin_acceso` en vez de `ok`/`requires_2fa`). Documentado en `docs/auditoria-2/api-google.md`. |
+| R6-12 | apps/api | MEDIA | **REPARADO, sin reverificación independiente** | `GET /expediente/renewals/alerts` no paginaba: 60.000 alertas / 32,4 MB medidos en una sola respuesta. Corregido en `527eba7` con el mismo patrón keyset de `GET /organizations/:orgId/memberships` (`limit` 100 por defecto, máximo 1000, `nextCursor`, columnas explícitas). Test nuevo con 1.000 alertas sembradas. |
+| WK6-04 | apps/worker | MEDIA | **ABIERTO — en cola** | El `correlationId` de negocio **no se valida ni se sanea en ningún punto de `apps/worker`**: 10 KB se propagan íntegros a cada línea de log (21 KB por un job de 2 líneas) y a la base; RTL/ANSI/saltos de línea sobreviven verbatim; un byte NUL rompe el encolado (`unsupported Unicode escape sequence`). **No es alcanzable desde fuera hoy** porque `apps/api` filtra el encabezado a UUID en su frontera, pero el worker no tiene defensa propia ni lo declara en su README. Levantado en `docs/auditoria-2/worker-agentes-reverificacion.md`. |
+| R6-10 | apps/api | MEDIA | **ABIERTO — en cola (#117)** | El test del `UPDATE` condicionado de R6-04 pasa igual **sin** la corrección (mutación VERDE): el 409 lo produce `checkTransition`, no el `UPDATE`. El código de R6-04 es correcto; el test no mide lo que dice medir. |
+| R6-13 | apps/api | MEDIA | **ABIERTO — en cola (#117)** | Suite de `apps/api` intermitente (342/343 → 343/343) por un flake de ventana TOTP en `apps/api/test/helpers.ts`. |
+| R6-09 (criterio) | apps/api | — | **ABIERTO — en cola (#117)** | El criterio estructural de rendimiento del radar se satisface trivialmente con una consulta sin límite; lo salva el test vecino de paginación. Reformularlo con `LIMIT` explícito. |
+| R6-14 | apps/api | BAJA | **ABIERTO — en cola (#117)** | Test/criterio que no mide lo que declara. |
+| ML-08 | packages/mail | BAJA | **ABIERTO, documentado** | La ventana de espera del perdedor de la reserva de idempotencia (~200 ms) es más corta que el timeout documentado del proveedor (5 s): bajo latencia real el resultado es un `already_sent` ambiguo sin id. **No llega a duplicar el envío** (la garantía de ML-01 se sostiene con 50 llamadas concurrentes). `docs/auditoria-2/mail-reverificacion.md`. |
+| ML-09 | packages/mail | BAJA | **ABIERTO, documentado** | Sin respaldo `@media (prefers-color-scheme: dark)`: la única defensa contra el oscurecimiento automático de algunos clientes son las etiquetas `light only`, sin redundancia. No confirmado en cliente real. |
+| ML-06 | packages/mail | BAJA | **ABIERTO, deliberadamente no corregido** | 7 vulnerabilidades de `npm audit`, todas en dependencias de desarrollo; `npm audit --omit=dev` = **0**. Reconfirmado en la reverificación. |
+| GO-01 | gobierno | MODERADA | **PARCIALMENTE CERRADO por este pase** | El texto de REQ-174 no coincidía con el comportamiento real (`sin_acceso`, sin organización automática). La decisión **D-09** ya lo reconcilió y `docs/ACEPTACION.md` queda alineado con este pase. **Residual**: el criterio verificable de `docs/REQUISITOS.md:361` todavía dice «usuario y organización creados en una sola operación» — corregirlo exige reformular el texto del requisito, fuera del ámbito de este pase. |
+| GO-09 | apps/api | INFORMATIVA | ABIERTO por diseño | No existe endpoint de desvinculación de la cuenta de Google; ningún REQ vigente lo exige (E19). |
+| R5-12 | apps/web | BAJA | **ABIERTO desde la ronda 5** | Comentario desactualizado en `apps/web/src/lib/api/twofa.ts:33-35` sobre el alcance de `/2fa/verify-enrollment`. Sin código ejecutable ni impacto funcional. |
 
-Los ítems que aparecían aquí en el snapshot anterior (`e61156e`) ya no están abiertos: **API-15**/**WI-06** fueron REPARADOS antes del cierre de ronda 4 (commits `fbf5771`/`9bd8b55`, corrector #70, `docs/PROGRESO.md`) — este tablero no lo reflejaba, corregido ahora (ver 4.1bis). **REQ-142** (procedencia vinculante) y **REQ-170** (back office) CERRARON en ronda 5 (ver sección 1/2 y `docs/ACEPTACION.md`). **REQ-049/065 (matiz del guard 404)** también se da por resuelto: `docs/auditoria-2/ronda5-final.md` (rubro 6) confirma en vivo que `GET /tenders/:id` de una convocatoria de otra organización devuelve **404 real** de `apps/api`, y `ResourceNotFoundPage.tsx` está unit-testeado (`ConvocatoriaDetallePage.test.tsx`) para pintarlo — el mecanismo real de aislamiento (0 fugas) más el 404 explícito ya cubren la letra del criterio.
+**GO-02 queda obsoleto**: decía que el botón de Google no existía en `apps/web`; existe desde `11d48e0`/`fbe9614`. El texto de `docs/auditoria-2/api-google.md` es anterior a esos commits.
 
-### 4.1bis Ronda 5 — hallazgos y su cierre (todos con auditoría→corrección→reverificación independiente)
+### 4.2 Hallazgos CERRADOS desde el tablero anterior (con cadena completa)
 
-| ID | Severidad | Paquete | Resumen | Estado final |
-|---|---|---|---|---|
-| R5-01 | CRÍTICA | apps/api | `calendar_holidays` cargado nunca excluía el día real del plazo (bug de conversión de fecha); `calendarNote` mentía afirmando inclusión | **CERRADO** (`fccab53`, reverificado con bisiesto/TZ/mismo-día) |
-| R5-02 | CRÍTICA | apps/api | Endpoints TOTP sin límite de tasa específico (40 intentos sin 429) | **CERRADO** (`7242298`, tier `twoFactor` 5/5min + bloqueo progresivo `twofa_lockouts`, reverificado con rotación de IP/usuario) |
-| R5-03 | MEDIA | apps/api | Fallos de 2FA no quedaban en `audit_log` | **CERRADO** (`7242298`; ver R5-10 para la IP) |
-| R5-04 | MEDIA | apps/api | `correlation_id` de REQ-171 nunca incluía la ingesta/descubrimiento | **CERRADO** en el ámbito de `apps/api` (`4db65e9`); residual en `apps/worker`/`source_runs` documentado, fuera de alcance |
-| R5-05 | BAJA-MEDIA | apps/api | `step_up_sessions` no ligado a org/acción específica | **CERRADO** vía R5-09 (ver abajo) |
-| R5-06 | BAJA | apps/api | `sourceUrl` de `calendar_holidays` aceptaba cualquier esquema | **CERRADO** (`c2deca5`) |
-| R5-07 | BAJA | apps/api | Fecha calendario inexistente daba 500 en vez de 422 | **CERRADO** (`c2deca5`) |
-| R5-09 | BAJA-MEDIA | apps/api | El scope opcional de R5-05 nunca se activaba desde `apps/web` (sesiones "genéricas" en producción) | **CERRADO** (`a7026ec`, `orgId`/`purpose` obligatorios + un solo uso, migraciones 0062/0063; reverificado con concurrencia real 200+403) |
-| R5-10 | MEDIA-BAJA | apps/api | Fallos de 2FA auditados sin IP del cliente | **CERRADO** (`586e3cf`, paridad con `auth.login_failed`) |
-| R5-11 | BAJA-MEDIA | apps/api | Aprobación de `tool_calls` (org y cross-org superadmin) sin step-up pese al enum reservado | **CERRADO** (`428797f`, reverificado con concurrencia real 200+409) |
-| R5-12 | BAJA | apps/web | Comentario desactualizado en `twofa.ts` | **Sigue abierto** (ver 4.1) |
-| RF-01 | MEDIA-ALTA | apps/web | `apps/web` nunca declaraba `X-Step-Up` al aprobar/denegar `tool_calls` (org ni cross-org) | **CERRADO** (`0d4f5cf`, reverificado en UI real con 4 actores) |
-| RF-02 | MEDIA | apps/web | Carrera real entre dos `refreshSession()` (bootstrap sin mutex) podía invalidar un refresh token válido | **CERRADO** (`6282988`, reverificado con 30/30 recargas de producción sin 401) |
-| RF-03 | BAJA | apps/web | Enrolamiento 2FA sin código QR visual real | **CERRADO** (`9dc6000`, reverificado decodificando el QR con `jsQR`, librería independiente) |
-| RF-04 | MEDIA | apps/web | `test:e2e:full` fallaba determinísticamente por contraste del toast (causa real: timing de la animación de Sonner, no el color) | **CERRADO** (`40b3dfe`, reverificado 2/2 limpio, contraste real 14.88:1 oscuro / 17.13:1 claro) |
-
-Fuente: `docs/auditoria-2/api-ronda5.md`, `api-ronda5-reverificacion.md`, `api-r5-09-10-reverificacion.md`, `ronda5-final.md`, `ronda5-final-reverificacion.md`.
-
-### 4.2 Límites aceptados (regla de 3 vueltas — causa documentada, sin cuarta vuelta)
-
-| ID(s) | Paquete | Severidad | Causa aceptada | Informe |
-|---|---|---|---|---|
-| AG-05 | packages/agents | MEDIA | Un handler que miente simultáneamente en `riskLevel`+`actionKind`+`declaredEffects` evade `AuthorizationPolicy`; no detectable dentro de una librería pura sin capa externa (checklist humano/sandbox en `apps/api`, no implementada). Afecta REQ-068/069/165. | `docs/auditoria-1/agents-cierre.md` |
-| AG-12 | packages/agents | MEDIA | Guardrail regex anticolusión mide ~3% de detección real (vocabulario independiente) frente al ≥99% exigido; falta capa LLM/juez en `apps/api`, no implementada. Afecta REQ-072/114. | `docs/auditoria-1/agents-cierre.md` |
-| SR-25 | packages/sources | BAJA-MEDIA | Falso positivo por longitud (`minUsefulTextBytes=120`) sobre notas DOF genuinas y breves; no bloqueante. Afecta REQ-148. | `docs/auditoria-1/sources-cierre-definitivo.md` |
-| (sin ID) reportDropped cooperativo | packages/sources | BAJA (estructural) | El reporte de descartes de conectores es cooperativo por convención; un conector de terceros que no llame `reportDropped` no es detectado por el pipeline. | `docs/auditoria-1/sources-cierre-definitivo.md` |
-| EX-EXP-08 | packages/expediente | MEDIA | Autoaprobación entre dos cuentas de la misma persona física no detectable dentro de una librería pura; requiere capa de identidad en `apps/api` (AE-08 ya cierra el hash de perfil, pero no esta variante de identidad). | `docs/auditoria-1/expediente-cierre.md` |
-| EX-EXP-10 | packages/expediente | BAJA | Estado "ámbar" (no "rojo") con &lt;2 documentos es decisión de diseño correcta — "resolverlo" violaría REQ-164 (no inventar consistencia cruzada). | `docs/auditoria-1/expediente-cierre.md` |
-| DB-07 | packages/db | BAJA | No se migró a `withTenantContext`/`applyTenantContext` como patrón único; mitigado con test estático que detecta el patrón alternativo. Decisión de alcance vigente, sin evidencia nueva pendiente. | `docs/auditoria-1/db-api-seguridad-reverificacion.md` |
-| DB-09 | packages/db | BAJA | La función SQL de fondo conserva el gap original; mitigado con caché (`agent-stores.pg.ts`) que lo hace inalcanzable vía HTTP hoy. Cierre completo requeriría cambiar la interfaz externa de `packages/agents`. | `docs/auditoria-1/db-api-seguridad-reverificacion.md` |
-| WK-04 / WK-08 | apps/worker | PARCIAL (no severidad de seguridad) | Concurrencia real del motor de `jobs` (múltiples conexiones físicas contra Postgres) no probable en PGlite (una sola conexión); ligada a **B-03**. | `docs/auditoria-1/worker-cierre.md` |
-
-### 4.3 Bloqueos externos (B-01/B-02/B-03) y qué desbloquean
-
-| ID | Estado | Bloqueo | Qué desbloquea al resolverse |
-|---|---|---|---|
-| B-01 | ABIERTO — requiere que el usuario indique la ruta definitiva | Ruta de la carpeta "empresas agénticas" no verificada; no bloquea desarrollo técnico en staging | Solo organización/ubicación del repositorio final, sin efecto en REQ. |
-| B-02 | ABIERTO — externo, requiere acceso/permisos oficiales o fuente alterna | ComprasMX (401/reCAPTCHA), OCDS-SHCP inalcanzable, PDN-S6 con bot-detection, portales estatales sin API localizable | REQ-001/132/133/135/150 pasarían de EN_EVIDENCIA (fixture) a candidatos a CUMPLIDO con integración real; hoy la única fuente con dato real verificado es el CSV histórico SABG. |
-| B-03 | ABIERTO — decisión del usuario (¿autorizar remoto GitHub privado?) | El job de CI `db-postgres` (migraciones + 622+ ataques RLS sobre Postgres 16 real) solo puede ejecutarse en GitHub Actions | REQ-045/087/095/097/138 (gates de CI real) dejarían de estar estructuralmente PENDIENTE; WK-04/WK-08 (concurrencia real de jobs) podrían cerrarse; DB-06 se validaría contra Postgres real, no solo PGlite. |
-
-### 4.4 Incidentes de gobierno (proceso, no código) — INC-01 a INC-09
-
-| ID | Estado | Resumen |
+| Bloque | Hallazgos | Cierre |
 |---|---|---|
-| INC-01 | CERRADO | Reescritura concurrente de `docs/REQUISITOS.md` por un agente con copia en memoria desactualizada; restaurado sin pérdida. |
-| INC-02 | CERRADO | Commit de expediente arrastró archivos del agente legal por índice git compartido; sin pérdida de contenido. |
-| INC-03 | CERRADO | Agentes concurrentes ejecutaron `git reset` sobre el repo compartido; todo recuperado (reflog/`git fsck`); regla dura reforzada (prohibido `git reset`/`checkout <commit>`/`stash`). |
-| INC-04 | CERRADO | Un implementador usó `git add -A`, absorbiendo archivos de otra micro-corrección; contenido verificado íntegro; prohibido `git add -A`/`.`/`commit -a` reforzado. |
-| INC-05 | CERRADO | Límite de sesión de la API de Anthropic (429) cortó 5 agentes simultáneos; todos reanudados con contexto intacto vía `SendMessage`; cron de respaldo dio 2 latidos durante la caída. |
-| INC-06 | CERRADO | `git commit --amend` (prohibido) de un corrector reemplazó por carrera el commit de otro agente; contenido verificado íntegro por hash de árbol idéntico; sin pérdida. |
-| INC-07 | CERRADO | Copias huérfanas de editor (« 2.ts») con contenido anterior rompían el typecheck del worker; eliminadas tras verificar que HEAD era más nuevo. |
-| INC-08 | EN OBSERVACIÓN | Limitación intermitente del servidor de Anthropic (429 de servidor, no de uso) cortó repetidamente varios agentes; reanudaciones por `SendMessage`, sin pérdida de trabajo. |
-| INC-09 | CERRADO | Un corrector usó una vez `git reset <paths>` (solo des-stagear, regla dura); sin pérdida; autorreportado. |
+| `packages/mail` | ML-01 (ALTA, idempotencia bajo concurrencia), ML-02 (ALTA, `List-Unsubscribe`), ML-03 (MEDIA, `safeUrl`/SSRF), ML-04 (MEDIA, contraste WCAG), ML-05 (MEDIA, replay de webhooks Svix) | **CERRADOS con reverificación independiente** (`mail-reverificacion.md`): 50 envíos concurrentes → 1; 12 vectores SSRF, 0 bypass; 6 escenarios de replay, 0 bypass; cabeceras correctas en las 16 plantillas; `faint` a 4.92:1/4.67:1 |
+| `apps/worker` ronda K | WK6-01 (ALTA, evals de aislamiento que no detectaban fuga real), WK6-02 (ALTA, `correlationId` de negocio sin persistir), WK6-03 (BAJA, timeout) | **CONFIRMADOS REPARADOS** (`worker-agentes-reverificacion.md`): 383/383 en dos pasadas, 22/22 archivos, 0 timeouts; dos mutaciones propias del reverificador (incluida una fuga camuflada en un resultado «no evaluable») **detectadas** |
+| `apps/api` ronda 6 | R6-01/R6-02 (ALTA, `pdf-parse` no leía xref-stream), R6-03 (ALTA, radar N+1 de 17–28 s), R6-04..R6-08 | **8 de 9 CONFIRMADOS por mutación inversa** (`api-ronda6-reverificacion.md`); R6-04 es la excepción (test vacuo → R6-10) |
+| Google | GO-03 (BAJA, `OIDC_ISSUER_URL` sin exigir https), GO-07 (MODERADA, `23505` sin capturar → 500) | REPARADOS (`c4a0cf9`, `da18559`) con tests rojos verificados antes del arreglo; **sin reverificación independiente** |
 
-## 5. Conteo de tests por workspace (post-ronda-5; fuentes: corridas aisladas independientes citadas por fila, más `docs/logs/ci-local-5.log` para los paquetes sin cambios de ronda 5)
+### 4.3 Límites aceptados (regla de 3 vueltas)
 
-| Paquete/app | Archivos | Tests | Fuente (corrida aislada) |
+Sin cambios respecto al tablero anterior: **AG-05** y **AG-12** (`packages/agents`), **SR-25** y el reporte cooperativo de descartes (`packages/sources`), **EX-EXP-08** y **EX-EXP-10** (`packages/expediente`), **DB-07** y **DB-09** (`packages/db`), **WK-04 / WK-08** (`apps/worker`, concurrencia real de `jobs` no reproducible en PGlite). Informes citados en `docs/auditoria-1/*-cierre*.md` y `db-api-seguridad-reverificacion.md`.
+
+### 4.4 Bloqueos externos y decisiones del usuario pendientes
+
+| ID | Estado | Qué bloquea | Qué desbloquea al resolverse |
+|---|---|---|---|
+| B-01 | ABIERTO — decisión del usuario | Ruta definitiva de la carpeta "empresas agénticas" no verificada | Solo la ubicación del repositorio final; ningún REQ. Ligado a INC-10 (el repo vive bajo iCloud Drive) |
+| B-02 | ABIERTO — externo | ComprasMX (401 + reCAPTCHA), OCDS-SHCP inalcanzable, PDN-S6 con bot-detection, portales estatales sin API localizable | REQ-001/132/133/135/150 pasarían de fixture a integración real |
+| B-03 | CERRADO (remoto) | Repositorio privado creado y subido; GitHub y Vercel autorizados por el usuario el 2026-09-06 12:4x | — |
+| B-04 | ABIERTO — decisión del usuario | Modelo comercial no definido (B2B directo vs self-serve con planes/checkout) | Determina si se construyen precios, trial y checkout; hoy la landing dice «Solicitar demo» |
+| B-05 | EN CURSO | 479 commits con autoría de correo no verificado no cuentan como contribuciones en GitHub | Reescritura única de autoría en una ventana sin agentes escribiendo |
+| B-06 | ABIERTO — decisión del usuario | **GitHub Actions no ejecuta ningún job**: «recent account payments have failed or your spending limit needs to be increased». Es facturación, no el workflow (`actionlint` limpio) | REQ-045/087/095/097/138 (gates de CI real) y el job `db-postgres` (migraciones + 622 ataques RLS sobre Postgres 16 real); WK-04/WK-08 podrían cerrarse |
+| B-07 | ABIERTO — decisión del usuario | **Vercel Deployment Protection**: el despliegue está Ready en `https://atiende-licitaciones.vercel.app` pero responde con la pantalla de login de Vercel; el sitio no es público | Verificación real de la landing y las páginas públicas en producción |
+| INC-10 | ABIERTO — decisión del usuario | El repositorio está dentro de iCloud Drive (`~/Documents`): carga de CPU de `bird`/`fileproviderd`/`cloudd`, copias «archivo 2.ts» (INC-07) y parte de los timeouts bajo coverage | Estabilidad de las suites largas; ligado a B-01 |
+| — | ABIERTO — externo | Sin Docker en el entorno; sin credenciales de Google Cloud; sin proveedor de correo con dominio SPF/DKIM ni `RESEND_WEBHOOK_SECRET`; sin OpenAI real; sin validación por abogado mexicano | REQ-178/199/200 y S11; el juez LLM y el componente semántico de matching; las 21 filas legales |
+
+### 4.5 Incidentes de gobierno
+
+INC-01 a INC-09 permanecen como en el tablero anterior (todos CERRADOS salvo INC-08, en observación, e INC-10, decisión del usuario). Nuevos desde entonces: **INC-11** (dos descendientes despachados como investigación de solo lectura escribieron código en paralelo sobre el mismo árbol, migraciones 0065 duplicadas; corregido y renumerado por el agente principal — regla reforzada: descendientes solo leen o trabajan en worktree), **INC-12** y **INC-13** (límite de sesión y limitación del servidor de Anthropic cortaron 5 agentes Sonnet en curso; reanudados por `SendMessage` con contexto intacto y, tras **D-10**, relanzados con `model="opus"` como respaldo autorizado por el usuario). Detalle en `docs/BLOQUEOS.md`.
+
+## 5. Conteo de tests por workspace (corridas reales citadas, no estimaciones)
+
+| Paquete/app | Archivos | Tests | Corrida citada |
 |---|---:|---:|---|
-| apps/api | 59 | **238** | `docs/logs/reverify-ronda5-final.log` (§1.2) y `docs/logs/ci-local-5.log:285-286`, coincidentes |
-| packages/db | 24 | **161** | `docs/auditoria-2/api-r5-09-10-reverificacion.md` y `docs/logs/ci-local-5.log:818-819`, coincidentes |
-| apps/web (unit, aislado) | 30 | **114** | `docs/logs/fix-web-ronda5.log`, reconfirmado en `docs/logs/reverify-ronda5-final.log` (§1.2, "corrida 2, aislada") |
-| apps/web (`test:e2e:full`) | 9 specs | **116** (×2 corridas, 116/0 ambas — determinista) | `docs/logs/reverify-ronda5-final.log` (§1.2, corridas 1/2 y 2/2) |
-| apps/worker | 11 | **298** | `docs/logs/ci-local-5.log:717-718` (sin cambios de código en ronda 5) |
-| packages/agents | 13 | **263** | `docs/logs/ci-local-5.log:874-875` (sin cambios de código en ronda 5) |
-| packages/expediente | 16 | **413** | `docs/logs/ci-local-5.log:960-961` (sin cambios de código en ronda 5) |
-| packages/sources | 20 | **204** | `docs/logs/ci-local-5.log:1051-1052` (sin cambios de código en ronda 5) |
-| **Total suites unitarias/integración** | **173 archivos** | **1,691 tests** | suma de las 7 filas de unit/integración |
-| **Total incl. E2E full** | — | **1,807 tests** | 1,691 + 116 E2E |
+| apps/api | 74 | **350** | `npm run -w apps/api test`, **dos pasadas idénticas** `EXIT=0` — `docs/logs/api-mail.log` |
+| apps/worker | 22 | **383** | `npm run -w apps/worker test`, **dos pasadas** sin un solo timeout — `docs/logs/reverify-r6-wk6.log` (worktree aislado del reverificador) |
+| packages/mail | 26 | **252** | `npm run -w packages/mail test`, dos pasadas — `docs/logs/reverify-mail.log`; cobertura 96.26 / 85.17 |
+| packages/db | 27 | **205** | `npm run -w packages/db test` `EXIT=0` — `docs/logs/api-mail.log` |
+| apps/web (unit/componente) | 39 | **162** | `npm run -w apps/web test`, **cuatro pasadas idénticas** — `docs/logs/web-ronda8.log` |
+| apps/web (`test:e2e:full`) | — | **137** | Navegador real + `apps/api` real (PGlite) + proveedor OIDC falso en loopback — `docs/logs/web-ronda8.log`, `exit code: 0` |
+| packages/agents | 13 | **263** | `docs/logs/ci-local-5.log` (sin cambios de código desde entonces) |
+| packages/expediente | 16 | **413** | `docs/logs/ci-local-5.log` |
+| packages/sources | 20 | **204** | `docs/logs/ci-local-5.log` |
+| **Total unit/integración** | **237 archivos** | **2.232 tests** | suma de las 9 filas |
+| **Total incl. E2E de navegador** | — | **2.369 tests** | 2.232 + 137 |
 
-**Nota de honestidad sobre `ci-local-5.log`**: la corrida agregada completa **NO terminó en verde** (`exit=1`) — `apps/web:test:coverage` tuvo **11 fallos en 8 de 30 archivos** (`AnalisisBasesPage`, `EntregasPage`, `PaqueteDescargablePage`×2, `SeguimientoPage`, `CumplimientoDocumentalPage`, `ExpedientePage`, `RedaccionPage`, `RevisionPage`×3), todos con el mismo patrón: `Error: Test timed out in 20000ms` (retry ×1). Es exactamente el patrón de **contención de CPU** ya diagnosticado y documentado en `docs/PROGRESO.md` ("Diagnóstico ci-local-4", commit `0a29c10`) — esta corrida de `ci-local-5` coincidió con otros procesos activos en la máquina — **no una regresión real**: las mismas suites, corridas aisladas (sin otras cargas pesadas en paralelo), dan 114/114 verdes de forma reproducible en `fix-web-ronda5.log` y `reverify-ronda5-final.log`. El resto de `ci-local-5.log` (apps/api, apps/worker, packages/db/agents/expediente/sources) sí terminó limpio. **Pendiente**: repetir `ci-local` completo sin otra carga concurrente en la máquina antes de considerarlo un gate verde formal; hasta entonces, la fuente de verdad de `apps/web` unit es la corrida aislada citada arriba. `db-postgres` (migraciones+RLS sobre Postgres 16 real) sigue sin reproducirse en `ci-local`; solo corre en GitHub Actions, bloqueado por B-03.
+**Honestidad sobre el gate agregado.** No existe hoy una corrida de `ci-local` completa y verde posterior a las rondas 6–8a: `docs/logs/ci-local.log` está **modificado en el árbol de trabajo por otro agente** y la última corrida agregada cerrada (`ci-local-5.log`) es anterior a `packages/mail`, a la integración de correos y a las rondas 7/8a. Las cifras de arriba proceden de **corridas aisladas por workspace**, cada una con su log citado, que es la fuente de verdad mientras no se repita `ci-local` completo sin otra carga concurrente en la máquina (INC-10). El job `db-postgres` (migraciones + ataques RLS sobre Postgres 16 real) sigue sin ejecutarse nunca: solo corre en GitHub Actions, hoy bloqueado por **B-06** (facturación), no por B-03.
 
-## 6. Qué falta para 10/10 (viñetas concretas y honestas, actualizado tras el cierre de ronda 5)
+**Trabajo sin commitear en el árbol al momento de este pase** (de los despachos #116 y #117, en curso): `apps/worker/src/handlers/mail-retry.ts`, `apps/worker/src/mail/`, `apps/worker/test/mail-retry-handler.test.ts`, `packages/db/migrations/0087_req188_mail_retry_audit.sql`, `0088_e20_agent_runs_correlation_id.sql` y modificaciones en `apps/worker/src/index.ts` y `apps/api/src/modules/expediente/contract.routes.ts`. **Nada de eso cuenta en este tablero**: los estados de arriba se calcularon contra HEAD `9a12173`.
 
-**Cerrado en ronda 5 (ya no aparece aquí)**: conexión completa de `apps/web` (expediente secc. 4-9 y back office); 2FA/step-up TOTP en aprobaciones económicas y en `tool_calls`; `field_provenance` vinculante (REQ-142); `correlation_id` de extremo a extremo desde la ingesta (REQ-171); aviso de privacidad propio publicado (REQ-119/131, como borrador honesto); guard de acceso cruzado de tenant (404 real confirmado en `apps/api` + `ResourceNotFoundPage` unit-testeado). Ver sección 4.1bis para el detalle de cada hallazgo cerrado.
+## 6. Qué falta para poder promocionar, en orden de bloqueo
 
-**Funcionalidad no construida (0% de código, no un mock):**
-- **OCR/extracción real de PDF** (Docling/PyMuPDF + Mistral/Azure por excepción): `apps/api` marca `requires_ocr` explícito pero no hay motor; bloquea REQ-014/015/018/129 y el recall real de la matriz de requisitos.
-- **Firma electrónica real**: por diseño, la e.firma nunca toca el servidor (REQ-045); hoy solo existe `userConfirmedSigned` como declaración del usuario — falta el flujo WebCrypto/agente local del lado del cliente.
-- **Envío real a portal oficial**: **nunca se construirá por diseño** (REQ-046, tolerancia cero); confirmado sin cliente HTTP saliente en `apps/api`. No es una carencia, es una regla dura cumplida.
-- **Integraciones reales de fuentes oficiales**: ComprasMX/OCDS-SHCP/PDN-S6/portales estatales bloqueados por B-02 (reCAPTCHA/bot-detection/API no localizable); hoy la única fuente con dato real es el CSV histórico SABG.
-- **OpenAI real**: sin credenciales de producción en ningún paquete; `ProviderRouter`/`OpenAIResponsesProvider` nunca ejercitados contra la red real. Bloquea el juez LLM (REQ-039/127), la cascada de modelos (REQ-078), Batch API/prompt caching (REQ-081/128), y el componente semántico de matching (REQ-061).
-- **WhatsApp y voz**: 0% construido (REQ-074/080/090/091/092/093).
-- **E11, resto de post-adjudicación** (REQ-051 a REQ-055): máquina de estados del contrato, extracción del contrato firmado, redactor de inconformidades, autopsia del fallo y radar de renovaciones específico (90/60/30 días simultáneos) — 0% construido; el seguimiento genérico (hitos/garantías/facturación/pago/penalizaciones/alertas) y el motor de plazos con calendario ya SÍ están construidos y cerrados en ronda 5 (REQ-050 CUMPLIDO), ver `apps/api/docs/e11-cobertura.md`.
+**Bloquea la promoción hoy (decisión o credencial del usuario):**
+- **B-07 — Deployment Protection de Vercel**: el sitio desplegado no es público. Sin esto no hay nada que promocionar, por bueno que sea el código.
+- **B-06 — facturación de GitHub Actions**: ningún job de CI ha llegado a arrancar. Sin esto, los gates formales de CI (REQ-045/087/095/097/138) siguen estructuralmente PENDIENTE y el job con Postgres real nunca se ejecuta.
+- **Proveedor de correo real** (Resend/Postmark/SMTP con dominio verificado SPF/DKIM + `RESEND_WEBHOOK_SECRET`): hoy todo el correo se prueba contra la bandeja de captura. Sin proveedor, ni la verificación de correo ni la recuperación de contraseña funcionan para un usuario real.
+- **Credenciales de Google Cloud** (`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` + dominio autorizado): el botón de Google existe y funciona contra un proveedor OIDC falso, nunca contra Google.
+- **Host de API/worker y Postgres gestionado**: `apps/web` está en Vercel; `apps/api`, `apps/worker` y la base no tienen destino decidido.
+- **B-04 — modelo comercial**: determina si la landing lleva precios y checkout o se queda en «Solicitar demo».
+- **Validación por abogado mexicano** de los términos y el aviso de privacidad, ambos publicados hoy como `borrador_pendiente_validacion_juridica`.
 
-**Gobierno / CI (bloquea gates formales, no funcionalidad):**
-- **CI Postgres real**: el job `db-postgres` (migraciones+622+ ataques RLS reales) solo corre en GitHub Actions; requiere que el usuario autorice un remoto privado (B-03). Sin esto, REQ-045/087/095/097/138 quedan estructuralmente PENDIENTE y WK-04/WK-08 (concurrencia real de `jobs`) no pueden cerrarse.
-- **Validación legal por abogado**: las 17 filas VERIFICADO/VERIFICADO-CON-MATIZ de `docs/legal/verificacion-legal.md` (más las 4 NO-VERIFICABLE-EN-LÍNEA) no han sido validadas por un abogado mexicano; ninguna cifra debe afirmarse a un cliente real sin esa validación — incluye el aviso de privacidad nuevo de ronda 5 (REQ-119), que se declara explícitamente `borrador_pendiente_validacion_juridica`.
-- **Capa LLM del guardrail anticolusión**: AG-12 mide ~3% de detección real por regex; cerrar el REQ-072/114 (≥99%) requiere una capa de juicio LLM en `apps/api`, no solo el guardrail de `packages/agents`.
+**Bloquea el cierre formal de la Ampliación 2 (trabajo interno, sin dependencias externas):**
+- **Auditoría adversarial + reverificación de `apps/web` rondas 7/8a** — no existe ningún informe (REQ-210).
+- **Auditoría de `infra/`** — no existe ningún informe; toda la validación fue estática.
+- **Reverificación independiente de las correcciones de Google** (GO-03/GO-07 y sobre todo **GO-10, ALTA**) y de **R6-11 (ALTA)** y R6-12.
+- **Cierre de la auditoría de la integración de correos en `apps/api`** (#115, en curso).
+- **Handler `mail_retry` de `apps/worker`** (#116): hoy `apps/api` encola el job y nadie lo consume, así que S7 no está realmente verde.
+- **WK6-04**: sanear el `correlationId` en `apps/worker`.
+- **R6-09/R6-10/R6-13/R6-14** (#117): tests y criterios que no miden lo que dicen medir.
 
-**Seguridad / arquitectura (mejoras concretas, no bloqueantes hoy):**
-- **Passkey/WebAuthn en aprobaciones económicas** (REQ-044/064, matiz): el 2FA TOTP con step-up de un solo uso ya está CERRADO en ronda 5 (incl. `tool_calls`); falta el segundo factor passkey/WebAuthn específico que menciona el texto del requisito.
-- **Refresh token en cookie httpOnly**: hoy vive en `localStorage` (mitigado parcialmente por CSP real, WI-01 CERRADO); migrar a cookie httpOnly sigue como TODO explícito del corrector de WI-01.
-- **pgvector / vector store real** (REQ-061): el matching sigue siendo léxico/determinista; decidir si se implementa con embeddings reales (requiere OpenAI) o se declara diseño definitivo.
-- **Calendario oficial de días inhábiles cargado** (REQ-056): la tabla `calendar_holidays` y el motor que la consume ya están construidos y el bug de cómputo está cerrado (R5-01); pero la tabla se despliega y permanece **VACÍA** — cargarla con fechas reales de la SABG, cada una con `sourceUrl`+fecha de consulta verificables, requiere a un administrador humano o una ronda con acceso confirmado a la fuente oficial (BLOQUEADO_EXTERNO parcial).
+**Huecos funcionales concretos de la Ampliación 2, medidos contra la letra de su propio criterio:**
+- **REQ-193**: ninguna página pasa `actionLabel`/`onAction` a `EmptyState` — ningún estado vacío ofrece la siguiente acción.
+- **REQ-198**: no hay analítica de ningún tipo.
+- **REQ-196 / S10**: el `POST /public/contact` existe y está probado, pero el formulario de la landing tiene el botón deshabilitado y un `onSubmit` que solo hace `preventDefault()`.
+- **REQ-191 / S8**: el onboarding tiene 5 pasos, no los 6 del criterio (faltan verificación de correo y primera convocatoria).
+- **REQ-197**: no existe `sitemap.xml`; `robots.txt` es `Disallow: /` y `index.html` fija `noindex, nofollow` — correcto antes del lanzamiento, contrario a la letra del criterio.
+- **REQ-202**: `apps/worker` no expone healthcheck y el compose de producción solo declara `healthcheck:` para postgres — ningún servicio de aplicación está condicionado a salud.
+- **REQ-175**: sin prueba de contrato de paridad de tokens ni de rotación de un refresh emitido por Google.
+- **REQ-177**: `audit_log.correlation_id` queda NULL en todo evento de autenticación (con paridad exacta respecto a email+contraseña, que tampoco lo llena).
+- **REQ-182**: falta el test estático que el propio requisito exige.
+- **REQ-185**: 0 menciones a Likida en la salida renderizada (grep registrado en log), pero sin test que lo guarde y con 11 menciones vivas en comentarios de `packages/mail/src/**` y su README.
 
-**Higiene de repo (menor):**
-- R5-12: comentario desactualizado en `apps/web/src/lib/api/twofa.ts:33-35` sobre el alcance de `/2fa/verify-enrollment` (sin impacto funcional, ver sección 4.1).
+**Funcionalidad de fondo que sigue en 0% (sin cambios respecto al tablero anterior):** OCR real; firma electrónica del lado del cliente; envío real a portal oficial (**nunca se construirá, REQ-046**); integraciones reales de fuentes oficiales (B-02); OpenAI real; WhatsApp y voz; pgvector; capa LLM del guardrail anticolusión (AG-12); calendario oficial de días inhábiles cargado con fechas reales (REQ-056).
