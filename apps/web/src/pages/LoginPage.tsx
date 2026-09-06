@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Lock } from "lucide-react";
-import { Navigate, useLocation } from "react-router-dom";
+import { Link, Navigate, useLocation } from "react-router-dom";
 
 import { AtiendeWordmark } from "@/components/AtiendeLogo";
 import { SkipLink } from "@/components/SkipLink";
@@ -142,11 +142,9 @@ export default function LoginPage() {
 
               {/* REQ-172: "Continuar con Google" JUNTO al método de
                   email+contraseña de arriba, nunca reemplazándolo — mismo
-                  <LoginPage/>, sin pestañas ni pantalla separada (no existe
-                  todavía una pantalla de registro dedicada por
-                  email+contraseña, ver README "queda para ronda 8b": el
-                  registro nuevo vía Google ya funciona hoy, crea la cuenta
-                  automáticamente en el primer login). */}
+                  <LoginPage/>, sin pestañas. El registro tiene su propia
+                  pantalla (/registro, RegistroPage.tsx) con estos mismos
+                  dos métodos; el enlace de abajo la conecta. */}
               <div className="my-6 flex items-center gap-3" role="presentation">
                 <span aria-hidden="true" className="h-px flex-1 bg-border" />
                 <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">o</span>
@@ -154,6 +152,14 @@ export default function LoginPage() {
               </div>
 
               <GoogleAuthButton />
+
+              <p className="mt-6 text-sm text-muted-foreground">
+                ¿Todavía no tienes cuenta?{" "}
+                <Link to="/registro" className="font-medium text-primary underline-offset-4 hover:underline">
+                  Crear cuenta
+                </Link>
+                .
+              </p>
             </div>
           </div>
         </div>

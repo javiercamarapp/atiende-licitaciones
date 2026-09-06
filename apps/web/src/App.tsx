@@ -13,6 +13,7 @@ import { queryClient } from "@/lib/queryClient";
 
 const LandingPage = lazy(() => import("@/pages/LandingPage"));
 const LoginPage = lazy(() => import("@/pages/LoginPage"));
+const RegistroPage = lazy(() => import("@/pages/RegistroPage"));
 const GoogleCallbackPage = lazy(() => import("@/pages/auth/GoogleCallbackPage"));
 const PrivacyNoticePage = lazy(() => import("@/pages/PrivacyNoticePage"));
 const TermsPage = lazy(() => import("@/pages/TermsPage"));
@@ -110,6 +111,11 @@ export default function App() {
                       (mismo patrón que LoginPage.tsx). */}
                   <Route path="/" element={<LandingPage />} />
                   <Route path="/login" element={<LoginPage />} />
+                  {/* REQ-172 (ronda 8a): registro real con los dos métodos —
+                      `POST /auth/register` (email+contraseña) y "Registrarme
+                      con Google" (mismo botón que /login). Pública, como
+                      /login: quien se registra todavía no tiene sesión. */}
+                  <Route path="/registro" element={<RegistroPage />} />
                   {/* REQ-172..180: pública a propósito, como /login — un login
                       con Google en curso, por definición, todavía no tiene
                       sesión. `GOOGLE_REDIRECT_URI` (apps/api) apunta AQUÍ,
