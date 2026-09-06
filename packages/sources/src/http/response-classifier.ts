@@ -80,40 +80,119 @@ function looksLikeHtmlDocument(body: string): boolean {
   return /<!doctype html/i.test(body) || /<html[\s>]/i.test(body);
 }
 
+function stripTagsToPlainText(body: string): string {
+  return body
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Marcadores de un "cascarón" interstitial/de redirección genérico (SR-23,
+ * residual de SR-20): a diferencia de `CHALLENGE_MARKERS` (vendors
+ * conocidos: reCAPTCHA, Cloudflare, Akamai, Imperva...), esto detecta el
+ * PATRÓN de un bloqueo que no se identifica con ningún vendor pero SÍ hace
+ * lo que cualquier interstitial hace -- mostrar una página de espera y
+ * redirigir por JS, o refrescar por meta tag -- mientras conserva intacto
+ * el `<title>`/`id` estático del sitio real (por eso `minimalContentMarkers`
+ * de la ronda anterior no lo detectaba: el "cascarón" HTML seguía
+ * matcheando). Confirmado como vector real por la reverificación adversarial
+ * de cierre: un interstitial "Verificando su navegador..." que preserva
+ * `<title>DOF - Diario Oficial de la Federación</title>`/`id="DivDetalleNota"`
+ * pasaba como `ok` con `coverage.emptyResult=true`.
+ */
+const INTERSTITIAL_SHELL_MARKERS: ReadonlyArray<{ pattern: RegExp; label: string }> = [
+  { pattern: /<meta[^>]+http-equiv\s*=\s*["']?refresh["']?/i, label: "meta-refresh" },
+  {
+    pattern: /<script[^>]*>[\s\S]*?(setTimeout\s*\(|location\.replace\s*\(|location\.href\s*=|window\.location(?:\.href)?\s*=)[\s\S]*?<\/script>/i,
+    label: "script-redirect",
+  },
+];
+
+/**
+ * Devuelve la etiqueta del marcador de interstitial/redirección genérica
+ * detectado, o `undefined` si no hay ninguno. Además de los marcadores
+ * explícitos de arriba, un cuerpo con forma de documento HTML cuyo texto
+ * ÚTIL (sin tags/scripts/estilos) es menor que `minUsefulTextBytes` se trata
+ * como interstitial: una página real de contenido (nota del DOF, aviso de
+ * licitación) siempre trae varios párrafos de texto; un cascarón que solo
+ * conserva el `<title>`/`id` del sitio mientras "vacía" el cuerpo real no.
+ */
+function detectInterstitialShellMarker(body: string, minUsefulTextBytes: number): string | undefined {
+  for (const { pattern, label } of INTERSTITIAL_SHELL_MARKERS) {
+    if (pattern.test(body)) return label;
+  }
+  const usefulTextBytes = Buffer.byteLength(stripTagsToPlainText(body), "utf8");
+  if (usefulTextBytes < minUsefulTextBytes) return "cuerpo-util-insuficiente";
+  return undefined;
+}
+
+export interface AssertLegitimateResponseBodyContext {
+  url: string;
+  expected: ExpectedResponseFormat;
+  /**
+   * SR-23 (residual de SR-20): patrones que indican la FORMA/CONTENIDO
+   * SEMÁNTICO real esperado de esta fuente (p.ej. "convocatoria"/
+   * "licitación pública"/un patrón de número de procedimiento como
+   * `LA-050GYN003-E1-2026`), NO marcadores de plantilla estática (título
+   * exacto de la página, `id` del contenedor). Reemplaza a
+   * `minimalContentMarkers` (ronda anterior): un marcador de PLANTILLA fija
+   * genera falsos positivos si el formato real difiere levemente de la
+   * muestra usada para construirlo (p.ej. `<title>D.O.F. - Diario Oficial
+   * </title>` en vez de `"DOF - Diario Oficial de la Federación"`), y falsos
+   * negativos ante un interstitial que preserva ese mismo cascarón HTML
+   * mientras reemplaza el contenido útil (ver `detectInterstitialShellMarker`).
+   * Opcional: sin esto, cualquier HTML sin marcador de captcha reconocido se
+   * acepta (comportamiento previo preservado para fuentes que aún no
+   * configuran marcadores semánticos).
+   */
+  semanticContentMarkers?: ReadonlyArray<RegExp>;
+  /**
+   * SR-23: bytes mínimos de texto útil (tras quitar tags/scripts/estilos)
+   * por debajo de los cuales un HTML con `semanticContentMarkers`
+   * configurado se trata como interstitial/challenge, incluso si por
+   * casualidad matcheara algún marcador semántico. Default 120.
+   */
+  minUsefulTextBytes?: number;
+}
+
 /**
  * Valida el cuerpo de una respuesta HTTP "ok" (2xx) ANTES de que el
  * conector la interprete como datos legítimos.
  *
  * - Lanza `CaptchaDetectedError` si el cuerpo contiene un marcador
- *   reconocido de captcha/bot-challenge, SIN IMPORTAR `expected` (incluso un
- *   conector que espera texto/HTML, como DOF, debe distinguir una nota real
- *   de una página de bloqueo).
+ *   reconocido de captcha/bot-challenge de un VENDOR conocido, SIN IMPORTAR
+ *   `expected` (incluso un conector que espera texto/HTML, como DOF, debe
+ *   distinguir una nota real de una página de bloqueo).
  * - Lanza `InterfaceChangedError` si se esperaba `json`/`csv` y el cuerpo
  *   tiene forma de documento HTML sin ningún marcador de captcha reconocido
  *   (cambio de interfaz de la fuente, o una página de error/bloqueo
- *   genérica no identificada como captcha).
+ *   genérica no identificada como captcha); o si se esperaba `text` con
+ *   `semanticContentMarkers` configurados y el cuerpo (con forma de HTML) es
+ *   un interstitial/redirección genérica (SR-23) o no contiene ningún
+ *   marcador semántico del contenido real esperado.
  *
  * `classifySourceFailure` (`pipeline/source-health.ts`) mapea ambos errores
  * a un `SourceHealthState` explícito (`captcha_detected`/`interface_changed`)
  * -- nunca `"ok"`.
  *
- * SR-20 (residual de la ronda 2): antes de esta ronda, un conector con
- * `expected: "text"` (hoy solo DOF) NUNCA aplicaba `looksLikeHtmlDocument` --
- * por diseño, ya que una nota real del DOF ES HTML legítimo -- así que un
- * login genérico o un vendor de bot-protection sin marcador reconocido
- * (Akamai, Imperva/Incapsula) pasaba sin lanzar. Ahora, cuando el llamador
- * declara `minimalContentMarkers` (patrones que SÍ debe contener un cuerpo
- * legítimo de esa fuente -- p.ej. `DOF_MINIMAL_CONTENT_MARKERS` en
- * `dof-connector.ts`), un cuerpo con forma de documento HTML que NO matchea
- * NINGUNO de esos marcadores se trata como `InterfaceChangedError` incluso
- * con `expected: "text"`: sigue sin poder ser un HTML cualquiera (SÍ se
- * acepta HTML legítimo de la fuente), pero deja de aceptar CUALQUIER HTML
- * sin verificar que de verdad venga de la fuente esperada.
+ * SR-23 (residual de SR-20, ver README/hallazgo en `docs/auditoria-1/
+ * sources-cierre-final.md`): la ronda anterior validaba `expected: "text"`
+ * contra marcadores de PLANTILLA fijos (`minimalContentMarkers`), lo que
+ * producía (a) un falso positivo -- una nota real con una plantilla apenas
+ * distinta de la muestra se rechazaba como `interface_changed` -- y (b) un
+ * falso negativo -- un interstitial genérico ("Verificando su navegador...")
+ * que conserva el `<title>`/`id` estático del sitio real pasaba como
+ * contenido legítimo. Esta ronda separa la validación en dos ejes
+ * independientes del texto de plantilla: ausencia de un cascarón
+ * interstitial/de redirección (`detectInterstitialShellMarker`) y presencia
+ * de al menos un marcador SEMÁNTICO configurable del contenido real
+ * esperado (`semanticContentMarkers`).
  */
-export function assertLegitimateResponseBody(
-  body: string,
-  context: { url: string; expected: ExpectedResponseFormat; minimalContentMarkers?: ReadonlyArray<RegExp> },
-): void {
+export function assertLegitimateResponseBody(body: string, context: AssertLegitimateResponseBodyContext): void {
   const marker = detectChallengeMarker(body);
   if (marker) {
     throw new CaptchaDetectedError(
@@ -132,17 +211,22 @@ export function assertLegitimateResponseBody(
   }
 
   // expected === "text": un cuerpo HTML/texto es POR DISEÑO el formato legítimo (p.ej. una nota real del DOF),
-  // así que no se rechaza solo por tener forma de documento HTML. Pero si el llamador declaró los marcadores
-  // estructurales mínimos que SÍ debe traer un cuerpo real de esta fuente (SR-20) y el cuerpo tiene forma de
-  // HTML sin ninguno de ellos, es una página distinta a la esperada (login/bloqueo genérico sin marcador de
-  // captcha reconocido) -- no se puede seguir aceptando en silencio.
-  if (context.minimalContentMarkers && context.minimalContentMarkers.length > 0 && looksLikeHtmlDocument(body)) {
-    const matchesExpectedShape = context.minimalContentMarkers.some((pattern) => pattern.test(body));
-    if (!matchesExpectedShape) {
+  // así que no se rechaza solo por tener forma de documento HTML. Pero si el llamador declaró marcadores
+  // SEMÁNTICOS del contenido real esperado (SR-23) y el cuerpo tiene forma de HTML, se exige ADEMÁS (a) que no
+  // sea un cascarón interstitial/de redirección genérico y (b) que contenga al menos uno de esos marcadores --
+  // ninguno de los dos depende de la plantilla exacta del sitio, así que una nota real con plantilla distinta
+  // sigue pasando, y un interstitial que reutiliza el cascarón HTML del sitio real deja de hacerlo.
+  if (context.semanticContentMarkers && context.semanticContentMarkers.length > 0 && looksLikeHtmlDocument(body)) {
+    const minUsefulTextBytes = context.minUsefulTextBytes ?? 120;
+    const interstitialLabel = detectInterstitialShellMarker(body, minUsefulTextBytes);
+    const hasSemanticMarker = context.semanticContentMarkers.some((pattern) => pattern.test(body));
+    if (interstitialLabel || !hasSemanticMarker) {
       throw new InterfaceChangedError(
-        `Respuesta de ${context.url}: se esperaba texto/HTML de la fuente pero el cuerpo (con forma de documento HTML) ` +
-          "no contiene ninguno de los marcadores estructurales mínimos esperados de esa fuente -- probable página de " +
-          "login/bloqueo genérica sin marcador de captcha reconocido, o cambio de interfaz de la fuente.",
+        `Respuesta de ${context.url}: se esperaba texto/HTML con contenido semántico real de la fuente, pero ` +
+          (interstitialLabel
+            ? `el cuerpo tiene forma de interstitial/redirección genérica (marcador "${interstitialLabel}") sin contenido real, `
+            : "no contiene ningún marcador semántico del contenido real esperado (p.ej. convocatoria/licitación pública/número de procedimiento), ") +
+          "aunque conserve el título/estructura estática del sitio -- probable challenge/interstitial que reutiliza el cascarón HTML del sitio real, o cambio de interfaz de la fuente.",
       );
     }
   }

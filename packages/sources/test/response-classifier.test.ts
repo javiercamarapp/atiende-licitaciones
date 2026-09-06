@@ -77,40 +77,74 @@ describe("assertLegitimateResponseBody: SR-19 (JSON válido pero soft-block) y S
     );
   });
 
-  it("SR-20: expected:'text' con minimalContentMarkers -- un login genérico (HTML sin ninguno de los marcadores esperados) lanza InterfaceChangedError", () => {
+  it("SR-20/SR-23: expected:'text' con semanticContentMarkers -- un login genérico (HTML sin ningún marcador semántico) lanza InterfaceChangedError", () => {
     const loginHtml = "<!doctype html><html><body><h1>Inicia sesión</h1><p>Sesión requerida para continuar</p></body></html>";
     expect(() =>
       assertLegitimateResponseBody(loginHtml, {
         url: "https://dof.gob.mx/nota_detalle.php",
         expected: "text",
-        minimalContentMarkers: [/diario oficial de la federaci[oó]n/i, /DivDetalleNota/i],
+        semanticContentMarkers: [/convocatoria/i, /licitaci[oó]n\s+p[uú]blica/i],
       }),
     ).toThrow(InterfaceChangedError);
   });
 
-  it("SR-20: expected:'text' con minimalContentMarkers -- Akamai Bot Manager se clasifica como captcha, no como interface_changed", () => {
+  it("SR-20: expected:'text' con semanticContentMarkers -- Akamai Bot Manager se clasifica como captcha, no como interface_changed", () => {
     const akamaiHtml = "<!doctype html><html><body><h1>Pardon Our Interruption</h1></body></html>";
     expect(() =>
       assertLegitimateResponseBody(akamaiHtml, {
         url: "https://dof.gob.mx/nota_detalle.php",
         expected: "text",
-        minimalContentMarkers: [/diario oficial de la federaci[oó]n/i],
+        semanticContentMarkers: [/convocatoria/i],
       }),
     ).toThrow(CaptchaDetectedError);
   });
 
-  it("SR-20: expected:'text' con minimalContentMarkers -- un HTML que SÍ trae el marcador esperado NO lanza", () => {
-    const realNota = "<html><head><title>DOF - Diario Oficial de la Federación</title></head><body>Contenido real</body></html>";
+  it("SR-23: expected:'text' con semanticContentMarkers -- un HTML que SÍ trae el marcador SEMÁNTICO esperado NO lanza, aunque la plantilla (título/id) sea distinta de la muestra", () => {
+    const notaPlantillaDistinta =
+      "<html><head><title>D.O.F. - Diario Oficial</title></head><body><div id=\"contenedorNota\">" +
+      "DEPENDENCIA.-Convocatoria número LA-050GYN003-E1-2026 relativa a la licitación pública de prueba. " +
+      "Objeto de la licitación: adquisición de equipo de prueba. Junta de aclaraciones: 10/09/2026.</div></body></html>";
     expect(() =>
-      assertLegitimateResponseBody(realNota, {
+      assertLegitimateResponseBody(notaPlantillaDistinta, {
         url: "https://dof.gob.mx/nota_detalle.php",
         expected: "text",
-        minimalContentMarkers: [/diario oficial de la federaci[oó]n/i, /DivDetalleNota/i],
+        semanticContentMarkers: [/convocatoria/i, /licitaci[oó]n\s+p[uú]blica/i, /\b(?:LA|IA|IO|LO)-[0-9A-Z]{3,}-[A-Z0-9]{2,}-\d{4}\b/],
       }),
     ).not.toThrow();
   });
 
-  it("expected:'text' SIN minimalContentMarkers sigue sin lanzar por cualquier HTML legítimo (comportamiento previo preservado)", () => {
+  it("SR-23: un interstitial genérico con <script> de redirección (setTimeout/location.replace) que SÍ matchea el marcador semántico igual lanza InterfaceChangedError (el cascarón no basta)", () => {
+    const interstitial =
+      "<html><head><title>DOF - Diario Oficial de la Federación</title></head><body>" +
+      "<p>Convocatoria en revisión, verificando su navegador...</p>" +
+      "<script>setTimeout(function(){ location.replace('/nota_detalle.php?codigo=1&continue=1'); }, 3000);</script>" +
+      "</body></html>";
+    expect(() =>
+      assertLegitimateResponseBody(interstitial, {
+        url: "https://dof.gob.mx/nota_detalle.php",
+        expected: "text",
+        semanticContentMarkers: [/convocatoria/i],
+      }),
+    ).toThrow(InterfaceChangedError);
+  });
+
+  it("SR-23: un meta-refresh lanza InterfaceChangedError igual que un <script> de redirección", () => {
+    const metaRefresh =
+      '<html><head><meta http-equiv="refresh" content="3;url=/nota_detalle.php?codigo=1"><title>DOF - Diario Oficial de la Federación</title></head>' +
+      "<body>Convocatoria en revisión...</body></html>";
+    expect(() =>
+      assertLegitimateResponseBody(metaRefresh, { url: "https://dof.gob.mx/nota_detalle.php", expected: "text", semanticContentMarkers: [/convocatoria/i] }),
+    ).toThrow(InterfaceChangedError);
+  });
+
+  it("SR-23: un cuerpo HTML con texto útil por debajo de minUsefulTextBytes lanza InterfaceChangedError aunque no traiga script/meta-refresh", () => {
+    const cascaronVacio = "<html><head><title>DOF - Diario Oficial de la Federación</title></head><body><div id=\"DivDetalleNota\"></div></body></html>";
+    expect(() =>
+      assertLegitimateResponseBody(cascaronVacio, { url: "https://dof.gob.mx/nota_detalle.php", expected: "text", semanticContentMarkers: [/convocatoria/i] }),
+    ).toThrow(InterfaceChangedError);
+  });
+
+  it("expected:'text' SIN semanticContentMarkers sigue sin lanzar por cualquier HTML legítimo (comportamiento previo preservado)", () => {
     const html = "<html><body>DEPENDENCIA.-Convocatoria pública</body></html>";
     expect(() => assertLegitimateResponseBody(html, { url: "https://dof.gob.mx", expected: "text" })).not.toThrow();
   });
