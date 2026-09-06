@@ -353,9 +353,10 @@ corrida exitosa aunque la corrida actual falle, y expone `staleForMs`
 (frescura/obsolescencia) para que el back office pueda mostrarla
 visiblemente en vez de ocultar el problema.
 
-**`ResponseClassifier` (SR-14, ronda 2; SR-19/SR-20, ronda 3 de corrección)**:
+**`ResponseClassifier` (SR-14, ronda 2; SR-19/SR-20, ronda 3; SR-23, micro-vuelta posterior a la reverificación de cierre)**:
 `src/http/response-classifier.ts`, `assertLegitimateResponseBody(body,
-{url, expected, minimalContentMarkers?})`, común a todos los conectores.
+{url, expected, semanticContentMarkers?, minUsefulTextBytes?})`, común a
+todos los conectores.
 Antes de la ronda 2, un `fetchImpl` que devolviera **HTTP 200 real** con un
 cuerpo HTML de captcha/bot-challenge (escenario que este mismo README
 documenta como real para PDN-S6/Zenedge) hacía que el parser de turno
@@ -376,14 +377,40 @@ novedades, la violación exacta que REQ-148 prohíbe. `assertLegitimateResponseB
   (cambio de interfaz de la fuente, o un bloqueo genérico no identificado).
 - **SR-20 (ronda 3)**: para `expected: "text"` (hoy solo DOF) un cuerpo HTML
   YA NO se acepta sin más solo por tener forma de HTML legítimo (una nota
-  real del DOF SÍ es HTML) — si el llamador declara `minimalContentMarkers`
-  (`DOF_MINIMAL_CONTENT_MARKERS` en `dof-connector.ts`: título "Diario
-  Oficial de la Federación"/`DivDetalleNota`), un cuerpo con forma de HTML
-  que no matchea NINGUNO de esos marcadores se trata como
+  real del DOF SÍ es HTML) — si el llamador declara marcadores del cuerpo
+  esperado, un cuerpo con forma de HTML que no los cumple se trata como
   `InterfaceChangedError` — antes, un login genérico o un vendor sin
   marcador de captcha reconocido pasaba sin lanzar.
+- **SR-23 (MEDIA, residual de SR-20, cerrado en la micro-vuelta posterior a
+  la reverificación de cierre)**: el mecanismo de SR-20 usaba
+  `minimalContentMarkers`, marcadores de PLANTILLA FIJA (título exacto
+  "DOF - Diario Oficial de la Federación", `id="DivDetalleNota"`). Eso tenía
+  doble filo, confirmado con ataques reales: (a) **falso positivo** — una
+  nota DOF con contenido real pero una plantilla apenas distinta (p.ej.
+  `<title>D.O.F. - Diario Oficial</title>`, `id="contenedorNota"`) se
+  rechazaba como `interface_changed`; (b) **falso negativo** — un
+  interstitial JS genérico ("Verificando su navegador...") que conserva
+  intacto el `<title>`/`id` del sitio real (un patrón común de bloqueos que
+  reenvían el mismo cascarón HTML antes de redirigir) pasaba como
+  contenido legítimo, exactamente la violación de REQ-148 que SR-20 debía
+  cerrar. El parámetro se reemplazó por `semanticContentMarkers` (patrones
+  del CONTENIDO real esperado — "convocatoria"/"licitación pública"/un
+  patrón de número de procedimiento como `LA-050GYN003-E1-2026` para DOF,
+  `DOF_SEMANTIC_CONTENT_MARKERS` en `dof-connector.ts`), independiente de la
+  plantilla, y se agregó `detectInterstitialShellMarker()`: un cuerpo HTML
+  con `semanticContentMarkers` configurados se rechaza como
+  `InterfaceChangedError` si (i) trae un `<meta http-equiv="refresh">`, (ii)
+  trae un `<script>` con `setTimeout(`/`location.replace(`/`location.href =`/
+  `window.location(.href) =` (interstitial de redirección genérico, sin
+  vendor reconocido), o (iii) su texto útil (sin tags/scripts/estilos) pesa
+  menos de `minUsefulTextBytes` (default 120) — INDEPENDIENTEMENTE de si
+  matchea algún `semanticContentMarkers` por casualidad (un cascarón vacío
+  con la palabra "convocatoria" suelta en el título seguiría siendo un
+  cascarón). Sin `semanticContentMarkers` configurado el comportamiento
+  previo se conserva sin cambios (cualquier HTML sin marcador de captcha se
+  acepta).
 
-Se invoca en `DofConnector` (expected `"text"`, con `minimalContentMarkers`),
+Se invoca en `DofConnector` (expected `"text"`, con `semanticContentMarkers`),
 `ComprasMxConnector`, `create-ocds-connector.ts` (compartido por
 `OcdsShcpConnector`/`PdnS6Connector`), `StatePortalConnector` (expected
 `"json"`) y `ComprasMxHistoricalCsvConnector` (expected `"csv"`, sobre el
@@ -418,6 +445,40 @@ default 20%, configurable), reclasifica la corrida completa a
 `interface_changed` EN VEZ de "ok" — una tasa alta es en sí misma evidencia
 de que el mapeo dejó de coincidir con la forma real de la fuente.
 `DiscoveryResult.totalDropped` agrega el conteo global.
+
+**SR-24 (ALTA, residual de SR-21, cerrado en la micro-vuelta posterior a la
+reverificación de cierre)**: el mecanismo de arriba (`{records, dropped}` +
+`ctx.reportDropped` + `dropRateThreshold`) solo estaba conectado en
+`compras-mx-connector.ts`/`compras-mx-historical-csv-connector.ts`.
+`create-ocds-connector.ts` (compartido por `OcdsShcpConnector`/
+`PdnS6Connector`/`StatePortalConnector` — 3 de los 4 `SourceId` no-ComprasMX)
+nunca invocaba `ctx.reportDropped`: `mapOcdsPackageToTenderRecords` devolvía
+solo `TenderRecord[]`, así que un release sin bloque `tender` (filtro por
+diseño: solo adjudicación/contrato) desaparecía sin ningún rastro. Confirmado
+end-to-end: un release package con 80% de sus releases sin `tender`
+producía `health.state="ok"`, `dropped:[]` — la MISMA violación de REQ-148
+que motivó SR-21, invisible para 3 de las 4 fuentes que no son ComprasMX.
+`mapOcdsPackageToTenderRecords` ahora devuelve `{records, dropped}` (mismo
+contrato que ComprasMX): cada release se valida INDIVIDUALMENTE
+(`OcdsReleaseSchema.safeParse`, no la validación de todo el release package
+en un solo `.parse()`) — un release inválido se reporta en `dropped[]` con
+el motivo del `ZodError` en vez de tumbar TODO el release package (mismo
+antipatrón que SR-16 corrigió para el CSV histórico), y un release válido
+sin `tender` también se reporta en `dropped[]` (sigue filtrándose, ya no en
+silencio). `create-ocds-connector.ts`/`state-portal-connector.ts` reenvían
+cada entrada a `ctx.reportDropped`, igual que ya hacía ComprasMX —
+`dropRateThreshold` (sin cambios, ya era genérico) protege ahora a los 5
+conectores registrados. DOF recibe la misma generalización por paridad
+(`mapDofNoticeToTenderRecordSafe` envuelve `mapDofNoticeToTenderRecord` sin
+dejar que un aviso inválido aborte el resto de la nota/corrida;
+`extractDofNoticesFromText` devuelve `{notices, dropped}`), aunque sus
+fallbacks de regex hacen improbable en la práctica que un aviso derivado de
+HTML real llegue a ser inválido (documentado en `dof-mapper.ts`).
+`test/connectors/drop-invariant.test.ts` es el test de INVARIANTE que
+recorre los 5 conectores del `ConnectorRegistry` (no solo ComprasMX) con un
+fixture de 1 registro/release inválido cada uno y confirma `dropped.length
+>= 1` + `errores[]` con motivo + reclasificación `interface_changed` en
+TODOS ante una tasa de descarte por encima del umbral.
 
 ## Pipeline de descubrimiento
 
@@ -492,6 +553,11 @@ verificación de los consumidores reales (`npm run -w apps/worker typecheck
 test`, `npm run -w apps/api typecheck`). `test`/`test:coverage` requieren
 `NODE_OPTIONS=--expose-gc` (ya configurado en `package.json`) para la
 medición forzada del test de memoria del parser CSV en streaming.
+Micro-vuelta posterior a la reverificación de cierre (SR-23/SR-24, ver
+`docs/auditoria-1/sources-cierre-final.md` §4) en
+`docs/logs/fix-sources-micro.log` -- incluye
+`npm run -w packages/sources typecheck lint test build test:coverage` y
+`npm run -w apps/worker typecheck test`.
 
 ## Pendientes explícitos (no inventar integración real)
 

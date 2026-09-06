@@ -1,0 +1,329 @@
+=== fix-sources-micro: SR-23 (MEDIA) + SR-24 (ALTA) -- 2026-09-06T07:45:24Z ===
+Repo HEAD: 6c43174cfb1891f2e0dff2725295b1c0d28ebb78
+
+--- npm run -w packages/sources typecheck ---
+
+> @atiende/sources@0.1.0 typecheck
+> tsc --noEmit
+
+
+--- npm run -w packages/sources lint ---
+
+> @atiende/sources@0.1.0 lint
+> eslint src test --ext .ts
+
+[0m[0m
+[0m[4m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/packages/sources/test/connectors/registry.test 2.ts[24m[0m
+[0m  [2m7:10[22m  [33mwarning[39m  'createComprasMxHistoricalCsvConnector' is defined but never used. Allowed unused vars must match /^_/u  [2m@typescript-eslint/no-unused-vars[22m[0m
+[0m[0m
+[0m[33m[1m✖ 1 problem (0 errors, 1 warning)[22m[39m[0m
+[0m[33m[1m[22m[39m[0m
+
+--- npm run -w packages/sources test ---
+
+> @atiende/sources@0.1.0 test
+> NODE_OPTIONS=--expose-gc vitest run
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/packages/sources[39m
+
+ [32m✓[39m test/response-classifier.test.ts [2m([22m[2m21 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/dedupe.test.ts [2m([22m[2m25 tests[22m[2m)[22m[90m 12[2mms[22m[39m
+ [32m✓[39m test/connectors/compras-mx-historical.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 16[2mms[22m[39m
+ [32m✓[39m test/connectors/compras-mx.test.ts [2m([22m[2m19 tests[22m[2m)[22m[90m 15[2mms[22m[39m
+ [32m✓[39m test/connectors/dof.test.ts [2m([22m[2m15 tests[22m[2m)[22m[90m 25[2mms[22m[39m
+ [32m✓[39m test/connectors/ocds.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 16[2mms[22m[39m
+ [32m✓[39m test/connectors/drop-invariant.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 11[2mms[22m[39m
+ [32m✓[39m test/http-client.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 74[2mms[22m[39m
+ [32m✓[39m test/pipeline/discovery-pipeline.test.ts [2m([22m[2m18 tests[22m[2m)[22m[90m 51[2mms[22m[39m
+ [32m✓[39m test/matching.test.ts [2m([22m[2m16 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/encoding.test.ts [2m([22m[2m19 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+ [32m✓[39m test/csv.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/schema-null-normalization.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+ [32m✓[39m test/connectors/state-portal.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/connectors/registry.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 11[2mms[22m[39m
+ [32m✓[39m test/host-throttle.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/hash.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/timezone-independence.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 1196[2mms[22m[39m
+   [33m[2m✓[22m[39m SR-02: independencia de zona horaria del proceso en fechas de ComprasMX[2m > [22mel mismo dato de entrada naive produce el MISMO instante submissionDeadline con TZ=UTC, TZ=America/Mexico_City y TZ=Asia/Tokyo [33m676[2mms[22m[39m
+   [33m[2m✓[22m[39m SR-12: independencia de zona horaria del proceso en fechas del CSV histórico de ComprasMX (parseComprasMxHistoricoCsv)[2m > [22mel mismo fecha_inicio naive produce el MISMO instante published con TZ=UTC, TZ=America/Mexico_City y TZ=Asia/Tokyo [33m518[2mms[22m[39m
+ [32m✓[39m test/tz-invariant.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 4088[2mms[22m[39m
+   [33m[2m✓[22m[39m SR-12 (invariante ampliada): TODOS los conectores registrados producen fechas TZ-independientes ante una entrada naive[2m > [22mcompras-mx: el mismo fixture con fecha naive produce el MISMO instante bajo TZ=UTC/America/Mexico_City/Asia/Tokyo [33m766[2mms[22m[39m
+   [33m[2m✓[22m[39m SR-12 (invariante ampliada): TODOS los conectores registrados producen fechas TZ-independientes ante una entrada naive[2m > [22mcompras-mx-historico: el mismo fixture con fecha naive produce el MISMO instante bajo TZ=UTC/America/Mexico_City/Asia/Tokyo [33m639[2mms[22m[39m
+   [33m[2m✓[22m[39m SR-12 (invariante ampliada): TODOS los conectores registrados producen fechas TZ-independientes ante una entrada naive[2m > [22mdof: el mismo fixture con fecha naive produce el MISMO instante bajo TZ=UTC/America/Mexico_City/Asia/Tokyo [33m797[2mms[22m[39m
+   [33m[2m✓[22m[39m SR-12 (invariante ampliada): TODOS los conectores registrados producen fechas TZ-independientes ante una entrada naive[2m > [22mocds-shcp: el mismo fixture con fecha naive produce el MISMO instante bajo TZ=UTC/America/Mexico_City/Asia/Tokyo [33m690[2mms[22m[39m
+   [33m[2m✓[22m[39m SR-12 (invariante ampliada): TODOS los conectores registrados producen fechas TZ-independientes ante una entrada naive[2m > [22mpdn-s6: el mismo fixture con fecha naive produce el MISMO instante bajo TZ=UTC/America/Mexico_City/Asia/Tokyo [33m598[2mms[22m[39m
+   [33m[2m✓[22m[39m SR-12 (invariante ampliada): TODOS los conectores registrados producen fechas TZ-independientes ante una entrada naive[2m > [22mstate-portal: el mismo fixture con fecha naive produce el MISMO instante bajo TZ=UTC/America/Mexico_City/Asia/Tokyo [33m595[2mms[22m[39m
+ [32m✓[39m test/csv-streaming-memory.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 5230[2mms[22m[39m
+   [33m[2m✓[22m[39m Memoria acotada del parser CSV en streaming (mejora de memoria, ronda 3 de corrección)[2m > [22mprocesa ~50 MB de CSV simulado sin que el heap crezca proporcionalmente al tamaño del archivo [33m5229[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m20 passed[39m[22m[90m (20)[39m
+[2m      Tests [22m [1m[32m204 passed[39m[22m[90m (204)[39m
+[2m   Start at [22m 01:45:26
+[2m   Duration [22m 5.84s[2m (transform 555ms, setup 0ms, collect 1.27s, tests 10.78s, environment 2ms, prepare 1.05s)[22m
+
+
+--- npm run -w packages/sources build ---
+
+> @atiende/sources@0.1.0 build
+> tsc -p tsconfig.build.json
+
+
+--- npm run -w packages/sources test:coverage ---
+
+> @atiende/sources@0.1.0 test:coverage
+> NODE_OPTIONS=--expose-gc vitest run --coverage
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/packages/sources[39m
+      [2mCoverage enabled with [22m[33mv8[39m
+
+ [32m✓[39m test/response-classifier.test.ts [2m([22m[2m21 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/dedupe.test.ts [2m([22m[2m25 tests[22m[2m)[22m[90m 14[2mms[22m[39m
+ [32m✓[39m test/connectors/compras-mx.test.ts [2m([22m[2m19 tests[22m[2m)[22m[90m 19[2mms[22m[39m
+ [32m✓[39m test/connectors/compras-mx-historical.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 24[2mms[22m[39m
+ [32m✓[39m test/http-client.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 74[2mms[22m[39m
+ [32m✓[39m test/connectors/dof.test.ts [2m([22m[2m15 tests[22m[2m)[22m[90m 34[2mms[22m[39m
+ [32m✓[39m test/pipeline/discovery-pipeline.test.ts [2m([22m[2m18 tests[22m[2m)[22m[90m 49[2mms[22m[39m
+ [32m✓[39m test/connectors/ocds.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 22[2mms[22m[39m
+ [32m✓[39m test/connectors/drop-invariant.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 16[2mms[22m[39m
+ [32m✓[39m test/encoding.test.ts [2m([22m[2m19 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m test/matching.test.ts [2m([22m[2m16 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+ [32m✓[39m test/schema-null-normalization.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/csv.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m test/connectors/state-portal.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 18[2mms[22m[39m
+ [32m✓[39m test/connectors/registry.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 9[2mms[22m[39m
+ [32m✓[39m test/host-throttle.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/hash.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/timezone-independence.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 1150[2mms[22m[39m
+   [33m[2m✓[22m[39m SR-02: independencia de zona horaria del proceso en fechas de ComprasMX[2m > [22mel mismo dato de entrada naive produce el MISMO instante submissionDeadline con TZ=UTC, TZ=America/Mexico_City y TZ=Asia/Tokyo [33m644[2mms[22m[39m
+   [33m[2m✓[22m[39m SR-12: independencia de zona horaria del proceso en fechas del CSV histórico de ComprasMX (parseComprasMxHistoricoCsv)[2m > [22mel mismo fecha_inicio naive produce el MISMO instante published con TZ=UTC, TZ=America/Mexico_City y TZ=Asia/Tokyo [33m506[2mms[22m[39m
+ [32m✓[39m test/tz-invariant.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 3596[2mms[22m[39m
+   [33m[2m✓[22m[39m SR-12 (invariante ampliada): TODOS los conectores registrados producen fechas TZ-independientes ante una entrada naive[2m > [22mcompras-mx: el mismo fixture con fecha naive produce el MISMO instante bajo TZ=UTC/America/Mexico_City/Asia/Tokyo [33m705[2mms[22m[39m
+   [33m[2m✓[22m[39m SR-12 (invariante ampliada): TODOS los conectores registrados producen fechas TZ-independientes ante una entrada naive[2m > [22mcompras-mx-historico: el mismo fixture con fecha naive produce el MISMO instante bajo TZ=UTC/America/Mexico_City/Asia/Tokyo [33m595[2mms[22m[39m
+   [33m[2m✓[22m[39m SR-12 (invariante ampliada): TODOS los conectores registrados producen fechas TZ-independientes ante una entrada naive[2m > [22mdof: el mismo fixture con fecha naive produce el MISMO instante bajo TZ=UTC/America/Mexico_City/Asia/Tokyo [33m570[2mms[22m[39m
+   [33m[2m✓[22m[39m SR-12 (invariante ampliada): TODOS los conectores registrados producen fechas TZ-independientes ante una entrada naive[2m > [22mocds-shcp: el mismo fixture con fecha naive produce el MISMO instante bajo TZ=UTC/America/Mexico_City/Asia/Tokyo [33m573[2mms[22m[39m
+   [33m[2m✓[22m[39m SR-12 (invariante ampliada): TODOS los conectores registrados producen fechas TZ-independientes ante una entrada naive[2m > [22mpdn-s6: el mismo fixture con fecha naive produce el MISMO instante bajo TZ=UTC/America/Mexico_City/Asia/Tokyo [33m579[2mms[22m[39m
+   [33m[2m✓[22m[39m SR-12 (invariante ampliada): TODOS los conectores registrados producen fechas TZ-independientes ante una entrada naive[2m > [22mstate-portal: el mismo fixture con fecha naive produce el MISMO instante bajo TZ=UTC/America/Mexico_City/Asia/Tokyo [33m572[2mms[22m[39m
+ [32m✓[39m test/csv-streaming-memory.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 9826[2mms[22m[39m
+   [33m[2m✓[22m[39m Memoria acotada del parser CSV en streaming (mejora de memoria, ronda 3 de corrección)[2m > [22mprocesa ~50 MB de CSV simulado sin que el heap crezca proporcionalmente al tamaño del archivo [33m9824[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m20 passed[39m[22m[90m (20)[39m
+[2m      Tests [22m [1m[32m204 passed[39m[22m[90m (204)[39m
+[2m   Start at [22m 01:45:33
+[2m   Duration [22m 10.57s[2m (transform 629ms, setup 0ms, collect 1.40s, tests 14.89s, environment 2ms, prepare 1.21s)[22m
+
+[34m % [39m[2mCoverage report from [22m[33mv8[39m
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-------------------|---------|----------|---------|---------|-------------------
+[32;1mAll files         [0m | [32;1m  89.36[0m | [32;1m   83.68[0m | [32;1m   93.6[0m | [32;1m  89.36[0m | [31;1m                 [0m 
+[31;1m src              [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m                 [0m 
+[31;1m  index.ts        [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m1-48             [0m 
+[32;1m src/connectors   [0m | [32;1m    100[0m | [32;1m     100[0m | [33;1m  77.77[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  registry.ts     [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  types.ts        [0m | [32;1m    100[0m | [32;1m     100[0m | [33;1m     50[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m ...ors/compras-mx[0m | [32;1m  90.59[0m | [32;1m   80.67[0m | [32;1m  93.75[0m | [32;1m  90.59[0m | [31;1m                 [0m 
+[33;1m  ...-connector.ts[0m | [33;1m  77.04[0m | [32;1m      80[0m | [33;1m  66.66[0m | [33;1m  77.04[0m | [31;1m107-120          [0m 
+[32;1m  ...-connector.ts[0m | [32;1m  84.72[0m | [32;1m      80[0m | [32;1m    100[0m | [32;1m  84.72[0m | [31;1m...19-120,133-139[0m 
+[32;1m  ...smx-mapper.ts[0m | [32;1m  95.45[0m | [32;1m   81.01[0m | [32;1m    100[0m | [32;1m  95.45[0m | [31;1m...94-296,300-301[0m 
+[32;1m  ...asmx-types.ts[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m ...connectors/dof[0m | [32;1m  83.33[0m | [33;1m   64.44[0m | [32;1m  88.88[0m | [32;1m  83.33[0m | [31;1m                 [0m 
+[33;1m  dof-connector.ts[0m | [33;1m  75.86[0m | [33;1m   57.89[0m | [33;1m     75[0m | [33;1m  75.86[0m | [31;1m...32-134,142-157[0m 
+[32;1m  dof-mapper.ts   [0m | [32;1m  86.92[0m | [33;1m   69.23[0m | [32;1m    100[0m | [32;1m  86.92[0m | [31;1m...95-101,122-127[0m 
+[32;1m  dof-types.ts    [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m ...onnectors/ocds[0m | [32;1m  89.73[0m | [33;1m   70.88[0m | [32;1m     90[0m | [32;1m  89.73[0m | [31;1m                 [0m 
+[33;1m  ...-connector.ts[0m | [33;1m   64.7[0m | [33;1m   73.68[0m | [33;1m  66.66[0m | [33;1m   64.7[0m | [31;1m46-47,84-105     [0m 
+[32;1m  ocds-mapper.ts  [0m | [32;1m  97.58[0m | [33;1m      70[0m | [32;1m    100[0m | [32;1m  97.58[0m | [31;1m202-204          [0m 
+[32;1m  ocds-types.ts   [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m ...tors/ocds-shcp[0m | [32;1m    100[0m | [32;1m   88.88[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  ...-connector.ts[0m | [32;1m    100[0m | [32;1m   88.88[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m51               [0m 
+[32;1m ...nectors/pdn-s6[0m | [32;1m    100[0m | [33;1m      50[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  ...-connector.ts[0m | [32;1m    100[0m | [33;1m      50[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m47-49,54         [0m 
+[32;1m ...s/state-portal[0m | [32;1m  91.66[0m | [33;1m      60[0m | [33;1m  66.66[0m | [32;1m  91.66[0m | [31;1m                 [0m 
+[32;1m  ...-connector.ts[0m | [32;1m  91.66[0m | [33;1m      60[0m | [33;1m  66.66[0m | [32;1m  91.66[0m | [31;1m90-91,114-118    [0m 
+[32;1m src/dedupe       [0m | [32;1m  98.52[0m | [32;1m   90.76[0m | [32;1m    100[0m | [32;1m  98.52[0m | [31;1m                 [0m 
+[32;1m  fingerprint.ts  [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  version.ts      [0m | [32;1m  98.33[0m | [32;1m   90.16[0m | [32;1m    100[0m | [32;1m  98.33[0m | [31;1m114-115          [0m 
+[32;1m src/http         [0m | [32;1m   91.5[0m | [32;1m   89.62[0m | [32;1m  96.77[0m | [32;1m   91.5[0m | [31;1m                 [0m 
+[32;1m  host-throttle.ts[0m | [32;1m  97.01[0m | [32;1m   88.88[0m | [32;1m  88.88[0m | [32;1m  97.01[0m | [31;1m46-47            [0m 
+[32;1m  http-client.ts  [0m | [32;1m     88[0m | [32;1m   85.71[0m | [32;1m    100[0m | [32;1m     88[0m | [31;1m...70-183,255-256[0m 
+[32;1m  ...classifier.ts[0m | [32;1m  98.88[0m | [32;1m   96.77[0m | [32;1m    100[0m | [32;1m  98.88[0m | [31;1m228              [0m 
+[33;1m  retry.ts        [0m | [33;1m  71.42[0m | [32;1m    87.5[0m | [32;1m    100[0m | [33;1m  71.42[0m | [31;1m13-18            [0m 
+[32;1m src/matching     [0m | [32;1m  98.55[0m | [32;1m   87.27[0m | [32;1m    100[0m | [32;1m  98.55[0m | [31;1m                 [0m 
+[32;1m  ...ing-engine.ts[0m | [32;1m  98.55[0m | [32;1m   87.15[0m | [32;1m    100[0m | [32;1m  98.55[0m | [31;1m158,168-169      [0m 
+  types.ts         |       0 |        0 |       0 |       0 | [31;1m                 [0m 
+[32;1m src/pipeline     [0m | [32;1m  95.04[0m | [32;1m   94.68[0m | [32;1m  90.47[0m | [32;1m  95.04[0m | [31;1m                 [0m 
+[32;1m  checkpoint.ts   [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  concurrency.ts  [0m | [32;1m    100[0m | [32;1m    87.5[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m15               [0m 
+[32;1m  ...y-pipeline.ts[0m | [32;1m  97.31[0m | [32;1m   95.91[0m | [32;1m    100[0m | [32;1m  97.31[0m | [31;1m268-271          [0m 
+[33;1m  repository.ts   [0m | [33;1m  78.57[0m | [32;1m     100[0m | [33;1m     60[0m | [33;1m  78.57[0m | [31;1m56-57,60-63      [0m 
+[32;1m  source-health.ts[0m | [32;1m  95.12[0m | [32;1m    93.1[0m | [32;1m    100[0m | [32;1m  95.12[0m | [31;1m117-118          [0m 
+[32;1m src/types        [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  tender-record.ts[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m src/util         [0m | [32;1m  81.97[0m | [32;1m   84.23[0m | [32;1m  96.96[0m | [32;1m  81.97[0m | [31;1m                 [0m 
+[33;1m  csv.ts          [0m | [33;1m  74.47[0m | [33;1m    79.1[0m | [32;1m    100[0m | [33;1m  74.47[0m | [31;1m...61-262,302-304[0m 
+[32;1m  encoding.ts     [0m | [32;1m  86.01[0m | [32;1m   86.84[0m | [32;1m    100[0m | [32;1m  86.01[0m | [31;1m...71,199,246-259[0m 
+[32;1m  hash.ts         [0m | [32;1m    100[0m | [32;1m   94.73[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m69               [0m 
+[32;1m  schema.ts       [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  text.ts         [0m | [32;1m    100[0m | [33;1m      75[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m30-31,39         [0m 
+[33;1m  timezone.ts     [0m | [33;1m  71.42[0m | [32;1m   83.33[0m | [33;1m  66.66[0m | [33;1m  71.42[0m | [31;1m37,44-48         [0m 
+-------------------|---------|----------|---------|---------|-------------------
+
+=============================== Coverage summary ===============================
+[32;1mStatements   : 89.36% ( 2202/2464 )[0m
+[32;1mBranches     : 83.68% ( 708/846 )[0m
+[32;1mFunctions    : 93.6% ( 161/172 )[0m
+[32;1mLines        : 89.36% ( 2202/2464 )[0m
+================================================================================
+
+--- npm run -w apps/worker typecheck ---
+
+> @atiende/worker@0.1.0 typecheck
+> tsc --noEmit
+
+src/source-runs/source-run-status 2.ts(42,7): error TS2741: Property 'ingest_failed' is missing in type '{ ok: "ok"; down: "down"; captcha_detected: "captcha"; interface_changed: "interface_changed"; permission_missing: "permission_missing"; rate_limited: "failed"; not_configured: "failed"; }' but required in type 'Record<SourceRunFineState, SourceRunDbStatus>'.
+npm error Lifecycle script `typecheck` failed with error:
+npm error code 2
+npm error path /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/worker
+npm error workspace @atiende/worker@0.1.0
+npm error location /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/worker
+npm error command failed
+npm error command sh -c tsc --noEmit
+
+--- npm run -w apps/worker test ---
+
+> @atiende/worker@0.1.0 test
+> vitest run
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/worker[39m
+
+ [32m✓[39m test/ingest-client.test.ts [2m([22m[2m225 tests[22m[2m)[22m[33m 2620[2mms[22m[39m
+ [32m✓[39m test/config.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/schedule-config.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m db-proposals/PROPOSAL-01-widen-source-run-status.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 9897[2mms[22m[39m
+   [33m[2m✓[22m[39m PROPOSAL-01 (WK-07/WK-22): source_run_status ampliado a 8 estados finos[2m > [22mrate_limited y not_configured se persisten como su propio valor en status, no como failed [33m6864[2mms[22m[39m
+   [33m[2m✓[22m[39m PROPOSAL-01 (WK-07/WK-22): source_run_status ampliado a 8 estados finos[2m > [22mingest_failed (WK-03) también se persiste con su propio valor, no como failed [33m3032[2mms[22m[39m
+ [32m✓[39m db-proposals/PROPOSAL-02-jobs-dedupe-and-cancelled.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 11682[2mms[22m[39m
+   [33m[2m✓[22m[39m PROPOSAL-02 (WK-04/WK-15/WK-22): índice único (kind, jobKey) activo + cancelled[2m > [22mun segundo INSERT directo (sin pasar por el advisory lock) con la misma (kind, jobKey) activa viola el índice único [33m6525[2mms[22m[39m
+   [33m[2m✓[22m[39m PROPOSAL-02 (WK-04/WK-15/WK-22): índice único (kind, jobKey) activo + cancelled[2m > [22mcancel() usa el estado "cancelled" dedicado, distinguible de "dead" sin leer last_error [33m2825[2mms[22m[39m
+   [33m[2m✓[22m[39m PROPOSAL-02 (WK-04/WK-15/WK-22): índice único (kind, jobKey) activo + cancelled[2m > [22mPASO 0 (WK-15): la query de detección de duplicados activos devuelve 0 filas en una base recién migrada [33m2329[2mms[22m[39m
+ [32m✓[39m test/worker-shutdown.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 20323[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: cierre ordenado (SIGTERM)[2m > [22mdeja terminar el job en curso, libera el lock, y no reclama nuevos jobs tras stop() [33m7064[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: cierre ordenado (SIGTERM)[2m > [22msi el handler no respeta AbortSignal, stop() igual resuelve tras shutdownTimeoutMs (no cuelga para siempre) [33m3407[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: cierre ordenado (SIGTERM)[2m > [22mllamar stop() dos veces es seguro (idempotente) [33m2873[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: cierre ordenado (SIGTERM)[2m > [22mWK-02: si el heartbeat detecta que se perdió el lease (fencing), aborta el handler y NO persiste ningún resultado [33m2542[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: cierre ordenado (SIGTERM)[2m > [22mWK-10: un error permanente dead-letra en el primer intento, sin gastar el ciclo de backoff [33m2256[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: cierre ordenado (SIGTERM)[2m > [22mmétricas: cuenta succeeded/retried/dead por tipo de job [33m2181[2mms[22m[39m
+ [32m✓[39m db-proposals/PROPOSAL-03-worker-role.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 21455[2mms[22m[39m
+   [33m[2m✓[22m[39m PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real[2m > [22mworker_role existe y está NOLOGIN (solo alcanzable vía SET ROLE desde una conexión con privilegios) [33m6678[2mms[22m[39m
+   [33m[2m✓[22m[39m PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real[2m > [22mworker_role tiene EXACTAMENTE grants sobre {jobs, source_runs, agent_runs}, ninguna otra tabla [33m3007[2mms[22m[39m
+   [33m[2m✓[22m[39m PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real[2m > [22mworker_role puede ver/crear jobs de PLATAFORMA (org_id NULL) [33m2151[2mms[22m[39m
+   [33m[2m✓[22m[39m PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real[2m > [22mworker_role puede leer/escribir source_runs sin ser superadmin [33m2808[2mms[22m[39m
+   [33m[2m✓[22m[39m PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real[2m > [22mWK-23: worker_role con org_id correcto pero SIN current_user_id fijado no puede actualizar agent_runs (ni siquiera su propio tenant) [33m2499[2mms[22m[39m
+   [33m[2m✓[22m[39m PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real[2m > [22mWK-23: worker_role con org_id y current_user_id (actor real) correctos SÍ actualiza agent_runs de su propio tenant [33m2052[2mms[22m[39m
+   [33m[2m✓[22m[39m PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real[2m > [22mworker_role con app.current_org_id de la org A no puede actualizar una fila agent_runs de la org B [33m2258[2mms[22m[39m
+ [32m✓[39m test/scheduler.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 24638[2mms[22m[39m
+   [33m[2m✓[22m[39m Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150[2m > [22mvarios tick() dentro de la misma ventana encolan un solo job por fuente [33m6411[2mms[22m[39m
+   [33m[2m✓[22m[39m Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150[2m > [22mavanzar a la siguiente ventana sí encola un nuevo job, sin duplicar el anterior [33m2192[2mms[22m[39m
+   [33m[2m✓[22m[39m Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150[2m > [22muna fuente deshabilitada (enabled: false) nunca se encola [33m2617[2mms[22m[39m
+   [33m[2m✓[22m[39m Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150[2m > [22mel job encolado ya trae sourceId en el payload para que discover_tenders sepa qué conector correr [33m2843[2mms[22m[39m
+   [33m[2m✓[22m[39m Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150[2m > [22mdos Scheduler concurrentes (dos procesos) nunca duplican el job de la misma fuente+ventana — 20 iteraciones (lógica secuencial en PGlite, NO concurrencia de motor real — ver nota WK-15) [33m2588[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable[2m > [22mla primera sentencia de la transacción es pg_advisory_xact_lock(hashtext($1)::bigint) con params=[`${kind}:${jobKey}`] [33m2248[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable[2m > [22mla clave del advisory lock es estable entre llamadas (mismo kind+jobKey -> mismo string, sin importar el payload) [33m2082[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable[2m > [22mun jobKey distinto produce una clave de lock distinta (sin colisión entre ventanas/fuentes) [33m1952[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable[2m > [22menqueue() SIN jobKey no abre transacción ni toma ningún advisory lock (solo el camino con jobKey lo necesita) [33m1703[2mms[22m[39m
+ [32m✓[39m test/run-agent-handler.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 24393[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mejecuta con FakeProvider por defecto (sin OPENAI_API_KEY) y refleja el resultado en agent_runs [33m6318[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22msin agentRunId en el payload, igual ejecuta el AgentRunner sin fallar (uso "fire and forget") [33m2838[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mWK-08: un job run_agent con organizationId de otro tenant nunca actualiza la fila real (falla explícito, no-op silencioso) [33m2759[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mWK-16: organizationId null con agentRunId presente falla permanente ("org requerida"), agent_runs NUNCA se toca [33m2567[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mWK-16: organizationId undefined con agentRunId presente falla permanente ("org requerida"), agent_runs NUNCA se toca [33m2389[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mWK-16: organizationId string vacío con agentRunId presente falla permanente ("org requerida"), agent_runs NUNCA se toca [33m2333[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mWK-23: organizationId correcto pero actorId sin membresía en esa organización — RLS bajo worker_role bloquea el update legítimo en apariencia [33m2279[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mWK-23: actorId con formato inválido (no UUID) falla permanente y explícito, agent_runs NUNCA se toca [33m1514[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mun rol sin permiso para el riesgo de la herramienta hace que la corrida termine "denied" -> el job falla explícitamente [33m1394[2mms[22m[39m
+ [32m✓[39m test/discover-tenders-handler.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 24654[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A4: fuente inaccesible/no verificada nunca es "0 nuevas" silencioso[2m > [22mlos 5 conectores reales de packages/sources hoy no tienen liveVerification.verified=true: se reporta not_configured explícito, nunca "ok" [33m6037[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A4: fuente inaccesible/no verificada nunca es "0 nuevas" silencioso[2m > [22mun conector que lanza error con "captcha" en el mensaje se clasifica como captcha_detected, no "ok" [33m2758[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A4: fuente inaccesible/no verificada nunca es "0 nuevas" silencioso[2m > [22mfuente sin conector registrado nunca produce "0 nuevas": falla explícito con not_configured [33m2252[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay[2m > [22mconvocatoria nueva de una fuente verificada: se ingiere vía HTTP y source_runs queda "ok" [33m2879[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay[2m > [22mreplay del mismo lote (misma corrida repetida) envía el mismo payload de ingesta — idempotente (A2) [33m2378[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay[2m > [22muna corrida sin registros nuevos NO llama al endpoint de ingesta pero sí queda "ok" (no confundir con fuente caída) [33m2126[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay[2m > [22mWK-06: coverage.expected viene de payload.expectedTotal si se da; source_runs "ok" lo persiste [33m2189[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — WK-03/WK-05/WK-06: honestidad de coverage y registro SIEMPRE de source_runs[2m > [22msi discover() tiene éxito pero el POST de ingesta falla, source_runs SIEMPRE se registra (ingest_failed) [33m1759[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — WK-03/WK-05/WK-06: honestidad de coverage y registro SIEMPRE de source_runs[2m > [22msi discover() falla a mitad de iteración, coverage.obtained es 0 (nunca cuenta lo descartado) [33m1465[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — WK-03/WK-05/WK-06: honestidad de coverage y registro SIEMPRE de source_runs[2m > [22msin payload.expectedTotal, coverage.expected es null CON un motivo explícito, en las 4 rutas [33m807[2mms[22m[39m
+ [32m✓[39m test/job-queue.test.ts [2m([22m[2m19 tests[22m[2m)[22m[33m 31268[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: reclamo atómico sin doble procesamiento[2m > [22mN workers > M jobs: cada job se reclama como máximo una vez [33m6774[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: reclamo atómico sin doble procesamiento[2m > [22mun job ya en running no es reclamado dos veces por workers adicionales [33m3093[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: reclamo atómico sin doble procesamiento[2m > [22mun job claimeado incrementa attempts y queda en running con locked_by [33m2271[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-01 — claim() respeta max_attempts también en recuperación de lease (crash real)[2m > [22mun job que crashea repetidamente (nunca completa/falla) termina en "dead", nunca "running" eterno [33m3079[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: reintentos con backoff exponencial + jitter[2m > [22mcada fallo reprograma next_run_at con backoff creciente hasta max_attempts, luego "dead" [33m2499[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: reintentos con backoff exponencial + jitter[2m > [22mel jitter mantiene el delay dentro del rango esperado (no determinista pero acotado) [33m2185[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: lease expirado se recupera[2m > [22mun job running cuyo lease expiró es reclamable por otro worker [33m2086[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: lease expirado se recupera[2m > [22mheartbeat extiende el lease y evita que otro worker lo recupere [33m1708[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: cancelación[2m > [22mcancelar un job queued lo deja fuera de circulación (cancelled, no dead) y no se reclama [33m1455[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: cancelación[2m > [22mcancelar un job running también lo detiene, con estado cancelled (WK-22) [33m742[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: idempotencia por jobKey[2m > [22mencolar dos veces con el mismo jobKey mientras el primero sigue activo no duplica [33m654[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: idempotencia por jobKey[2m > [22muna vez terminado (succeeded), un nuevo jobKey (otra ventana) sí encola [33m618[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-10 — deadLetterPermanent (errores permanentes, sin ciclo de backoff)[2m > [22mdead-letra inmediatamente en el primer intento, sin importar max_attempts [33m642[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: complete[2m > [22mcomplete limpia el lock y marca succeeded [33m581[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: complete[2m > [22mcomplete con un lockedBy equivocado lanza StaleLeaseError y no persiste nada (protege contra confirmaciones cruzadas) [33m568[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent()[2m > [22mWORKER_ID reutilizado tras "reinicio" (mismo string, lease token distinto): complete() del zombie de la generación anterior es rechazado [33m595[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent()[2m > [22mfail() del zombie con lockedBy viejo también es rechazado (no aplica backoff/dead-letter equivocado) [33m565[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent()[2m > [22mdeadLetterPermanent() del zombie con lockedBy viejo también es rechazado [33m563[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent()[2m > [22mheartbeat() del zombie con lockedBy viejo retorna false (ya lo hacía por attempts en WK-02; ahora también por lease token) [33m584[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m11 passed[39m[22m[90m (11)[39m
+[2m      Tests [22m [1m[32m298 passed[39m[22m[90m (298)[39m
+[2m   Start at [22m 01:45:59
+[2m   Duration [22m 31.96s[2m (transform 1.57s, setup 0ms, collect 3.46s, tests 170.94s, environment 1ms, prepare 1.43s)[22m
+
+
+--- NOTA sobre el fallo de "npm run -w apps/worker typecheck" arriba ---
+El único error TS2741 reportado ("Property 'ingest_failed' is missing...")
+proviene de `apps/worker/src/source-runs/source-run-status 2.ts`, un archivo
+DUPLICADO NO RASTREADO por git (`git status --short` lo marca "??", nombre
+con espacio + "2.ts", patrón de copia tipo "keep both files"; el mismo
+patrón que ya existe en `packages/sources/test/connectors/registry.test 2.ts`
+y `apps/worker/test/worker-shutdown.test 2.ts`). Confirmado NO relacionado
+con esta corrección: (a) ya existía antes de tocar ningún archivo de esta
+micro-vuelta (nunca se editó/creó ningún archivo de `apps/worker` en esta
+sesión, ver `git status --short apps/worker`); (b) su contenido es una copia
+vieja/divergente de `source-run-status.ts` (ver `diff`, corresponde a WK-22
+de una ronda anterior de `apps/worker`, nada relacionado con `packages/sources`);
+(c) fuera del ámbito exclusivo de esta tarea (packages/sources/**), así que
+NO se modificó/eliminó.
+
+Verificación independiente de que "apps/worker typecheck" SÍ pasa limpio con
+los cambios de SR-23/SR-24 una vez fuera esos 2 archivos sueltos: se copió
+`apps/worker` (sin node_modules/dist/.git) a un directorio temporal del
+scratchpad, se eliminaron ahí ÚNICAMENTE las 2 copias "... 2.ts" no
+rastreadas, se enlazó node_modules del repo (workspaces intactos) y se
+corrió `npx tsc --noEmit` sobre esa copia:
+
+  $ npx tsc --noEmit
+  exit=0   (sin ningún error)
+
+Confirma que los 3 archivos reales de `apps/worker` que consumen
+`@atiende/sources` (`ingest/ingest-mapper.ts`, `source-runs/source-runs-repository.ts`,
+`scheduler/schedule-config.ts`, `handlers/discover-tenders.ts`) siguen
+compilando sin cambios: la API pública consumida por `apps/worker`
+(`ConnectorRegistry`, `HttpClient`, `createComprasMxConnector`,
+`createDofConnector`, `createOcdsShcpConnector`, `createPdnS6Connector`,
+`createStatePortalConnector`, `classifySourceFailure`, `hashRawPayload`,
+tipos `Logger`/`SourceId`/`TenderRecord`) no cambió de forma. El único
+cambio de firma pública fue `mapOcdsPackageToTenderRecords` (ahora devuelve
+`{records, dropped}` en vez de `TenderRecord[]`), función que `apps/worker`
+NO importa (confirmado por `grep -rn "mapOcdsPackageToTenderRecords" apps/worker`,
+sin resultados).
+
+El directorio temporal se eliminó al terminar; no se modificó ningún archivo
+real de `apps/worker` ni de `packages/sources/test/connectors/registry.test 2.ts`.
+
+"npm run -w apps/worker test" (arriba) SÍ corrió sobre el árbol real (con las
+2 copias sueltas presentes) y pasó completo: 11 archivos, 298 pruebas en
+verde (vitest no falla por errores de tipos en un archivo que ningún test
+importa).
