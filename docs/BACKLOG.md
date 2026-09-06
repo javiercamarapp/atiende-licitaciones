@@ -2,10 +2,10 @@
 
 Derivado de `docs/REQUISITOS.md` (REQ-001 a REQ-171) y `docs/ACEPTACION.md`. Orden = dependencia técnica primero, prioridad después. Cada épica declara: REQ asociados, paquete/app responsable, estado y las pruebas de aceptación (REQ de ACEPTACION.md y/o pruebas mínimas A1-A15) que cierra.
 
-**Actualizado 2026-09-05 (turno de gobierno, HEAD `b7ce950`)** a partir de `docs/PROGRESO.md` (rondas 1–3), `docs/auditoria-1/*.md` (auditorías, correcciones y reverificaciones) y `docs/BLOQUEOS.md`. Escala de estado usada en esta actualización (no numérica, no es autoevaluación de cumplimiento): **pendiente** (sin trabajo de código), **en curso** (implementación y/o corrección activa, hallazgos abiertos relevantes), **implementado-en-evidencia** (funcionalidad real y probada, sin hallazgos ALTA/CRÍTICA abiertos que la invaliden, pero sin reverificación de cierre completa), **cerrado-con-reverificación** (reverificación independiente confirma cierre, límites residuales documentados y aceptados), **bloqueado-externo** (requiere una acción fuera del control del equipo: credenciales, acceso de terceros, decisión del usuario). El paso a CUMPLIDO en `docs/ACEPTACION.md` solo se hace al cierre formal y no se adelanta aquí.
+**Actualizado 2026-09-06 (cierre formal, HEAD `b362e62`)** a partir de `docs/ACEPTACION.md` (versión final, 186 filas), `docs/TABLERO.md`, `docs/PROGRESO.md` completo (rondas 0–4) y todos los informes de `docs/auditoria-1/*.md` y `docs/auditoria-2/*.md`. Esta actualización **reemplaza** la de HEAD `b7ce950` (2026-09-05), que reflejaba un estado intermedio con varias rondas de corrección y reverificación todavía en curso. Escala de estado usada aquí, alineada 1:1 con `docs/ACEPTACION.md`: **pendiente** (sin trabajo de código), **en curso** (implementación y/o corrección activa, hallazgos abiertos relevantes o funcionalidad parcial), **cerrado con reverificación** (reverificación adversarial independiente confirma cierre con veredicto CERRADO explícito; límites residuales ≤MEDIA documentados y aceptados tras 3 vueltas no impiden este estado), **bloqueado-externo** (requiere una acción fuera del control del equipo: credenciales, acceso de terceros, decisión del usuario).
 
 ## E1 — Fundamentos de plataforma (monorepo, esquema núcleo, runtime de agentes, conectores base)
-**Estado: EN CURSO** — todos los paquetes tienen implementación, corrección y al menos una reverificación adversarial; queda abierto un hallazgo CRÍTICO de seguridad server-side y dos cierres de reverificación en curso.
+**Estado: CERRADO CON REVERIFICACIÓN** — los 5 paquetes tienen implementación, corrección y reverificación adversarial independiente con veredicto CERRADO. Los hallazgos CRÍTICOS que estaban abiertos al cierre de `b7ce950` (DB-08 refresh_tokens SECURITY DEFINER, DB-12 `my_organizations`) fueron corregidos por el corrector de seguridad #49 y reverificados sin huecos en `docs/auditoria-1/db-api-seguridad-reverificacion.md` (commit `8edacdb`). Límites aceptados: AG-05, AG-12 (`packages/agents`, ver §"Hallazgos" abajo).
 
 | Paquete/app | Alcance |
 |---|---|
@@ -19,23 +19,22 @@ REQ: REQ-004, REQ-005, REQ-007, REQ-008, REQ-057, REQ-058, REQ-062, REQ-063, REQ
 Cierra (parcial, base técnica): REQ-004, REQ-005, REQ-057, REQ-058, REQ-068, REQ-070, REQ-071, REQ-073, REQ-074, REQ-083, REQ-095, REQ-096 de ACEPTACION.md.
 Sin dependencias previas.
 
-**Evidencia por paquete:**
-- apps/web: ronda 1 `a43efd7` (89 archivos, 29 tests); corrección ronda 2 (`946914a`, `ad26360`, `81e64b1`, `c043f7a`); reverificación 2 `eeeeaac` — **20/20 hallazgos CERRADO** (W-01..W-20), axe 0 violaciones en 48 combinaciones ruta×tema, 71 E2E. Nuevos W-21 ALTA / W-22 BAJA / W-23 infra, asignados a ronda 3 web (`c91300c`).
-- apps/api + packages/db (núcleo): ronda 1 `8052ff4` (db 90/90, api 12/12); ronda 2 ~20 commits (`0ef79f4`…`9bf7a93`, incl. DB-01..07/API-01..07) → db 128/128, api 51/51; ronda 3 esquema `06286bf`+`048ae47` (migraciones 0029–0033 para expediente real).
-- packages/agents: ronda 1 `c56e20f` (127 tests); correcciones rondas 1–3 (`114a2fb`…`9cb38be`) → 263/263 tests, cobertura 94.1/90.9%; reverificación de cierre `f3e6a3b` — 19/22 hallazgos cerrados, AG-23 corregido en `048ae47` (mezclado por incidente INC-04, contenido verificado) **pendiente de confirmación independiente**.
-- packages/sources: ronda 1 `3dc9ce7` (64 tests); correcciones rondas 1–2 (`b133a67`…`81c8aa6`) → 145 tests, cobertura 91.5/84.5%; **reverificación de cierre despachada en `be64f70`, aún sin commit de resultado**.
+**Evidencia por paquete (estado final):**
+- apps/web: 20/20 hallazgos ronda 1 CERRADO (`web-reverificacion-2.md`, commit `eeeeaac`), axe 0 violaciones en 48 combinaciones ruta×tema; W-21/W-22/W-23 de esa ronda corregidos en ronda 3 (WI-01..06 de auditoría 2), reverificados sin residuo en `reverificacion-final-integrada.md`.
+- apps/api + packages/db (núcleo): DB-08/DB-12 (CRÍTICA) y API-08 (ALTA) CERRADO por corrector de seguridad #49 y reverificado sin huecos (`db-api-seguridad-reverificacion.md`, commit `8edacdb`); DB-13/API-13/API-14 (nuevos en auditoría 2) CERRADO y reverificados en `api-expediente-reverificacion.md` (commit `2b0b028`) y `reverificacion-final-integrada.md` (commit `1ff99fb`). db 156/156, api 180/180 tests.
+- packages/agents: cerrado con reverificación de cierre (`agents-cierre.md`, commit `f3e6a3b`) — 19/22 hallazgos CERRADO, AG-05/AG-12 límite aceptado; AG-23 corregido y **confirmado de forma independiente** en `docs/auditoria-1/verificacion-puntual-final.md` (commit `1270ea6`, 14 ataques sin bypass). 263/263 tests.
+- packages/sources: cerrado con reverificación definitiva (`sources-cierre-definitivo.md`, commit `0bf72d3`) — 24/25 hallazgos CERRADO; único residual abierto SR-25 (BAJA-MEDIA, límite aceptado con causa) y el carácter cooperativo de `reportDropped` (límite estructural documentado). 204/204 tests.
 
-**Hallazgos abiertos que afectan la épica:**
-- **DB-08 CRÍTICA** (en curso, corrector de seguridad #49 despachado en `b7ce950`): funciones `SECURITY DEFINER` de `refresh_tokens` (migración 0017) permiten a cualquier usuario autenticado acuñar/revocar sesiones ajenas (account takeover). Mismo patrón que DB-01 (ya cerrado) reaparecido sin revisar.
-- **API-08 ALTA** (mismo despacho): `POST /organizations/invitations` permite a un `admin` no-owner invitar directamente con `role:'owner'`, rodeando el cierre de API-02.
-- DB-09 BAJA, DB-10 MEDIA, DB-11 BAJA, API-01/API-03 PARCIAL, API-09/API-10/API-11 MEDIA, API-12 BAJA — ver `docs/auditoria-1/db-api-reverificacion.md`.
-- AG-23 (agents) cerrado por su corrector, sin reverificación independiente aún.
-- Worker y sources: hallazgos de ronda 2 corregidos pero sin reverificación de cierre confirmada (ver E3/E4).
+**Hallazgos que quedan (todos ≤MEDIA, límites aceptados o micro-corrección en curso, ninguno ALTA/CRÍTICA abierto):**
+- AG-05, AG-12 (`packages/agents`) — límites arquitectónicos aceptados, ver `docs/TABLERO.md` §4.2.
+- SR-25 (`packages/sources`) — límite aceptado, ver `docs/TABLERO.md` §4.2.
+- DB-07, DB-09 (`packages/db`) — límites de alcance documentados, mitigados, ver `docs/TABLERO.md` §4.2.
+- API-15, WI-06 (BAJA, no explotables) — micro-corrección en curso (#70), fuera del alcance de esta épica en sentido estricto.
 
-**Dependencias pendientes:** B-03 (CI con Postgres real) para validar RLS/migraciones fuera de PGlite en un entorno reproducible.
+**Dependencias pendientes:** B-03 (CI con Postgres real) para validar RLS/migraciones fuera de PGlite en un entorno reproducible — no bloquea el cierre de esta épica (ya cerrada sobre PGlite con 198 ataques acumulados y 0 fugas abiertas), pero es la única vía para elevar la evidencia de PGlite a Postgres real de producción.
 
 ## E2 — Perfil de empresa y datos reales
-**Estado: IMPLEMENTADO-EN-EVIDENCIA** — depende de E1 (esquema y roles base, disponible).
+**Estado: EN CURSO** — depende de E1 (cerrado). Avance real desde `b7ce950`: AE-08 (hash de perfil completo incl. capabilities/experience/signatories) CERRADO y reverificado; `apps/web` ronda 3 conecta el módulo "Empresa" a datos reales (ya no `EmptyState`). Sigue sin test dedicado de la regla "firma de no-firmante rechazada" (REQ-145 E2E) ni de "rol sin permiso de edición" (REQ-144), y `field_provenance` sigue sin ser vinculante en matching/expediente (REQ-142).
 
 | Paquete/app | Alcance |
 |---|---|
@@ -46,14 +45,14 @@ Sin dependencias previas.
 REQ: REQ-141 a REQ-145 (sección 29), más REQ-022 a REQ-024, REQ-026 (bóveda documental aplicada al perfil).
 Cierra: REQ-141 a REQ-145 de ACEPTACION.md; contribuye a A6 (dato ausente/contradictorio), A7 (documento/certificado vencido).
 
-**Evidencia:** 8 tablas de perfil + `field_provenance` con evidencia real (`company-profile.test.ts`, verificado en `docs/auditoria-1/db-api-reverificacion.md` §6, REQ-141/142/143 CON_EVIDENCIA); flujo writer-propone/owner-admin-aprueba probado en API real (`company-profile.test.ts:135`, no solo unitario como registraba `ACEPTACION.md` antes de esta reverificación).
+**Evidencia:** 8 tablas de perfil + `field_provenance`; AE-08 (companyProfileHash cubre capabilities/experience/authorized_signatories) CERRADO y reverificado sin huecos (`api-expediente-reverificacion.md`, `reverificacion-final-integrada.md`); flujo writer-propone/owner-admin-aprueba probado en API real; `apps/web` "Empresa" conectado real desde ronda 3 (`docs/logs/web-ronda3.log`). API-11 (magic bytes en subida de documentos) CERRADO y reverificado (ver E9).
 
-**Hallazgos abiertos:** REQ-145 (firmantes): tabla y CRUD genérico existen pero **ningún test ejercita la regla de negocio** "firma de no-firmante rechazada" (gap señalado en la reverificación db-api, sin ID de hallazgo propio aún). API-11 MEDIA (subida de documentos sin validación de magic bytes, aplica a documentos de perfil) — ver E1/E9.
+**Hallazgos abiertos:** REQ-142 (procedencia no vinculante: ningún consumidor de matching/expediente rechaza datos sin `owner`/`source`/`updated_at`); REQ-143 (`evidenceDocId` obligatorio solo a nivel de tipos TypeScript, sin aserción runtime, sin test de `resolveExperience`); REQ-144 (rol sin permiso de edición, sin test dedicado); REQ-145 (firmantes: regla de negocio correcta a nivel de librería `resolveAuthorizedSigner`, pero sin E2E de UI/API que la ejercite).
 
-**Dependencias pendientes:** ninguna externa; depende de que E9 (guardrails) cierre API-11 para el vector de subida de documentos.
+**Dependencias pendientes:** ninguna externa; requiere trabajo de test dedicado en `apps/api`/`apps/web`, no bloqueado por ningún paquete ajeno.
 
 ## E3 — Ingesta oficial y frescura
-**Estado: IMPLEMENTADO-EN-EVIDENCIA** — depende de E1 (registro de conectores, raw lake, disponible).
+**Estado: CERRADO CON REVERIFICACIÓN** (mecanismo) — depende de E1 (cerrado). `packages/sources` cerrado con reverificación definitiva (24/25 hallazgos CERRADO, SR-25 límite aceptado); `apps/worker` cerrado con reverificación (298/298, WK-19..23 CERRADO); `apps/web` ronda 3 conecta el panel de frescura a datos reales (confirmado "A4 UI real" en `docs/auditoria-2/web-integrado.md`). La integración **real** contra ComprasMX/OCDS-SHCP/PDN-S6/portales estatales permanece BLOQUEADO_EXTERNO por B-02 — límite aceptado documentado, no pendiente de ingeniería.
 
 | Paquete/app | Alcance |
 |---|---|
@@ -64,14 +63,14 @@ Cierra: REQ-141 a REQ-145 de ACEPTACION.md; contribuye a A6 (dato ausente/contra
 REQ: REQ-001, REQ-003, REQ-076, REQ-077, REQ-079, REQ-132 a REQ-136 (sección 27), REQ-146 a REQ-150 (sección 30).
 Cierra: REQ-001, REQ-132 a REQ-135, REQ-146 a REQ-150 de ACEPTACION.md; A4 (fuente inaccesible y obsolescencia visible).
 
-**Evidencia:** REQ-146/148/149/150 con evidencia real (Scheduler sin duplicados por (tipo,fuente,ventana) en `apps/worker`, commit `069f690`; estados explícitos `not_configured`/`captcha_detected`/`interface_changed` vía `ResponseClassifier`, commits `0a0b9df`/`bf6f5c8`; verificación puntual real por fuente en `docs/auditoria-1/sources.md` y `sources-reverificacion.md` — DOF 200 con tamaño exacto, CSV histórico SABG 951 MB confirmado). Corrección ronda 2 de sources (`0a0b9df`…`81c8aa6`, 18 archivos/145 tests) cierra SR-12..18.
+**Evidencia:** REQ-146/147/149/150 con evidencia real y reverificada (Scheduler sin duplicados en `apps/worker`; estados explícitos `not_configured`/`captcha_detected`/`interface_changed` vía `ResponseClassifier`; verificación puntual real por fuente en `docs/auditoria-1/sources-cierre-definitivo.md` — DOF 200 con tamaño exacto, CSV histórico SABG con streaming real). `apps/web` `FuentesFrescuraPage.tsx` conectado real a `app.source_freshness()` (ronda 3, confirmado en `docs/auditoria-2/web-integrado.md`, ya no demo estática).
 
-**Hallazgos abiertos:** REQ-132/133 en `apps/web` **sin evidencia** — el panel de frescura es una demo estática hardcodeada, no conectada a `apps/api` (pendiente de la ronda 3 web↔api, #42, en curso). Reverificación de cierre de sources despachada (`be64f70`) sin resultado aún — hallazgos SR-12..18 corregidos pero no reconfirmados de forma independiente.
+**Hallazgos que quedan:** SR-25 (BAJA-MEDIA, límite aceptado — falso positivo por longitud en notas DOF breves) y el carácter cooperativo de `reportDropped` (límite estructural documentado) afectan REQ-148 con matiz, no lo invalidan. Ningún hallazgo ALTA/CRÍTICA abierto.
 
-**Dependencias pendientes:** **B-02 (ComprasMX bloqueado por reCAPTCHA, 401/403)** — abierto, externo, requiere acceso/permisos oficiales o fuente alterna autorizada por el usuario; sin esto la ingesta real de la fuente principal permanece sobre fixtures (CSV histórico SABG), no sobre el flujo en vivo. OCDS-SHCP inalcanzable, PDN-S6 con bot-detection, portales estatales sin API localizable — mismo bloqueo de fondo.
+**Dependencias pendientes:** **B-02 (ComprasMX bloqueado por reCAPTCHA, 401/403)** — abierto, externo, requiere acceso/permisos oficiales o fuente alterna autorizada por el usuario; sin esto la ingesta real de la fuente principal permanece sobre fixtures (CSV histórico SABG), no sobre el flujo en vivo. OCDS-SHCP inalcanzable, PDN-S6 con bot-detection, portales estatales sin API localizable — mismo bloqueo de fondo. Esto es un **límite aceptado documentado**, no una tarea de ingeniería pendiente.
 
 ## E4 — Detección de cambios y versiones
-**Estado: IMPLEMENTADO-EN-EVIDENCIA** — depende de E3 (fuentes con `source_runs` operando, disponible).
+**Estado: CERRADO CON REVERIFICACIÓN** — depende de E3 (cerrado).
 
 | Paquete/app | Alcance |
 |---|---|
@@ -82,14 +81,14 @@ Cierra: REQ-001, REQ-132 a REQ-135, REQ-146 a REQ-150 de ACEPTACION.md; A4 (fuen
 REQ: REQ-017, REQ-041, REQ-151 a REQ-155 (sección 31).
 Cierra: REQ-017, REQ-151 a REQ-155 de ACEPTACION.md; A1 (nueva publicación), A2 (duplicado/replay), A3 (modificación/aclaración y plazo adelantado).
 
-**Evidencia:** REQ-151–155 con evidencia real de integración vía API+BD, no solo unitaria — `tenders-and-ingest.test.ts:109-172` prueba invalidación real de `proposals.invalidated_at` (la reverificación db-api señala que `ACEPTACION.md` **subestimaba** A3 con solo evidencia unitaria). DB-05 (invalidación por `change_events`) **CONFIRMADO_CERRADO** en reverificación (migración `0022`, hash `0698544`, fail-closed por diseño). Trigger de invalidación por versión de bases (E6/E7) queda soportado por el mismo mecanismo.
+**Evidencia:** REQ-151-154 CUMPLIDO — `apps/api/test/tenders-and-ingest.test.ts` cubre A1/A2/A3 con HTTP real (invalidación real de `proposals.invalidated_at`); DB-05 (invalidación por `change_events`) CERRADO y reverificado sin huecos (fail-closed por diseño). La cascada hasta el expediente también se cerró: EX-EXP-01/11/17 (hash de insumos vinculante) + AE-02/AE-14 (re-derivación de estado del paquete en `apps/api`) CERRADO y reverificado en `api-expediente-reverificacion.md` y `reverificacion-final-integrada.md` (A11/A14 CUMPLE).
 
-**Hallazgos abiertos:** cascada hacia matriz de requisitos y expediente, y notificación al rol responsable del cambio, sin evidencia de extremo a extremo (señalado en `db-api-reverificacion.md` §6, sin ID propio). DB-05 invalida por `tender_id` sin distinguir si el evento corresponde a la versión más reciente (diseño fail-closed aceptado, no un defecto bloqueante).
+**Hallazgos que quedan:** REQ-155 — la cascada de invalidación es real y cerrada, pero **la notificación explícita a los roles responsables del cambio** sigue sin implementar (no hay canal de notificación); es la única brecha que impide marcar REQ-155 CUMPLIDO.
 
-**Dependencias pendientes:** ninguna externa directa; la cobertura completa de la cascada depende de que E6/E7 terminen su integración con `apps/api` (ronda 3, en curso).
+**Dependencias pendientes:** ninguna externa; implementar el mecanismo de notificación es trabajo de producto/ingeniería puro, sin bloqueo de terceros.
 
 ## E5 — Matching por empresa (relevancia y elegibilidad)
-**Estado: IMPLEMENTADO-EN-EVIDENCIA** — depende de E2 (perfil real, disponible) y E4 (convocatorias versionadas y frescas, disponible).
+**Estado: EN CURSO** — depende de E2 (en curso) y E4 (cerrado). El motor determinista (elegibilidad + relevancia léxica) está cerrado (SR-11, `packages/sources`, CUMPLIDO); ahora expuesto de forma real en `apps/api` (rutas `matching/go-no-go.routes.ts`) y `apps/web` (página Go/No-Go conectada, ronda 3). Bloqueado en su componente semántico por la falta de pgvector/embeddings reales.
 
 | Paquete/app | Alcance |
 |---|---|
@@ -100,14 +99,14 @@ Cierra: REQ-017, REQ-151 a REQ-155 de ACEPTACION.md; A1 (nueva publicación), A2
 REQ: REQ-002, REQ-006, REQ-009 a REQ-013, REQ-059 a REQ-061, REQ-111, REQ-166, REQ-167, REQ-168 (secciones 2, 3, 10, 24, 33).
 Cierra: REQ-006, REQ-009 a REQ-013, REQ-059 a REQ-061, REQ-111, REQ-166 a REQ-168 de ACEPTACION.md; A5 (dos clientes, cero fuga), A6 (dato ausente/contradictorio, parcial).
 
-**Evidencia:** REQ-059–061/167 con aislamiento probado (`matching-and-go-no-go.test.ts`, RLS 0 fugas cross-org sobre matching); motor de elegibilidad separado de relevancia confirmado en `packages/sources` (REQ-168, cierre SR ronda 2) y en `apps/api` (commit `cb2bc3f`). A5 CON_EVIDENCIA a nivel backend (RLS + matching aislado).
+**Evidencia:** REQ-059/167 CUMPLIDO (RLS 198 ataques acumulados, 0 fugas abiertas, reverificado 3 veces de forma independiente); REQ-166 CUMPLIDO (elegibilidad separada de score, SR-11 cerrado); A5 = CUMPLE en `reverificacion-final-integrada.md` (dos tenants con capacidades distintas, cero fuga, HTTP real). REQ-012/REQ-168 pasan a EN_EVIDENCIA (fuerte): la página Go/No-Go de `apps/web` ya está conectada a `apps/api` real desde la ronda 3.
 
-**Hallazgos abiertos:** **REQ-061 (vector store, pgvector) sin implementación** — el motor semántico real (embeddings) no está construido; el matching actual es léxico/reglas duras. Sin ID de hallazgo propio, señalado explícitamente como brecha en `db-api-reverificacion.md`.
+**Hallazgos abiertos:** **REQ-061 (vector store, pgvector) sin implementación** — el motor semántico real (embeddings) no está construido; el matching actual es léxico/reglas duras; sin cambio desde el corte anterior. REQ-006/REQ-011 (gold set de precisión y de 30 convocatorias reales) tampoco tienen cambio.
 
-**Dependencias pendientes:** **OpenAI sin credenciales verificadas** — bloquea tanto el componente semántico de este motor como cualquier score explicable que dependa de embeddings reales; hoy el `ProviderRouter`/`OpenAIResponsesProvider` de `packages/agents` no se ha ejercitado contra la red real.
+**Dependencias pendientes:** **OpenAI sin credenciales verificadas** — bloquea tanto el componente semántico de este motor como cualquier score explicable que dependa de embeddings reales; hoy el `ProviderRouter`/`OpenAIResponsesProvider` de `packages/agents` no se ha ejercitado contra la red real. Decisión de producto pendiente: ¿se implementa REQ-061 con embeddings reales o se declara el matching léxico diseño definitivo?
 
 ## E6 — Análisis de bases y matriz de requisitos
-**Estado: EN CURSO** — depende de E4 (versión de bases estable a analizar, disponible).
+**Estado: EN CURSO** — depende de E4 (cerrado). La matriz de requisitos y sus conflictos están cerrados a nivel de `packages/expediente` y conectados vía HTTP real en `apps/api`; la épica completa sigue "en curso" porque el pipeline de extracción real de PDF (OCR) y el simulador de puntaje/rúbrica (REQ-020/038/108) no están construidos.
 
 | Paquete/app | Alcance |
 |---|---|
@@ -120,12 +119,12 @@ Cierra: REQ-014 a REQ-021, REQ-101, REQ-108, REQ-156 de ACEPTACION.md; contribuy
 
 **Evidencia:** extractor de matriz de requisitos (regex + hook LLM `fake`) implementado desde ronda 1 de `packages/expediente` (commit `467be32`); columnas de gestión de la matriz (obligatoriedad/cláusula/plazo/responsable/estado/extractor/confianza) y tabla `requirement_conflicts` añadidas en el esquema de ronda 3 (`06286bf`, migraciones 0029–0032).
 
-**Hallazgos abiertos:** condicionales que aplican podían desaparecer en silencio (EX-EXP-03, cerrado en ronda 2, `1dc9026`) pero la reverificación 2 de expediente registró EX-19 (variante de "condicional no aplica desaparece" aún sin cerrar del todo, severidad menor). Verificación de citas contra el PDF real y simulador de puntaje: sin evidencia de prueba adversarial dedicada localizada en esta revisión — pipeline Docling/PyMuPDF/OCR no confirmado como ejercitado con documentos reales (solo regex + fake LLM).
+**Hallazgos abiertos:** condicionales que aplican y desaparecían en silencio (EX-EXP-03/12) **CERRADO** (corrector #31, test de propiedad con 200 casos) y reverificado sin residuo en `expediente-cierre.md` (0 críticos/altos abiertos en el paquete). `apps/api` ronda 3 conecta matriz+conflictos vía HTTP real (`expediente-documents-and-matrix.test.ts`, A6 CUMPLE). Sin OCR real: el pipeline sigue operando sobre texto ya extraído o marcando `requires_ocr`, nunca sobre documentos escaneados reales. Simulador de puntaje (REQ-020/038/108) sigue sin implementación en ningún paquete.
 
-**Dependencias pendientes:** OpenAI sin credenciales (bloquea el hook LLM real de extracción y el simulador de puntaje); integración con `apps/api` ronda 3 (E6–E9/E11, #43) despachada en `80fb455`, **en curso, sin commit de cierre todavía**.
+**Dependencias pendientes:** OpenAI sin credenciales (bloquea el hook LLM real de extracción y el simulador de puntaje); implementación real de OCR (Docling/PyMuPDF) sigue sin despachar — es la brecha de mayor impacto restante de esta épica.
 
 ## E7 — Expediente de participación (propuesta técnica+económica+anexos+checklist)
-**Estado: EN CURSO** — depende de E2 (datos/tarifas aprobados, disponible), E5 (elegibilidad confirmada, disponible), E6 (matriz de requisitos, en curso).
+**Estado: CERRADO CON REVERIFICACIÓN** (biblioteca `packages/expediente` + API `apps/api`) — depende de E2 (en curso), E5 (en curso), E6 (en curso). `packages/expediente` cerrado con reverificación de cierre (0 críticos/altos abiertos, `expediente-cierre.md` + micro-corrección, commit `1270ea6`); `apps/api` ronda 3 integra el paquete con 24+ rutas HTTP reales, reverificadas en `api-expediente-reverificacion.md` y `reverificacion-final-integrada.md` (A8/A9/A10/A11/A13/A14/A15 con test integrado real). Pendiente: conectar la UI de `apps/web` (módulo "Expediente" sigue en `EmptyState`).
 **Paquete**: `packages/expediente` (orquesta generación de propuesta, checklist y paquete a partir de packages/db + packages/agents).
 
 | Paquete/app | Alcance |
@@ -138,18 +137,14 @@ Cierra: REQ-014 a REQ-021, REQ-101, REQ-108, REQ-156 de ACEPTACION.md; contribuy
 REQ: REQ-022 a REQ-036, REQ-037, REQ-038, REQ-048, REQ-157 a REQ-163 (secciones 5, 6, 7, 8, 32).
 Cierra: REQ-022 a REQ-036, REQ-048, REQ-157 a REQ-163 de ACEPTACION.md; A7 (documento vencido), A8 (precio no aprobado), A9 (anexo faltante), A10 (cálculo económico), A11 (edición invalida aprobación), A13 (expediente completo descargable), A14 (expediente incompleto nunca listo).
 
-**Evidencia:** ronda 1 `467be32` (30 archivos, 84 tests); corrección ronda 1 (11 commits, `5db06bc`…`49141fb`, 118 tests) y ronda 2 (6 commits, `f5991f5`/`1dc9026`/`284db62`/`5dfae17`+`9845ecf`/`fdf17e4`/`b19ced8`, 364 tests, cobertura 93.2/90.1%); reverificación 1 (`0c308a8`: 5 CERRADO/3 PARCIAL/2 NO CERRADO) y reverificación 2 (`8d67af9`: **14/16 CERRADO**, apócope numérico y scope/scopeRef confirmados sólidos con 35 ataques propios adicionales, 399/399 en verde). Esquema de soporte real (matriz, checklist, aprobaciones jerárquicas, paquete, post-adjudicación) añadido en ronda 3 de `packages/db` (`06286bf`, `048ae47`).
+**Evidencia:** `packages/expediente` cerrado con 413/413 tests (0 críticos/altos abiertos). EX-EXP-01/11 (hash de insumos como string plano, sin vínculo runtime) **CERRADO** vía `InputsHash` branded + `HashedInputs` sellado (corrector #45, `14a35bb`) y reconfirmado sin bypass en `verificacion-puntual-final.md` (11 vectores de ataque al sellado, incl. `Object.create`/`structuredClone`/`Proxy`, sin éxito). AE-06/07/11 (sha256 de bytes reales, saneamiento de ZIP, bloqueo de autoaprobación) CERRADO en micro-corrección (`bfbd54e`, `50fb7ea`). `apps/api` ronda 3 integra el paquete con 24+ rutas reales; AE-01/02/08/09/10/14/15 y DB-13/API-13/API-14 CERRADO y reverificados sin huecos.
 
-**Hallazgos abiertos que afectan la épica:**
-- **EX-EXP-01/EX-EXP-11 (crítico funcional, PARCIAL tras 2 rondas):** `computeInputsHash()` es correcta y probada, pero **nada obliga a usarla** — `ApprovalWorkflow.approve()` y `PackageAssembler.buildManifest()` aceptan `inputsHash` como string plano sin tipo marcado (branded) ni verificación runtime; un hash calculado a mano aprueba un expediente completo como `ready`. Bloquea el cierre real de A8/A11/A14.
-- **EX-EXP-17 ALTA** (nuevo en reverificación 2, ver `expediente-reverificacion-2.md`).
-- EX-18..22 (menores: colisión de hash en `stableStringify` con `Date`, condicional que desaparece en variante no cubierta, rueda de hora 24:00, sin gate de cobertura, `ACEPTACION.md` desfasado).
-- **Corrección final en curso ahora mismo**: corrector #45 (vuelta 3, tipo branded + verificación runtime del hash), despachado en `07c5ea1`, **coordinado con el implementador de apps/api ronda 3** que integra el paquete — sin commit de cierre todavía.
+**Límites aceptados que quedan (ninguno bloquea el cierre de la épica):** EX-EXP-08 (autoaprobación entre cuentas de la misma persona física — requiere capa de identidad ajena a la librería, delegado a `apps/api`, no implementado); EX-EXP-10 (decisión de diseño correcta, no un defecto).
 
-**Dependencias pendientes:** OpenAI sin credenciales (el Redactor/Auditor de `packages/agents` sigue sin cliente LLM real integrado a expediente); integración de endpoints/descarga en `apps/api` (sin evidencia de endpoint de descarga autenticada, señalado también en A13 de la reverificación db-api).
+**Dependencias pendientes:** OpenAI sin credenciales (el Redactor/Auditor de `packages/agents` sigue sin cliente LLM real integrado a expediente); conectar la UI de `apps/web` (módulos "Expediente", "Revisión", "Paquete descargable" siguen sin conectar — la descarga autenticada real desde el portal no existe todavía, aunque el endpoint de `apps/api` ya está cerrado y reverificado).
 
 ## E8 — Auditoría, aprobación y entrega
-**Estado: EN CURSO** — depende de E7 (expediente generado y checklist en verde/ámbar, en curso).
+**Estado: EN CURSO** — depende de E7 (cerrado, biblioteca+API). El ciclo de aprobación/invalidación/re-derivación de estado está cerrado y reverificado (A11/A14 CUMPLE); sigue en curso porque el 2FA/passkey-OTP (REQ-044/064), la "sala de guerra" (REQ-040) y el flujo real de UI de `AprobacionesPage` (más allá de aprobar/rechazar tarifas, que sí está conectado y probado, WI-04 CERRADO) no están construidos.
 
 | Paquete/app | Alcance |
 |---|---|
@@ -162,12 +157,12 @@ Cierra: REQ-037 a REQ-047, REQ-062 a REQ-064 de ACEPTACION.md; A11 (edición inv
 
 **Evidencia:** `ApprovalWorkflow` con invalidación jerárquica de aprobaciones (packages/expediente, rondas 1–2); esquema de ronda 3 añade alcance jerárquico + log reproducible de eventos (`proposal_approval_events`) y comentarios (`proposal_comments`), con política RLS de aprobación corregida a `reviewer/admin/owner` (`06286bf`). A15: superficie sin envío/firma confirmada por `api-surface.test.ts` (packages/expediente) y por auditoría de agents (AG-05/no-fabrication).
 
-**Hallazgos abiertos:** **A11 PARCIALMENTE REABIERTO por API-08** (bypass de autorización de rol vía invitación como owner, ver E1/E9) — el mismo tipo de vector que A12 busca cubrir. `AprobacionesPage` en `apps/web` sigue siendo un `EmptyState` genérico sin flujo real de aprobación 1/2-2/2 (señalado en A11 de `db-api-reverificacion.md`). Auditor con juez LLM distinto del redactor y doble confirmación económica con re-autenticación: sin evidencia de implementación localizada en esta revisión.
+**Hallazgos abiertos:** API-08 (bypass de autorización de rol vía invitación como owner) **CERRADO** y reverificado (ver E1/E9); A11/A12 = CUMPLE en `reverificacion-final-integrada.md`. El flujo de aprobación de tarifas SÍ está conectado y probado en `apps/web` (`TarifasAprobadasPage`, WI-04 CERRADO), pero un flujo completo de "sala de guerra"/1-2-2 con re-autenticación económica no existe. Auditor con juez LLM distinto del redactor: sin evidencia de implementación (bloqueado por falta de credenciales OpenAI).
 
-**Dependencias pendientes:** cierre de EX-EXP-01/11 en E7 (una aprobación con hash no verificado invalida la garantía de este flujo); cierre de API-08/DB-08 en E9; OpenAI sin credenciales (juez LLM).
+**Dependencias pendientes:** OpenAI sin credenciales (juez LLM, requerido para REQ-039/127); ninguna otra dependencia externa — el resto es trabajo de producto/ingeniería puro (2FA, sala de guerra, UI de aprobación jerárquica más allá de tarifas).
 
 ## E9 — Reglas duras de seguridad y no-actuación (transversal)
-**Estado: EN CURSO** — depende de E1 (integrado desde el inicio en agents/db/api); se integra de forma cruzada en E2, E5, E7, E8.
+**Estado: CERRADO CON REVERIFICACIÓN** (límites AG-05/AG-12 aceptados) — depende de E1 (cerrado); se integra de forma cruzada en E2, E5, E7, E8.
 
 | Paquete/app | Alcance |
 |---|---|
@@ -179,16 +174,18 @@ Cierra: REQ-072, REQ-097, REQ-114, REQ-164 a REQ-167 de ACEPTACION.md; A6, A8, A
 
 **Evidencia:** `packages/agents` con prohibiciones duras y tolerancia cero como invariantes de código (no configurables por constructor, cerrado en corrección 1, hash `114a2fb` + ronda 2 `971feea`/`861aea4` + ronda 3 `9cb38be`); reverificación de cierre `f3e6a3b` — **19/22 hallazgos cerrados**, límites aceptados documentados (AG-05: guardrail regex ~3% de detección real, capa LLM/juez pendiente; AG-12: alcance acotado). DB-03 (enforcement de tarifa aprobada) agnóstico de rol, ni un superadmin puede saltarlo — confirmado en reverificación db-api.
 
-**Hallazgos abiertos que afectan la épica (server-side, `apps/api`/`packages/db`):**
-- **DB-08 CRÍTICA** — ver E1: rompe la garantía "no actuar sin autorización específica" a nivel de sesión (account takeover vía `refresh_tokens`). **En corrección ahora mismo** (corrector de seguridad #49, prioridad máxima, migraciones 0040–0049 reservadas).
-- **API-08 ALTA** — bypass de autorización de rol (invitación como owner), mismo patrón que API-02 (ya cerrado) reaparecido en ruta distinta.
-- API-09 MEDIA (TOCTOU en refresh y aprobación de tool_calls, no reproducible en PGlite pero real contra `pg.Pool` de producción), API-11 MEDIA (subida de documentos sin validar magic bytes, REQ-024), DB-09/DB-10/DB-11/API-10/API-12 (BAJA-MEDIA).
-- AG-23 (agents): cerrado por su corrector, pendiente confirmación independiente.
+**Hallazgos abiertos que afectan la épica — todos CERRADO, salvo dos límites aceptados:**
+- **DB-08/DB-12 CRÍTICA** — CERRADO por el corrector de seguridad #49 y reverificado sin huecos (ataques directos: acuñar refresh ajeno rechazado, revocar sesiones ajenas bloqueado salvo superadmin explícito).
+- **API-08 ALTA** — CERRADO (solo el owner puede invitar como owner) y reverificado.
+- API-09/API-10/API-11/API-12 (MEDIA-BAJA) — todos CERRADO y reverificados en `db-api-seguridad-reverificacion.md`.
+- DB-13/API-13/API-14 (nuevos en auditoría 2) — CERRADO y reverificados sin huecos en `api-expediente-reverificacion.md` y `reverificacion-final-integrada.md`.
+- AG-23 (agents) — CERRADO y **confirmado independientemente** en `verificacion-puntual-final.md`.
+- **Únicos residuales:** DB-07/DB-09 (BAJA, límites de alcance documentados y mitigados) y AG-05/AG-12 (MEDIA, límites arquitectónicos documentados — capa LLM/juez pendiente para complementar el guardrail regex de anticolusión).
 
-**Dependencias pendientes:** ninguna externa; es trabajo de corrección interno en curso (corrector #49). OpenAI sin credenciales bloquea la capa de juicio LLM que complementaría el guardrail regex (límite AG-05 documentado).
+**Dependencias pendientes:** ninguna externa para el estado CERRADO actual. OpenAI sin credenciales bloquea la capa de juicio LLM que elevaría AG-12 más allá del límite aceptado.
 
 ## E10 — Back office / superadmin y observabilidad
-**Estado: EN CURSO** — arrancó en paralelo con E1; implementación base cerrada, conexión real con `apps/web` y trazabilidad extremo a extremo pendientes.
+**Estado: EN CURSO** — arrancó en paralelo con E1 (cerrado); implementación base de `apps/api` cerrada (endpoints de organizaciones, conectores, jobs, costos, incidentes, aprobaciones, memberships y audit-log, todos con ronda 4 reverificada), pero solo 1 de ~6 paneles de `apps/web` (Fuentes/frescura) está confirmado conectado a datos reales.
 
 | Paquete/app | Alcance |
 |---|---|
@@ -199,11 +196,11 @@ Cierra: REQ-072, REQ-097, REQ-114, REQ-164 a REQ-167 de ACEPTACION.md; A6, A8, A
 REQ: REQ-049, REQ-065 a REQ-067, REQ-086 a REQ-089, REQ-169 a REQ-171 (secciones 8, 12, 19, 20, 33).
 Cierra: REQ-049, REQ-065 a REQ-067, REQ-086 a REQ-089, REQ-169 a REQ-171 de ACEPTACION.md.
 
-**Evidencia:** back office/superadmin implementado en `apps/api` (organizaciones, conectores, jobs, costos, incidentes, aprobaciones — commit `b00efeb`); REQ-169 (métricas honestas, estimados marcados explícitamente) CON_EVIDENCIA según reverificación db-api; `/metrics` sin datos de tenant confirmado.
+**Evidencia:** back office/superadmin implementado en `apps/api` (organizaciones, conectores, jobs, costos, incidentes, aprobaciones); ronda 4 añade `GET /organizations/:orgId/memberships` y `GET /audit-log`/`GET /admin/audit-log`, ambos con test HTTP real. API-10 (audit_log de jobs sin organización) CERRADO y reverificado. `apps/web` ronda 3 conecta Fuentes/frescura a datos reales (A4 confirmada).
 
-**Hallazgos abiertos:** **REQ-170 sin evidencia** — el panel de `apps/web` (fuentes/frescura, jobs) sigue siendo demo estática no conectada a los endpoints reales de `apps/api` (en trabajo ahora: ronda 3 web↔api, #42, despachada en `80fb455`, sin commit de cierre). **REQ-171 (`correlation_id` extremo a extremo) sin implementación.** API-10 MEDIA: `POST /admin/jobs/:id/retry` omite `audit_log` para jobs con `org_id` nulo (jobs de plataforma), contradiciendo el propio comentario del código sobre una "organización de sistema" inexistente.
+**Hallazgos abiertos:** **REQ-170 parcial** — solo 1 de ~6 paneles de back office confirmado conectado; jobs/reintentos, costos IA, evals, incidentes y aprobaciones pendientes sin confirmación de conexión real; "Usuarios y roles" y "Auditoría" ya tienen endpoint disponible (ronda 4) pero sin UI conectada. **REQ-171 (`correlation_id` extremo a extremo) sin implementación** — `packages/expediente` declara explícitamente que no lo genera. **REQ-169 (dashboard de métricas honestas) sin evidencia** — `PanelPage.tsx` sigue siendo `EmptyState`.
 
-**Dependencias pendientes:** ninguna externa directa; depende de que la ronda 3 web↔api (#42) conecte los paneles reales, y de que E9 cierre API-10 para que la trazabilidad de auditoría sea completa.
+**Dependencias pendientes:** ninguna externa; requiere una ronda adicional de conexión de `apps/web` a los endpoints ya cerrados y reverificados de `apps/api`, y la implementación de `correlation_id` de punta a punta.
 
 ## E11 — Seguimiento post-adjudicación
 **Estado: PENDIENTE** — depende de E7/E8 (expediente entregado y adjudicado, ambos en curso).
@@ -237,7 +234,9 @@ Cierra: REQ-100 a REQ-123 de ACEPTACION.md (varios permanecen "bloqueado hasta V
 
 **Hallazgos abiertos:** los 4 REQ marcados NO-VERIFICABLE-EN-LÍNEA y los 11 VERIFICADO-CON-MATIZ requieren validación por abogado antes de afirmarse como cumplimiento legal frente a clientes — no es un hallazgo de código, es una condición de aceptación explícita.
 
-**Dependencias pendientes: BLOQUEADO-EXTERNO (parcial)** — validación por asesoría legal humana para las citas no verificables en línea; no depende de trabajo de ingeniería adicional. Pendiente propagar la nomenclatura legal vigente a `apps/web` (etiquetas de fuente) más allá de lo ya hecho en `packages/sources`.
+**Avance técnico relacionado (sin cambiar el veredicto legal):** `apps/api` ronda 3 expone `calendarNote`/`legalRegime` con la fecha DOF verificada (AE-09, CERRADO y reverificado sin huecos) en el cálculo de plazo de pago — primer caso real de una norma verificada llegando a código de producto, aunque el motor determinista completo de plazos (REQ-050/056) sigue sin construirse.
+
+**Dependencias pendientes: BLOQUEADO-EXTERNO (parcial)** — validación por asesoría legal humana para las 11 filas VERIFICADO-CON-MATIZ y las 4 NO-VERIFICABLE-EN-LÍNEA; no depende de trabajo de ingeniería adicional. Pendiente propagar la nomenclatura legal vigente a `apps/web` (etiquetas de fuente) más allá de lo ya hecho en `packages/sources`/`apps/api`.
 
 ## E0 — Gobierno del ciclo de construcción (continuo, no secuencial)
 **Estado: EN CURSO** — aplica a todas las épicas desde el inicio; esta misma actualización de BACKLOG.md es un artefacto de E0.
@@ -245,52 +244,44 @@ Cierra: REQ-100 a REQ-123 de ACEPTACION.md (varios permanecen "bloqueado hasta V
 REQ: REQ-124 a REQ-131, REQ-137 a REQ-140 (secciones 26, 28).
 Cierra: REQ-124 a REQ-131, REQ-137 a REQ-140 de ACEPTACION.md.
 
-**Evidencia:** `docs/PROGRESO.md` (registro completo rondas 0–3), `docs/BLOQUEOS.md` (incidentes INC-01..04 todos CERRADOS con regla reforzada; bloqueos B-01/B-02/B-03 ABIERTOS y declarados como tales, nunca ocultados), `docs/TABLERO.md`/`docs/ACEPTACION.md` (snapshot del último corte formal, commit `d8e6d29`: 186 criterios → 92 PENDIENTE, 82 EN_EVIDENCIA, 7 CUMPLIDO, 4 NO_APLICA, 1 BLOQUEADO_EXTERNO — snapshot desactualizado frente al progreso real de rondas 2–3 según la propia reverificación db-api, a re-tabular en el cierre formal, no en esta actualización). Disciplina de un solo escritor por archivo compartido y `git commit -- <rutas>` reforzada tras INC-01..04.
+**Evidencia:** `docs/PROGRESO.md` (registro completo rondas 0–4), `docs/BLOQUEOS.md` (incidentes INC-01..09 todos CERRADOS salvo INC-08 en observación, con reglas reforzadas cada vez; bloqueos B-01/B-02/B-03 ABIERTOS y declarados como tales, nunca ocultados), `docs/TABLERO.md`/`docs/ACEPTACION.md` (**cierre formal, commit `b362e62`: 186 criterios → 77 PENDIENTE, 53 EN_EVIDENCIA, 47 CUMPLIDO, 5 LÍMITE_ACEPTADO, 3 NO_APLICA, 1 BLOQUEADO_EXTERNO** — reemplaza el snapshot intermedio `d8e6d29`). Disciplina de un solo escritor por archivo compartido y `git commit -- <rutas>` reforzada tras cada incidente de índice/historial compartido.
 
-**Hallazgos abiertos:** ninguno de código; el hallazgo de gobierno vigente es que `docs/BACKLOG.md` marcaba las 5 épicas E2–E5/E10 como 100% PENDIENTE pese a progreso real ya implementado y probado — **corregido por esta misma actualización**.
+**Hallazgos abiertos:** ninguno de código propio de esta épica; el punto de atención vigente es que la escala de aceptación estricta ahora incluye la categoría `LÍMITE_ACEPTADO` (regla de 3 vueltas) que no existía en el snapshot `d8e6d29` — ya reflejada en `docs/ACEPTACION.md` y `docs/TABLERO.md`.
 
-**Dependencias pendientes:** B-01 (ruta de "empresas agénticas" no verificada) — informativo, no bloquea el trabajo técnico en el staging actual; B-03 (CI con Postgres real) — requiere decisión del usuario sobre publicar un remoto GitHub.
+**Dependencias pendientes:** B-01 (ruta de "empresas agénticas" no verificada) — informativo, no bloquea el trabajo técnico en el staging actual; B-02 (ComprasMX/OCDS-SHCP/PDN-S6/portales estatales) — límite aceptado documentado, no pendiente de ingeniería; B-03 (CI con Postgres real) — requiere decisión del usuario sobre publicar un remoto GitHub privado.
 
 ---
 
-## Orden de ejecución sugerido (dependencia → prioridad)
+## Orden de ejecución sugerido (dependencia → prioridad) — estado al cierre formal
 
-1. **E1** (en curso) — fundamentos
-2. **E3** y **E2** (implementado-en-evidencia, en paralelo, ambas dependen solo de E1)
-3. **E4** (implementado-en-evidencia, depende de E3)
-4. **E6** (en curso, depende de E4) y **E5** (implementado-en-evidencia, depende de E2+E4), en paralelo
-5. **E9** (transversal, en curso desde que existe algo que guardar — integrado en E2/E5/E7/E8)
-6. **E7** (en curso, depende de E2+E5+E6)
-7. **E8** (en curso, depende de E7)
-8. **E10** (en curso, arrancó en paralelo con E1, se completa según avanzan E3/E7/E8)
-9. **E11** (pendiente, depende de E7/E8)
-10. **E12** y **E0** — transversales, corren durante todo el ciclo (E12 implementado-en-evidencia con matices; E0 en curso permanente)
+1. **E1** — **CERRADO CON REVERIFICACIÓN**.
+2. **E3** y **E2** — E3 **CERRADO CON REVERIFICACIÓN** (mecanismo); E2 EN CURSO.
+3. **E4** — **CERRADO CON REVERIFICACIÓN**.
+4. **E6** (en curso) y **E5** (en curso), en paralelo.
+5. **E9** (transversal) — **CERRADO CON REVERIFICACIÓN** (límites AG-05/AG-12 aceptados).
+6. **E7** — **CERRADO CON REVERIFICACIÓN** (biblioteca+API; UI pendiente).
+7. **E8** — en curso.
+8. **E10** — en curso (1 de ~6 paneles conectado).
+9. **E11** — pendiente, 0% construido, sin trabajo despachado.
+10. **E12** y **E0** — transversales; E12 en curso/bloqueado en validación por abogado; E0 en curso permanente.
 
-Las 15 pruebas mínimas obligatorias de la ampliación (A1-A15, ver `docs/ACEPTACION.md`) quedan cubiertas, en conjunto, por el cierre de E3, E4, E5, E7, E8 y E9; a la fecha de esta actualización, la mayoría están en estado PARCIAL o CON_EVIDENCIA según `docs/auditoria-1/db-api-reverificacion.md` §6, ninguna en estado final de cierre.
-
-## Trabajo en curso ahora mismo (no despachar de nuevo, solo dar seguimiento)
-
-- **web↔api ronda 3** (#42, único escritor de `apps/web`): conectar paneles reales (fuentes/frescura E3/E10, header) a `apps/api`; corrige también W-21 ALTA (ThemeSelector invisible <466px) y W-22 BAJA pendientes de la reverificación 2 de web.
-- **api ronda 3 E6–E9/E11** (#43, despachada en `80fb455`): integrar `packages/expediente` y matriz de requisitos con endpoints reales de `apps/api`; sin commit de cierre todavía.
-- **Corrector de seguridad #49** (prioridad máxima, despachado en `b7ce950`, migraciones 0040–0049 reservadas): DB-08 CRÍTICA, API-08 ALTA, y el resto de hallazgos DB-09/10/11, API-01/03/09/10/11/12 de `db-api-reverificacion.md`.
-- **Reverificación de cierre de apps/worker** (despachada en `c96484a` tras corrección vuelta 2): confirmar WK-14..18 y las propuestas de esquema (0026b/0027/0028) ya aplicadas.
-- **Reverificación de cierre de packages/sources** (despachada en `be64f70` tras corrección vuelta 2): confirmar SR-12..18.
-- **Corrección final de packages/expediente** (#45, vuelta 3, despachada en `07c5ea1`): tipo branded + verificación runtime del hash de insumos (EX-EXP-01/11), coordinada con #43.
+Las 15 pruebas mínimas obligatorias de la ampliación (A1-A15, ver `docs/ACEPTACION.md`) alcanzaron **10 de 15 en CUMPLIDO** (A1, A2, A5, A6, A7, A8, A11, A12, A14, A15) con test HTTP/E2E real, reverificado en `docs/auditoria-2/reverificacion-final-integrada.md`. Las 5 restantes (A3, A4, A9, A10, A13) están en EN_EVIDENCIA (fuerte) — el mecanismo real existe y está probado, pero falta notificación a roles responsables (A3), un test E2E de obsolescencia de punta a punta (A4), nomenclatura de test explícita a nivel `apps/api` (A9), el motor de banda de precio REQ-030 (A10), o la conexión de la UI de descarga autenticada (A13).
 
 ## Orden de cierre restante
 
-Lo que falta, por épica, para que `docs/ACEPTACION.md` pueda considerar CUMPLIDO cada REQ asociado (sin autoevaluación numérica — cada paso requiere su propia reverificación independiente):
+Lo que queda, por épica, para que `docs/ACEPTACION.md` pueda considerar CUMPLIDO cada REQ que sigue en EN_EVIDENCIA o PENDIENTE (las épicas ya CERRADAS CON REVERIFICACIÓN — E1, E3, E4, E7, E9 — no tienen orden de cierre pendiente salvo los límites aceptados ya documentados, que no requieren una cuarta vuelta):
 
-- **E1**: cerrar DB-08/API-08 (corrector #49) → reverificación independiente de esa corrección → confirmar AG-23 de forma independiente → recibir los commits de cierre de worker y sources (ver abajo).
-- **E2**: añadir prueba de la regla de negocio "firma de no-firmante rechazada" (REQ-145) y cerrar API-11 (magic bytes) desde E9.
-- **E3**: conectar el panel de frescura de `apps/web` a `apps/api` real (ronda 3 web↔api) y obtener el commit de reverificación de cierre de sources; ComprasMX en vivo permanece fuera de alcance mientras B-02 esté abierto (documentar explícitamente como límite aceptado, no como pendiente de ingeniería).
-- **E4**: extender la prueba de cascada de invalidación hasta matriz/expediente y confirmar notificación al rol responsable con un test de integración dedicado.
-- **E5**: decidir y documentar si REQ-061 (vector store) se implementa con embeddings reales (requiere OpenAI) o se declara fuera de alcance con matching léxico como diseño definitivo.
-- **E6**: recibir el commit de integración de api ronda 3 (#43) que conecta la matriz de requisitos a `apps/api`/`apps/web`; verificar el pipeline de extracción contra al menos un documento de bases real (no solo fixtures) y cerrar el residuo EX-19 de condicionales.
-- **E7**: recibir y reverificar el commit de corrección vuelta 3 (#45, branded type del hash) — sin esto EX-EXP-01/11 sigue abierto y bloquea A8/A11/A14; cerrar EX-EXP-17 y los residuos EX-18/20/21.
-- **E8**: implementar el flujo real de `AprobacionesPage` en `apps/web` (hoy `EmptyState`); implementar y probar la doble confirmación económica con re-autenticación y el juez LLM distinto del redactor; depende de que E7 y E9 cierren primero.
-- **E9**: cierre y reverificación independiente de DB-08/API-08 (crítico para toda la plataforma); decidir si se añade una capa LLM/juez para el guardrail de no-fabricación (hoy ~3% de detección por regex, límite aceptado documentado) o se declara diseño definitivo.
-- **E10**: recibir el commit de la ronda 3 web↔api que conecta los paneles reales; implementar `correlation_id` extremo a extremo (REQ-171); cerrar API-10 (audit_log de jobs sin organización).
-- **E11**: no hay orden de cierre aplicable todavía — requiere que se despache una ronda de implementación real (agente + auditoría + corrección + reverificación) una vez que E7/E8 cierren; hoy es trabajo no iniciado, no trabajo bloqueado.
-- **E12**: obtener validación por abogado humano de los 11 REQ VERIFICADO-CON-MATIZ y los 4 NO-VERIFICABLE-EN-LÍNEA antes de afirmar cumplimiento legal a clientes; propagar nomenclatura legal vigente a `apps/web`.
-- **E0**: mantener `BLOQUEOS.md`/`PROGRESO.md` al día en cada ronda; re-tabular `ACEPTACION.md`/`TABLERO.md` en el cierre formal (fuera del alcance de esta actualización, que solo toca `BACKLOG.md`) usando la evidencia real ya identificada por `db-api-reverificacion.md` §6 en vez de la más débil citada hoy.
+- **E2**: escribir tests dedicados para "rol sin permiso de edición de perfil" (REQ-144) y "firma de no-firmante rechazada" en un flujo E2E real (REQ-145); hacer vinculante `field_provenance` en matching/expediente (REQ-142, compartido con E5/E7).
+- **E3**: ComprasMX/OCDS-SHCP/PDN-S6/portales estatales en vivo permanecen fuera de alcance mientras B-02 esté abierto — ya documentado como límite aceptado, no pendiente de ingeniería; sin acción de ingeniería adicional posible sin credenciales/acceso oficial.
+- **E4**: implementar el canal de notificación a los roles responsables ante invalidación por cambio de bases (único punto pendiente de REQ-155); todo lo demás de la épica está cerrado.
+- **E5**: decidir y documentar si REQ-061 (vector store) se implementa con embeddings reales (requiere OpenAI) o se declara fuera de alcance con matching léxico como diseño definitivo; construir el gold set de 30 convocatorias para REQ-011.
+- **E6**: implementar el pipeline OCR real (Docling/PyMuPDF) para operar sobre documentos escaneados reales, no solo texto ya extraído (REQ-014/015/018/129); implementar el simulador de puntaje/rúbrica (REQ-020/038/108).
+- **E7**: conectar los módulos "Expediente", "Revisión" y "Paquete descargable" de `apps/web` a los endpoints ya cerrados y reverificados de `apps/api` (descarga autenticada real, A13); resolver EX-EXP-08 (autoaprobación multi-cuenta) si se decide que amerita una capa de identidad en `apps/api`.
+- **E8**: implementar 2FA/passkey-OTP para la aprobación económica (REQ-044/064); implementar la "sala de guerra" (REQ-040); construir el juez LLM distinto del redactor (bloqueado por falta de credenciales OpenAI).
+- **E9**: decidir si se invierte en una capa LLM/juez para elevar la detección real del guardrail anticolusión más allá del ~3% actual (AG-12, límite aceptado) — es una decisión de producto/presupuesto, no un defecto pendiente de corrección.
+- **E10**: conectar los ~5 paneles de back office restantes (jobs/reintentos, costos IA, evals, incidentes, aprobaciones, usuarios/roles, auditoría) a los endpoints de `apps/api` ya disponibles; implementar `correlation_id` de extremo a extremo (REQ-171); construir el dashboard de métricas honestas (REQ-169).
+- **E11**: sin orden de cierre aplicable todavía — requiere despachar una ronda de implementación real (agente + auditoría + corrección + reverificación); hoy es trabajo no iniciado, no trabajo bloqueado.
+- **E12**: obtener validación por abogado humano de las 11 filas VERIFICADO-CON-MATIZ y las 4 NO-VERIFICABLE-EN-LÍNEA de `docs/legal/verificacion-legal.md` antes de afirmar cumplimiento legal a clientes; propagar la nomenclatura legal vigente al resto de `apps/web`.
+- **E0**: mantener `BLOQUEOS.md`/`PROGRESO.md` al día en cada ronda futura; decidir si se adopta el patrón literal `tasks/evidence/<id>/` (REQ-126/137) o se declara formalmente que `docs/logs/`+`docs/auditoria-1/`+`docs/auditoria-2/`+commits es el patrón de evidencia oficial del proyecto (ya lo es de facto).
+
+**Fuera del alcance de este backlog (código en curso en paralelo, ronda #70):** micro-corrección de API-15 (cuerpo vacío en approve/reject de tarifas) y WI-06 (guard síncrono de doble clic) — ambos BAJA, no explotables, sin impacto en el orden de cierre de ninguna épica.
