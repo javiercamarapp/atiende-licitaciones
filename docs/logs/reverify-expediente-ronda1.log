@@ -1,0 +1,250 @@
+=== reverify-expediente ronda1 — 2026-09-06T01:59:58Z ===
+=== worktree: /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-exp @ f9b25bab669a7b7f38a1cd54af920c4fdb503022 ===
+=== npm install ===
+npm warn deprecated whatwg-encoding@3.1.1: Use @exodus/bytes instead for a more spec-conformant and faster implementation
+npm warn deprecated prom-client@15.1.3: prom-client has been replaced by @prometheus-io/client
+npm warn deprecated glob@10.5.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+npm warn deprecated eslint@9.39.5: This version is no longer supported. Please see https://eslint.org/version-support for other options.
+
+added 677 packages, and audited 685 packages in 46s
+
+215 packages are looking for funding
+  run `npm fund` for details
+
+6 vulnerabilities (3 moderate, 1 high, 2 critical)
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+
+=== npm run -w packages/expediente typecheck ===
+
+> @atiende/expediente@0.1.0 typecheck
+> tsc --noEmit
+
+typecheck exit: 0
+
+=== npm run -w packages/expediente lint ===
+
+> @atiende/expediente@0.1.0 lint
+> eslint src test
+
+lint exit: 0
+
+=== npm run -w packages/expediente test ===
+
+> @atiende/expediente@0.1.0 test
+> vitest run
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-exp/packages/expediente[39m
+
+ [32m✓[39m test/integrity-checklist.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/approval-workflow.test.ts [2m([22m[2m13 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+ [32m✓[39m test/technical-proposal.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/requirement-matrix.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 12[2mms[22m[39m
+ [32m✓[39m test/company-data.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 16[2mms[22m[39m
+ [32m✓[39m test/package-assembler.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 45[2mms[22m[39m
+ [32m✓[39m test/proposal-invalidation.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 21[2mms[22m[39m
+ [32m✓[39m test/economic-proposal.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 18[2mms[22m[39m
+ [32m✓[39m test/expediente-flow.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 180[2mms[22m[39m
+ [32m✓[39m test/number-to-words.test.ts [2m([22m[2m33 tests[22m[2m)[22m[90m 12[2mms[22m[39m
+ [32m✓[39m test/money.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 10[2mms[22m[39m
+ [32m✓[39m test/llm-extractor.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 19[2mms[22m[39m
+ [32m✓[39m test/api-surface.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 27[2mms[22m[39m
+ [32m✓[39m test/timezone-determinism.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 1887[2mms[22m[39m
+   [33m[2m✓[22m[39m isPast — determinismo ante el TZ del proceso (EX-EXP-04, REQ-160 vigencias)[2m > [22muna fecha CON offset explícito produce EXACTAMENTE el mismo veredicto bajo TZ=UTC, America/Mexico_City y Asia/Tokyo [33m587[2mms[22m[39m
+   [33m[2m✓[22m[39m isPast — determinismo ante el TZ del proceso (EX-EXP-04, REQ-160 vigencias)[2m > [22mREPRODUCCIÓN EXACTA del hallazgo: una fecha SIN offset (naive) ya NO produce veredictos distintos por TZ — ahora se rechaza siempre con el mismo error [33m688[2mms[22m[39m
+   [33m[2m✓[22m[39m isPast — determinismo ante el TZ del proceso (EX-EXP-04, REQ-160 vigencias)[2m > [22muna fecha límite naive combinada con un asOfIso naive también se rechaza de forma consistente en las 3 zonas [33m611[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m14 passed[39m[22m[90m (14)[39m
+[2m      Tests [22m [1m[32m118 passed[39m[22m[90m (118)[39m
+[2m   Start at [22m 20:01:03
+[2m   Duration [22m 3.36s[2m (transform 1.16s, setup 0ms, collect 2.23s, tests 2.26s, environment 2ms, prepare 2.39s)[22m
+
+test exit: 0
+
+=== npm run -w packages/expediente build ===
+
+> @atiende/expediente@0.1.0 build
+> tsc -p tsconfig.build.json
+
+build exit: 0
+
+added 1 package, and audited 686 packages in 4s
+
+215 packages are looking for funding
+  run `npm fund` for details
+
+6 vulnerabilities (3 moderate, 1 high, 2 critical)
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+
+=== npx vitest run --coverage (packages/expediente) ===
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-exp/packages/expediente[39m
+      [2mCoverage enabled with [22m[33mv8[39m
+
+ [32m✓[39m test/company-data.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m test/economic-proposal.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/integrity-checklist.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/technical-proposal.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/approval-workflow.test.ts [2m([22m[2m13 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/requirement-matrix.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/package-assembler.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 91[2mms[22m[39m
+ [32m✓[39m test/proposal-invalidation.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 27[2mms[22m[39m
+ [32m✓[39m test/expediente-flow.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 69[2mms[22m[39m
+ [32m✓[39m test/number-to-words.test.ts [2m([22m[2m33 tests[22m[2m)[22m[90m 49[2mms[22m[39m
+ [32m✓[39m test/money.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 40[2mms[22m[39m
+ [32m✓[39m test/llm-extractor.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/api-surface.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 9[2mms[22m[39m
+ [32m✓[39m test/timezone-determinism.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 1190[2mms[22m[39m
+   [33m[2m✓[22m[39m isPast — determinismo ante el TZ del proceso (EX-EXP-04, REQ-160 vigencias)[2m > [22muna fecha CON offset explícito produce EXACTAMENTE el mismo veredicto bajo TZ=UTC, America/Mexico_City y Asia/Tokyo [33m515[2mms[22m[39m
+   [33m[2m✓[22m[39m isPast — determinismo ante el TZ del proceso (EX-EXP-04, REQ-160 vigencias)[2m > [22mREPRODUCCIÓN EXACTA del hallazgo: una fecha SIN offset (naive) ya NO produce veredictos distintos por TZ — ahora se rechaza siempre con el mismo error [33m383[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m14 passed[39m[22m[90m (14)[39m
+[2m      Tests [22m [1m[32m118 passed[39m[22m[90m (118)[39m
+[2m   Start at [22m 20:01:23
+[2m   Duration [22m 2.21s[2m (transform 387ms, setup 0ms, collect 1.20s, tests 1.50s, environment 77ms, prepare 1.40s)[22m
+
+[34m % [39m[2mCoverage report from [22m[33mv8[39m
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-------------------|---------|----------|---------|---------|-------------------
+[32;1mAll files         [0m | [32;1m  91.03[0m | [32;1m    88.4[0m | [32;1m   89.1[0m | [32;1m  91.03[0m | [31;1m                 [0m 
+[32;1m src              [0m | [32;1m   90.8[0m | [32;1m   88.47[0m | [32;1m  88.65[0m | [32;1m   90.8[0m | [31;1m                 [0m 
+[32;1m  ...l-workflow.ts[0m | [32;1m    100[0m | [32;1m    97.5[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m112              [0m 
+[33;1m  company-data.ts [0m | [33;1m  71.11[0m | [32;1m   84.61[0m | [33;1m  64.28[0m | [33;1m  71.11[0m | [31;1m...15-222,225-232[0m 
+[32;1m  ...c-proposal.ts[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  index.ts        [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  ...-checklist.ts[0m | [32;1m  89.92[0m | [32;1m   87.09[0m | [32;1m    100[0m | [32;1m  89.92[0m | [31;1m...73-179,181-182[0m 
+[32;1m  money.ts        [0m | [32;1m   93.1[0m | [33;1m      64[0m | [32;1m   87.5[0m | [32;1m   93.1[0m | [31;1m86-89            [0m 
+[32;1m  ...r-to-words.ts[0m | [32;1m  95.36[0m | [32;1m   85.96[0m | [32;1m    100[0m | [32;1m  95.36[0m | [31;1m...65,181-182,196[0m 
+[32;1m  ...-assembler.ts[0m | [32;1m    100[0m | [32;1m   94.73[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m101,172          [0m 
+[33;1m  ...al-version.ts[0m | [33;1m  68.75[0m | [32;1m     100[0m | [31;1m  33.33[0m | [33;1m  68.75[0m | [31;1m...48,51-52,56-59[0m 
+[32;1m  ...ent-matrix.ts[0m | [32;1m  93.14[0m | [32;1m   90.99[0m | [32;1m    100[0m | [32;1m  93.14[0m | [31;1m...13-315,412-420[0m 
+[32;1m  ...l-proposal.ts[0m | [32;1m  83.13[0m | [32;1m      80[0m | [32;1m    100[0m | [32;1m  83.13[0m | [31;1m...28,150,154,156[0m 
+[33;1m  types.ts        [0m | [33;1m  68.88[0m | [32;1m   93.33[0m | [32;1m  85.71[0m | [33;1m  68.88[0m | [31;1m26-35,51-54      [0m 
+[32;1m src/llm          [0m | [32;1m    100[0m | [32;1m   83.33[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  extractor.ts    [0m | [32;1m    100[0m | [32;1m   83.33[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m67               [0m 
+-------------------|---------|----------|---------|---------|-------------------
+coverage exit: 0
+
+==========================================================================
+=== SECCIÓN ADVERSARIAL: reintentos de ataques originales + variantes ===
+==========================================================================
+
+--- attack-ex01.mjs (EX-EXP-01: documento de empresa, bases, colisión de serialización) ---
+
+=== VARIANTE EX-EXP-01.a: documento de empresa cambia, hash de insumos NO lo refleja ===
+hash V1 === hash V2 (a pesar de haber sustituido el acta constitutiva)? [33mtrue[39m
+isFullyApprovedForCurrentHash tras sustituir documento de empresa: [33mtrue[39m (se espera true si el hash no lo cubre -> FALSO NEGATIVO)
+manifest.status: ready (si es 'ready' con el acta sustituida => EX-EXP-01 sigue explotable en esta variante)
+acta usada realmente: {"documentId":"acta-constitutiva","sha256":"zzz999-DOCUMENTO-DISTINTO","version":1} NUNCA referenciada por el hash
+
+=== VARIANTE EX-EXP-01.b: nueva versión de bases (convocatoria) tras aprobación, hash no la cubre ===
+hash V1 === hash V2 (a pesar de cambiar de bases v1 a v2)? [33mtrue[39m
+isFullyApprovedForCurrentHash tras nueva versión de bases: [33mtrue[39m (true => FALSO NEGATIVO, la aprobación de bases v1 se reutiliza para bases v2)
+
+=== VARIANTE EX-EXP-01.c: colisión de hash por claves `undefined` descartadas en JSON.stringify ===
+hash(contentA con clave undefined) === hash(contentB sin la clave)? [33mtrue[39m (true confirma que un campo con valor undefined es indistinguible de un campo ausente)
+hash(orden de claves A) === hash(orden de claves B)? (se espera true, comportamiento CORRECTO de stableStringify) [33mtrue[39m
+
+=== CONTROL: ataque original (tarifa cubierta por el hash) -- debe FALLAR el ataque ===
+isFullyApprovedForCurrentHash tras tarifa cambiada (SÍ cubierta por el hash): [33mfalse[39m (se espera false)
+
+--- attack-ex02.mjs (EX-EXP-02: aprobaciones parciales que suman, hash-prefijo, scope/scopeRef inconsistente) ---
+
+=== VARIANTE EX-EXP-02.a: dos aprobaciones de scope 'documento' no deben sumar a 'ready' ===
+isFullyApproved() [ancestor-based, alcance expediente]: [33mfalse[39m
+manifest.status con 2 aprobaciones parciales de 'documento': draft (se espera 'draft')
+draftReasons: [ [32m'sin_aprobacion_vigente_de_alcance_expediente'[39m ]
+
+=== VARIANTE EX-EXP-02.b: aprobación vigente con hash-prefijo/substring del actual no debe colar ===
+manifest.status con hash-actual que EXTIENDE (prefijo) al aprobado: draft (se espera 'draft', comparación debe ser estricta ===)
+
+=== VARIANTE EX-EXP-02.c: scope='expediente' pero scopeRef distinto de la cadena 'expediente' ===
+approve() resultado (scope=expediente, scopeRef distinto): [33mtrue[39m
+manifest.status con scopeRef distinto de 'expediente' pero scope='expediente': ready (buildManifest solo filtra por a.scope, NO por a.scopeRef -- confirmar si esto es explotable)
+
+--- attack-ex03.mjs (EX-EXP-03: requisito condicional que aplica, requisito duplicado) ---
+
+=== VARIANTE EX-EXP-03.a: requisito 'condicional' que aplica, sin evidencia mapeable ===
+sections.length: [33m0[39m (si es 0, el requisito condicional desapareció SIN sección ni bloqueo)
+blockers.length: [33m0[39m
+JSON: {"sections":[],"blockers":[]}
+
+=== CONTROL: mismo caso con obligatoriedad='obligatorio' -- debe generar PENDIENTE ===
+sections.length: [33m1[39m (se espera 1, con título PENDIENTE)
+títulos: [
+  [32m'PENDIENTE: Manifestación de no encontrarse en los supuestos de los artículos 50 y 60 de la LAASSP.'[39m
+]
+
+=== VARIANTE EX-EXP-03.b: requisito duplicado en dos documentos distintos (mismo contenido, distinta fuente) ===
+sections.length: [33m2[39m (se generan 2 secciones IDÉNTICAS -- no hay deduplicación por contenido/topicKey en technical-proposal.ts)
+títulos: [
+  [32m'Presentar acta constitutiva de la empresa.'[39m,
+  [32m'Presentar acta constitutiva de la empresa.'[39m
+]
+
+--- attack-ex04.mjs y attack-ex04b.mjs (EX-EXP-04: fecha solo-día, 29-feb no bisiesto, offset fuera de rango) ---
+=== EX-EXP-04 reverificación ===
+isPast('2026-10-20T23:59:59', asOf con offset) => EXCEPTION: fecha límite (isPast) sin offset horario explícito (se requiere "Z" o "±HH:MM", p. ej. "-06:00" para America/Mexico_City): "2026-10-20T23:59:59".
+assertExplicitOffset('2026-09-05') [solo fecha, sin hora ni offset] => EXCEPTION: fecha sin offset horario explícito (se requiere "Z" o "±HH:MM", p. ej. "-06:00" para America/Mexico_City): "2026-09-05".
+assertExplicitOffset('2026-09-05T23:59') [con hora, sin offset] => EXCEPTION: fecha sin offset horario explícito (se requiere "Z" o "±HH:MM", p. ej. "-06:00" para America/Mexico_City): "2026-09-05T23:59".
+isPast con offset MX -06:00 al filo del plazo => [33mfalse[39m
+isPast con offset MX -06:00 un segundo después del plazo => [33mtrue[39m
+new Date('2026-02-29T00:00:00-06:00').toISOString() [fecha calendario INVÁLIDA, 2026 no es bisiesto] => 2026-03-01T06:00:00.000Z
+assertExplicitOffset('2026-02-29T00:00:00-06:00') [pasa la validación de OFFSET aunque el calendario sea inválido] => [90mundefined[39m
+isPast('2026-02-29T00:00:00-06:00', '2026-03-01T00:00:00-06:00') [se compara como si fuera 1-mar silenciosamente] => [33mfalse[39m
+new Date('2028-02-29T00:00:00-06:00').toISOString() [2028 SÍ es bisiesto, válido] => 2028-02-29T06:00:00.000Z
+assertExplicitOffset('2026-09-05T23:59:00+00:00') => [90mundefined[39m
+assertExplicitOffset('2026-09-05T23:59:00+99:00') [offset con horas fuera de rango, ¿se detecta?] => [90mundefined[39m
+new Date('2026-09-05T23:59:00+99:00').toISOString() tras pasar el regex => EXCEPTION: Invalid time value
+isPast con offset imposible '+99:00' (pasa el regex, Date.getTime() = NaN): [33mfalse[39m
+isPast con offset imposible en AMBOS lados: [33mfalse[39m
+
+--- attack-ex05.mjs y attack-ex05b.mjs (EX-EXP-05: 21/101/1000001/21.21/99.99, y 'veintiuno' fusionado: 121/221/1121/2121/21121/121000/121000000) ---
+=== EX-EXP-05 reverificación: casos del mandato ===
+21 pesos (2100 centavos): SON: VEINTIÚN PESOS 00/100 M.N.
+101 pesos (10100 centavos): SON: CIENTO UN PESOS 00/100 M.N.
+1,000,001 pesos (100000100 centavos): SON: UN MILLÓN UN PESOS 00/100 M.N.
+21.21 pesos (2121 centavos): SON: VEINTIÚN PESOS 21/100 M.N.
+99.99 pesos (centavos 99/100) (9999 centavos): SON: NOVENTA Y NUEVE PESOS 99/100 M.N.
+
+=== VARIANTE nueva: 'veintiuno' FUSIONADO dentro de un número más largo (ciento veintiuno, no 'treinta y uno') ===
+121 pesos (CIENTO VEINTIUNO -> se espera CIENTO VEINTIÚN) (12100 centavos): SON: CIENTO VEINTIUNO PESOS 00/100 M.N.
+221 pesos (22100 centavos): SON: DOSCIENTOS VEINTIUNO PESOS 00/100 M.N.
+1,121 pesos (112100 centavos): SON: MIL CIENTO VEINTIUNO PESOS 00/100 M.N.
+2,121 pesos (212100 centavos): SON: DOS MIL CIENTO VEINTIUNO PESOS 00/100 M.N.
+21,121 pesos (2112100 centavos): SON: VEINTIÚN MIL CIENTO VEINTIUNO PESOS 00/100 M.N.
+
+=== Control: casos ya cubiertos por el test oficial (deben seguir bien) ===
+1 peso (100 centavos): SON: UN PESO 00/100 M.N.
+31 pesos (3100 centavos): SON: TREINTA Y UN PESOS 00/100 M.N.
+integerToWords(121000): ciento veintiuno mil (se espera 'ciento veintiún mil')
+121,000 pesos: SON: CIENTO VEINTIUNO MIL PESOS 00/100 M.N.
+121,000,000 pesos (121 millones): SON: CIENTO VEINTIUNO MILLONES PESOS 00/100 M.N.
+
+--- attack-ex06.mjs (EX-EXP-06: 05/09/2026 vs 09/05/2026 ambigüedad DD/MM vs MM/DD, confidence) ---
+=== EX-EXP-06 reverificación ===
+extractDeadline('05/09/2026') [ambiguo DD/MM vs MM/DD]: {"deadline":"2026-09-05T23:59:59-06:00","topicKey":"plazo_entrega_proposiciones"}
+extractDeadline('09/05/2026') [mismo par de dígitos invertido]: {"deadline":"2026-05-09T23:59:59-06:00","topicKey":"plazo_entrega_proposiciones"}
+¿Son fechas DISTINTAS? (deberían serlo, confirma que la ambigüedad se resuelve SIEMPRE como DD/MM sin marcar incertidumbre)
+
+extractDeadline('5 de septiembre del 2026') [con 'del', ya cubierto por el fix]: {"deadline":"2026-09-05T23:59:59-06:00","topicKey":"plazo_entrega_proposiciones"}
+
+Item con fecha AMBIGUA (05/09, podría ser 5-sep o 9-may): [{"deadline":"2026-09-05T10:00:00-06:00","confidence":0.7}]
+Item con fecha INEQUÍVOCA (25/09, día>12, solo puede ser DD/MM): [{"deadline":"2026-09-25T10:00:00-06:00","confidence":0.7}]
+(se espera 'confidence' MENOR o algún marcador de ambigüedad en el primer caso; si son iguales, el sistema NUNCA distingue una fecha numérica ambigua de una inequívoca)
+
+==========================================================================
+=== Regresión en consumidores: ¿apps/api importa @atiende/expediente? ===
+==========================================================================
+(sin coincidencias: ningún consumidor importa @atiende/expediente todavía)
+
+=== FIN reverify-expediente ronda1 — 2026-09-06T02:13:30Z ===
