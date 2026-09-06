@@ -77,7 +77,12 @@ export function AppShell() {
         <main
           id="main-content"
           tabIndex={-1}
-          className="flex-1 rounded-2xl border border-border bg-card p-4 shadow-card focus:outline-none sm:p-6"
+          // W-18: `focus:outline-none` sin ningún reemplazo dejaba el foco
+          // (que sí llega aquí, W-09) sin ningún indicador visual — mismo
+          // patrón de anillo de foco que ya usan las primitivas shadcn
+          // (ver src/components/ui/button.tsx): outline nativo suprimido,
+          // reemplazado por un `ring` (box-shadow) sí visible.
+          className="flex-1 rounded-2xl border border-border bg-card p-4 shadow-card ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:p-6"
         >
           <Outlet />
         </main>

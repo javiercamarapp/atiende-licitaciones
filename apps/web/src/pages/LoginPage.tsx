@@ -178,8 +178,16 @@ export default function LoginPage() {
             <div className="mt-9">
               {/* tabIndex={-1} (W-09): sin esto el skip-link no puede mover el
                   foco aquí porque un <div> sin tabindex no es un destino de
-                  foco válido — verificado por teclado real, no solo por axe. */}
-              <Tabs defaultValue="password" id="login-form" tabIndex={-1} className="focus:outline-none">
+                  foco válido — verificado por teclado real, no solo por axe.
+                  W-18: `focus:outline-none` sin reemplazo dejaba el foco
+                  invisible; mismo patrón de anillo de foco que
+                  #main-content (AppShell.tsx) y las primitivas shadcn. */}
+              <Tabs
+                defaultValue="password"
+                id="login-form"
+                tabIndex={-1}
+                className="rounded-2xl ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
                 <TabsList className="mb-4 grid w-full grid-cols-2">
                   <TabsTrigger value="password" className="gap-1.5">
                     <Lock className="h-3.5 w-3.5" aria-hidden="true" />
