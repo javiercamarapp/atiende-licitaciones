@@ -95,3 +95,4 @@
 2026-09-06 06:43  LATIDO-CRON  a1c165a2 disparó; bucle dinámico VIVO; en curso #71 (web ronda 5), #73 (auditoría api ronda 5).
 2026-09-06 06:49  INCIDENTE  429 del servidor cortó #71 (web ronda 5) en typecheck; reanudado; en curso #71,#73.
 2026-09-06 06:53  DESPERTAR  auditoría api ronda 5 (#73): R5-01/R5-02 CRÍTICOS; corrector #74 despachado; en curso #71.
+2026-09-06 06:59  INCIDENTE  429 del servidor cortó #71 (web ronda 5) de nuevo; clasificador intermitente; reanudación y despacho #74 reintentados.
