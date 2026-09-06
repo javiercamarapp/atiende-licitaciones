@@ -38,6 +38,25 @@ export class ForbiddenError extends AppError {
   }
 }
 
+/**
+ * REQ-181..195: la cuenta existe y la contraseña es correcta, pero el
+ * correo todavía no se ha confirmado (`users.email_verified_at is null`).
+ * Es un 403 con un `type` PROPIO -- distinto del 401 genérico de
+ * credenciales inválidas -- para que `apps/web` pueda ofrecer "reenviar
+ * correo de confirmación" en vez de un "contraseña incorrecta" que sería
+ * mentira. No filtra existencia de cuentas: solo se llega aquí tras validar
+ * la contraseña (ver `modules/auth/routes.ts`).
+ */
+export class EmailNotVerifiedError extends AppError {
+  constructor() {
+    super(
+      403,
+      'https://atiende.example/errors/email-not-verified',
+      'Confirma tu correo antes de iniciar sesión. Te podemos reenviar el enlace de confirmación.'
+    );
+  }
+}
+
 export class NotFoundError extends AppError {
   constructor(message = 'Recurso no encontrado') {
     super(404, 'https://atiende.example/errors/not-found', message);

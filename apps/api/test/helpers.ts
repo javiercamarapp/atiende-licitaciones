@@ -11,6 +11,12 @@ import { generateTotpCodeForTesting } from '../src/lib/step-up.js';
 export const TEST_JWT_SECRET = 'test-secret-do-not-use-in-production-01234567890';
 export const TEST_PLATFORM_API_KEY = 'test-platform-api-key-01234567890';
 export const TEST_TOTP_ENCRYPTION_KEY = 'test-totp-encryption-key-do-not-use-01234567890';
+// REQ-181..195: secreto de enlaces firmados de correo (verificación,
+// invitación, restablecimiento de contraseña, baja de un clic) -- ver
+// lib/mail/env.ts. `MAIL_PROVIDER` NO se fija aquí a propósito: cada
+// suite decide (por defecto ninguna variable -> CaptureProvider, ver
+// createMailProviderFromEnv).
+export const TEST_MAIL_LINK_SECRET = 'test-mail-link-secret-do-not-use-01234567890';
 
 export async function createTestApp(overrides: Partial<AppConfig> = {}): Promise<{ app: FastifyInstance; db: DbClient }> {
   const db = await createPgliteClient();
@@ -21,6 +27,7 @@ export async function createTestApp(overrides: Partial<AppConfig> = {}): Promise
       STORAGE_DIR: mkdtempSync(join(tmpdir(), 'atiende-api-test-storage-')),
       PLATFORM_API_KEY: TEST_PLATFORM_API_KEY,
       TOTP_ENCRYPTION_KEY: TEST_TOTP_ENCRYPTION_KEY,
+      MAIL_LINK_SECRET: TEST_MAIL_LINK_SECRET,
     }),
     port: 0,
     databaseUrl: undefined,
@@ -50,6 +57,16 @@ export async function registerAndLogin(
     throw new Error(`register failed: ${reg.statusCode} ${reg.body}`);
   }
   const { id } = reg.json();
+
+  // REQ-181..195: el login por email+contraseña ahora exige
+  // `email_verified_at` (ver modules/auth/routes.ts) -- este helper es
+  // compartido por CIENTOS de pruebas de todo apps/api que no ejercen el
+  // flujo de verificación de correo en sí (eso lo cubre
+  // test/mail-email-verification.test.ts aparte), así que se marca
+  // verificado directamente en la base de datos (como propietario de las
+  // migraciones, sin pasar por RLS) para no acoplar cada test existente al
+  // flujo completo de verificación.
+  await app.db.query('update users set email_verified_at = now() where id = $1', [id]);
 
   const login = await app.inject({ method: 'POST', url: '/auth/login', payload: { email, password } });
   if (login.statusCode !== 200) {

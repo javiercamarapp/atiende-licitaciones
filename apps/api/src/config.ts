@@ -35,6 +35,40 @@ export interface AppConfig {
   totpEncryptionKey: string;
   /** REQ-044/064: minutos de vigencia de una sesión de verificación en dos pasos (`step_up_sessions`) tras validar el TOTP. */
   stepUpWindowMinutes: number;
+  /**
+   * REQ-181..195 (docs/AMPLIACION-2-SALIDA.md §2): correo transaccional vía
+   * `@atiende/mail` (`lib/mail/env.ts`). `MAIL_LINK_SECRET` firma los
+   * enlaces de verificación/invitación/restablecimiento/baja
+   * (`createLinkSigner`, ≥16 caracteres, mismo criterio que `jwtSecret`/
+   * `totpEncryptionKey`). `publicUrl` es la base de esos enlaces (nunca la
+   * URL de esta API -- es donde vive `apps/web`). `supportEmail` alimenta
+   * `BaseVariablesSchema.supportEmail` de TODA plantilla; `contactInbox` es
+   * a quién llega `contact-received` (`POST /public/contact`) -- por
+   * defecto, el mismo `supportEmail`.
+   */
+  mailLinkSecret: string;
+  publicUrl: string;
+  supportEmail: string;
+  contactInbox: string;
+  /**
+   * REQ-181..195: compuerta de verificación de correo en
+   * `POST /auth/login`. Activada por DEFECTO (`REQUIRE_EMAIL_VERIFICATION`
+   * distinto de `'false'`): una cuenta creada con email+contraseña no
+   * inicia sesión hasta confirmar su correo. Se deja configurable porque
+   * un despliegue SIN proveedor de correo real (el estado actual: las
+   * credenciales son un bloqueo externo, ver packages/mail/README.md)
+   * dejaría a todo mundo fuera -- ahí la compuerta se apaga
+   * explícitamente, nunca por accidente ni por "no había proveedor".
+   */
+  requireEmailVerification: boolean;
+  /**
+   * REQ-181..195: secreto Svix del webhook de entrega/rebote del proveedor
+   * (`RESEND_WEBHOOK_SECRET`). SIN él, `POST /webhooks/mail/:provider`
+   * responde 503 y NUNCA aplica ningún efecto -- jamás se procesa un
+   * webhook sin verificar su firma (falla cerrado, mismo criterio que
+   * `platformApiKey`).
+   */
+  mailWebhookSecret: string | undefined;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -54,6 +88,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     );
   }
 
+  const mailLinkSecret = env.MAIL_LINK_SECRET;
+  if (!mailLinkSecret || mailLinkSecret.length < 16) {
+    throw new Error(
+      'MAIL_LINK_SECRET no definido o demasiado corto (mínimo 16 caracteres). Ver apps/api/.env.example y packages/mail/README.md.'
+    );
+  }
+  const supportEmail = env.MAIL_FROM ?? 'soporte@atiende.mx';
+
   return {
     port: Number(env.PORT ?? 3000),
     jwtSecret,
@@ -67,5 +109,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     rateLimitProfile: env.RATE_LIMIT_PROFILE === 'e2e' ? 'e2e' : 'default',
     totpEncryptionKey,
     stepUpWindowMinutes: Number(env.STEP_UP_WINDOW_MINUTES ?? 5),
+    mailLinkSecret,
+    publicUrl: env.PUBLIC_URL ?? 'https://app.atiende.mx',
+    supportEmail,
+    contactInbox: env.CONTACT_INBOX ?? supportEmail,
+    requireEmailVerification: env.REQUIRE_EMAIL_VERIFICATION !== 'false',
+    mailWebhookSecret: env.RESEND_WEBHOOK_SECRET,
   };
 }

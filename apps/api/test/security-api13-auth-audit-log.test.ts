@@ -48,6 +48,11 @@ describe('API-13: eventos de autenticación quedan en audit_log', () => {
 
     const reg = await app.inject({ method: 'POST', url: '/auth/register', payload: { email: 'api13-ok@example.com', password: 'super-secret-password' } });
     expect(reg.statusCode).toBe(201);
+    // REQ-181..195: el login exige el correo confirmado. Este test mide la
+    // AUDITORÍA del login exitoso, no el flujo de verificación (eso lo cubre
+    // test/mail-email-verification.test.ts), así que se marca verificado en
+    // la base -- mismo criterio que el helper `registerAndLogin`.
+    await db.query('update users set email_verified_at = now() where id = $1', [reg.json().id]);
 
     const login = await app.inject({
       method: 'POST',

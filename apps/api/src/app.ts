@@ -15,6 +15,7 @@ import { metricsPlugin } from './plugins/metrics.plugin.js';
 import { healthRoutes } from './modules/health/routes.js';
 import { authRoutes } from './modules/auth/routes.js';
 import { googleAuthRoutes } from './modules/auth/google/routes.js';
+import { authMailRoutes } from './modules/auth/mail.routes.js';
 import { twofaRoutes } from './modules/twofa/routes.js';
 import { legalRoutes } from './modules/legal/routes.js';
 import { organizationRoutes } from './modules/organizations/routes.js';
@@ -28,6 +29,11 @@ import { agentRoutes } from './modules/agents/routes.js';
 import { adminRoutes } from './modules/admin/routes.js';
 import { auditLogRoutes } from './modules/audit/routes.js';
 import { getRateLimitSettings } from './lib/rate-limit-settings.js';
+import { buildMailServiceFromEnv } from './lib/mail/env.js';
+import { PendingMailTracker } from './lib/mail/pending.js';
+import { mailRoutes } from './modules/mail/routes.js';
+import { mailWebhookRoutes } from './modules/mail/webhook.routes.js';
+import { publicContactRoutes } from './modules/public/contact.routes.js';
 import { expedienteDocumentsRoutes } from './modules/expediente/documents.routes.js';
 import { expedienteProposalRoutes } from './modules/expediente/proposal.routes.js';
 import { expedienteChecklistRoutes } from './modules/expediente/checklist.routes.js';
@@ -70,6 +76,18 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   app.decorate('db', options.db);
   app.decorate('config', options.config);
   app.decorate('rateLimitSettings', getRateLimitSettings(options.config.rateLimitProfile));
+  // REQ-181..195: MailService único del proceso -- ver lib/mail/env.ts.
+  const builtMail = buildMailServiceFromEnv({ db: options.db, mailLinkSecret: options.config.mailLinkSecret });
+  app.decorate('mail', builtMail.mail);
+  app.decorate('mailProvider', builtMail.provider);
+  const pendingMail = new PendingMailTracker();
+  app.decorate('pendingMail', pendingMail);
+  app.decorate('waitForPendingMail', () => pendingMail.wait());
+  // Cierre ordenado: nunca dejar a medias la escritura del outbox de un
+  // correo disparado sin `await` (ver lib/mail/pending.ts).
+  app.addHook('onClose', async () => {
+    await pendingMail.wait();
+  });
 
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
@@ -216,6 +234,9 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   // REQ-172..180: login/registro con Google (OIDC), junto al método
   // email+contraseña existente, sin reemplazarlo.
   await app.register(googleAuthRoutes, { prefix: '/auth/google' });
+  // REQ-181..195: verificación de correo y recuperación de contraseña
+  // (rutas ANÓNIMAS, ver modules/auth/mail.routes.ts).
+  await app.register(authMailRoutes, { prefix: '/auth' });
   await app.register(twofaRoutes, { prefix: '/auth' });
   await app.register(organizationRoutes, { prefix: '/organizations' });
   await app.register(meRoutes);
@@ -230,6 +251,16 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   // La contraparte de plataforma (`GET /admin/audit-log`, superadmin) vive
   // dentro de `adminRoutes` (prefijo `/admin`), no aquí.
   await app.register(auditLogRoutes);
+
+  // REQ-181..195 (correo transaccional): preferencias de notificación y baja
+  // de un clic (RFC 8058), webhook de entrega/rebote del proveedor y
+  // formulario de contacto público. Los tres son PÚBLICOS o
+  // semi-públicos por naturaleza (un cliente de correo hace el POST de baja
+  // sin sesión; el proveedor firma su webhook con Svix; el formulario de
+  // contacto es anónimo) -- ver cada módulo para su anti-abuso.
+  await app.register(mailRoutes, { prefix: '/mail' });
+  await app.register(mailWebhookRoutes, { prefix: '/webhooks/mail' });
+  await app.register(publicContactRoutes, { prefix: '/public' });
 
   // E6-E9/E11 (ronda 3): expediente de participación real sobre
   // @atiende/expediente. Todas bajo /expediente/... para no colisionar con

@@ -4,9 +4,11 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { hashPassword, verifyPassword } from '../../lib/passwords.js';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../lib/jwt.js';
-import { UnauthorizedError } from '../../lib/errors.js';
+import { UnauthorizedError, EmailNotVerifiedError } from '../../lib/errors.js';
 import { recordAuthAudit, type AuthAuditAction } from '../../lib/audit.js';
 import { registerBodySchema, loginBodySchema, refreshBodySchema, logoutBodySchema, authTokensSchema } from './schemas.js';
+import { sendEmailVerification } from '../../lib/mail/triggers.js';
+import { fireAndForgetMail } from '../../lib/mail/pending.js';
 import type { FastifyRequest } from 'fastify';
 
 const UNIQUE_VIOLATION = '23505';
@@ -142,6 +144,20 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         throw err;
       }
 
+      // REQ-181..195: correo de verificación -- SIN esperar (`.catch`, no
+      // `await`) antes de responder. Dos motivos: (1) API-03 (timing de
+      // registro, ver comentario de la rama de email duplicado arriba) --
+      // si se esperara aquí, un registro NUEVO (manda correo real) tardaría
+      // medible/consistentemente más que uno duplicado (nunca llega a este
+      // punto), reabriendo el mismo oráculo de enumeración que ese
+      // endpoint ya cerró; (2) un fallo transitorio del proveedor de
+      // correo (o el propio MailService agotando sus reintentos) nunca
+      // debe convertir un registro por lo demás exitoso en un 500 --
+      // `sendTransactionalMail` ya deja un rastro reintentable en `jobs`
+      // (`mail_retry`) si termina `dead`, así que no hace falta que esta
+      // ruta se entere del resultado para que el correo termine llegando.
+      fireAndForgetMail(app, 'email-verification', () => sendEmailVerification(app, { id, email, fullName: fullName ?? null }));
+
       reply.code(201);
       return { id, email };
     }
@@ -164,7 +180,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
       const { rows } = await app.db.transaction(async (tx) => {
         await tx.query('set local role app_role');
-        return tx.query<{ id: string; password_hash: string | null; is_active: boolean }>(
+        return tx.query<{ id: string; password_hash: string | null; is_active: boolean; email_verified_at: string | null }>(
           'select * from app.find_user_by_email($1)',
           [email]
         );
@@ -205,6 +221,31 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
           // ver nota arriba: nunca se deja que un fallo de auditoría oculte el 401 real.
         }
         throw new UnauthorizedError('Credenciales inválidas');
+      }
+
+      // REQ-181..195: compuerta de verificación de correo. Va DESPUÉS de
+      // validar la contraseña a propósito: llegar aquí ya prueba que quien
+      // pide es el dueño de la cuenta, así que decirle "confirma tu correo"
+      // no filtra nada a un tercero (invertir el orden SÍ convertiría este
+      // 403 en un oráculo de existencia de cuenta, sin necesidad de acertar
+      // la contraseña). `config.requireEmailVerification` la deja apagable
+      // para un despliegue todavía sin proveedor de correo real -- ver
+      // config.ts.
+      if (app.config.requireEmailVerification && user!.email_verified_at === null) {
+        try {
+          await app.db.transaction(async (tx) => {
+            await tx.query('set local role app_role');
+            await recordAuthAudit(tx, {
+              actorId: user!.id,
+              action: 'auth.login_failed',
+              after: { email, motivo: 'email_no_verificado', ...auditContext(request) },
+              requestId: request.id,
+            });
+          });
+        } catch {
+          // ver nota de la rama de credenciales inválidas: la auditoría nunca oculta la respuesta real.
+        }
+        throw new EmailNotVerifiedError();
       }
 
       return issueTokenPair(app, user!.id, { ...auditContext(request), requestId: request.id });

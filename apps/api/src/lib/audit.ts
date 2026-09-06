@@ -57,7 +57,18 @@ export type AuthAuditAction =
   // rechazo de identidad de Google -- ver `modules/auth/google/routes.ts`.
   | 'auth.google_login'
   | 'auth.google_linked'
-  | 'auth.google_rejected';
+  | 'auth.google_rejected'
+  // REQ-181..195 (0084_req_email_verification_and_password_reset.sql):
+  // verificación de correo y restablecimiento de contraseña. Los dos
+  // eventos `*_sent`/`*_requested` son PRE-AUTENTICACIÓN (no hay sesión
+  // que fijar, igual que `auth.login_failed`); los dos `*_verified`/
+  // `*_completed` sí tienen una identidad ya verificada por el consumo
+  // atómico del token, y `apps/api` fija `app.current_user_id` a ese
+  // valor antes de auditar -- ver `modules/auth/mail.routes.ts`.
+  | 'auth.email_verification_sent'
+  | 'auth.email_verified'
+  | 'auth.password_reset_requested'
+  | 'auth.password_reset_completed';
 
 export interface AuthAuditEntry {
   actorId: string | null;

@@ -54,6 +54,16 @@ describe('API-03: /auth/login no es un oráculo de timing de existencia de cuent
             payload: { email, password: 'correct-horse-battery-staple' },
           });
           expect(reg.statusCode).toBe(201);
+          // REQ-181..195: `/auth/register` dispara el correo de verificación
+          // SIN esperarlo (ver `lib/mail/pending.ts` -- esperarlo reabriría
+          // este mismo oráculo, ahora en `/register`). Ese trabajo de fondo
+          // (renderizar la plantilla React Email + escribir el outbox) es
+          // real y compite por CPU con las primeras mediciones de ESTA app,
+          // que solo existen en el lado "email existente" -- contaminaría la
+          // comparación con una diferencia que no viene de `/auth/login`.
+          // Se deja terminar antes de medir; en producción registro y login
+          // son peticiones separadas en el tiempo, no dos cosas simultáneas.
+          await app.waitForPendingMail();
           for (let j = 0; j < LOGINS_PER_APP && existingLatencies.length < SAMPLES_PER_SIDE; j++) {
             existingLatencies.push(await measureLoginLatencyMs(app, email, `wrong-password-attempt-${j}`));
           }

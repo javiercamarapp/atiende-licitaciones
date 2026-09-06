@@ -41,6 +41,11 @@ describe('API-03: /auth/register no permite enumerar cuentas existentes', () => 
     expect(usersWithEmail.rows.length).toBe(1);
     expect(usersWithEmail.rows[0].id).toBe(firstId);
 
+    // REQ-181..195: el login exige el correo confirmado -- se confirma la
+    // cuenta REAL (la del primer registro) para poder comprobar debajo cuál
+    // de las dos contraseñas quedó vigente, que es lo que este test mide.
+    await db.query('update users set email_verified_at = now() where id = $1', [firstId]);
+
     // La contraseña original (la de la cuenta real) sigue siendo la válida;
     // la "nueva" contraseña del intento duplicado nunca se aplicó.
     const loginOriginal = await app.inject({

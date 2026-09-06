@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { DbClient } from '@atiende/db';
 import { createTestApp, registerAndLogin, createOrgFor } from './helpers.js';
+import { lastMailTo, signedParamsFrom } from './helpers/mail.js';
 
 describe('flujo: registro -> login -> crear org -> invitar -> cambiar rol', () => {
   let app: FastifyInstance;
@@ -39,6 +40,21 @@ describe('flujo: registro -> login -> crear org -> invitar -> cambiar rol', () =
 
     const rows = await db.query<{ id: string }>('select id from users where lower(email) = lower($1)', ['flow@example.com']);
     expect(rows.rows.length).toBe(1);
+
+    // REQ-181..195: el login por email+contraseña ahora exige el correo
+    // confirmado. Se confirma con el enlace REAL del correo de verificación
+    // (capturado por el CaptureProvider), no tocando la base a mano: este
+    // archivo es justamente el que documenta el flujo de producto completo.
+    // El registro DUPLICADO de arriba no manda ningún correo (corta antes,
+    // ver la rama anti-enumeración de `modules/auth/routes.ts`), así que
+    // solo hay un enlace de verificación en juego.
+    const verificacion = await lastMailTo(app, 'flow@example.com');
+    const verify = await app.inject({
+      method: 'POST',
+      url: '/auth/email/verify',
+      payload: signedParamsFrom(verificacion, '/verificar-correo'),
+    });
+    expect(verify.statusCode).toBe(200);
   });
 
   it('login con credenciales correctas devuelve tokens; con incorrectas da 401', async () => {
