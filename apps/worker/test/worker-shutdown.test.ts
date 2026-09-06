@@ -170,7 +170,9 @@ describe('Worker: cierre ordenado (SIGTERM)', () => {
     await db.query(`update jobs set locked_at = now() - interval '120 seconds' where id = $1`, [job.id]);
     const reclaimedByB = await queue.claim('worker-B', { leaseSeconds: 60 });
     expect(reclaimedByB?.id).toBe(job.id);
-    expect(reclaimedByB?.lockedBy).toBe('worker-B');
+    // WK-14: `locked_by` lleva un lease token embebido (`${workerId}::${uuid}`),
+    // ya no es el `workerId` plano.
+    expect(reclaimedByB?.lockedBy).toMatch(/^worker-B::/);
 
     // El próximo heartbeat automático de worker-A debe detectar `false` y abortar.
     const deadline = Date.now() + 2000;
@@ -183,7 +185,7 @@ describe('Worker: cierre ordenado (SIGTERM)', () => {
     // worker-A NUNCA debió persistir nada: el job sigue siendo de worker-B,
     // sin tocar (ni completado, ni fallado, ni recontado como reintento).
     const finalRow = await queue.getById(job.id);
-    expect(finalRow?.lockedBy).toBe('worker-B');
+    expect(finalRow?.lockedBy).toBe(reclaimedByB?.lockedBy);
     expect(finalRow?.status).toBe('running');
     expect(finalRow?.attempts).toBe(2); // 1 (worker-A) + 1 (worker-B), nunca más
     expect(worker.metrics.get('fenced', 'fenced_kind')).toBe(1);

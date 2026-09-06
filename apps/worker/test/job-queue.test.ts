@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { DbClient } from '@atiende/db';
 import { JobQueue } from '../src/queue/job-queue.js';
+import { StaleLeaseError } from '../src/queue/errors.js';
 import { createMigratedDb } from './helpers.js';
 
 /**
@@ -56,7 +57,10 @@ describe('JobQueue: reclamo atómico sin doble procesamiento', () => {
     expect(claimed?.id).toBe(job.id);
     expect(claimed?.attempts).toBe(1);
     expect(claimed?.status).toBe('running');
-    expect(claimed?.lockedBy).toBe('worker-x');
+    // WK-14: `locked_by` ya no es el `workerId` plano — lleva embebido un
+    // lease token (UUID) generado en este claim() (ver describe "WK-14"
+    // más abajo para el porqué).
+    expect(claimed?.lockedBy).toMatch(/^worker-x::[0-9a-f-]{36}$/);
   });
 });
 
@@ -153,7 +157,7 @@ describe('JobQueue: reintentos con backoff exponencial + jitter', () => {
     const t1 = new Date();
     const claim1 = await queue.claim('w1');
     expect(claim1!.attempts).toBe(1);
-    const afterFail1 = await queue.fail(claim1!, 'w1', 'boom-1');
+    const afterFail1 = await queue.fail(claim1!, claim1!.lockedBy!, 'boom-1');
     expect(afterFail1!.status).toBe('queued');
     const delay1 = afterFail1!.nextRunAt.getTime() - t1.getTime();
     expect(delay1).toBeGreaterThanOrEqual(900); // ~1000ms (jitter=0)
@@ -166,7 +170,7 @@ describe('JobQueue: reintentos con backoff exponencial + jitter', () => {
     const claim2 = await queue.claim('w1');
     expect(claim2!.id).toBe(job.id);
     expect(claim2!.attempts).toBe(2);
-    const afterFail2 = await queue.fail(claim2!, 'w1', 'boom-2');
+    const afterFail2 = await queue.fail(claim2!, claim2!.lockedBy!, 'boom-2');
     expect(afterFail2!.status).toBe('queued');
     const delay2 = afterFail2!.nextRunAt.getTime() - t2.getTime();
     // Backoff exponencial: el segundo delay es aproximadamente el doble del primero.
@@ -177,7 +181,7 @@ describe('JobQueue: reintentos con backoff exponencial + jitter', () => {
     // Intento 3 (== maxAttempts): falla -> dead letter con el último error.
     const claim3 = await queue.claim('w1');
     expect(claim3!.attempts).toBe(3);
-    const afterFail3 = await queue.fail(claim3!, 'w1', 'boom-final');
+    const afterFail3 = await queue.fail(claim3!, claim3!.lockedBy!, 'boom-final');
     expect(afterFail3!.status).toBe('dead');
     expect(afterFail3!.lastError).toBe('boom-final');
     expect(afterFail3!.lockedBy).toBeNull();
@@ -193,7 +197,7 @@ describe('JobQueue: reintentos con backoff exponencial + jitter', () => {
     const t0 = new Date();
     const claimed = await jitteredQueue.claim('w1');
     expect(claimed!.id).toBe(job.id);
-    const failed = await jitteredQueue.fail(claimed!, 'w1', 'err');
+    const failed = await jitteredQueue.fail(claimed!, claimed!.lockedBy!, 'err');
     const delay = failed!.nextRunAt.getTime() - t0.getTime();
     // base=1000, attempt=1 -> pure=1000, jitter ±20% -> [800, 1200]
     expect(delay).toBeGreaterThanOrEqual(750);
@@ -228,18 +232,18 @@ describe('JobQueue: lease expirado se recupera', () => {
 
     const recovered = await queue.claim('worker-B', { leaseSeconds: 60 });
     expect(recovered?.id).toBe(job.id);
-    expect(recovered?.lockedBy).toBe('worker-B');
+    expect(recovered?.lockedBy).toMatch(/^worker-B::/);
     // Recuperar un lease expirado cuenta como un nuevo intento (protege contra jobs zombie infinitos).
     expect(recovered?.attempts).toBe(2);
   });
 
   it('heartbeat extiende el lease y evita que otro worker lo recupere', async () => {
     const { job } = await queue.enqueue('test_kind', {});
-    await queue.claim('worker-A', { leaseSeconds: 60 });
+    const claimedA = await queue.claim('worker-A', { leaseSeconds: 60 });
 
     // Retrocede el reloj como si hubiera pasado tiempo, pero el heartbeat lo refresca justo antes.
     await db.query(`update jobs set locked_at = now() - interval '55 seconds' where id = $1`, [job.id]);
-    const beat = await queue.heartbeat(job.id, 'worker-A');
+    const beat = await queue.heartbeat(job.id, claimedA!.lockedBy!);
     expect(beat).toBe(true);
 
     const stillLocked = await queue.claim('worker-B', { leaseSeconds: 60 });
@@ -299,7 +303,7 @@ describe('JobQueue: idempotencia por jobKey', () => {
 
     const first = await queue.enqueue('discover_tenders', { sourceId: 'dof' }, { jobKey: 'dof:window-1' });
     const claimed = await queue.claim('w1');
-    await queue.complete(claimed!.id, 'w1');
+    await queue.complete(claimed!.id, claimed!.lockedBy!);
 
     // Distinta ventana (jobKey distinto) => nuevo job, no deduplicado.
     const second = await queue.enqueue('discover_tenders', { sourceId: 'dof' }, { jobKey: 'dof:window-2' });
@@ -317,7 +321,7 @@ describe('JobQueue: WK-10 — deadLetterPermanent (errores permanentes, sin cicl
     const claimed = await queue.claim('w1');
     expect(claimed?.attempts).toBe(1); // muy lejos de max_attempts=5
 
-    const dead = await queue.deadLetterPermanent(claimed!, 'w1', 'fuente_no_verificada:dof');
+    const dead = await queue.deadLetterPermanent(claimed!, claimed!.lockedBy!, 'fuente_no_verificada:dof');
     expect(dead?.status).toBe('dead');
     expect(dead?.lastError).toBe('fuente_no_verificada:dof');
     expect(dead?.lockedBy).toBeNull();
@@ -334,23 +338,113 @@ describe('JobQueue: complete', () => {
     const db = await createMigratedDb();
     const queue = new JobQueue({ db });
     const { job } = await queue.enqueue('test_kind', {});
-    await queue.claim('w1');
-    const done = await queue.complete(job.id, 'w1');
+    const claimed = await queue.claim('w1');
+    const done = await queue.complete(job.id, claimed!.lockedBy!);
     expect(done?.status).toBe('succeeded');
     expect(done?.lockedBy).toBeNull();
     expect(done?.lockedAt).toBeNull();
     await db.close();
   });
 
-  it('complete con el workerId equivocado no hace nada (protege contra confirmaciones cruzadas)', async () => {
+  it('complete con un lockedBy equivocado lanza StaleLeaseError y no persiste nada (protege contra confirmaciones cruzadas)', async () => {
     const db = await createMigratedDb();
     const queue = new JobQueue({ db });
     const { job } = await queue.enqueue('test_kind', {});
     await queue.claim('w1');
-    const done = await queue.complete(job.id, 'w2-impostor');
-    expect(done).toBeUndefined();
+    await expect(queue.complete(job.id, 'w2-impostor::00000000-0000-0000-0000-000000000000')).rejects.toThrow(StaleLeaseError);
     const stillRunning = await queue.getById(job.id);
     expect(stillRunning?.status).toBe('running');
     await db.close();
+  });
+});
+
+/**
+ * WK-14 (docs/auditoria-1/worker-reverificacion.md, cierre de WK-02
+ * PARCIAL): antes de esta ronda `complete()`/`fail()`/`deadLetterPermanent()`
+ * solo verificaban `locked_by = workerId` (SIN comparar ningún token de
+ * generación, a diferencia de `heartbeat()`). Bajo reutilización del MISMO
+ * `WORKER_ID` tras un reinicio (patrón explícitamente sugerido por el
+ * README: "cada uno con su propio WORKER_ID", que en despliegues reales
+ * suele ser un valor ESTABLE — nombre de pod, hostname —, no aleatorio por
+ * arranque), un proceso "zombie" de una generación anterior podía terminar
+ * el job de la generación NUEVA que sigue corriendo bajo el mismo
+ * `workerId`. Ahora `claim()` genera un lease token (UUID) NUEVO en cada
+ * reclamo, embebido en `locked_by` (`${workerId}::${uuid}`), y las 4
+ * operaciones exigen ese valor EXACTO — no solo el prefijo `workerId`.
+ */
+describe('JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent()', () => {
+  let db: DbClient;
+  let queue: JobQueue;
+
+  beforeEach(async () => {
+    db = await createMigratedDb();
+    queue = new JobQueue({ db });
+  });
+
+  afterEach(async () => {
+    await db.close();
+  });
+
+  it('WORKER_ID reutilizado tras "reinicio" (mismo string, lease token distinto): complete() del zombie de la generación anterior es rechazado', async () => {
+    const { job } = await queue.enqueue('test_kind', {});
+    const gen1 = await queue.claim('worker-fixed-id', { leaseSeconds: 60 });
+    expect(gen1?.lockedBy).toMatch(/^worker-fixed-id::/);
+
+    // Simula un reinicio del proceso CON EL MISMO WORKER_ID (patrón que
+    // sugiere el README: pod estable/hostname): el lease de la generación 1
+    // expira (crash real, nunca pasa por `complete()`/`fail()`)...
+    await db.query(`update jobs set locked_at = now() - interval '120 seconds' where id = $1`, [job.id]);
+    // ...y el proceso reiniciado (mismo workerId) reclama de nuevo: generación 2.
+    const gen2 = await queue.claim('worker-fixed-id', { leaseSeconds: 60 });
+    expect(gen2?.id).toBe(job.id);
+    expect(gen2?.lockedBy).toMatch(/^worker-fixed-id::/);
+    // Aunque el string workerId es IDÉNTICO, el lease token (uuid) es distinto.
+    expect(gen2?.lockedBy).not.toBe(gen1?.lockedBy);
+
+    // El "zombie" de la generación 1 (una promesa huérfana que nunca murió
+    // de verdad) intenta terminar el job usando el lockedBy VIEJO.
+    await expect(queue.complete(job.id, gen1!.lockedBy!)).rejects.toThrow(StaleLeaseError);
+
+    // El job sigue intacto, propiedad de la generación 2 — nunca se marcó succeeded.
+    const stillOwned = await queue.getById(job.id);
+    expect(stillOwned?.status).toBe('running');
+    expect(stillOwned?.lockedBy).toBe(gen2!.lockedBy);
+  });
+
+  it('fail() del zombie con lockedBy viejo también es rechazado (no aplica backoff/dead-letter equivocado)', async () => {
+    const { job } = await queue.enqueue('test_kind', {}, { maxAttempts: 5 });
+    const gen1 = await queue.claim('worker-fixed-id', { leaseSeconds: 60 });
+    await db.query(`update jobs set locked_at = now() - interval '120 seconds' where id = $1`, [job.id]);
+    const gen2 = await queue.claim('worker-fixed-id', { leaseSeconds: 60 });
+
+    await expect(queue.fail(gen1!, gen1!.lockedBy!, 'zombie-fail')).rejects.toThrow(StaleLeaseError);
+
+    const stillOwned = await queue.getById(job.id);
+    expect(stillOwned?.status).toBe('running');
+    expect(stillOwned?.lockedBy).toBe(gen2!.lockedBy);
+    expect(stillOwned?.lastError).toBeNull();
+  });
+
+  it('deadLetterPermanent() del zombie con lockedBy viejo también es rechazado', async () => {
+    const { job } = await queue.enqueue('test_kind', {});
+    const gen1 = await queue.claim('worker-fixed-id', { leaseSeconds: 60 });
+    await db.query(`update jobs set locked_at = now() - interval '120 seconds' where id = $1`, [job.id]);
+    const gen2 = await queue.claim('worker-fixed-id', { leaseSeconds: 60 });
+
+    await expect(queue.deadLetterPermanent(gen1!, gen1!.lockedBy!, 'zombie-dead')).rejects.toThrow(StaleLeaseError);
+
+    const stillOwned = await queue.getById(job.id);
+    expect(stillOwned?.status).toBe('running');
+    expect(stillOwned?.lockedBy).toBe(gen2!.lockedBy);
+  });
+
+  it('heartbeat() del zombie con lockedBy viejo retorna false (ya lo hacía por attempts en WK-02; ahora también por lease token)', async () => {
+    const { job } = await queue.enqueue('test_kind', {});
+    const gen1 = await queue.claim('worker-fixed-id', { leaseSeconds: 60 });
+    await db.query(`update jobs set locked_at = now() - interval '120 seconds' where id = $1`, [job.id]);
+    await queue.claim('worker-fixed-id', { leaseSeconds: 60 });
+
+    const beat = await queue.heartbeat(job.id, gen1!.lockedBy!);
+    expect(beat).toBe(false);
   });
 });

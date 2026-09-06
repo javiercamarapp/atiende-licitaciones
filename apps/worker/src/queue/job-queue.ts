@@ -1,5 +1,7 @@
+import { randomUUID } from 'node:crypto';
 import type { DbClient } from '@atiende/db';
 import { computeBackoffDelayMs, type BackoffOptions } from './backoff.js';
+import { StaleLeaseError } from './errors.js';
 import { type EnqueueOptions, type Job, type JobRow, mapJobRow } from './types.js';
 
 export interface JobQueueOptions {
@@ -29,6 +31,15 @@ export interface JobQueueOptions {
  * dupliquen un job con el mismo `(kind, jobKey)`; el índice único parcial
  * sigue siendo la solución definitiva recomendada una vez que se apruebe
  * la migración propuesta.
+ *
+ * WK-15 (docs/auditoria-1/worker-reverificacion.md, cierre de WK-04
+ * PARCIAL): el SQL de arriba es correcto para Postgres real; en PGlite
+ * (una sola conexión/proceso, sin concurrencia de motor real posible) solo
+ * se verifica la lógica secuencial (`test/scheduler.test.ts` "WK-04") y,
+ * por separado, el SQL exacto emitido — `pg_advisory_xact_lock` con la
+ * clave estable `${kind}:${jobKey}` (`test/scheduler.test.ts` "WK-15"). La
+ * concurrencia de motor real contra Postgres queda PENDIENTE (ref. B-03,
+ * README §Pendientes).
  */
 export class JobQueue {
   private readonly db: DbClient;
@@ -139,6 +150,16 @@ export class JobQueue {
     const leaseSeconds = options.leaseSeconds ?? 60;
     const now = this.now();
     const leaseCutoff = new Date(now.getTime() - leaseSeconds * 1000);
+    // WK-14 (docs/auditoria-1/worker-reverificacion.md): lease token REAL,
+    // generado en CADA reclamo (inicial o por recuperación de lease
+    // expirado), sin importar si `workerId` es igual o distinto al de la
+    // generación anterior — un reinicio con el MISMO `WORKER_ID` (patrón
+    // sugerido por el README) produce igualmente un `locked_by` NUEVO,
+    // porque el UUID es aleatorio por llamada. Se embebe en `locked_by`
+    // (columna ya existente, sin migración nueva) como `${workerId}::${uuid}`;
+    // `heartbeat()`/`complete()`/`fail()`/`deadLetterPermanent()` exigen
+    // esta cadena COMPLETA, no solo el prefijo `workerId`.
+    const lockedByValue = `${workerId}::${randomUUID()}`;
     const { rows } = await this.db.query<JobRow>(
       `update jobs
        set status = case when attempts + 1 > max_attempts then 'dead'::job_status else 'running'::job_status end,
@@ -163,7 +184,7 @@ export class JobQueue {
          limit 1
        )
        returning *`,
-      [workerId, now.toISOString(), leaseCutoff.toISOString(), options.kinds ?? null],
+      [lockedByValue, now.toISOString(), leaseCutoff.toISOString(), options.kinds ?? null],
     );
     const row = rows[0];
     if (!row) return undefined;
@@ -174,59 +195,78 @@ export class JobQueue {
   }
 
   /**
-   * Refresca el lease de un job en curso; retorna `false` si ya no le
-   * pertenece a `workerId` (otro worker lo reclamó, p. ej. tras una
-   * recuperación de lease expirado con el worker original todavía vivo).
+   * Refresca el lease de un job en curso; retorna `false` si `lockedBy` ya
+   * no coincide EXACTO con la fila (otro `claim()` — de cualquier worker,
+   * incluido el mismo `workerId` reutilizado tras un reinicio — se lo llevó
+   * mientras tanto).
    *
-   * WK-02 (fencing token, docs/auditoria-1/worker.md): no existe una
-   * columna `lease_generation` dedicada (no se agregó migración nueva en
-   * esta ronda, ver README §Pendientes/db-proposals), pero `attempts` YA
-   * cumple ese rol: `claim()` la incrementa en CADA reclamo (inicial o por
-   * recuperación de lease), así que su valor en el momento del `claim()` es,
-   * de hecho, la generación/"fencing token" de esa posesión del lease. Si se
-   * pasa `expectedAttempts` (el `job.attempts` devuelto por el `claim()` que
-   * originó este handler) y la fila fue reclamada de nuevo por otro worker
-   * mientras tanto, `attempts` ya cambió y esta condición también falla —
-   * doble verificación (locked_by Y attempts) incluso en el caso extremo de
-   * colisión de `workerId`.
+   * WK-14 (docs/auditoria-1/worker-reverificacion.md, reemplaza el fencing
+   * por `attempts` de WK-02): `lockedBy` debe ser el valor EXACTO devuelto
+   * por `claim()` (`Job.lockedBy`, con el lease token UUID embebido), no
+   * solo el `workerId`. A diferencia de `complete()`/`fail()`/
+   * `deadLetterPermanent()`, `heartbeat()` sigue devolviendo `boolean` (no
+   * lanza `StaleLeaseError`): se sondea periódicamente en un `setInterval`
+   * de "fire and forget" (`Worker.process()`) precisamente para detectar la
+   * pérdida de lease ANTES de que el handler termine, no para abortar la
+   * propia operación de heartbeat.
    */
-  async heartbeat(jobId: string, workerId: string, expectedAttempts?: number): Promise<boolean> {
+  async heartbeat(jobId: string, lockedBy: string): Promise<boolean> {
     const { rowCount } = await this.db.query(
       `update jobs
        set locked_at = $3
-       where id = $1 and locked_by = $2 and status = 'running'
-         and ($4::integer is null or attempts = $4::integer)`,
-      [jobId, workerId, this.now().toISOString(), expectedAttempts ?? null],
+       where id = $1 and locked_by = $2 and status = 'running'`,
+      [jobId, lockedBy, this.now().toISOString()],
     );
     return rowCount > 0;
   }
 
-  async complete(jobId: string, workerId: string): Promise<Job | undefined> {
+  /**
+   * WK-14: `lockedBy` debe ser el valor EXACTO devuelto por `claim()`
+   * (`Job.lockedBy`). Si no coincide con la fila (`status='running' AND
+   * locked_by=lockedBy`), NO se persiste ningún cambio y se lanza
+   * `StaleLeaseError` — nunca un no-op silencioso — para que quien llama
+   * (`Worker.process()`) pueda distinguir "de verdad completé este job" de
+   * "mi lease ya no era válido cuando intenté completar".
+   */
+  async complete(jobId: string, lockedBy: string): Promise<Job> {
     const { rows } = await this.db.query<JobRow>(
       `update jobs
        set status = 'succeeded', locked_at = null, locked_by = null, last_error = null
-       where id = $1 and locked_by = $2
+       where id = $1 and locked_by = $2 and status = 'running'
        returning *`,
-      [jobId, workerId],
+      [jobId, lockedBy],
     );
-    return rows[0] ? mapJobRow(rows[0]) : undefined;
+    if (!rows[0]) {
+      throw new StaleLeaseError(
+        `complete(): lease inválido o vencido para el job ${jobId} (lockedBy no coincide con la fila real, o ya no está "running"); ningún cambio se persistió (WK-14).`,
+      );
+    }
+    return mapJobRow(rows[0]);
   }
 
   /**
    * Registra un fallo. Si `attempts >= maxAttempts`, el job pasa a `dead`
    * (dead letter) con el último error; si no, vuelve a `queued` con
    * `next_run_at` calculado por backoff exponencial + jitter.
+   *
+   * WK-14: mismo contrato de `lockedBy` exacto + `StaleLeaseError` que
+   * `complete()`/`deadLetterPermanent()` — ver esa nota.
    */
-  async fail(job: Job, workerId: string, error: string): Promise<Job | undefined> {
+  async fail(job: Job, lockedBy: string, error: string): Promise<Job> {
     if (job.attempts >= job.maxAttempts) {
       const { rows } = await this.db.query<JobRow>(
         `update jobs
          set status = 'dead', locked_at = null, locked_by = null, last_error = $3
-         where id = $1 and locked_by = $2
+         where id = $1 and locked_by = $2 and status = 'running'
          returning *`,
-        [job.id, workerId, error],
+        [job.id, lockedBy, error],
       );
-      return rows[0] ? mapJobRow(rows[0]) : undefined;
+      if (!rows[0]) {
+        throw new StaleLeaseError(
+          `fail() (dead-letter por max_attempts): lease inválido o vencido para el job ${job.id}; ningún cambio se persistió (WK-14).`,
+        );
+      }
+      return mapJobRow(rows[0]);
     }
 
     const delayMs = computeBackoffDelayMs(job.attempts, this.backoffOptions);
@@ -234,11 +274,16 @@ export class JobQueue {
     const { rows } = await this.db.query<JobRow>(
       `update jobs
        set status = 'queued', next_run_at = $3, last_error = $4, locked_at = null, locked_by = null
-       where id = $1 and locked_by = $2
+       where id = $1 and locked_by = $2 and status = 'running'
        returning *`,
-      [job.id, workerId, nextRunAt.toISOString(), error],
+      [job.id, lockedBy, nextRunAt.toISOString(), error],
     );
-    return rows[0] ? mapJobRow(rows[0]) : undefined;
+    if (!rows[0]) {
+      throw new StaleLeaseError(
+        `fail(): lease inválido o vencido para el job ${job.id}; ningún cambio se persistió (WK-14).`,
+      );
+    }
+    return mapJobRow(rows[0]);
   }
 
   /**
@@ -250,16 +295,24 @@ export class JobQueue {
    * completo de backoff hasta `max_attempts` es puro desperdicio de
    * capacidad de worker. A diferencia de `fail()`, esto NO respeta
    * `max_attempts`/backoff: pasa a `dead` en el primer intento.
+   *
+   * WK-14: mismo contrato de `lockedBy` exacto + `StaleLeaseError` que
+   * `complete()`/`fail()` — ver esa nota.
    */
-  async deadLetterPermanent(job: Job, workerId: string, error: string): Promise<Job | undefined> {
+  async deadLetterPermanent(job: Job, lockedBy: string, error: string): Promise<Job> {
     const { rows } = await this.db.query<JobRow>(
       `update jobs
        set status = 'dead', locked_at = null, locked_by = null, last_error = $3
-       where id = $1 and locked_by = $2
+       where id = $1 and locked_by = $2 and status = 'running'
        returning *`,
-      [job.id, workerId, error],
+      [job.id, lockedBy, error],
     );
-    return rows[0] ? mapJobRow(rows[0]) : undefined;
+    if (!rows[0]) {
+      throw new StaleLeaseError(
+        `deadLetterPermanent(): lease inválido o vencido para el job ${job.id}; ningún cambio se persistió (WK-14).`,
+      );
+    }
+    return mapJobRow(rows[0]);
   }
 
   /** Cancela un job que aún no ha terminado. No hay estado `cancelled` en el enum (ver README §Pendientes): se usa `dead`. */
@@ -279,22 +332,32 @@ export class JobQueue {
     return rows[0] ? mapJobRow(rows[0]) : undefined;
   }
 
-  /** Libera el lock de un job sin cambiar su status ni contar como fallo (usado en cierre ordenado). */
-  async release(jobId: string, workerId: string): Promise<void> {
+  /**
+   * Libera el lock de un job sin cambiar su status ni contar como fallo
+   * (usado en cierre ordenado). `lockedBy` debe ser el valor EXACTO de
+   * `Job.lockedBy` (WK-14): sin fila que coincida, es un no-op silencioso
+   * (a propósito — liberar un lock que ya no es tuyo no debe romper el
+   * apagado ordenado con una excepción).
+   */
+  async release(jobId: string, lockedBy: string): Promise<void> {
     await this.db.query(
       `update jobs set locked_at = null, locked_by = null where id = $1 and locked_by = $2 and status = 'running'`,
-      [jobId, workerId],
+      [jobId, lockedBy],
     );
   }
 
-  /** Vuelve a poner en `queued` un job `running` propiedad de este worker, para que se reintente sin penalizar attempts (cierre ordenado). */
-  async requeue(jobId: string, workerId: string): Promise<Job | undefined> {
+  /**
+   * Vuelve a poner en `queued` un job `running` propiedad de este worker,
+   * para que se reintente sin penalizar attempts (cierre ordenado).
+   * `lockedBy` debe ser el valor EXACTO de `Job.lockedBy` (WK-14).
+   */
+  async requeue(jobId: string, lockedBy: string): Promise<Job | undefined> {
     const { rows } = await this.db.query<JobRow>(
       `update jobs
        set status = 'queued', locked_at = null, locked_by = null
        where id = $1 and locked_by = $2 and status = 'running'
        returning *`,
-      [jobId, workerId],
+      [jobId, lockedBy],
     );
     return rows[0] ? mapJobRow(rows[0]) : undefined;
   }
