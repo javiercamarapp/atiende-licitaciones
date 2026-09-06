@@ -256,9 +256,42 @@ function compareCanonical(a: unknown, b: unknown): number {
  * (que ni siquiera es `typeof "object"`, así que antes pasaba directo a
  * `JSON.stringify`, y `JSON.stringify(1n)` LANZA `TypeError: Do not know
  * how to serialize a BigInt`) como su representación decimal en texto.
+ *
+ * EX-EXP-18 residual, cerrado en esta ronda (corrector BAJA): `number`
+ * caía directo a la rama final `return value` sin normalizar, así que
+ * `JSON.stringify` decidía por su cuenta — y su comportamiento para dos
+ * casos produce colisiones reales:
+ *  - `JSON.stringify(-0) === "0"`: `-0` y `0` son valores de `bigint`/IEEE
+ *    754 DISTINTOS (`Object.is(-0, 0)` es `false`, y `1 / -0 === -Infinity`
+ *    mientras `1 / 0 === Infinity`) pero colapsaban al mismo hash.
+ *  - `JSON.stringify(NaN) === JSON.stringify(Infinity) === JSON.stringify(-Infinity)
+ *    === "null"`: los tres, y además el propio `null`, colapsaban al mismo
+ *    hash — la colisión más amplia de las dos.
+ * Decisión de diseño (documentada en el README): para insumos de
+ * expediente, un número NO FINITO (`NaN`/`Infinity`/`-Infinity`) nunca es
+ * un valor legítimo que hashear — es un error de VALIDACIÓN del insumo de
+ * origen (p. ej. un cálculo que se salió de rango), no una decisión de
+ * canonicalización. Por eso `sortKeysDeep` LANZA fail-closed ante ellos, en
+ * vez de inventar un marcador que los distinga entre sí. `-0`, en cambio,
+ * sí es un valor numérico finito legítimo (aunque infrecuente en insumos de
+ * expediente reales) y se preserva con el mismo patrón de marcador de tipo
+ * usado para `Date`/`Map`/`Set`/`BigInt`, para que nunca colisione con `0`.
  */
 function sortKeysDeep(value: unknown): unknown {
   if (value === undefined) return UNDEFINED_SENTINEL;
+  if (typeof value === "number") {
+    if (Number.isNaN(value) || !Number.isFinite(value)) {
+      throw new Error(
+        `stableStringify: no se puede serializar un número no finito (${String(value)}). Para insumos de expediente ` +
+          `(EX-EXP-18 residual), un NaN/Infinity/-Infinity es un error de VALIDACIÓN del insumo de origen, no un valor ` +
+          `hasheable — corrija el cálculo/insumo antes de llamar a sha256Hex/computeInputsHash en vez de hashear este valor.`,
+      );
+    }
+    if (Object.is(value, -0)) {
+      return { [TYPE_MARKER_KEY]: "NegativeZero" };
+    }
+    return value;
+  }
   if (typeof value === "bigint") {
     return { [TYPE_MARKER_KEY]: "BigInt", value: value.toString() };
   }

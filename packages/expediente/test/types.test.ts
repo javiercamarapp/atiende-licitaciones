@@ -232,3 +232,46 @@ describe("stableStringify/sha256Hex — EX-EXP-18: Date/Map/Set/BigInt ya no col
     expect(sha256Hex(withNull)).not.toBe(sha256Hex(absent));
   });
 });
+
+/**
+ * EX-EXP-18 residual (auditoría §4, corrector ronda 4, severidad BAJA):
+ * `sortKeysDeep` dejaba pasar `number` sin normalizar a la rama final
+ * `return value`, y `JSON.stringify` colisiona en dos casos reales:
+ * `JSON.stringify(-0) === "0"` (colisiona con `0`) y
+ * `JSON.stringify(NaN) === JSON.stringify(Infinity) === JSON.stringify(-Infinity)
+ * === "null"` (colisiona entre los tres Y con `null`). Decisión de diseño
+ * (ver README): un número no finito es un error de VALIDACIÓN del insumo,
+ * no un valor serializable — `stableStringify`/`sha256Hex` lanzan
+ * fail-closed. `-0` sí es un valor finito legítimo y se preserva con un
+ * marcador de tipo, igual que `Date`/`Map`/`Set`/`BigInt`.
+ */
+describe("stableStringify/sha256Hex — EX-EXP-18 residual: -0/NaN/Infinity ya no colisionan", () => {
+  it("-0 y 0 ya NO producen el mismo hash (antes: JSON.stringify(-0) === JSON.stringify(0) === '0')", () => {
+    expect(sha256Hex(-0)).not.toBe(sha256Hex(0));
+  });
+
+  it("-0 anidado dentro de un objeto tampoco colisiona con 0 en la misma posición", () => {
+    expect(sha256Hex({ total: -0 })).not.toBe(sha256Hex({ total: 0 }));
+  });
+
+  it("-0 es determinista consigo mismo", () => {
+    expect(sha256Hex(-0)).toBe(sha256Hex(-0));
+    expect(sha256Hex({ total: -0 })).toBe(sha256Hex({ total: -0 }));
+  });
+
+  it("serializar NaN lanza explícitamente (antes: colapsaba a 'null', colisionando con null/Infinity/-Infinity)", () => {
+    expect(() => sha256Hex(NaN)).toThrow(/no finito/);
+    expect(() => sha256Hex({ total: NaN })).toThrow(/no finito/);
+  });
+
+  it("serializar Infinity/-Infinity lanza explícitamente (antes: ambos colapsaban a 'null')", () => {
+    expect(() => sha256Hex(Infinity)).toThrow(/no finito/);
+    expect(() => sha256Hex(-Infinity)).toThrow(/no finito/);
+  });
+
+  it("un número finito normal (incluido 0 positivo) nunca lanza y sigue siendo determinista", () => {
+    expect(() => sha256Hex(0)).not.toThrow();
+    expect(() => sha256Hex(42)).not.toThrow();
+    expect(sha256Hex(0)).toBe(sha256Hex(0));
+  });
+});
