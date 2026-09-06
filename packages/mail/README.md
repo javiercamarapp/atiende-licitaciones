@@ -38,7 +38,9 @@ src/
                                  preferencias/baja + placeholder legal marcado
     blocks.tsx                  CtaButton, DataTable, CodeBlock, BackupCodesGrid, Callout, ToneBadge
   security/
-    safe-url.ts                  Solo deja pasar http(s) (nunca javascript:/data:) en cualquier href
+    safe-url.ts                  Solo deja pasar http(s) (nunca javascript:/data:); http:// SOLO a un
+                                 host de una lista blanca EXACTA (localhost/127.0.0.1/env), nunca por
+                                 prefijo de cadena (ML-03)
     signed-link.ts                createLinkSigner(secret) → {signedLink, verifySignedLink} (HMAC-SHA256)
   preferences/
     types.ts / filter.ts          NotificationCategory, NotificationPreferences, isCategoryEnabled()
