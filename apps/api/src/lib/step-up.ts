@@ -33,7 +33,10 @@ export const STEP_UP_PURPOSES = [
   'expediente.approval',
   'tool_call.approval',
   'admin.action',
-  // Ronda 6 (REQ-051/REQ-053, migración 0065): transiciones de contrato con
+  // Ronda 6 (REQ-051/REQ-053, migración 0066 -- R6-06: el comentario decía
+  // "0065" por un resto de la renumeración tras la colisión de subagentes
+  // documentada en apps/api/docs/e11-cobertura.md; el archivo real es
+  // 0066_r6_step_up_purposes_contract_inconformidad.sql): transiciones de contrato con
   // impacto económico/legal (rescindir/penalizar/en_inconformidad/modificar)
   // y marcar un borrador de inconformidad como revisado por abogado.
   'expediente.contract_transition',
