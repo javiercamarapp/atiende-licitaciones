@@ -133,4 +133,91 @@ describe("ConfiguracionPage", () => {
 
     toCanvasSpy.mockRestore();
   }, 15000);
+
+  // Ronda 8a: la pantalla de seguridad NO ofrece desactivar 2FA, regenerar
+  // códigos de respaldo ni listar sesiones activas porque apps/api no
+  // expone ningún endpoint para eso (se comprobó ruta por ruta en
+  // modules/twofa/routes.ts, modules/auth/routes.ts y modules/me/routes.ts).
+  // Esta prueba fija esa honestidad: los huecos se DECLARAN en la UI, y no
+  // aparece ningún control que fingiría llamarlos.
+  it("declara honestamente los huecos de seguridad en vez de ofrecer botones sin endpoint detrás", async () => {
+    server.use(http.get("*/auth/2fa/status", () => HttpResponse.json({ enrolled: true, enrolledAt: "2026-01-01T00:00:00Z" })));
+    renderWithProviders(<ConfiguracionPage />);
+
+    expect(await screen.findByRole("heading", { name: "Lo que esta pantalla todavía no puede hacer" })).toBeInTheDocument();
+    expect(screen.getByText(/Desactivar la verificación en dos pasos/)).toBeInTheDocument();
+    expect(screen.getByText(/Regenerar códigos de respaldo/)).toBeInTheDocument();
+    expect(screen.getByText(/Ver y cerrar tus sesiones activas/)).toBeInTheDocument();
+
+    expect(screen.queryByRole("button", { name: /desactivar/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /regenerar/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /cerrar (las )?(demás )?sesiones/i })).not.toBeInTheDocument();
+  }, 15000);
+
+  it("adversarial: re-enrolar sobre un 2FA ya verificado muestra el 409 real de apps/api, sin borrar nada", async () => {
+    const user = userEvent.setup();
+    server.use(
+      // `status` dice "no enrolado" (p. ej. una respuesta ya rancia en
+      // caché) pero la API sabe la verdad y responde 409 -- la pantalla
+      // debe creerle a la API, no a su propio estado.
+      http.get("*/auth/2fa/status", () => HttpResponse.json({ enrolled: false, enrolledAt: null })),
+      http.post("*/auth/2fa/enroll", () =>
+        HttpResponse.json(
+          {
+            type: "https://atiende.example/errors/conflict",
+            title: "Este usuario ya tiene 2FA enrolado y verificado. No se permite re-enrolar sin antes desenrolar.",
+            status: 409,
+          },
+          { status: 409 },
+        ),
+      ),
+    );
+
+    renderWithProviders(
+      <>
+        <Toaster />
+        <ConfiguracionPage />
+      </>,
+    );
+    await user.click(await screen.findByRole("button", { name: "Enrolar 2FA" }));
+
+    expect(await screen.findByText(/ya tiene 2FA enrolado y verificado/)).toBeInTheDocument();
+    // No se pinta ningún secreto ni código de respaldo inventado.
+    expect(screen.queryByLabelText("Códigos de respaldo")).not.toBeInTheDocument();
+  }, 15000);
+
+  it("adversarial: un código de confirmación incorrecto muestra el 403 real y deja el enrolamiento a medias, no confirmado", async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.get("*/auth/2fa/status", () => HttpResponse.json({ enrolled: false, enrolledAt: null })),
+      http.post("*/auth/2fa/enroll", () =>
+        HttpResponse.json(
+          { secretBase32: "ABCD1234EFGH5678", otpauthUrl: "otpauth://totp/x", backupCodes: ["AAAA-1111"] },
+          { status: 201 },
+        ),
+      ),
+      http.post("*/auth/2fa/verify-enrollment", () =>
+        HttpResponse.json(
+          { type: "https://atiende.example/errors/forbidden", title: "Código TOTP inválido, o ya fue utilizado (replay rechazado).", status: 403 },
+          { status: 403 },
+        ),
+      ),
+    );
+
+    renderWithProviders(
+      <>
+        <Toaster />
+        <ConfiguracionPage />
+      </>,
+    );
+    await user.click(await screen.findByRole("button", { name: "Enrolar 2FA" }));
+    await user.type(await screen.findByLabelText("Código de 6 dígitos"), "000000");
+    await user.click(screen.getByRole("button", { name: "Confirmar enrolamiento" }));
+
+    expect(await screen.findByText(/Código TOTP inválido/)).toBeInTheDocument();
+    // Sigue en el paso de confirmación (el secreto no se descarta): el
+    // usuario puede reintentar con un código nuevo sin re-enrolar.
+    expect(screen.getByText("ABCD1234EFGH5678")).toBeInTheDocument();
+    expect(screen.queryByText(/2FA enrolado y verificado/)).not.toBeInTheDocument();
+  }, 15000);
 });

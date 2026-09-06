@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import QRCode from "qrcode";
-import { Settings, ShieldCheck, KeyRound } from "lucide-react";
+import { Settings, ShieldAlert, ShieldCheck, KeyRound } from "lucide-react";
 
 import { SectionHeader } from "@/components/layout/SectionHeader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -138,9 +138,15 @@ function TwoFactorSection() {
         {isError && <ErrorState message={describeApiError(error)} onRetry={() => refetch()} />}
 
         {!isLoading && !isError && status?.enrolled && (
-          <div className="flex items-center gap-2">
-            <Badge variant="success">Enrolado</Badge>
-            <span className="text-sm text-muted-foreground">Desde {formatDateTimeMx(status.enrolledAt)}.</span>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Badge variant="success">Enrolado</Badge>
+              <span className="text-sm text-muted-foreground">Desde {formatDateTimeMx(status.enrolledAt)}.</span>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Tu app de autenticación es ahora el segundo factor: al aprobar una tarifa o un expediente se te pedirá un código de 6 dígitos
+              (o uno de tus códigos de respaldo, de un solo uso).
+            </p>
           </div>
         )}
 
@@ -211,6 +217,52 @@ function TwoFactorSection() {
   );
 }
 
+/**
+ * Ronda 8a: inventario HONESTO de lo que esta pantalla de seguridad NO
+ * puede ofrecer todavía, con el motivo real de cada hueco. Se comprobó
+ * endpoint por endpoint en `apps/api/src/modules/twofa/routes.ts` (solo
+ * cuatro rutas: `GET /2fa/status`, `POST /2fa/enroll`, `POST
+ * /2fa/verify-enrollment`, `POST /2fa/step-up`), en
+ * `apps/api/src/modules/auth/routes.ts` (register/login/refresh/logout) y
+ * en `apps/api/src/modules/me/routes.ts` (un único `GET`) — ninguna expone
+ * desactivar 2FA, regenerar códigos de respaldo ni listar/cerrar sesiones
+ * activas. Se documenta en la propia UI en vez de construir botones que
+ * fingirían llamar a endpoints inexistentes.
+ */
+function SecurityGapsCard() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <ShieldAlert className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+          Lo que esta pantalla todavía no puede hacer
+        </CardTitle>
+        <CardDescription>
+          Preferimos decirlo que ofrecer un botón que no haría nada. Cada punto depende de un endpoint que apps/api aún no expone.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ul className="space-y-3 text-sm text-muted-foreground">
+          <li>
+            <strong className="font-medium text-foreground">Desactivar la verificación en dos pasos.</strong> apps/api no tiene ninguna ruta
+            para desenrolar, y volver a enrolar sobre un 2FA ya verificado responde <code className="text-xs">409</code> a propósito. Si
+            pierdes tu app de autenticación, usa un código de respaldo y pide a un administrador que te ayude.
+          </li>
+          <li>
+            <strong className="font-medium text-foreground">Regenerar códigos de respaldo.</strong> Los diez códigos se emiten una única vez,
+            durante el enrolamiento, y no vuelven a mostrarse: no existe un endpoint que los reemplace sin desenrolar primero.
+          </li>
+          <li>
+            <strong className="font-medium text-foreground">Ver y cerrar tus sesiones activas.</strong> apps/api revoca el refresh token de la
+            sesión actual al cerrar sesión (<code className="text-xs">POST /auth/logout</code>), pero no expone ninguna lista de sesiones ni
+            forma de cerrar las demás a distancia.
+          </li>
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function ConfiguracionPage() {
   return (
     <div>
@@ -221,6 +273,7 @@ export default function ConfiguracionPage() {
       />
       <div className="space-y-6">
         <TwoFactorSection />
+        <SecurityGapsCard />
       </div>
     </div>
   );
