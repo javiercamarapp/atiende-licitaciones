@@ -24,3 +24,4 @@
 2026-09-05 19:53  DESPERTAR  auditoría worker (#22) 12 hallazgos (4A/4M/4B); corrector #24 despachado; en curso #14,#17,#18,#20,#23.
 2026-09-05 19:54  DESPERTAR  corrector agents (#17) 14 commits, 182/182, cobertura 94%; reverificador #25 despachado; en curso #14,#18,#20,#23,#24.
 2026-09-05 19:58  DESPERTAR  corrector expediente (#20) 11 commits, 118/118; reverificador #26 despachado; en curso #14,#18,#23,#24,#25.
+2026-09-05 20:06  DESPERTAR  reverificación agents (#25): 11C/3P/0NC + AG-17..20 + regresión worker → #27 y WK-13 (#24); en curso #14,#18,#23,#24,#26,#27.
