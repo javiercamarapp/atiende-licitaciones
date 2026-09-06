@@ -4,6 +4,7 @@ import { DiscoveryPipeline } from "../../src/pipeline/discovery-pipeline.js";
 import { InMemoryCheckpointStore } from "../../src/pipeline/checkpoint.js";
 import { InMemoryTenderRepository } from "../../src/pipeline/repository.js";
 import { InMemorySourceHealthStore } from "../../src/pipeline/source-health.js";
+import { createDofConnector } from "../../src/connectors/dof/dof-connector.js";
 import { InMemoryTenderVersionStore } from "../../src/dedupe/version.js";
 import { HostPausedError, HttpClient, HttpError } from "../../src/http/http-client.js";
 import { parseTenderRecord, type SourceId, type TenderRecord } from "../../src/types/tender-record.js";
@@ -215,6 +216,30 @@ describe("DiscoveryPipeline: salud explícita por fuente (ampliación §2 — nu
     expect(result.bySource["ocds-shcp"].health.state).toBe("interface_changed");
   });
 
+  it("clasifica un HttpError(401) como permission_missing (SR-05: rama antes sin cobertura, detectada por mutación)", async () => {
+    const pipeline = new DiscoveryPipeline({
+      connectors: [throwingConnector("compras-mx", new HttpError(401, "https://upcp-cnetservicios.buengobierno.gob.mx/x", '{"details":"Unauthorized"}'))],
+      repository: new InMemoryTenderRepository(),
+      checkpoints: new InMemoryCheckpointStore(),
+      http: pausedHttp(),
+    });
+    const result = await pipeline.run();
+    expect(result.bySource["compras-mx"].health.state).toBe("permission_missing");
+    expect(result.bySource["compras-mx"].health.evidence.httpStatus).toBe(401);
+  });
+
+  it("clasifica un HttpError(403) como permission_missing (SR-05: rama antes sin cobertura, detectada por mutación)", async () => {
+    const pipeline = new DiscoveryPipeline({
+      connectors: [throwingConnector("compras-mx", new HttpError(403, "https://upcp-cnetservicios.buengobierno.gob.mx/x", '{"error":"Acceso no permitido."}'))],
+      repository: new InMemoryTenderRepository(),
+      checkpoints: new InMemoryCheckpointStore(),
+      http: pausedHttp(),
+    });
+    const result = await pipeline.run();
+    expect(result.bySource["compras-mx"].health.state).toBe("permission_missing");
+    expect(result.bySource["compras-mx"].health.evidence.httpStatus).toBe(403);
+  });
+
   it("clasifica un error de red genérico como down y NUNCA reporta éxito silencioso", async () => {
     const pipeline = new DiscoveryPipeline({
       connectors: [throwingConnector("pdn-s6", new TypeError("fetch failed"))],
@@ -263,6 +288,29 @@ describe("DiscoveryPipeline: salud explícita por fuente (ampliación §2 — nu
     // Los "0 nuevos" de esta corrida NO deben confundirse con "no hay nada nuevo": el estado explícito lo distingue.
     expect(failResult.bySource.dof.nuevos).toBe(0);
     expect(failResult.bySource.dof.health.state).not.toBe("ok");
+  });
+
+  it("SR-03: createDofConnector() sin noteCodes NUNCA reporta 'ok' (0 llamadas HTTP no es 'sin novedades')", async () => {
+    let httpCalls = 0;
+    const http = pausedHttp();
+    const originalRequest = http.request.bind(http);
+    http.request = (...args: Parameters<typeof originalRequest>) => {
+      httpCalls += 1;
+      return originalRequest(...args);
+    };
+
+    const pipeline = new DiscoveryPipeline({
+      connectors: [createDofConnector()], // config.noteCodes por defecto: []
+      repository: new InMemoryTenderRepository(),
+      checkpoints: new InMemoryCheckpointStore(),
+      http,
+    });
+    const result = await pipeline.run();
+
+    expect(httpCalls).toBe(0); // confirma que el conector realmente no tocó la red
+    expect(result.bySource.dof.health.state).toBe("not_configured");
+    expect(result.bySource.dof.health.state).not.toBe("ok");
+    expect(result.bySource.dof.nuevos).toBe(0);
   });
 });
 

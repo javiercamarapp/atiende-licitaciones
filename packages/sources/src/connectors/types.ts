@@ -52,3 +52,20 @@ export interface SourceConnector {
   discover(params: DiscoverParams, ctx: ConnectorContext): AsyncIterable<TenderRecord>;
   fetchDetail(externalId: string, ctx: ConnectorContext): Promise<TenderRecord | null>;
 }
+
+/**
+ * Error que un `SourceConnector.discover()` DEBE lanzar cuando no puede
+ * realizar ninguna petición real por falta de configuración explícita
+ * (p.ej. `createDofConnector()` sin `noteCodes`) — a diferencia de una falla
+ * real de red/permisos/formato (SR-03: `DiscoveryPipeline` no debe registrar
+ * `health.state = "ok"` para una fuente que nunca fue consultada; sería
+ * indistinguible de una corrida real "sin novedades", justo el antipatrón
+ * que REQ-148 prohíbe). `classifySourceFailure`
+ * (`src/pipeline/source-health.ts`) lo mapea a `"not_configured"`.
+ */
+export class SourceNotConfiguredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SourceNotConfiguredError";
+  }
+}

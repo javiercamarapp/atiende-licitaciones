@@ -1,4 +1,5 @@
 import type { ConnectorContext, DiscoverParams, SourceConnector } from "../types.js";
+import { SourceNotConfiguredError } from "../types.js";
 import { extractDofNoticesFromText, mapDofNoticeToTenderRecord } from "./dof-mapper.js";
 
 export interface DofConnectorConfig {
@@ -62,6 +63,18 @@ export function createDofConnector(config: DofConnectorConfig = {}): SourceConne
 
     async *discover(params: DiscoverParams, ctx: ConnectorContext) {
       const codes = config.noteCodes ?? [];
+      if (codes.length === 0) {
+        // SR-03: sin códigos configurados este conector NUNCA toca la red (el `for` de abajo
+        // iteraría sobre un arreglo vacío); reportar "ok"/"0 nuevas" sería indistinguible de una
+        // corrida real sin novedades (antipatrón que REQ-148 prohíbe explícitamente). El índice
+        // diario (`index.php?year=&month=&day=`) que alimentaría `noteCodes` automáticamente NO
+        // está implementado en este paquete (ver README §DOF): ese cableado es responsabilidad de
+        // un consumidor externo (apps/api/worker).
+        throw new SourceNotConfiguredError(
+          "dof: no se configuraron noteCodes (config.noteCodes vacío); no se realizó ninguna petición HTTP a la fuente. " +
+            "Esta corrida NO debe interpretarse como 'sin novedades' (REQ-148).",
+        );
+      }
       let yielded = 0;
       for (const codigo of codes) {
         if (params.limit !== undefined && yielded >= params.limit) return;

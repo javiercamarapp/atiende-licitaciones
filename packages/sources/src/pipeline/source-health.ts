@@ -1,5 +1,6 @@
 import { ZodError } from "zod";
 import { HostPausedError, HttpError } from "../http/http-client.js";
+import { SourceNotConfiguredError } from "../connectors/types.js";
 import type { SourceId } from "../types/tender-record.js";
 
 /**
@@ -8,6 +9,18 @@ import type { SourceId } from "../types/tender-record.js";
  * como "cero oportunidades": cuando `state !== "ok"`, los contadores de la
  * corrida deben leerse como "no evaluado" para esa fuente, no como "no hay
  * nada nuevo".
+ *
+ * `not_configured` (SR-03): una corrida que NUNCA tocó la red por falta de
+ * configuración (p.ej. `createDofConnector()` sin `noteCodes`) debe
+ * reportar este estado, distinto de `"ok"` — de lo contrario es
+ * indistinguible de una corrida real sin novedades (REQ-148: "nunca se
+ * interpreta el silencio como cero oportunidades"). Este valor ya lo
+ * consume `apps/worker` (`SourceRunFineState`, ver
+ * `apps/worker/src/source-runs/source-run-status.ts`), que hasta ahora lo
+ * producía por su cuenta ANTES de llamar a `connector.discover()`
+ * (gateando por `liveVerification.verified`); añadirlo aquí es aditivo y no
+ * rompe ese consumidor (`SourceRunFineState` ya incluía `"not_configured"`
+ * en su unión).
  */
 export type SourceHealthState =
   | "ok"
@@ -15,7 +28,8 @@ export type SourceHealthState =
   | "captcha_detected"
   | "interface_changed"
   | "permission_missing"
-  | "rate_limited";
+  | "rate_limited"
+  | "not_configured";
 
 export interface SourceHealthEvidence {
   httpStatus?: number;
@@ -67,6 +81,9 @@ export class InMemorySourceHealthStore implements SourceHealthStore {
 export function classifySourceFailure(error: unknown): { state: SourceHealthState; message: string; httpStatus?: number } {
   const message = error instanceof Error ? error.message : String(error);
 
+  if (error instanceof SourceNotConfiguredError) {
+    return { state: "not_configured", message };
+  }
   if (/captcha/i.test(message)) {
     return { state: "captcha_detected", message };
   }
