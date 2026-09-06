@@ -1,0 +1,20 @@
+=== W-16: derivarEstadoPaquete() -- test que reproduce el fallo (funcion no existia), ANTES de la correccion ===
+TypeError: derivarEstadoPaquete is not a function (5 tests fallando, ver npx vitest run src/components/ui/package-status-badge.test.tsx antes de implementar la funcion)
+
+=== W-16: tras la correccion ===
+
+ RUN  v4.1.11 /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web
+
+ ✓ src/components/ui/package-status-badge.test.tsx > PackageStatusBadge > muestra 'Borrador' para el estado borrador 11ms
+ ✓ src/components/ui/package-status-badge.test.tsx > PackageStatusBadge > muestra 'Listo para presentar' solo cuando el estado es explícitamente 'listo' 1ms
+ ✓ src/components/ui/package-status-badge.test.tsx > derivarEstadoPaquete > devuelve 'listo' solo si checklist, firmas y anexos están completos 0ms
+ ✓ src/components/ui/package-status-badge.test.tsx > derivarEstadoPaquete > devuelve 'borrador' si falta cualquier condición ({ checklistCompleto: false, firmasCompletas: true, anexosVigentes: true }) 0ms
+ ✓ src/components/ui/package-status-badge.test.tsx > derivarEstadoPaquete > devuelve 'borrador' si falta cualquier condición ({ checklistCompleto: true, firmasCompletas: false, anexosVigentes: true }) 0ms
+ ✓ src/components/ui/package-status-badge.test.tsx > derivarEstadoPaquete > devuelve 'borrador' si falta cualquier condición ({ checklistCompleto: true, firmasCompletas: true, anexosVigentes: false }) 0ms
+ ✓ src/components/ui/package-status-badge.test.tsx > derivarEstadoPaquete > devuelve 'borrador' si falta cualquier condición ({ checklistCompleto: false, firmasCompletas: false, anexosVigentes: false }) 0ms
+
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  19:58:42
+   Duration  446ms (transform 21ms, setup 76ms, import 16ms, tests 14ms, environment 240ms)
+

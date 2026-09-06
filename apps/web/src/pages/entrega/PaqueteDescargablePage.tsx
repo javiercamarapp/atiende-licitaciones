@@ -3,13 +3,19 @@ import { PackageCheck, ShieldAlert } from "lucide-react";
 import { SectionHeader } from "@/components/layout/SectionHeader";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { PackageStatusBadge, type PaqueteEstado } from "@/components/ui/package-status-badge";
+import { derivarEstadoPaquete, PackageStatusBadge } from "@/components/ui/package-status-badge";
 
 // El paquete solo puede pasar a "listo" cuando exista una validación real
 // (checklist completo, firmas, anexos y vigencias vigentes) — esa lógica de
-// backend no existe todavía en esta ronda, así que el estado por defecto es
-// siempre "borrador". Ver docs/AMPLIACION-BACKOFFICE.md punto 8.
-const ESTADO_ACTUAL: PaqueteEstado = "borrador";
+// backend no existe todavía en esta ronda. Se deriva con
+// `derivarEstadoPaquete()` (W-16) en vez de un literal "borrador" suelto,
+// para que el único cambio posible a "listo" pase por las tres condiciones
+// explícitas y no por editar un valor hardcodeado.
+const ESTADO_ACTUAL = derivarEstadoPaquete({
+  checklistCompleto: false,
+  firmasCompletas: false,
+  anexosVigentes: false,
+});
 
 export default function PaqueteDescargablePage() {
   return (
