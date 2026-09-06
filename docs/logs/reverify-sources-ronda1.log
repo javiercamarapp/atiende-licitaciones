@@ -1,0 +1,364 @@
+Reverificación adversarial — packages/sources (ronda 1 de corrección, SR-01..SR-11)
+Auditor: agente Sonnet reverificador independiente. Ejecución real en git worktree separado:
+  git worktree add <scratchpad>/reverify-src HEAD   (HEAD real: 56ce542d76100a56b0383f2f5d220de4c51ac653)
+  npm install   (677 packages añadidos, 685 auditados, 9s)
+node --version: v25.6.1 · npm --version: 11.12.1
+Worktree eliminado al finalizar (git worktree remove <scratchpad>/reverify-src).
+
+================================================================================
+1. REPRODUCIBILIDAD BASE (packages/sources)
+================================================================================
+
+$ npm run -w packages/sources typecheck
+> tsc --noEmit
+(sin salida — OK)
+
+$ npm run -w packages/sources lint
+> eslint src test --ext .ts
+(sin salida — OK)
+
+$ npm run -w packages/sources test
+ ✓ test/matching.test.ts (16 tests)
+ ✓ test/dedupe.test.ts (20 tests)
+ ✓ test/connectors/compras-mx.test.ts (8 tests)
+ ✓ test/connectors/dof.test.ts (5 tests)
+ ✓ test/connectors/ocds.test.ts (4 tests)
+ ✓ test/http-client.test.ts (11 tests)
+ ✓ test/connectors/compras-mx-historical.test.ts (6 tests)
+ ✓ test/connectors/registry.test.ts (3 tests)
+ ✓ test/pipeline/discovery-pipeline.test.ts (13 tests)
+ ✓ test/connectors/state-portal.test.ts (2 tests)
+ ✓ test/host-throttle.test.ts (2 tests)
+ ✓ test/hash.test.ts (4 tests)
+ ✓ test/timezone-independence.test.ts (1 test, 763ms, subproceso real 3 TZ)
+Test Files  13 passed (13)
+     Tests  95 passed (95)
+
+$ npm run -w packages/sources build
+> tsc -p tsconfig.build.json
+(sin salida — OK)
+
+$ npm run -w packages/sources test:coverage
+All files: 91.53% Stmts | 82.33% Branch | 90.64% Funcs | 91.53% Lines
+(IDÉNTICO al valor citado en SR-08: "91.53% líneas, 82.33% ramas")
+
+CONCLUSIÓN §1: reproducibilidad exacta confirmada, idéntica a docs/logs/sources-ronda1.log
+y a lo citado en docs/auditoria-1/sources.md.
+
+================================================================================
+2. MUTACIÓN DEL GATE DE COBERTURA (vitest.config.ts thresholds)
+================================================================================
+
+Se mutó packages/sources/vitest.config.ts: lines 85->95, branches 80->90 (por encima de la
+cobertura real medida) y se re-ejecutó test:coverage:
+
+ERROR: Coverage for lines (91.53%) does not meet global threshold (95%)
+ERROR: Coverage for branches (82.33%) does not meet global threshold (90%)
+npm error command failed (exit 1)
+
+Archivo restaurado a su versión original tras la prueba (git diff --stat limpio confirmado).
+
+CONCLUSIÓN §2: el gate de cobertura de SR-08 es REAL — falla el build cuando el umbral
+configurado supera la cobertura efectiva, no es un `vitest.config.ts` decorativo. CERRADO.
+
+================================================================================
+3. REGRESIÓN EN CONSUMIDOR (apps/worker), EN EL MISMO WORKTREE
+================================================================================
+
+$ npm run -w apps/worker typecheck
+> tsc --noEmit
+(sin salida — OK; NO se reprodujo la falla preexistente que SR-03/SR-06 mencionaban en
+`run-agent.ts`/`ToolDefinition.declaredEffects` — ya fue corregida por otro agente en
+`packages/agents` en un commit posterior, ver eaee816/56ce542 en el log del worktree)
+
+$ npm run -w apps/worker test
+Test Files  8 passed | 3 skipped (11)
+     Tests  55 passed | 5 skipped (60)
+(incluye test/scheduler.test.ts REQ-146/REQ-150, test/discover-tenders-handler.test.ts
+ con casos explícitos "not_configured" (SR-03) y honestidad de coverage WK-03/05/06)
+
+CONCLUSIÓN §3: SIN REGRESIÓN en el consumidor real de @atiende/sources.
+
+================================================================================
+4. MUTACIÓN DE REGLA SR-05 (401/403 -> permission_missing)
+================================================================================
+
+Se mutó src/pipeline/source-health.ts línea 95:
+  if (error.status === 401 || error.status === 403) return {...}
+  -> if (false) return {...}
+
+$ npx vitest run packages/sources/test
+FAIL test/pipeline/discovery-pipeline.test.ts
+  × clasifica un HttpError(401) como permission_missing (SR-05...) — expected 'down' to be 'permission_missing'
+  × clasifica un HttpError(403) como permission_missing (SR-05...) — expected 'down' to be 'permission_missing'
+Test Files  1 failed | 19 passed (20)
+     Tests  2 failed | 121 passed (123)
+
+Archivo restaurado tras la prueba (git diff --stat limpio confirmado).
+
+CONCLUSIÓN §4: SR-05 CERRADO — la mutación original (no detectada por la suite oficial
+antes del fix) ahora SÍ es detectada por los 2 tests nuevos dedicados.
+
+================================================================================
+5. SR-01 — variantes adversariales (arrays, duplicados, null vs ausente, mayúsculas/acentos)
+================================================================================
+Archivo temporal: test/_reverify-sr01.test.ts (7 tests, todos en verde)
+
+- Reordenar classifiers/attachments (con y sin duplicados exactos) -> mismo versionHash. OK.
+- Quitar UN duplicado real (cambio de cardinalidad) -> SÍ produce hash distinto. OK.
+- description "" (presente-vacío) vs ausente (undefined) en un classifier -> SÍ produce hash
+  distinto (correcto: son valores semánticamente distintos, zod los distingue).
+- Campo opcional explícitamente `null` (no `undefined`) -> TenderRecordSchema.parse() LANZA
+  ZodError (z.optional() NO acepta null). Confirmado también a nivel de schema de fuente real
+  (ver §7, relacionado con SR-13 nuevo).
+- Cambio SOLO de mayúsculas en un nombre de anexo ("Anexo Tecnico" -> "ANEXO TECNICO") -> SÍ
+  dispara "anexos"/versionHash distinto (case-sensitive por diseño, documentado en el código;
+  ver hallazgo nuevo SR-18, severidad BAJA — residual, no corregido por SR-01).
+- Cambio SOLO de acentos, sin ambigüedad NFC/NFD ("Especificación técnica" ->
+  "Especificacion tecnica") -> SÍ dispara "anexos"/versionHash distinto (comportamiento
+  razonable: son letras distintas, no solo una forma unicode distinta de la misma letra).
+
+CONCLUSIÓN §5: SR-01 CERRADO para su alcance declarado (orden de arrays + duplicados +
+NFC/espacios). Residual de la MISMA categoría (case-only) documentado como SR-18 (BAJA).
+
+================================================================================
+6. SR-02 — variantes de zona horaria (fechas sin hora, con offset explícito, TZ del proceso)
+================================================================================
+Archivo temporal: test/tz-harness/tz-edge.ts (llamadas directas a fromMexicoCityNaive)
+
+$ TZ=Asia/Tokyo node_modules/.bin/tsx packages/sources/test/tz-harness/tz-edge.ts
+date-only:        2026-09-05T06:00:00.000Z   (correcto: 00:00 CDMX)
+explicit Z:       2026-09-05T00:00:00.000Z   (correcto: NO se reinterpreta)
+explicit -05:00:  2026-09-05T05:00:00.000Z   (correcto: offset explícito respetado)
+naive datetime:   2026-09-05T06:00:00.000Z   (correcto: 00:00 CDMX)
+
+CONCLUSIÓN §6a: `fromMexicoCityNaive()` en sí es robusta en las 4 variantes pedidas, en
+las 3 TZ de proceso (UTC/America/Mexico_City/Asia/Tokyo, ver también el test oficial
+timezone-independence.test.ts, 763ms, subproceso real).
+
+HALLAZGO NUEVO (SR-12): se encontró que `parseComprasMxHistoricoCsv()` (conector agregado
+por SR-06, EN UN COMMIT POSTERIOR a SR-02) mapea `fecha_inicio`/`fecha_fin` DIRECTO a
+`TenderDatesSchema` SIN pasar por `fromMexicoCityNaive()` — reproduce el MISMO bug que
+SR-02 cerró, en una ruta de código distinta. Confirmado en subproceso real
+(test/tz-harness/print-csv-historico-deadline.ts, dato de entrada naive
+"2026-09-10 14:00:00"):
+
+$ TZ=UTC ...                 -> published: 2026-09-10T14:00:00.000Z
+$ TZ=America/Mexico_City ...  -> published: 2026-09-10T20:00:00.000Z
+$ TZ=Asia/Tokyo ...           -> published: 2026-09-10T05:00:00.000Z
+(3 instantes DISTINTOS para el MISMO dato de entrada — el mismo síntoma que SR-02
+reprodujo originalmente para el conector API en vivo)
+
+Riesgo real hoy: MEDIO — el dataset real verificado en vivo siempre trae offset explícito
+("+00:00", confirmado en el fixture real), así que `fromMexicoCityNaive` habría sido un
+no-op idéntico en la práctica actual; el riesgo es que el esquema (`z.string().optional()`,
+sin exigir offset) no lo garantiza, y el bug reaparecería en silencio si SABG cambia el
+formato del export.
+
+================================================================================
+7. SR-03 — DOF sin noteCodes (regresión) + variante "200 con HTML de captcha"
+================================================================================
+
+Test oficial re-ejecutado, verde. Variante adversarial nueva (archivo temporal
+test/_reverify-sr03-captcha200.test.ts): DiscoveryPipeline real con createDofConnector()
+y un fetchImpl que devuelve status 200 + cuerpo HTML con marcado de reCAPTCHA/captcha real
+("¿verifica que no eres un robot (captcha)?"), SIN lanzar excepción:
+
+health DOF resultante:
+{
+  "state": "ok",
+  "evidence": { "message": "Corrida exitosa sin registros nuevos de la fuente." },
+  ...
+}
+nuevos: 0, errores: []
+
+CONCLUSIÓN §7: HALLAZGO NUEVO SR-14 (ALTA) — un 200 real con cuerpo de
+captcha/bot-challenge (escenario documentado como REAL por el propio README para
+plataformadigitalnacional.org, Zenedge) hace que `extractDofNoticesFromText` simplemente
+no encuentre avisos y el pipeline reporte "ok"/"0 nuevas" — INDISTINGUIBLE de una corrida
+real sin novedades. Es la MISMA clase de antipatrón que SR-03 cerró (silencio == 0
+oportunidades, prohibido por REQ-148), en un disparador distinto (contenido de la
+respuesta, no ausencia de configuración). Los conectores basados en JSON (ComprasMX,
+OCDS-SHCP, PDN-S6, portales estatales) SÍ quedan protegidos indirectamente: un cuerpo HTML
+en vez de JSON hace que `response.json()` lance un `SyntaxError` no capturado por ninguna
+rama específica de `classifySourceFailure`, cayendo en el catch-all "down" (honesto,
+aunque menos preciso que "captcha_detected"). El gap real es específico de conectores que
+hacen scraping de texto/HTML de mejor esfuerzo (hoy solo DOF).
+
+Por este hallazgo, SR-03 se reclasifica como PARCIAL (el vector original —
+`noteCodes: []` — está sólidamente cerrado y sin regresión; el vector adyacente de la
+MISMA categoría de riesgo sigue abierto).
+
+================================================================================
+8. SR-04 — variantes de redirección (puerto distinto, bucle, relativo)
+================================================================================
+Archivo temporal: test/_reverify-sr04-redirects.test.ts (4 tests, todos en verde)
+
+- Redirección a OTRO PUERTO del mismo hostname (https, vía fetchImpl mock + `new URL().host`
+  real, que incluye el puerto): tratado como host de DESTINO distinto, concurrencyPerHost=1
+  del destino se respeta (maxInFlightTarget=1 con 5 peticiones "concurrentes").
+- Bucle de redirecciones REAL entre dos hosts https (A<->B, fetchImpl mock, maxRedirects=4):
+  falla explícitamente con /redirec/i tras 5 llamadas fetch (no cuelga, no reintenta
+  indefinidamente).
+- Location RELATIVO ("/final") contra un servidor http real (node:http, puerto efímero):
+  se resuelve correctamente vía `new URL(location, url)`, y el guard https-only del cliente
+  aplica IGUAL a redirects relativos same-host (rechaza porque el servidor de prueba es
+  http, comportamiento correcto y consistente con REQ-079).
+- Location RELATIVO cross-path mismo-host (https, mock): resuelve y responde 200 vía el
+  mismo request() reentrante.
+
+CONCLUSIÓN §8: SR-04 CERRADO — sin hallazgos nuevos; las 3 protecciones (loop, cross-host
+throttle incl. por puerto, https-only) se sostienen en las 4 variantes adicionales.
+
+================================================================================
+9. SR-06 — CSV histórico: filas malformadas, encoding, comas embebidas
+================================================================================
+Archivo temporal: test/_reverify-sr06-csv.test.ts (6 tests, todos en verde)
+
+- Fila con MENOS columnas que el encabezado -> columnas faltantes quedan "" (silencioso,
+  documentado como comportamiento del parser, no crashea).
+- Fila con MÁS columnas (coma sin escapar en un campo NO entrecomillado) -> el valor
+  esperado en "importe" queda desalineado silenciosamente:
+    fila con coma sin escapar (4 valores, header de 3):
+    [{"codigo":"E1","proveedor":"Fulano","importe":" S.A. de C.V."}]
+  (la columna 4 real, "1000", se descarta sin error; ningún campo detecta la anomalía)
+  -> HALLAZGO NUEVO SR-17 (MEDIA).
+- Campo con coma DENTRO de comillas dobles (RFC4180 correcto) -> se preserva íntegro. OK.
+- Valor no-numérico en "importe" -> zod SÍ rechaza NaN correctamente (ZodError). Pero
+  `parseComprasMxHistoricoCsv` no tiene try/catch por fila: una fila mala en medio de 2
+  filas válidas hace perder las 3 (0 registros, excepción propagada), no solo la mala:
+    CSV con 3 filas (1 mala en medio de 2 válidas): threw=true recordCount=-1
+  -> HALLAZGO NUEVO SR-16 (MEDIA-ALTA): contradice la propiedad de resiliencia
+  documentada en §6 de la auditoría original para OTROS conectores ("conserva los
+  registros ya emitidos ANTES del throw") porque este conector no hace streaming: parsea
+  el CSV COMPLETO antes de yield.
+- ENCODING: bytes Latin-1 (con letras acentuadas típicas de texto en español) decodificados
+  como UTF-8 (comportamiento real y obligatorio de `Response.text()` del WHATWG fetch spec,
+  que SIEMPRE decodifica como UTF-8 sin importar el Content-Type/charset del servidor):
+    original:        ...cañería, año, señalización
+    decodedAsUtf8:   ...ca?er?a, a?o, se?alizaci?n   (mojibake, sin excepción)
+    decodedAsLatin1: ...cañería, año, señalización   (correcto, si se detectara el encoding)
+  -> HALLAZGO NUEVO SR-15 (ALTA): corrupción SILENCIOSA de datos si el CSV real de SABG
+  (951 MB, exportado por sistemas legado) viene en Latin-1/Windows-1252 en vez de UTF-8;
+  no hay detección/declaración de encoding en ningún punto del conector.
+
+CONCLUSIÓN §9: SR-06 se reclasifica como PARCIAL — el wiring al pipeline (su promesa
+explícita) está correctamente hecho y probado con el fixture real (bien formado, UTF-8,
+comillas correctas), pero la ingestión robusta del archivo REAL de 951 MB (con las
+imperfecciones típicas de un export legado de gobierno) tiene 3 gaps reales no cubiertos
+por los propios tests del fix (SR-15/16/17).
+
+================================================================================
+10. SR-07 — mismo número de procedimiento, entidades distintas
+================================================================================
+Archivo temporal: test/_reverify-sr07-fingerprint.test.ts (2 tests, verde)
+
+- Mismo número LAASSP embebido en el título, entidades DISTINTAS (SEP vs Salud) ->
+  fingerprints DISTINTOS (correcto, sin falso positivo).
+- Variante informativa (no es un hallazgo nuevo, ya documentado por el propio JSDoc de
+  `computeCrossSourceFingerprint`): la MISMA convocatoria real, mismo número de
+  procedimiento, con el nombre de la entidad escrito de forma distinta entre fuentes
+  ("SEP" vs nombre completo) -> NO colisiona (falso negativo conocido, heurística
+  probabilística, ya documentada explícitamente como tal).
+
+CONCLUSIÓN §10: SR-07 CERRADO.
+
+================================================================================
+11. SR-08 — ver §2 (mutación real del gate). CERRADO.
+================================================================================
+
+================================================================================
+12. SR-09 — re-verificación en vivo el mismo día de esta reverificación (2026-09-05)
+================================================================================
+
+$ curl -s -X POST "https://upcp-cnetservicios.buengobierno.gob.mx/whitney/sitiopublico/expedientes?rows=5&page=1" \
+    -H "Content-Type: application/json" -d '{}'
+{"success":false,"error":"Acceso no permitido.","details":"Acceso no permitido. - /whitney/sitiopublico/expedientes - None","pid":null}
+HTTP_CODE:403
+
+$ curl -s -o /dev/null -w "%{http_code}" https://dof.gob.mx/
+200
+
+$ curl -s -o /dev/null -w "%{http_code}" https://api.datos.gob.mx/v2/contratacionesabiertas
+(timeout, curl exit 28)
+
+CONCLUSIÓN §12: consistente con lo documentado en el README (403 "Acceso no permitido",
+no el 401 "Unauthorized" original; DOF 200; OCDS timeout). SR-09 CERRADO — la nota de
+variación 401/403 sigue siendo precisa hoy.
+
+================================================================================
+13. SR-10 — trazabilidad REQ-146 en docs/PROGRESO.md
+================================================================================
+Fuera de mi ámbito exclusivo (packages/sources/**), consistente con la instrucción
+explícita ya documentada en docs/auditoria-1/sources.md (columna "Estado reparación" de
+SR-10). No se tocó docs/PROGRESO.md. Confirmado independientemente que
+`docs/ACEPTACION.md` REQ-146 SÍ está corregido con evidencia real
+(apps/worker/src/scheduler/scheduler.ts, 5 tests verdes en el worktree, ver §3).
+
+================================================================================
+14. SR-11 — MatchingEngine: perfil sin CPV, dato ausente vs no-cumple, fuga score/eligibility
+================================================================================
+Archivo temporal: test/_reverify-sr11-matching.test.ts (5 tests, todos en verde)
+
+- Perfil SIN ningún criterio de elegibilidad configurado (aunque SÍ tenga
+  classifierCodes/keywords, que son señales de RELEVANCIA no de elegibilidad) ->
+  eligibility.status = "no_evaluable" (criteria: []), score = 100 (el score SÍ usa
+  classifiers/keywords). Confirma que "elegibilidad" y "relevancia" cubren universos de
+  criterios distintos por diseño (CPV/keywords no son "requisitos duros").
+- Presupuesto FUERA de rango (eligibility="no_cumple") con classifiers/keywords que sí
+  matchean -> score = 81.25 (NO se anula a 0): confirma que eligibility NO contamina el
+  score, salvo la excepción documentada de excludedKeywords.
+- budgetAmount AUSENTE -> eligibility="no_evaluable" para ese criterio (nunca "cumple"
+  implícito); criterio de score correspondiente usa 0.5 neutro (score normalizado: 50/100),
+  documentado explícitamente en la explicación de texto.
+- Dato PRESENTE-pero-no-cumple vs AUSENTE producen estados DISTINTOS
+  ("no_cumple" vs "no_evaluable") de forma consistente.
+- excludedKeywords (única señal que afecta AMBOS valores por diseño): score=0 (veto duro)
+  Y eligibility="no_cumple" simultáneamente -- confirmado como la única excepción
+  documentada, no una fuga general de la separación score/eligibility.
+
+CONCLUSIÓN §14: SR-11 CERRADO — separación real y robusta entre relevancia y elegibilidad,
+sin fugas encontradas más allá de la excepción ya documentada.
+
+================================================================================
+15. SR-13 (hallazgo nuevo, no ligado a un SR previo específico): null explícito vs ausente
+================================================================================
+Archivo temporal: test/_reverify-null-vs-absent.test.ts (3 tests, verde)
+
+ComprasMxApiRecordSchema.parse({ ..., tipo_contratacion: null }) -> ZodError:
+  "Expected string, received null" (path: tipo_contratacion)
+El mismo payload con el campo AUSENTE (sin la llave) se acepta con normalidad.
+mapComprasMxApiRecordToTenderRecord(...) con monto_estimado: null también lanza.
+
+CONCLUSIÓN §15: HALLAZGO NUEVO SR-13 (MEDIA-ALTA) — todos los esquemas de este paquete
+usan `.optional()` sin `.nullable()`; un payload real de gobierno que devuelva `null`
+explícito (patrón MUY común en APIs JSON, en vez de omitir la llave) para CUALQUIER campo
+opcional hace que el registro COMPLETO falle con ZodError, clasificado por
+`classifySourceFailure` como "interface_changed" — una falsa alarma de "cambio de
+interfaz" cuando en realidad la estructura no cambió, solo el valor es null. Es la MISMA
+familia de riesgo que REQ-148 busca prevenir (un estado de fuente que no refleja la
+realidad), aplicado a "null" en vez de "silencio".
+
+================================================================================
+RESUMEN DE VEREDICTOS
+================================================================================
+SR-01: CERRADO (residual de la misma familia -> SR-18, BAJA)
+SR-02: PARCIAL (núcleo cerrado; regresión de la misma clase en ruta nueva -> SR-12)
+SR-03: PARCIAL (noteCodes=[] cerrado; vector adyacente -> SR-14, ALTA)
+SR-04: CERRADO
+SR-05: CERRADO
+SR-06: PARCIAL (wiring cerrado; robustez real -> SR-15 ALTA, SR-16 MEDIA-ALTA, SR-17 MEDIA)
+SR-07: CERRADO
+SR-08: CERRADO
+SR-09: CERRADO
+SR-10: fuera de ámbito (sin cambios, según instrucción explícita ya documentada)
+SR-11: CERRADO
+
+Nuevos: SR-12 (MEDIA), SR-13 (MEDIA-ALTA), SR-14 (ALTA), SR-15 (ALTA), SR-16 (MEDIA-ALTA),
+SR-17 (MEDIA), SR-18 (BAJA).
+
+Todos los archivos de prueba adversarial temporales (test/_reverify-*.test.ts,
+test/tz-harness/tz-edge.ts, test/tz-harness/print-csv-historico-deadline.ts) vivieron
+ÚNICAMENTE en el worktree <scratchpad>/reverify-src y se eliminaron junto con este al
+finalizar (git worktree remove). No se modificó ningún archivo de
+packages/sources/src ni packages/sources/test de forma persistente en el árbol principal.
