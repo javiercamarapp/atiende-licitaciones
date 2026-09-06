@@ -1,0 +1,16 @@
+/*
+ * Tipografía exclusiva del login (W-11). El login real de atiende-restaurantes
+ * (docs/investigacion/frontend-restaurantes.md no lo documentaba — ver el
+ * README de apps/web, sección "Paridad del login con Restaurantes", para el
+ * detalle de la divergencia encontrada y las decisiones tomadas aquí) usa
+ * "Fraunces" (serif, para el titular) además de Inter/Inter Tight en el
+ * resto del panel. Se aísla en su propio import — igual que el origen aísla
+ * `login.css` del resto del sistema de diseño — para no arrastrar una
+ * tipografía de una sola pantalla al resto de la app.
+ */
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500&display=swap");
+
+.login-serif {
+  font-family: "Fraunces", ui-serif, Georgia, serif;
+  font-optical-sizing: auto;
+}

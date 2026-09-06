@@ -8,12 +8,12 @@ import { AtiendeWordmark } from "@/components/AtiendeLogo";
 import { SkipLink } from "@/components/SkipLink";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { ErrorState } from "@/components/ui/error-state";
 import { ApiError, login, requestMagicLink } from "@/lib/api";
 import { toast } from "@/components/ui/sonner";
+import "./login.css";
 
 const passwordSchema = z.object({
   email: z.string().min(1, "Ingresa tu correo electrónico.").email("Ingresa un correo electrónico válido."),
@@ -148,38 +148,78 @@ export default function LoginPage() {
     // <main>/<h1> a todas las demás), así que necesita su propio landmark y
     // encabezado real — sin esto axe reporta landmark-one-main,
     // page-has-heading-one y region (W-08).
-    <main className="flex min-h-screen items-center justify-center bg-background p-4">
+    //
+    // Layout a pantalla partida (W-11): el login real de atiende-restaurantes
+    // no se parece al que describía docs/investigacion/frontend-restaurantes.md
+    // (login de tabs sin más) — el real es un layout de dos columnas con
+    // kicker + titular serif + formulario a la izquierda y una lámina
+    // decorativa a la derecha (oculta en móvil). Se adopta esa misma anatomía
+    // aquí; las divergencias deliberadas (tabs contraseña/enlace mágico en vez
+    // de solo enlace mágico + Google OAuth, sin foto de cocina) están
+    // documentadas en README.md § "Paridad del login con Restaurantes".
+    <main className="min-h-screen bg-background lg:grid lg:grid-cols-2">
       <SkipLink targetId="login-form">Saltar al formulario de acceso</SkipLink>
-      <Card className="w-full max-w-md">
-        <CardHeader className="items-center text-center">
-          <AtiendeWordmark className="mb-2" />
-          <CardTitle level={1}>Accede a tu panel de licitaciones</CardTitle>
-          <CardDescription>Gestiona convocatorias, evaluaciones y entregas en un solo lugar.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {/* tabIndex={-1} (W-09): sin esto el skip-link no puede mover el
-              foco aquí porque un <div> sin tabindex no es un destino de foco
-              válido — verificado por teclado real, no solo por axe. */}
-          <Tabs defaultValue="password" id="login-form" tabIndex={-1} className="focus:outline-none">
-            <TabsList className="mb-4 grid w-full grid-cols-2">
-              <TabsTrigger value="password" className="gap-1.5">
-                <Lock className="h-3.5 w-3.5" aria-hidden="true" />
-                Contraseña
-              </TabsTrigger>
-              <TabsTrigger value="magic-link" className="gap-1.5">
-                <Mail className="h-3.5 w-3.5" aria-hidden="true" />
-                Enlace mágico
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="password">
-              <PasswordLoginForm />
-            </TabsContent>
-            <TabsContent value="magic-link">
-              <MagicLinkForm />
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
+
+      <section className="flex min-h-screen flex-col px-6 py-7 sm:px-10 lg:px-14 lg:py-10">
+        <div className="mx-auto flex w-full max-w-[420px] flex-1 flex-col">
+          <header className="flex items-center">
+            <AtiendeWordmark />
+          </header>
+
+          <div className="flex flex-1 flex-col justify-center py-12">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Acceso al panel</p>
+            <h1 className="login-serif mt-5 text-[34px] font-medium leading-[1.15] text-foreground sm:text-[42px]">
+              Accede a tu panel de licitaciones
+            </h1>
+            <p className="mt-4 text-[15px] leading-relaxed text-muted-foreground">
+              Gestiona convocatorias, evaluaciones y entregas en un solo lugar.
+            </p>
+
+            <div className="mt-9">
+              {/* tabIndex={-1} (W-09): sin esto el skip-link no puede mover el
+                  foco aquí porque un <div> sin tabindex no es un destino de
+                  foco válido — verificado por teclado real, no solo por axe. */}
+              <Tabs defaultValue="password" id="login-form" tabIndex={-1} className="focus:outline-none">
+                <TabsList className="mb-4 grid w-full grid-cols-2">
+                  <TabsTrigger value="password" className="gap-1.5">
+                    <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+                    Contraseña
+                  </TabsTrigger>
+                  <TabsTrigger value="magic-link" className="gap-1.5">
+                    <Mail className="h-3.5 w-3.5" aria-hidden="true" />
+                    Enlace mágico
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value="password">
+                  <PasswordLoginForm />
+                </TabsContent>
+                <TabsContent value="magic-link">
+                  <MagicLinkForm />
+                </TabsContent>
+              </Tabs>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Lámina decorativa: el origen usa una foto de una cocina comercial
+          (fuera de dominio para licitaciones y sin licencia para reusar) —
+          aquí es un degradado con los mismos tokens de marca en vez de una
+          imagen de stock genérica, ver README.md. `aria-hidden` porque es
+          puramente decorativa (no aporta información que no esté ya en el
+          formulario). */}
+      <aside
+        aria-hidden="true"
+        className="relative hidden overflow-hidden bg-[linear-gradient(160deg,hsl(var(--primary))_0%,hsl(216_45%_9%)_100%)] lg:flex lg:flex-col lg:justify-end lg:p-10"
+      >
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,hsl(0_0%_100%/0.12),transparent_45%)]" />
+        <p className="relative text-xs font-semibold uppercase tracking-[0.16em] text-primary-foreground/70">
+          Licitaciones públicas en México
+        </p>
+        <p className="login-serif relative mt-3.5 max-w-sm text-[26px] leading-tight text-primary-foreground">
+          Convocatorias, evaluación y entrega, en un solo lugar.
+        </p>
+      </aside>
     </main>
   );
 }

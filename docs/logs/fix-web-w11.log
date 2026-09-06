@@ -1,0 +1,55 @@
+=== W-11: reproduccion (LoginPage sin la anatomia real de Restaurantes), ANTES de la correccion ===
+
+[2mRunning [22m3[2m tests using [22m1[2m worker[22m
+
+  [31m✘[39m  [2m1 [22m[31m[chromium] › e2e/login-parity.spec.ts:9:3 › Paridad visual del login (W-11) › escritorio: layout de pantalla partida con kicker, titular y lámina decorativa[39m[2m (5.2s)[22m
+  [32m✓[39m  [2m2 [22m[chromium] › e2e/login-parity.spec.ts:20:3 › Paridad visual del login (W-11) › móvil (390×844): la lámina decorativa se oculta y no hay scroll horizontal[2m (241ms)[22m
+  [32m✓[39m  [2m3 [22m[chromium] › e2e/login-parity.spec.ts:32:3 › Paridad visual del login (W-11) › mantiene contraseña + enlace mágico (divergencia deliberada: sin Google OAuth)[2m (198ms)[22m
+
+
+[31m  1) [chromium] › e2e/login-parity.spec.ts:9:3 › Paridad visual del login (W-11) › escritorio: layout de pantalla partida con kicker, titular y lámina decorativa [39m
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByText('Acceso al panel')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" getByText('Acceso al panel') with timeout 5000ms[22m
+    [2m  - waiting for getByText('Acceso al panel')[22m
+
+
+    [0m [90m 11 |[39m     [36mawait[39m page[33m.[39mgoto([32m"/login"[39m)[33m;[39m
+     [90m 12 |[39m
+    [31m[1m>[22m[39m[90m 13 |[39m     [36mawait[39m expect(page[33m.[39mgetByText([32m"Acceso al panel"[39m))[33m.[39mtoBeVisible()[33m;[39m
+     [90m    |[39m                                                     [31m[1m^[22m[39m
+     [90m 14 |[39m     [36mawait[39m expect(page[33m.[39mgetByRole([32m"heading"[39m[33m,[39m { level[33m:[39m [35m1[39m[33m,[39m name[33m:[39m [32m"Accede a tu panel de licitaciones"[39m }))[33m.[39mtoBeVisible()[33m;[39m
+     [90m 15 |[39m     [90m// La lámina decorativa es aria-hidden (puramente visual); se verifica su[39m
+     [90m 16 |[39m     [90m// presencia por texto, no por rol.[39m[0m
+    [2m    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/e2e/login-parity.spec.ts:13:53[22m
+
+[2m    Error Context: test-results/login-parity-Paridad-visua-36cc7-titular-y-lámina-decorativa-chromium/error-context.md[22m
+
+[2m    attachment #2: [1mtrace[2m (application/zip) [2m─────────────────────────────────────────────────────────[2m[22m
+[2m    test-results/login-parity-Paridad-visua-36cc7-titular-y-lámina-decorativa-chromium/trace.zip[22m
+[2m    Usage:[22m
+
+[2m        npx playwright show-trace test-results/login-parity-Paridad-visua-36cc7-titular-y-lámina-decorativa-chromium/trace.zip[22m
+
+[2m    [2m────────────────────────────────────────────────────────────────────────────────────────────────[2m[22m
+
+[31m  1 failed[39m
+[31m    [chromium] › e2e/login-parity.spec.ts:9:3 › Paridad visual del login (W-11) › escritorio: layout de pantalla partida con kicker, titular y lámina decorativa [39m
+[32m  2 passed[39m[2m (6.5s)[22m
+
+=== W-11: tras la correccion (layout de pantalla partida, kicker, titular serif, lamina) ===
+
+[2mRunning [22m3[2m tests using [22m1[2m worker[22m
+
+  [32m✓[39m  [2m1 [22m[chromium] › e2e/login-parity.spec.ts:9:3 › Paridad visual del login (W-11) › escritorio: layout de pantalla partida con kicker, titular y lámina decorativa[2m (296ms)[22m
+  [32m✓[39m  [2m2 [22m[chromium] › e2e/login-parity.spec.ts:20:3 › Paridad visual del login (W-11) › móvil (390×844): la lámina decorativa se oculta y no hay scroll horizontal[2m (175ms)[22m
+  [32m✓[39m  [2m3 [22m[chromium] › e2e/login-parity.spec.ts:32:3 › Paridad visual del login (W-11) › mantiene contraseña + enlace mágico (divergencia deliberada: sin Google OAuth)[2m (279ms)[22m
+
+[32m  3 passed[39m[2m (1.1s)[22m

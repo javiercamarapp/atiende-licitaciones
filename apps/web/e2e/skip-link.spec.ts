@@ -6,8 +6,11 @@ import { test, expect } from "@playwright/test";
 test.describe("Skip-link mueve el foco real (W-09)", () => {
   test("en LoginPage, el skip-link mueve el foco al formulario (#login-form)", async ({ page }) => {
     await page.goto("/login");
-    // Sin esto, el primer Tab en una página recién cargada a veces no
-    // mueve el foco de forma determinística en Chromium headless.
+    // LoginPage carga una fuente externa (Fraunces, ver login.css); sin
+    // esperar a que la red esté quieta, el primer Tab puede llegar antes de
+    // que Chromium headless termine de asentar el orden de foco de la
+    // página, y el foco se queda en <body>.
+    await page.waitForLoadState("networkidle");
     await page.evaluate(() => document.body.focus());
 
     await page.keyboard.press("Tab");

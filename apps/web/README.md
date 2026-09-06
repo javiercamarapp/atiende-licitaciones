@@ -124,6 +124,29 @@ src/
   explícitamente para que `ThemeSelector` y `SidebarNav` (que sí usan
   `localStorage`) funcionen igual en test que en el navegador real.
 
+## Paridad del login con Restaurantes (W-11)
+
+`docs/investigacion/frontend-restaurantes.md` (la base documentada para la
+paridad visual) describe el login real de `atiende-restaurantes` como "tabs
+contraseña/enlace mágico" — pero el `AdminLogin.tsx` real de ese repo
+(revisado directamente en código para esta corrección, sin tocar su `.env`
+ni sus datos) es otra cosa: un layout de **pantalla partida** (formulario a
+la izquierda, lámina fotográfica a la derecha), con un **kicker** ("Acceso
+al panel"), un **titular en serif** (`Fraunces`, no la fuente del resto del
+panel), un botón **"Continuar con Google"** (`signInWithOAuth`) y **sin
+formulario de contraseña** (solo enlace mágico por correo). El documento de
+investigación quedó incompleto en este punto; esta corrección alinea
+`LoginPage.tsx` a la anatomía real que sí se pudo verificar en código,
+manteniendo divergencias deliberadas para el dominio de licitaciones:
+
+| Aspecto | Restaurantes (real) | Licitaciones (aquí) | Por qué diverge |
+|---|---|---|---|
+| Layout | Pantalla partida, formulario + lámina fotográfica | Igual (pantalla partida, formulario + lámina) | Adoptado tal cual — es la anatomía real de la marca |
+| Kicker + titular serif (`Fraunces`) | Sí | Sí | Adoptado tal cual |
+| Lámina derecha | Foto de una cocina comercial (`login-hero.png`) | Degradado con los tokens de marca (`--primary` → fondo oscuro) | Una foto de cocina es del dominio equivocado (restaurantes, no licitaciones) y no existe un asset equivalente con licencia para licitaciones; se prefirió un degradado honesto a inventar/copiar una imagen que no representa el producto |
+| Métodos de acceso | Solo enlace mágico + Google OAuth | Contraseña **y** enlace mágico (tabs), sin OAuth | El backend de licitaciones (`apps/api`) expone `/auth/login` con contraseña; no hay integración con Google configurada en esta ronda. Se documenta como decisión de producto, no como omisión accidental |
+| Roles / redirect post-login | Lógica de `superadmin` vs. `admin` específica de restaurantes | No aplica — sin backend de sesión todavía | Fuera de alcance de esta ronda (ver "Qué falta") |
+
 ## Qué falta (fuera de alcance de esta ronda)
 
 - Conectar `apps/api` real: hoy `src/lib/api.ts` apunta a `VITE_API_URL` pero
