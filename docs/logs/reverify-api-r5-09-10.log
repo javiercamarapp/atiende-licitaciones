@@ -1,0 +1,161 @@
+=== 2026-09-06T14:40:41Z reverify-api-r5-09-10: reverificación adversarial ===
+
+--- git worktree ---
+worktree: /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-r509
+HEAD real al iniciar: 85779ee (main)
+
+--- ancestria ---
+85779ee docs: despacho reverificación R5-09/10
+f74b568 docs: R5-09/10 corregidos
+a7026ec fix(api|db): R5-09 orgId/purpose obligatorios y sesión de step-up de un solo uso
+586e3cf fix(api): R5-10 audita ip/userAgent en fallos de 2FA
+c13276b docs: latido del bucle
+e56e0dd fix(web): corrige contraste real del título del toast (axe, WCAG AA)
+4309461 docs: latido del bucle
+227369b fix(web,e2e): usa una frase de bases con evidencia mapeable (poder notarial)
+
+--- git show --stat a7026ec ---
+commit a7026ec23cd6a9942c90bdbeb99462247699d9f4
+Author: Javier Cámara Porte Petit <javiercamaraportepetit@Mac-mini-de-Javier.local>
+Date:   Sun Sep 6 08:29:09 2026 -0600
+
+    fix(api|db): R5-09 orgId/purpose obligatorios y sesión de step-up de un solo uso
+    
+    La reverificación adversarial de ronda 5 confirmó que el alcance opcional
+    de step_up_sessions.org_id/purpose (R5-05, migración 0061) nunca se
+    activaba en el flujo real de apps/web -- ningún cliente declaraba nunca
+    X-Org-Id/purpose, así que toda sesión de step-up quedaba "genérica" y el
+    riesgo original de R5-05 (un mismo stepUpToken aprueba cualquier
+    tarifa/expediente en cualquier organización del usuario) seguía
+    completamente vigente en producción.
+    
+    - `X-Org-Id`/`purpose` ahora OBLIGATORIOS al pedir un step-up (POST
+      /auth/2fa/step-up y POST /auth/2fa/verify-enrollment): 400 explícito si
+      faltan, o si `purpose` no es uno de los 4 valores del enum cerrado
+      (company.rate_approval, expediente.approval, tool_call.approval,
+      admin.action -- lib/step-up.ts#STEP_UP_PURPOSES), validado DESPUÉS de
+      confirmar que el código TOTP/backup en sí es correcto.
+    - Migración 0062: invalida (borra) las sesiones "genéricas" preexistentes
+      (org_id/purpose NULL) y hace ambas columnas NOT NULL; agrega
+      `consumed_at`. Migración 0063: CHECK de esquema con el mismo enum
+      cerrado (defensa en profundidad).
+    - `requireStepUp` exige coincidencia EXACTA de org/purpose sin excepción
+      (ya no hay bypass "genérico") y consume la sesión atómicamente
+      (`UPDATE ... WHERE consumed_at IS NULL RETURNING`, mismo patrón que
+      app.rotate_refresh_token) -- de un solo uso, aunque siga vigente y el
+      org/purpose coincidan.
+    
+    Tests actualizados en toda la suite de ronda 4/5 que usaba `enrollTwoFactor`
+    sin scope (ahora obligatorio en el helper) o reutilizaba un mismo
+    stepUpToken para más de una acción (ahora piden un token por acción, vía
+    enrollTwoFactorFull/stepUpWithBackupCode). security-r505-stepup-scope.test.ts
+    cubre además: 400 sin org/purpose, 400 con purpose fuera del enum,
+    reutilización cruzada de org/purpose rechazada, y reuso de un mismo token
+    rechazado. packages/db/test/security-r509-step-up-mandatory-scope.test.ts
+    prueba las migraciones directamente (invalidación real de sesiones
+    genéricas preexistentes al migrar de 0061 a 0062+, NOT NULL, CHECK del
+    enum). apps/web fue actualizado en paralelo por el agente #71 para
+    declarar X-Org-Id/purpose con los mismos valores de enum.
+    
+    Verificación completa en docs/logs/fix-api-r5-09-10.log: apps/api
+    typecheck/lint/test (58 archivos, 230 tests) y packages/db test (24
+    archivos, 161 tests), todo en verde.
+    
+    Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+    Claude-Session: https://claude.ai/code/session_01PF5QyVoZ1Z35Mi9Xt9ehd8
+
+ apps/api/README.md                                 | 113 ++++++--
+ apps/api/src/lib/step-up.ts                        | 143 ++++++---
+ apps/api/src/modules/company/routes.ts             |   5 +-
+ apps/api/src/modules/expediente/approval.routes.ts |   5 +-
+ apps/api/src/modules/twofa/routes.ts               |  63 ++--
+ apps/api/src/modules/twofa/schemas.ts              |  23 +-
+ apps/api/test/company-profile.test.ts              |   2 +-
+ apps/api/test/correlation-id-e2e.test.ts           |  13 +-
+ .../test/expediente-checklist-and-approval.test.ts |  18 +-
+ apps/api/test/expediente-e2e-flow.test.ts          |   4 +-
+ .../test/expediente-package-and-submission.test.ts |  14 +-
+ apps/api/test/expediente-proposal.test.ts          |   4 +-
+ apps/api/test/helpers.ts                           |  67 +++--
+ apps/api/test/ronda4-empty-body.test.ts            |   4 +-
+ .../security-ae01-asofiso-server-derived.test.ts   |   4 +-
+ ...-ae02-section-edit-invalidates-approval.test.ts |   4 +-
+ .../test/security-ae08-full-profile-hash.test.ts   |   4 +-
+ ...y-ae11-record-edit-blocks-self-approval.test.ts |   4 +-
+ ...security-ae14-package-status-re-derived.test.ts |   2 +-
+ .../security-r502-r503-twofa-brute-force.test.ts   |  20 +-
+ .../security-r504-correlation-id-ingest.test.ts    |  13 +-
+ apps/api/test/security-r505-stepup-scope.test.ts   | 123 ++++++--
+ .../test/security-req044-064-step-up-2fa.test.ts   |  44 +--
+ .../security-wi04-approved-rates-atomic.test.ts    |  40 ++-
+ docs/logs/fix-api-r5-09-10.log                     | 318 +++++++++++++++++++++
+ .../0062_r509_step_up_mandatory_scope.sql          |  43 +++
+ .../migrations/0063_r509_step_up_purpose_enum.sql  |  19 ++
+ .../security-r509-step-up-mandatory-scope.test.ts  | 152 ++++++++++
+ 28 files changed, 1039 insertions(+), 229 deletions(-)
+
+--- git show --stat 586e3cf ---
+commit 586e3cf329861cf873381ac8ae5724443a706293
+Author: Javier Cámara Porte Petit <javiercamaraportepetit@Mac-mini-de-Javier.local>
+Date:   Sun Sep 6 08:26:48 2026 -0600
+
+    fix(api): R5-10 audita ip/userAgent en fallos de 2FA
+    
+    Los fallos/bloqueos/replay de 2FA (twofa.verification_failed/
+    twofa.step_up_denied) se auditaban sin la IP del cliente, rompiendo la
+    paridad con auth.login_failed (API-13) que la propia justificación de
+    R5-03 invoca explícitamente. `recordFailure` (modules/twofa/routes.ts)
+    ahora agrega ip/userAgent al `after` (mismo extractor `auditContext` que
+    modules/auth/routes.ts) -- sin migración nueva, `audit_log.after` ya es
+    jsonb sin esquema fijo.
+    
+    Test nuevo en security-r502-r503-twofa-brute-force.test.ts que compara
+    directamente un twofa.verification_failed real contra un
+    auth.login_failed real en la misma corrida (misma IP en ambos).
+    
+    Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+    Claude-Session: https://claude.ai/code/session_01PF5QyVoZ1Z35Mi9Xt9ehd8
+
+ apps/api/src/modules/twofa/routes.ts               | 39 +++++++++++++++++-----
+ .../security-r502-r503-twofa-brute-force.test.ts   | 36 ++++++++++++++++++++
+ docs/auditoria-2/api-ronda5-reverificacion.md      | 14 ++++++++
+ 3 files changed, 81 insertions(+), 8 deletions(-)
+
+--- npm install (raiz, workspaces) ---
+OK (445+294 paquetes via npm workspaces, ver stdout real en consola del agente)
+
+--- npm run -w apps/api typecheck ---
+
+> @atiende/api@0.1.0 typecheck
+> tsc --noEmit
+
+EXIT:0
+
+--- npm run -w apps/api lint ---
+EXIT:0 (eslint src test, sin errores)
+
+--- npm run -w apps/api test (real, reproducido en este agente) ---
+[2m Test Files [22m [1m[32m58 passed[39m[22m[90m (58)[39m
+[2m      Tests [22m [1m[32m230 passed[39m[22m[90m (230)[39m
+
+--- npm run -w packages/db test (real, reproducido en este agente) ---
+[2m Test Files [22m [1m[32m24 passed[39m[22m[90m (24)[39m
+[2m      Tests [22m [1m[32m161 passed[39m[22m[90m (161)[39m
+
+--- npm run -w apps/worker typecheck ---
+EXIT:0
+
+--- npm run -w apps/worker test (real, reproducido en este agente) ---
+[2m Test Files [22m [1m[32m11 passed[39m[22m[90m (11)[39m
+[2m      Tests [22m [1m[32m298 passed[39m[22m[90m (298)[39m
+
+--- prueba adversarial adicional 1: mismo stepUpToken usado CONCURRENTEMENTE en DOS acciones distintas (rate1/rate2) ---
+Archivo temporal apps/api/test/zz-adversarial-concurrent-token.test.ts, ejecutado y BORRADO al terminar.
+Resultado real: codes=[200,403] (exactamente uno consume el token), consumed_at no nulo tras la corrida. PASA.
+
+--- prueba adversarial adicional 2: X-Forwarded-For falsificado no se refleja en el ip auditado ---
+Archivo temporal apps/api/test/zz-probe-xff.test.ts, ejecutado y BORRADO al terminar.
+Resultado real: X-Forwarded-For: 1.2.3.4 enviado: audit_log.after.ip = 127.0.0.1 (ip real de la conexión de prueba), NUNCA 1.2.3.4. PASA (trustProxy no configurado en Fastify -> request.ip no lee X-Forwarded-For).
+
+--- git status del worktree tras las pruebas temporales ---
+(vacio = confirmado: los 2 archivos de prueba temporales fueron borrados, ningun residuo)
