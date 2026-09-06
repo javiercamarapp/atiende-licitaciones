@@ -9,6 +9,10 @@ import { auditLogListResponseSchema, type AuditLogListResponse } from "./schemas
 export interface AuditLogFilters {
   entity?: string;
   actorId?: string;
+  /** REQ-171: filtra por id de correlación de negocio (reconstruye la
+   * traza de un flujo completo: convocatoria → matriz → propuesta →
+   * paquete). */
+  correlationId?: string;
   createdFrom?: string;
   createdTo?: string;
   cursor?: string;
@@ -18,6 +22,7 @@ function toQueryString(filters: AuditLogFilters): string {
   const params = new URLSearchParams();
   if (filters.entity) params.set("entity", filters.entity);
   if (filters.actorId) params.set("actorId", filters.actorId);
+  if (filters.correlationId) params.set("correlationId", filters.correlationId);
   if (filters.createdFrom) params.set("createdFrom", filters.createdFrom);
   if (filters.createdTo) params.set("createdTo", filters.createdTo);
   if (filters.cursor) params.set("cursor", filters.cursor);

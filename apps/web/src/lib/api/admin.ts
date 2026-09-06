@@ -102,6 +102,7 @@ function toAdminAuditQueryString(filters: AdminAuditLogFilters): string {
   if (filters.orgId) params.set("orgId", filters.orgId);
   if (filters.entity) params.set("entity", filters.entity);
   if (filters.actorId) params.set("actorId", filters.actorId);
+  if (filters.correlationId) params.set("correlationId", filters.correlationId);
   if (filters.createdFrom) params.set("createdFrom", filters.createdFrom);
   if (filters.createdTo) params.set("createdTo", filters.createdTo);
   if (filters.cursor) params.set("cursor", filters.cursor);

@@ -370,6 +370,11 @@ export const auditLogEntrySchema = z.object({
   before: z.unknown().nullable(),
   after: z.unknown().nullable(),
   requestId: z.string().nullable(),
+  /** REQ-171: id de correlación de negocio (trazabilidad de extremo a
+   * extremo de un flujo); `null` para eventos anteriores a esta ronda o sin
+   * correlación conocida. `.optional()` porque este campo es más nuevo que
+   * el resto del contrato (apps/api lo agregó en paralelo a esta ronda). */
+  correlationId: z.string().nullable().optional(),
   createdAt: z.string(),
 });
 export type AuditLogEntry = z.infer<typeof auditLogEntrySchema>;
