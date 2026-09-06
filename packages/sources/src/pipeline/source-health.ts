@@ -1,5 +1,6 @@
 import { ZodError } from "zod";
 import { HostPausedError, HttpError } from "../http/http-client.js";
+import { CaptchaDetectedError, InterfaceChangedError } from "../http/response-classifier.js";
 import { SourceNotConfiguredError } from "../connectors/types.js";
 import type { SourceId } from "../types/tender-record.js";
 
@@ -70,11 +71,16 @@ export class InMemorySourceHealthStore implements SourceHealthStore {
 }
 
 /**
- * Clasifica un error de conector en un `SourceHealthState` explícito. La
- * heurística de CAPTCHA busca menciones de "captcha"/"recaptcha" en el
- * mensaje (los conectores que topan con reCAPTCHA, p.ej. ComprasMX, deben
- * incluir esa palabra en el error que lanzan) y complementa la detección de
- * 401/403 (`permission_missing`), 429/`HostPausedError` (`rate_limited` /
+ * Clasifica un error de conector en un `SourceHealthState` explícito.
+ * `CaptchaDetectedError`/`InterfaceChangedError` (SR-14, `http/response-classifier.ts`)
+ * son la vía PRECISA de detección: cualquier conector que valide su cuerpo
+ * de respuesta con `assertLegitimateResponseBody` antes de interpretarlo
+ * clasifica correctamente un 200 con captcha/bot-challenge o con un cambio
+ * de formato inesperado, en vez de reportar "ok" o caer en el catch-all
+ * "down". La heurística de mensaje (`/captcha/i`) se conserva como red de
+ * seguridad adicional para cualquier otro error que mencione "captcha" en
+ * su mensaje sin usar esas clases. Complementa la detección de 401/403
+ * (`permission_missing`), 429/`HostPausedError` (`rate_limited` /
  * `permission_missing`), 5xx/red (`down`) y errores de esquema `ZodError`
  * (`interface_changed`: el parser no reconoce la estructura recibida).
  */
@@ -83,6 +89,12 @@ export function classifySourceFailure(error: unknown): { state: SourceHealthStat
 
   if (error instanceof SourceNotConfiguredError) {
     return { state: "not_configured", message };
+  }
+  if (error instanceof CaptchaDetectedError) {
+    return { state: "captcha_detected", message };
+  }
+  if (error instanceof InterfaceChangedError) {
+    return { state: "interface_changed", message };
   }
   if (/captcha/i.test(message)) {
     return { state: "captcha_detected", message };

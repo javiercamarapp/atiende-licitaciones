@@ -1,5 +1,6 @@
 import type { ConnectorContext, DiscoverParams, LiveVerification, SourceConnector } from "../types.js";
 import type { SourceId } from "../../types/tender-record.js";
+import { assertLegitimateResponseBody } from "../../http/response-classifier.js";
 import { mapOcdsPackageToTenderRecords, mapOcdsReleaseToTenderRecord } from "./ocds-mapper.js";
 import { OcdsReleaseSchema } from "./ocds-types.js";
 
@@ -44,7 +45,11 @@ export function createOcdsConnector(config: OcdsConnectorConfig): SourceConnecto
         if (!response.ok) {
           throw new Error(`Fuente ${config.id} respondió ${response.status} en ${url}`);
         }
-        const json = await response.json();
+        const bodyText = await response.text();
+        // SR-14: un 200 con cuerpo de captcha/bot-challenge (o con forma de página HTML donde se esperaba JSON)
+        // no debe interpretarse como "0 registros nuevos" -- ver README (Zenedge documentado para PDN-S6).
+        assertLegitimateResponseBody(bodyText, { url, expected: "json" });
+        const json = JSON.parse(bodyText);
         const fetchedAt = ctx.now?.() ?? new Date();
         const records = mapOcdsPackageToTenderRecords(json, {
           source: config.id,
@@ -81,7 +86,9 @@ export function createOcdsConnector(config: OcdsConnectorConfig): SourceConnecto
       if (!response.ok) {
         throw new Error(`Fuente ${config.id} respondió ${response.status} en ${url}`);
       }
-      const json = await response.json();
+      const bodyText = await response.text();
+      assertLegitimateResponseBody(bodyText, { url, expected: "json" });
+      const json = JSON.parse(bodyText);
       const fetchedAt = ctx.now?.() ?? new Date();
       const release = OcdsReleaseSchema.parse(json);
       return mapOcdsReleaseToTenderRecord(release, json, {

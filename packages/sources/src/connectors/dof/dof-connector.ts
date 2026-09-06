@@ -1,5 +1,6 @@
 import type { ConnectorContext, DiscoverParams, SourceConnector } from "../types.js";
 import { SourceNotConfiguredError } from "../types.js";
+import { assertLegitimateResponseBody } from "../../http/response-classifier.js";
 import { extractDofNoticesFromText, mapDofNoticeToTenderRecord } from "./dof-mapper.js";
 
 export interface DofConnectorConfig {
@@ -84,6 +85,10 @@ export function createDofConnector(config: DofConnectorConfig = {}): SourceConne
           throw new Error(`DOF respondió ${response.status} en ${url}`);
         }
         const html = await response.text();
+        // SR-14: un 200 real puede traer un cuerpo de captcha/bot-challenge (el propio README lo documenta como
+        // real para PDN-S6/Zenedge); sin esta validación, `extractDofNoticesFromText` simplemente no encontraría
+        // avisos y la corrida se reportaría como "ok"/"0 nuevas" -- indistinguible de una corrida real sin novedades.
+        assertLegitimateResponseBody(html, { url, expected: "text" });
         const text = stripHtml(html);
         const fechaMatch = html.match(/fecha=(\d{2}\/\d{2}\/\d{4})/);
         const fecha = fechaMatch?.[1] ?? "";
@@ -104,6 +109,7 @@ export function createDofConnector(config: DofConnectorConfig = {}): SourceConne
       if (response.status === 404) return null;
       if (!response.ok) throw new Error(`DOF respondió ${response.status} en ${url}`);
       const html = await response.text();
+      assertLegitimateResponseBody(html, { url, expected: "text" });
       const text = stripHtml(html);
       const fechaMatch = html.match(/fecha=(\d{2}\/\d{2}\/\d{4})/);
       const fecha = fechaMatch?.[1] ?? "";

@@ -1,4 +1,5 @@
 import type { ConnectorContext, DiscoverParams, SourceConnector } from "../types.js";
+import { assertLegitimateResponseBody } from "../../http/response-classifier.js";
 import { mapComprasMxApiRecords } from "./comprasmx-mapper.js";
 import { ComprasMxApiResponseSchema } from "./comprasmx-types.js";
 
@@ -78,7 +79,11 @@ export function createComprasMxConnector(config: ComprasMxConnectorConfig = {}):
             "el endpoint exige reCAPTCHA y este conector no lo resuelve por política (REQ-079).",
         );
       }
-      const json = await response.json();
+      const bodyText = await response.text();
+      // SR-14: ComprasMX está protegido por reCAPTCHA en producción; un 200 con cuerpo de captcha/challenge no
+      // debe interpretarse como "0 expedientes nuevos" (ver README, evidencia real del 401/403 documentados).
+      assertLegitimateResponseBody(bodyText, { url, expected: "json" });
+      const json = JSON.parse(bodyText);
       const parsed = ComprasMxApiResponseSchema.parse(json);
       const rawRecords = parsed.data[0]?.registros ?? [];
       const fetchedAt = ctx.now?.() ?? new Date();
@@ -101,7 +106,9 @@ export function createComprasMxConnector(config: ComprasMxConnectorConfig = {}):
       if (!response.ok) {
         throw new Error(`ComprasMX respondió ${response.status} en ${url}`);
       }
-      const json = await response.json();
+      const bodyText = await response.text();
+      assertLegitimateResponseBody(bodyText, { url, expected: "json" });
+      const json = JSON.parse(bodyText);
       const fetchedAt = ctx.now?.() ?? new Date();
       const [record] = mapComprasMxApiRecords([json], { sourceUrl: url, fetchedAt, httpStatus: response.status });
       return record ?? null;

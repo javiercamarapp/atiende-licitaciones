@@ -1,4 +1,5 @@
 import type { ConnectorContext, DiscoverParams, SourceConnector } from "../types.js";
+import { assertLegitimateResponseBody } from "../../http/response-classifier.js";
 import { mapOcdsPackageToTenderRecords } from "../ocds/ocds-mapper.js";
 
 export interface StatePortalConfig {
@@ -88,7 +89,9 @@ export function createStatePortalConnector(config: StatePortalConnectorConfig = 
         if (!response.ok) {
           throw new Error(`Portal estatal ${portal.name} respondió ${response.status} en ${url}`);
         }
-        const json = await response.json();
+        const bodyText = await response.text();
+        assertLegitimateResponseBody(bodyText, { url: url.toString(), expected: "json" });
+        const json = JSON.parse(bodyText);
         const fetchedAt = ctx.now?.() ?? new Date();
         const records = mapOcdsPackageToTenderRecords(json, {
           source: "state-portal",
