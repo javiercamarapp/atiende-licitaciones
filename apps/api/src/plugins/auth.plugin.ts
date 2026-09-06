@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import fp from 'fastify-plugin';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { verifyAccessToken } from '../lib/jwt.js';
@@ -65,10 +66,25 @@ async function authPluginImpl(app: FastifyInstance): Promise<void> {
       throw new ForbiddenError('PLATFORM_API_KEY no está configurada: la ingesta interna está deshabilitada');
     }
     const provided = request.headers['x-platform-api-key'];
-    if (!provided || typeof provided !== 'string' || provided !== expected) {
+    // API-12 (docs/auditoria-1/db-api-reverificacion.md, BAJA): comparar
+    // secretos con `!==` filtra un canal de timing teórico (la comparación
+    // de string de V8 termina en el primer byte distinto). Se usa
+    // `timingSafeEqual` (mismo patrón que lib/passwords.ts), igualando
+    // longitudes primero -- `timingSafeEqual` lanza si los buffers no
+    // miden lo mismo, así que esa comparación de longitud debe hacerse
+    // aparte y de forma segura de todos modos (una clave más corta/larga
+    // ya es, por definición, distinta).
+    if (!provided || typeof provided !== 'string' || !constantTimeEquals(provided, expected)) {
       throw new UnauthorizedError('Clave de API de plataforma inválida o ausente');
     }
   });
+}
+
+function constantTimeEquals(provided: string, expected: string): boolean {
+  const providedBuf = Buffer.from(provided);
+  const expectedBuf = Buffer.from(expected);
+  if (providedBuf.length !== expectedBuf.length) return false;
+  return timingSafeEqual(providedBuf, expectedBuf);
 }
 
 export const authPlugin = fp(authPluginImpl, { name: 'auth-plugin' });
