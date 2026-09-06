@@ -1,0 +1,72 @@
+=== W-10: reproduccion real del fallo (targets < 44px), ANTES de la correccion ===
+
+[2mRunning [22m2[2m tests using [22m1[2m worker[22m
+
+  [31m✘[39m  [2m1 [22m[31m[chromium] › e2e/touch-targets.spec.ts:9:3 › Objetivos táctiles ≥44×44px (W-10) › el botón hamburguesa mide al menos 44×44px[39m[2m (322ms)[22m
+  [31m✘[39m  [2m2 [22m[31m[chromium] › e2e/touch-targets.spec.ts:20:3 › Objetivos táctiles ≥44×44px (W-10) › el primer link del drawer móvil mide al menos 44px de alto[39m[2m (328ms)[22m
+
+
+[31m  1) [chromium] › e2e/touch-targets.spec.ts:9:3 › Objetivos táctiles ≥44×44px (W-10) › el botón hamburguesa mide al menos 44×44px [39m
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBeGreaterThanOrEqual[2m([22m[32mexpected[39m[2m)[22m
+
+    Expected: >= [32m44[39m
+    Received:    [31m40[39m
+
+    [0m [90m 14 |[39m     [36mconst[39m box [33m=[39m [36mawait[39m hamburger[33m.[39mboundingBox()[33m;[39m
+     [90m 15 |[39m     expect(box)[33m.[39mnot[33m.[39mtoBeNull()[33m;[39m
+    [31m[1m>[22m[39m[90m 16 |[39m     expect(box[33m![39m[33m.[39mwidth)[33m.[39mtoBeGreaterThanOrEqual([33mMIN_TARGET[39m)[33m;[39m
+     [90m    |[39m                        [31m[1m^[22m[39m
+     [90m 17 |[39m     expect(box[33m![39m[33m.[39mheight)[33m.[39mtoBeGreaterThanOrEqual([33mMIN_TARGET[39m)[33m;[39m
+     [90m 18 |[39m   })[33m;[39m
+     [90m 19 |[39m[0m
+    [2m    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/e2e/touch-targets.spec.ts:16:24[22m
+
+[2m    Error Context: test-results/touch-targets-Objetivos-tá-81773-guesa-mide-al-menos-44×44px-chromium/error-context.md[22m
+
+[2m    attachment #2: [1mtrace[2m (application/zip) [2m─────────────────────────────────────────────────────────[2m[22m
+[2m    test-results/touch-targets-Objetivos-tá-81773-guesa-mide-al-menos-44×44px-chromium/trace.zip[22m
+[2m    Usage:[22m
+
+[2m        npx playwright show-trace test-results/touch-targets-Objetivos-tá-81773-guesa-mide-al-menos-44×44px-chromium/trace.zip[22m
+
+[2m    [2m────────────────────────────────────────────────────────────────────────────────────────────────[2m[22m
+
+[31m  2) [chromium] › e2e/touch-targets.spec.ts:20:3 › Objetivos táctiles ≥44×44px (W-10) › el primer link del drawer móvil mide al menos 44px de alto [39m
+
+    Error: [2mexpect([22m[31mreceived[39m[2m).[22mtoBeGreaterThanOrEqual[2m([22m[32mexpected[39m[2m)[22m
+
+    Expected: >= [32m44[39m
+    Received:    [31m36[39m
+
+    [0m [90m 27 |[39m     [36mconst[39m box [33m=[39m [36mawait[39m firstLink[33m.[39mboundingBox()[33m;[39m
+     [90m 28 |[39m     expect(box)[33m.[39mnot[33m.[39mtoBeNull()[33m;[39m
+    [31m[1m>[22m[39m[90m 29 |[39m     expect(box[33m![39m[33m.[39mheight)[33m.[39mtoBeGreaterThanOrEqual([33mMIN_TARGET[39m)[33m;[39m
+     [90m    |[39m                         [31m[1m^[22m[39m
+     [90m 30 |[39m   })[33m;[39m
+     [90m 31 |[39m })[33m;[39m
+     [90m 32 |[39m[0m
+    [2m    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/e2e/touch-targets.spec.ts:29:25[22m
+
+[2m    Error Context: test-results/touch-targets-Objetivos-tá-8f590--mide-al-menos-44px-de-alto-chromium/error-context.md[22m
+
+[2m    attachment #2: [1mtrace[2m (application/zip) [2m─────────────────────────────────────────────────────────[2m[22m
+[2m    test-results/touch-targets-Objetivos-tá-8f590--mide-al-menos-44px-de-alto-chromium/trace.zip[22m
+[2m    Usage:[22m
+
+[2m        npx playwright show-trace test-results/touch-targets-Objetivos-tá-8f590--mide-al-menos-44px-de-alto-chromium/trace.zip[22m
+
+[2m    [2m────────────────────────────────────────────────────────────────────────────────────────────────[2m[22m
+
+[31m  2 failed[39m
+[31m    [chromium] › e2e/touch-targets.spec.ts:9:3 › Objetivos táctiles ≥44×44px (W-10) › el botón hamburguesa mide al menos 44×44px [39m
+[31m    [chromium] › e2e/touch-targets.spec.ts:20:3 › Objetivos táctiles ≥44×44px (W-10) › el primer link del drawer móvil mide al menos 44px de alto [39m
+
+=== W-10: tras la correccion (hamburguesa 44x44, link del drawer con py-3) ===
+
+[2mRunning [22m2[2m tests using [22m1[2m worker[22m
+
+  [32m✓[39m  [2m1 [22m[chromium] › e2e/touch-targets.spec.ts:9:3 › Objetivos táctiles ≥44×44px (W-10) › el botón hamburguesa mide al menos 44×44px[2m (327ms)[22m
+  [32m✓[39m  [2m2 [22m[chromium] › e2e/touch-targets.spec.ts:20:3 › Objetivos táctiles ≥44×44px (W-10) › el primer link del drawer móvil mide al menos 44px de alto[2m (276ms)[22m
+
+[32m  2 passed[39m[2m (1.0s)[22m

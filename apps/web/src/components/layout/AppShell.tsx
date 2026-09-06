@@ -57,7 +57,9 @@ export function AppShell() {
               size="icon"
               aria-label="Abrir menú de navegación"
               aria-haspopup="dialog"
-              className="md:hidden"
+              // El tamaño "icon" por defecto es 40×40px, por debajo del
+              // objetivo de ≥44×44px para targets táctiles (W-10).
+              className="h-11 w-11 md:hidden"
               onClick={() => setMobileNavOpen(true)}
             >
               <Menu className="h-5 w-5" aria-hidden="true" />

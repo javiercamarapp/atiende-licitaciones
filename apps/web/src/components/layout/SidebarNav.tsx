@@ -69,7 +69,7 @@ export function SidebarNav({ onNavigate, className }: SidebarNavProps) {
                   if (item.disabled) {
                     return (
                       <li key={item.id}>
-                        <span className="flex cursor-not-allowed items-center justify-between gap-2 rounded-xl px-3 py-2 text-sm text-muted-foreground/60">
+                        <span className="flex cursor-not-allowed items-center justify-between gap-2 rounded-xl px-3 py-3 text-sm text-muted-foreground/60">
                           <span className="flex items-center gap-2">
                             <Icon className="h-4 w-4" aria-hidden="true" strokeWidth={1.75} />
                             {item.label}
@@ -86,9 +86,12 @@ export function SidebarNav({ onNavigate, className }: SidebarNavProps) {
                       <NavLink
                         to={item.to}
                         onClick={onNavigate}
+                        // py-3 (no py-2): un link de 36px de alto queda por
+                        // debajo del objetivo de ≥44px para targets táctiles,
+                        // especialmente relevante en el drawer móvil (W-10).
                         className={({ isActive }) =>
                           cn(
-                            "flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors",
+                            "flex items-center gap-2 rounded-xl px-3 py-3 text-sm font-medium transition-colors",
                             isActive
                               ? "bg-primary text-primary-foreground shadow-card"
                               : "text-foreground hover:bg-muted",
