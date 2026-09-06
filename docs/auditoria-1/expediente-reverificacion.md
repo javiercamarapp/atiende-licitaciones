@@ -349,3 +349,19 @@ coincidencias — ningún consumidor real existe todavía.
   los hallazgos son de solo lectura sobre el commit `49141fb` (y su árbol de archivos,
   idéntico en `packages/expediente/**` al commit padre `421317f`, ya que `49141fb` solo
   tocó `README.md`/`docs/logs/`).
+
+---
+
+## 6. Estado reparación (ronda 2 de corrección)
+
+Sección añadida en la ronda 2 de corrección (agente corrector Sonnet,
+docs/logs/fix-expediente-ronda2.log) para no alterar el texto de las
+secciones 1-5 anteriores (que documentan la reverificación tal como se
+entregó). Un hallazgo se marca "Corregido" solo cuando existe un test nuevo
+que reproduce y falla contra el código anterior, la corrección lo hace
+pasar, y la suite completa queda verde (evidencia real en
+`docs/logs/fix-expediente-ronda2.log`).
+
+| ID | Estado reparación | Commit / evidencia |
+|---|---|---|
+| EX-EXP-01 / EX-EXP-11 | **Corregido** | `fix(expediente): EX-EXP-01/EX-EXP-11 hash de insumos cerrado y obligatorio (computeInputsHash)`. `ProposalVersionRegistry.createVersion`/`computeInputsHash` exigen `ExpedienteInputs` (conjunto cerrado: versión de bases, documentos de empresa con vigencia, tarifas, perfil, plantillas), validado en runtime; el llamador ya no puede omitir una categoría ni pasar un hash arbitrario. `stableStringify` ya no colisiona `undefined` con clave ausente. `inputChanged()` conectado vía `changedInputsSince`. Tests: `test/proposal-invalidation.test.ts` (describe "EX-EXP-11" y describe de cobertura de `ProposalVersionRegistry`); se verificó que 7/10 tests nuevos fallaban contra el código previo (commit `467be32`) antes de aplicar la corrección. |

@@ -139,12 +139,16 @@ describe("Flujo integrado del expediente de participación (A6-A15)", () => {
     const economic = economicBuilder.build(COMPANY_ID, [{ concept: "consultoria_hora", quantity: 20 }], ASOF);
     expect(economic.totals).not.toBeNull();
 
-    // 5. Versionado con hash de insumos.
+    // 5. Versionado con hash de insumos: conjunto CERRADO y OBLIGATORIO
+    // (EX-EXP-01/EX-EXP-11) — versión de bases, documentos de empresa
+    // usados (con vigencia), tarifas usadas, perfil, plantillas.
     const versions = new ProposalVersionRegistry();
     const version = versions.createVersion({
-      requirements,
-      technical,
-      economicTotals: economic.totals,
+      tenderVersionHash: "bases-v1",
+      companyProfileHash: "empresa-1-perfil-v1",
+      companyDocuments: [{ documentId: "doc-32d", hash: "opinion-32d-hash-v1", vigenteHasta: "2026-12-01T00:00:00-06:00" }],
+      rates: [{ concept: "consultoria_hora", hash: "850.00" }],
+      templates: [{ templateId: "carta-propuesta", hash: "plantilla-v1" }],
     });
     expect(version.version).toBe(1);
     expect(version.inputs.length).toBeGreaterThan(0);

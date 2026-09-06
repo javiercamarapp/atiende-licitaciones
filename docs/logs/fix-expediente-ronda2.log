@@ -1,0 +1,50 @@
+# Corrección packages/expediente — ronda 2 (vs. docs/auditoria-1/expediente-reverificacion.md)
+
+Fecha de inicio: 2026-09-05
+Alcance: packages/expediente/**, docs/logs/fix-expediente-ronda2.log,
+columna "Estado reparación" (nueva sección 6) de
+docs/auditoria-1/expediente-reverificacion.md.
+
+Este log se va completando por hallazgo, en orden, con la salida REAL de
+cada comando ejecutado (no resumida ni inventada). El bloque final
+contiene la corrida completa de `typecheck lint test build` con cobertura
+tras cerrar todos los hallazgos abordados en esta ronda.
+
+================================================================================
+## EX-EXP-01 / EX-EXP-11 — hash de insumos cerrado y obligatorio (computeInputsHash)
+================================================================================
+
+Reproducción (test que FALLA contra el código sin corregir, verificada en un
+`git worktree` separado apuntado a HEAD, NUNCA revirtiendo el árbol principal):
+`npm run -w packages/expediente test -- test/proposal-invalidation.test.ts`
+con `src/proposal-version.ts`/`src/types.ts` en su versión previa (commit
+467be32) y los tests nuevos de esta ronda ya presentes:
+
+  Test Files  1 failed (1)
+       Tests  7 failed | 3 passed (10)
+  - "una nueva versión de bases ... invalida la aprobación" -> FAIL (hash igual, no detecta el cambio)
+  - "un documento de empresa (acta constitutiva) sustituido ... invalida" -> FAIL
+  - "una clave con valor undefined ya NO colisiona con la misma clave ausente" -> FAIL (mismo hash)
+  - "changedInputsSince reporta exactamente la clave..." -> FAIL (TypeError: no existe el método)
+  - "changedInputsSince reporta un insumo retirado..." -> FAIL (TypeError: no existe el método)
+  - "inputChanged() (static) detecta un insumo nuevo..." -> FAIL (comportamiento distinto al esperado)
+  - "createVersion rechaza ExpedienteInputs incompletos en runtime" -> FAIL (no lanza)
+
+Corrección aplicada (packages/expediente/src/proposal-version.ts,
+packages/expediente/src/types.ts): `computeInputsHash(ExpedienteInputs)` con
+conjunto cerrado y obligatorio (tenderVersionHash, companyProfileHash,
+companyDocuments[], rates[], templates[]) validado en runtime;
+`stableStringify` ya no colisiona `undefined` con clave ausente;
+`changedInputsSince` conecta `inputChanged()` a un uso real.
+
+Suite completa DESPUÉS de la corrección (packages/expediente):
+
+> @atiende/expediente@0.1.0 test
+> vitest run
+
+ Test Files  14 passed (14)
+      Tests  127 passed (127)
+
+npm run -w packages/expediente typecheck -> exit 0
+npm run -w packages/expediente lint -> exit 0
+
