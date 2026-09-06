@@ -10,6 +10,20 @@ import { registerBodySchema, loginBodySchema, refreshBodySchema, logoutBodySchem
 const UNIQUE_VIOLATION = '23505';
 const REFRESH_TTL_DAYS = 30;
 
+// API-03 (docs/auditoria-1/db-api-reverificacion.md, PARCIAL -> cerrado
+// aquí): `/auth/login` solo ejecutaba `verifyPassword` (scrypt, costoso)
+// cuando el email SÍ existía -- un email inexistente devolvía 401 casi
+// instantáneamente (sin scrypt), un email existente con password
+// incorrecta tardaba ~27ms (scrypt real). La reverificación midió un
+// oráculo de timing de 24x (0% overlap en 15/15 muestras aisladas),
+// suficiente para enumerar cuentas por email sin ninguna otra señal. Este
+// hash ficticio, con formato válido (`scrypt:<salt>:<hash>`, mismo
+// KEY_LENGTH=64 que `hashPassword`), fuerza a que `verifyPassword` (y por
+// tanto el costo real de scrypt) se ejecute SIEMPRE, exista o no la cuenta
+// -- nunca compara nada contra un hash real, timingSafeEqual simplemente
+// fallará porque el password jamás coincidirá con este salt/hash fijo.
+const DUMMY_PASSWORD_HASH = `scrypt:${'00'.repeat(16)}:${'00'.repeat(64)}`;
+
 function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
@@ -112,15 +126,18 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       });
 
       const user = rows[0];
-      if (!user || !user.is_active) {
-        throw new UnauthorizedError('Credenciales inválidas');
-      }
-      const valid = await verifyPassword(password, user.password_hash);
-      if (!valid) {
+      const isUsable = Boolean(user && user.is_active);
+      // Siempre se invoca verifyPassword (scrypt real) con ALGÚN hash, sea
+      // el real del usuario o el ficticio -- nunca se decide antes si vale
+      // la pena "gastar" el cómputo según si la cuenta existe. Esa decisión
+      // condicional es precisamente lo que hacía observable por timing si
+      // el email existía o no.
+      const valid = await verifyPassword(password, isUsable ? user!.password_hash : DUMMY_PASSWORD_HASH);
+      if (!isUsable || !valid) {
         throw new UnauthorizedError('Credenciales inválidas');
       }
 
-      return issueTokenPair(app, user.id);
+      return issueTokenPair(app, user!.id);
     }
   );
 
