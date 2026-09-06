@@ -10,3 +10,5 @@ Regla: Fable (claude-fable-5-1) solo orquesta. Cada despacho usa `Agent(subagent
 | 4 | 2026-09-05 | localizar-carpeta-empresas-agenticas → /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/docs/investigacion/ubicacion-empresas-agenticas.md | model="sonnet" | notificación de tarea completada (10 tool uses, 73k tokens subagente, 111 s) | COMPLETADO: NO ENCONTRADA |
 
 Nota: la herramienta Agent de esta versión no expone el ID de modelo del subagente en la notificación; la evidencia es el parámetro `model="sonnet"` de cada llamada (registrado aquí) más la notificación de completado. Cuando la sesión no puede garantizar Sonnet, no se despacha con herencia.
+| 5 | 2026-09-05 | impl-web-ronda1 → apps/web (Vite+React+TS+Tailwind+shadcn, shell, sidebar, móvil, a11y, vitest) | model="sonnet" | pendiente | en curso |
+| 6 | 2026-09-05 | impl-api-db-ronda1 → packages/db (migraciones Postgres + RLS sobre PGlite, tests adversariales) y apps/api (Fastify, auth JWT, orgs, idempotencia, rate limit, audit) | model="sonnet" | pendiente | en curso |

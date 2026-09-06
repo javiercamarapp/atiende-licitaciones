@@ -1,2 +1,3 @@
 2026-09-05 18:2x  ARRANQUE  /loop dinámico invocado; CronCreate a1c165a2 (13 */2 * * *) verificado con CronList; 4 agentes sonnet despachados (ronda 0 investigación).
 2026-09-05 18:30  RONDA0  agentes #2 (frontend) y #4 (ubicación: NO ENCONTRADA) completados; #1 y #3 en curso; ScheduleWakeup programado al cierre del turno.
+2026-09-05 18:33  RONDA1  corrección usuario aplicada; agentes #1/#3 cerrando; #5 (web) y #6 (db+api) despachados con model=sonnet.

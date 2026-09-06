@@ -368,32 +368,87 @@ consistente con la tabla de origen.
   atiende (~18 agentes médicos), Likida es mono-propósito"* — confirma que
   Likida reusa un framework de agentes previamente construido para otro
   producto ("atiende") con soporte multi-agente real.
-- **Definición de tools**: `src/lib/likida/tools.ts`, registradas al importar
-  el módulo vía `registerTool(nombre, { schema, handler })` de
-  `src/lib/llm/tool-executor.ts`. El `schema` es JSON Schema de function
-  calling (no Zod para las tools del LLM) con `parameters: { type: 'object',
-  properties: {}, additionalProperties: false }` — **a propósito vacío**: el
-  rubro Tool calling de `rubros.md` explica que esto es una decisión
-  estructural, no un descuido: "el modelo decide *cuándo*, nunca *con qué
-  datos*; `tenantId`/`viajeId` salen del contexto resuelto en servidor" — así
-  se cierra la inyección de prompt de forma estructural en vez de validando
-  input.
-- **Autorización por tool**: el `handler` recibe `ctx: ToolContext` con el
-  `tenantId` ya resuelto en servidor (nunca provisto por el modelo).
-- **Idempotencia/reintentos**: mencionado en varios commits del historial
-  (`test: provide unique run ids for legacy/concurrent tool fixtures`,
-  `fix(runtime): harden client boundaries and durable execution`,
-  `fix(sql-ci): use postgres clock for tool idempotency`) — el patrón es un
-  `run_id` por invocación para deduplicar efectos cuando el modelo reintenta
-  una tool call.
-- **Contabilidad de costo**: `charge redactor through tenant-scoped ledger`
-  (commit real) — el gasto de LLM se contabiliza contra un ledger scoped por
-  tenant; ver también `src/lib/likida/presupuesto.ts` para el presupuesto de
-  **tiempo** (no de dinero) de una invocación — documenta con precisión el
-  peor caso de cada paso de red del cierre de una liquidación (consulta,
-  `sendText`, `sendDocument`, URL firmada) y compara la suma contra
-  `maxDuration` de Vercel con una prueba que falla si algún paso nuevo no se
-  contabiliza.
+- **Dos registros de tools separados, con dos formatos de schema distintos**:
+  1. `src/lib/llm/tool-executor.ts` — el motor de tool-calling del agente
+     WhatsApp/copiloto: un `Map<string, RegisteredTool>` (`REGISTRY`)
+     poblado por `registerTool(name, { schema, handler, isMutation? })`,
+     donde `schema` es JSON Schema plano (`OpenAI.Chat.ChatCompletionTool`,
+     **no Zod**). Las tools concretas se registran al importar
+     `src/lib/likida/tools.ts` (agente `liquidacion`:
+     `consultar_politica`, `estado_viaje`, `cuadrar_viaje`,
+     `guardar_liquidacion`), `src/lib/agents/chat-tools.ts` (agente
+     `analista_flota`, solo lectura, ej. `kpis_flota`) y
+     `src/lib/agents/copiloto-tools.ts` (agente del fundador, cross-tenant,
+     acotado por un allowlist explícito `TOOLS_COPILOTO_LECTURA`).
+  2. `src/lib/mcp/herramientas.ts` — catálogo del servidor MCP: un array
+     `CATALOGO` de objetos `Herramienta<T>` (tipos en `src/lib/mcp/tipos.ts`)
+     donde cada uno sí trae `esquema: z.ZodType<T>`, validado con
+     `h.esquema.safeParse(args)` dentro de `despacharHerramienta()`
+     (ejemplo: `src/lib/mcp/herramientas/viajes.ts`).
+- **Tools con `properties: {}` vacías, a propósito**: las tools del agente
+  conversacional declaran `parameters: { type: 'object', properties: {},
+  additionalProperties: false }` — el rubro Tool calling de `rubros.md`
+  explica que es una decisión estructural, no un descuido: "el modelo
+  decide *cuándo*, nunca *con qué datos*; `tenantId`/`viajeId` salen del
+  contexto resuelto en servidor" (`ToolContext`, inyectado por el servidor,
+  `tool-executor.ts:13-46`) — así se cierra la inyección de prompt de forma
+  estructural en vez de por validación de input. Cada handler filtra
+  explícitamente `.eq('tenant_id', ctx.tenantId)` (ej. `estado_viaje` en
+  `src/lib/likida/tools.ts:96-99`).
+- **Autorización por tool en MCP**: `despacharHerramienta` exige
+  `alcanza(h.area)` (área `operacion`/`dinero`/`administracion`, tipo `Area`
+  en `src/lib/auth/visibilidad.ts`) **antes** de ejecutar, y pasa el
+  `tenantId` explícito — resuelto exclusivamente de la credencial
+  (`src/lib/mcp/credencial.ts`) — a `h.ejecutar(tenantId, args, contexto)`.
+- **Idempotencia con lease/fencing durable en Postgres** (no solo un check
+  en memoria): `src/lib/llm/tool-idempotency.ts` implementa claim/renew/
+  complete/fail vía RPCs de Postgres (`claim_agente_mutacion`,
+  `renew_agente_mutacion`, `complete_agente_mutacion`,
+  `fail_agente_mutacion`, con el reloj autoritativo viviendo en la base, no
+  en el proceso Node — de ahí el commit `fix(sql-ci): use postgres clock
+  for tool idempotency`). Tabla `agente_mutacion_idempotencia`
+  (`supabase/migrations/0186_runtime_idempotencia_y_presupuesto.sql:1-26`):
+  `unique(tenant_id, effect_key)`, `status in ('running','succeeded',
+  'failed')`, `lease_until`. La llave del efecto
+  (`mutationEffectKey`, `tool-executor.ts:~317`) incluye el **`runId`** de
+  la conversación — sin él, reabrir un viaje ya liquidado no podía volver a
+  liquidarse. El executor **rechaza fail-closed** cualquier tool marcada
+  `isMutation` que llegue sin `ctx.runId`. Una mutación ya en curso (lease
+  vigente, hasta 10 renovaciones de 120s) responde "reintenta en un minuto"
+  al operador en vez de ejecutar dos veces.
+- **Reintentos/fallback a nivel de proveedor LLM** (distinto de la
+  idempotencia de tools): `isTransientError()` + mapa `FALLBACK` en
+  `src/lib/llm/openrouter.ts` — fallback cross-provider automático ante
+  5xx/429/408/errores de conexión, con una `PartialExecutionError` dedicada
+  para que un fallback **nunca** re-ejecute una mutación que ya corrió.
+- **Presupuesto de dinero (ledger scoped por tenant), distinto del
+  presupuesto de tiempo**: tabla `llm_presupuesto_reserva`
+  (misma migración 0186): `reservado_usd`, `costo_real_usd`,
+  `estado in ('reservado','liquidado')`, con RPCs
+  `reservar_presupuesto_llm`/`liquidar_presupuesto_llm` protegidas por
+  `pg_advisory_xact_lock` por tenant (evita condiciones de carrera entre
+  llamadas concurrentes al mismo presupuesto). Extendida por
+  `0193_presupuesto_llm_dia_mx_y_expiracion.sql` y
+  `0244_antijoin_por_igualdad_y_presupuesto_por_proposito.sql` (dimensión de
+  "propósito": `interactivo` — reserva para el operador humano —,
+  `ocr_lote`, `fondo`). Módulo: `src/lib/llm/budget.ts`
+  (`createLlmBudget(tenantId, runId, proposito, limits)`,
+  `LlmBudgetExceededError` con scope `run`/`tenant`/`proposito`). El "cobro
+  del redactor por ledger tenant-scoped" es
+  `src/lib/likida/agentes/redactor.ts:~120-152`
+  (`presupuestoDelRedactor()`); en modo `plataforma` (gasto de Likida-empresa,
+  sin tenant) el techo se vigila en su lugar contra
+  `agente_definicion.presupuesto_dia_usd`, medido en `agente_corrida.costo_usd`.
+- **Presupuesto de tiempo** (independiente del de dinero):
+  `src/lib/likida/presupuesto.ts` documenta con precisión el peor caso de
+  cada paso de red del cierre de una liquidación (consulta, `sendText`,
+  `sendDocument`, URL firmada) y compara la suma contra `maxDuration` de
+  Vercel con una prueba que falla si algún paso nuevo no se contabiliza.
+- **Catálogo declarativo de agentes** (el "registry" a nivel de negocio, no
+  de código): tabla `agente_definicion`
+  (`supabase/migrations/0116_agente_definicion.sql`) — departamento,
+  disparador, ciclo de vida (`disenado/vivo/pausado/retirado`), presupuesto
+  diario en USD.
 
 ### El "agent company" (agentes de negocio, back office)
 
@@ -426,6 +481,22 @@ Regla de robustez explícita en el código: **"registrar JAMÁS lanza"** — un
 fallo al escribir la bitácora de ejecución nunca debe tumbar la corrida real
 que ya hizo su trabajo; se traga el error y se loguea (`logger.error`), nunca
 se propaga.
+
+Migración de origen de `agente_corrida`:
+`supabase/migrations/0102_agente_corrida.sql`.
+
+### Bitácora de auditoría (trazabilidad de acciones, no solo de corridas)
+
+`bitacora_auditoria` es la tabla genérica de "quién hizo qué" — se define en
+`supabase/migrations/0053_cuentas_bitacora_arco_campanias.sql` y se endurece
+más adelante en `0195_bitacora_auditoria_sin_insercion_directa.sql` para que
+**nada pueda insertar en ella salvo su único escritor**,
+`src/lib/likida/bitacora_escritura.ts` (función `anotarBitacora`) — patrón
+deliberado de "un solo punto de escritura" para una tabla de auditoría (evita
+que un bug en cualquier otro módulo la corrompa o la salte). El servidor MCP
+llama a `anotarBitacora` (más `registrarEventoSeguridad` para los intentos
+negados por área) en cada `tools/call`, en
+`src/app/api/mcp/route.ts:94-125,170`.
 
 ### Servidor MCP (Model Context Protocol)
 
@@ -466,27 +537,55 @@ rotación en cada uso (reuso revoca toda la familia de tokens).
 
 ## 7. Observabilidad y testing
 
-- **Sentry**: `@sentry/nextjs` (^10.70.0), instrumentado desde
-  `src/instrumentation.ts` (con su propio `instrumentation.test.ts` — la
-  instrumentación de errores tiene prueba dedicada, no es "se instaló y ya").
-- **Logging estructurado propio**: `src/lib/logger.ts` (con `logger.test.ts`)
-  — usado en todo el código en vez de `console.log` (ver `corridas.ts` arriba
-  usando `logger.error('corridas.no_registrada', {...})`).
+- **Sentry**: `@sentry/nextjs` (^10.70.0), **server-only a propósito** — el
+  propio `next.config.ts:167-169` documenta que no hay
+  `instrumentation-client.ts` ni DSN público. El cableado real vive en
+  `src/instrumentation.ts` (hook `register()` de Next, solo runtime
+  `nodejs`, llama `avisarObservabilidad()`/`precargar()` al arrancar, y
+  `onRequestError(err, request, context)` — capturado por Next ante
+  cualquier error no atrapado de Server Components/route handlers/acciones —
+  que loguea, reporta la excepción y hace `flushObservabilidad()` antes de
+  que la invocación serverless se congele) y
+  `src/lib/observability/sentry.ts` (import dinámico de `@sentry/nextjs`
+  solo si existe `SENTRY_DSN`; `tracesSampleRate` configurable, default
+  0.05; `sendDefaultPii: false`; hooks `beforeSend`/`beforeSendTransaction`
+  → `sanitizarEventoSentry()` que sanea query/cookies/headers/body/
+  breadcrumbs/spans antes de salir del proceso). Se instrumentan tanto
+  errores como performance (transacciones). Pruebas dedicadas:
+  `src/instrumentation.test.ts`, `src/lib/observability/sentry.test.ts`.
+- **Logging estructurado propio con redacción de PII**: `src/lib/logger.ts`
+  — redacta RFC, teléfonos MX y CLABE/tarjeta, y en vez de borrar UUIDs los
+  reemplaza por una "huella" FNV-1a estable (`huellaId`) para poder
+  correlacionar logs del mismo actor/entidad sin exponer el dato crudo.
+  Sentry se alimenta de este mismo logger/redactor, no de una config aparte.
 - **Testing — cuatro configuraciones de Vitest, cada una con propósito
-  distinto**: `vitest.config.ts` (suite normal, con umbral de cobertura —
-  `npm run test:coverage` la corre con `LIKIDA_COBERTURA=1`, lo que hace que
-  dos pruebas sensibles al tiempo se salten bajo instrumentación de v8, y CI
-  las recupera aparte con `npx vitest run fundamento duplicados` sin
-  cobertura), `vitest.audit.config.ts` (corre `scripts/auditoria/loop.audit.ts`
-  — el motor de la skill de auditoría diaria), `vitest.qa.config.ts` (corre
-  `scripts/qa-agentes/orquestador.qa.ts`, script npm `qa:nocturno`),
-  `vitest.manual.config.ts` (para `pruebas-manuales/*.prueba.ts`, que hacen
-  **llamadas reales de pago** y por diseño nunca se corren en CI ni en las
-  rutinas automáticas).
-- **E2E/smoke**: Playwright (`playwright.config.ts`, `pruebas-navegador/`),
-  script `test:smoke` → `scripts/ci/playwright-smoke.mjs` (arranca el build
-  ya compilado y visita solo rutas públicas, sin secretos, fallando ante
-  overlay de error de Next o consola con errores).
+  distinto**: `vitest.config.ts` (suite normal; cobertura v8 con umbrales
+  tipo trinquete — 78% líneas/statements, 69% branches, 82% funciones —,
+  `LIKIDA_COBERTURA=1` bajo `--coverage` hace que dos pruebas sensibles al
+  tiempo se salten bajo instrumentación de v8, y CI las recupera aparte con
+  `npx vitest run fundamento duplicados` sin cobertura), `vitest.audit.config.ts`
+  (colecta solo `scripts/auditoria/**/*.audit.ts` — el motor de la skill de
+  auditoría diaria, script npm `auditoria`), `vitest.qa.config.ts` (colecta
+  `scripts/qa-agentes/**/*.qa.ts` + `pruebas-manuales/qa-agentes/**/*.prueba.ts`,
+  script `qa:nocturno` — hace llamadas reales de pago, OCR + OpenRouter,
+  contra un tenant de prueba dedicado "ZZZ QA", timeouts de 15 min por
+  prueba), `vitest.manual.config.ts` (colecta `pruebas-manuales/**/*.prueba.ts`
+  — pegan contra la base y proveedores REALES vía `.env.local`, corren
+  seriales (`fileParallelism: false`), **nunca en CI**: ejemplos
+  `arnes_ticket_real` — script `npm run ticket` —,
+  `capufe-prevuelo.prueba.ts`, `factura-punta-a-punta.prueba.ts`,
+  `inyeccion.prueba.ts`).
+- **E2E/smoke**: Playwright. `pruebas-navegador/*.nav.ts` (login real por
+  magic link, tableros por rol, `/admin` bloqueado para no-superadmin,
+  filtros, dinero, vista móvil) contra un Supabase local — corre en el
+  workflow dedicado `e2e-navegador.yml`, que levanta la pila local de
+  Supabase (GoTrue/PostgREST/Storage/Mailpit), aplica migraciones y semilla,
+  y ejecuta `npm run test:e2e`. Aparte, `npm run test:smoke` →
+  `scripts/ci/playwright-smoke.mjs` (Chromium headless vía
+  `@sparticuz/chromium`, arranca el build ya compilado y visita **solo**
+  rutas públicas — `/`, `/terminos`, `/privacidad` —, sin credenciales,
+  fallando ante overlay de error de Next o consola con errores) es el que
+  corre dentro de `ci.yml`.
 
 ### Pruebas adversariales de RLS multi-tenant (el hallazgo más valioso de esta investigación)
 
