@@ -128,3 +128,4 @@
 2026-09-06 10:56  OBSERVACION  iCloud CONFIRMADO sincronizando el repo (brctl); INC-10 actualizado; aviso al usuario.
 2026-09-06 11:15  DESPERTAR  tablero tras ronda 5 (#83) a644803: 54C/53E/69P; en curso #84 (web coverage).
 2026-09-06 11:16  INFORME  INFORME-ESTADO.md actualizado tras ronda 5; decisión: el bucle continúa (69 PENDIENTE con trabajo ejecutable); ronda 6 API (REQ-051..055) despachada.
+2026-09-06 11:29  AMPLIACION-2  salida a promoción (Google OIDC, correos con plantillas, onboarding, landing, despliegue) registrada; D-08; investigación y requisitos delegados.

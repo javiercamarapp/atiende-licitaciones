@@ -21,7 +21,7 @@ Este bucle es NUEVO y separado del de Atiende Hoteles (cron `f24bfd35`, que no s
 - Ejecutores: `Agent(subagent_type=general-purpose, model="sonnet")` en cada despacho; se exige a descendientes pasar `model="sonnet"`. Registro en `docs/AGENTES.md`.
 
 ## Estado persistente de reanudación (leer SIEMPRE al despertar o tras compactar)
-1. `docs/AMPLIACION-BACKOFFICE.md` — ampliación prioritaria del usuario (ciclo completo back office; reglas duras: nunca inventar datos/precios/firmas, nunca enviar/firmar/actuar en portales). Es parte del alcance obligatorio.
+1. `docs/AMPLIACION-BACKOFFICE.md` y `docs/AMPLIACION-2-SALIDA.md` — ampliaciones prioritarias del usuario (back office completo; salida a promoción con Google, correos, onboarding, landing, despliegue) (ciclo completo back office; reglas duras: nunca inventar datos/precios/firmas, nunca enviar/firmar/actuar en portales). Es parte del alcance obligatorio.
 2. `docs/REQUISITOS.md` + `docs/ACEPTACION.md` (REQ-001..140 + REQ-141+ de la ampliación) y `docs/BACKLOG.md` (orden de trabajo).
 3. `docs/PROGRESO.md` (último paso), `docs/BLOQUEOS.md`, `docs/DECISIONES.md`, `docs/AGENTES.md`, `docs/auditoria-N/`, `git log`.
 Regla: no repetir trabajo validado; no rehacer investigación (completa); verificación puntual solo de fuentes/API/reglas que cambian.
