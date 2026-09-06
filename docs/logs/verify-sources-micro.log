@@ -1,0 +1,284 @@
+Verificación puntual (cierre definitivo) de la micro-vuelta SR-23/SR-24 de
+packages/sources
+==========================================================================
+
+Agente: Sonnet verificador puntual, independiente de la construcción del
+paquete y de la corrección de la micro-vuelta. Solo verifica: no repara
+código. Ejecutado en:
+
+  git worktree add /private/tmp/claude-501/.../scratchpad/verify-src-micro HEAD
+  (HEAD=ba9a294 al arrancar; worktree eliminado al terminar)
+
+Ningún comando destructivo (reset/checkout de commit/stash/rebase/amend/
+add -A) se ejecutó sobre el repo principal.
+
+--------------------------------------------------------------------------
+1. Ancestría e integridad de los 3 commits en revisión
+--------------------------------------------------------------------------
+
+$ git log --oneline 305e2fb~1..19a2c5c
+19a2c5c docs(sources): micro-vuelta -- README y columna "Estado reparación" (SR-23/SR-24) y log real
+a86a6eb fix(sources): SR-23 -- marcadores semanticos de contenido real en vez de plantilla fija para expected:"text" (DOF)
+305e2fb fix(sources): SR-24 -- ningun release/aviso se descarta en silencio en OCDS-SHCP/PDN-S6/portales estatales/DOF (generaliza SR-21)
+
+$ git merge-base --is-ancestor 305e2fb a86a6eb && echo YES
+YES
+$ git merge-base --is-ancestor a86a6eb 19a2c5c && echo YES
+YES
+
+Cadena lineal confirmada: 305e2fb -> a86a6eb -> 19a2c5c -> (docs/latido) -> HEAD ba9a294.
+
+$ git show --stat 305e2fb   (SR-24)
+ packages/sources/src/connectors/dof/dof-connector.ts    |  61 ++++---
+ packages/sources/src/connectors/dof/dof-mapper.ts        | 103 ++++++++++--
+ packages/sources/src/connectors/ocds/create-ocds-connector.ts |   6 +-
+ packages/sources/src/connectors/ocds/ocds-mapper.ts       |  83 +++++++++-
+ packages/sources/src/connectors/ocds/ocds-types.ts        |  13 +-
+ packages/sources/src/connectors/state-portal/state-portal-connector.ts | 4 +-
+ packages/sources/test/connectors/dof.test.ts               | 176 ++++++++++++++++++++-
+ packages/sources/test/connectors/drop-invariant.test.ts    | 152 ++++++++++++++++++
+ packages/sources/test/connectors/ocds.test.ts               |  87 +++++++++-
+ packages/sources/test/fixtures/dof/interstitial-cascaron.html   |  27 ++++
+ packages/sources/test/fixtures/dof/nota-plantilla-distinta.html |  25 +++
+ packages/sources/test/schema-null-normalization.test.ts     |   5 +-
+ 12 files changed, 684 insertions(+), 58 deletions(-)
+CONTENIDO del diff coincide 100% con lo que el mensaje del commit describe
+(SR-24, dropped propagado a create-ocds-connector.ts/state-portal-
+connector.ts/dof-mapper.ts). Sin discrepancia mensaje/contenido (a diferencia
+del INC-06 documentado en sources-cierre-final.md §1 para 15bb31f, ya no
+reproducido aquí).
+
+$ git show --stat a86a6eb   (SR-23)
+ packages/sources/src/http/response-classifier.ts   | 144 +++++++++++++++++-----
+ packages/sources/test/response-classifier.test.ts  |  52 ++++++--
+ 2 files changed, 157 insertions(+), 39 deletions(-)
+CONTENIDO coincide con el mensaje (semanticContentMarkers + detectInterstitialShellMarker).
+
+$ git show --stat 19a2c5c   (docs)
+ docs/auditoria-1/sources-cierre-final.md |  14 +-
+ docs/logs/fix-sources-micro.log          | 329 +++++++++++++++++++++++++++++++
+ packages/sources/README.md               |  82 +++++++-
+ 3 files changed, 413 insertions(+), 12 deletions(-)
+
+--------------------------------------------------------------------------
+2. Instalación y suite completa (worktree limpio)
+--------------------------------------------------------------------------
+
+$ npm install
+added 730 packages, and audited 738 packages in 4s
+
+$ npm run -w packages/sources typecheck
+> tsc --noEmit                                                    [OK, sin salida]
+
+$ npm run -w packages/sources lint
+> eslint src test --ext .ts                                       [OK, sin salida]
+
+$ npm run -w packages/sources build
+> tsc -p tsconfig.build.json                                      [OK, sin salida]
+
+$ NODE_OPTIONS=--expose-gc npm run -w packages/sources test
+ Test Files  20 passed (20)
+      Tests  204 passed (204)
+   Duration  5.50s
+(coincide exactamente con docs/logs/fix-sources-micro.log y con el
+conteo citado por sources-cierre-final.md/README: "204 pruebas en verde")
+
+--------------------------------------------------------------------------
+3. Gate de cobertura: real vs. decorativo
+--------------------------------------------------------------------------
+
+$ npm run -w packages/sources test:coverage   (umbral original: lines 85 / branches 80)
+Statements   : 89.36% ( 2202/2464 )
+Branches     : 83.68% ( 708/846 )
+Functions    : 93.6% ( 161/172 )
+Lines        : 89.36% ( 2202/2464 )
+(coincide con fix-sources-micro.log: 89.36/83.68/93.6/89.36 -- sin
+discrepancia con lo declarado)
+
+Mutación real del gate (vitest.config.ts: lines 85->95, branches 80->90),
+misma corrida de test:coverage:
+
+ERROR: Coverage for lines (89.36%) does not meet global threshold (95%)
+ERROR: Coverage for branches (83.68%) does not meet global threshold (90%)
+npm error command failed
+
+vitest.config.ts restaurado inmediatamente después (mv .bak); `git status
+--short` del worktree confirmado limpio salvo package-lock.json (dependencia
+de cobertura agregada por npm install, sin relación con el código bajo
+prueba, descartada al eliminar el worktree).
+
+Veredicto: el gate de cobertura es REAL (falla cuando debe fallar), no
+decorativo.
+
+--------------------------------------------------------------------------
+4. Ataques de cierre — archivo temporal
+   packages/sources/test/ADVERSARIAL-verify-src-micro.test.ts
+   (SOLO en el worktree; eliminado al terminar, nunca commiteado)
+--------------------------------------------------------------------------
+
+$ NODE_OPTIONS=--expose-gc npx vitest run --root packages/sources \
+    test/ADVERSARIAL-verify-src-micro.test.ts
+
+ Test Files  1 passed (1)
+      Tests  16 passed (16)
+
+Casos y evidencia relevante (stdout capturado):
+
+4.1 SR-24 — fixture 3 válidos + 2 inválidos por conector (sin id, sin
+    título/tender), umbral default 20%:
+  - compras-mx: dropped=2 (índice+motivo+campos), interface_changed. PASA.
+  - ocds-shcp:  dropped=2 (release sin tender + release sin ocid),
+                interface_changed. PASA.
+  - pdn-s6:     mismo fixture vía create-ocds-connector.ts compartido,
+                dropped=2, interface_changed. PASA.
+  - state-portal: ídem, dropped=2, interface_changed. PASA.
+  - dof: cobertura ya presente en test/connectors/dof.test.ts §"SR-24"
+    (mockeando dof-mapper.ts, ver README: "sus fallbacks de regex hacen
+    improbable en la práctica que un aviso derivado de HTML real llegue a
+    ser inválido") -- confirmado en la corrida de 204 pruebas del §2, no
+    duplicado aquí.
+  - compras-mx-historico CSV: 3 filas válidas + 1 fecha corrupta + 1
+    importe corrupto ("no-es-un-numero"):
+
+    ATTACK-EVIDENCE errors[] completo:
+    [
+      { "row": 4, "message": "[{\"code\":\"invalid_date\",\"path\":[\"dates\",\"published\"],\"message\":\"Invalid date\"}]" },
+      { "row": 5, "message": "[{\"code\":\"invalid_type\",\"expected\":\"number\",\"received\":\"nan\",\"path\":[\"budgetAmount\"],\"message\":\"Expected number, received nan\"}]" }
+    ]
+
+    Ambas filas corruptas se RECHAZAN explícitamente (zod invalid_date /
+    invalid_type "nan", NO un `Number.parseFloat` mudo que produjera NaN
+    silencioso) -- SR-16 (try/catch por fila) sigue absorbiendo el resto
+    del lote sin abortar.
+
+  - compras-mx API en vivo, fecha corrupta directa en fecha_publicacion:
+
+    ATTACK-EVIDENCE fecha corrupta API compras-mx: lanzó:
+    [{"code":"invalid_date","path":["dates","published"],"message":"Invalid date"}]
+
+    Confirma que z.coerce.date() de TenderDatesSchema SÍ rechaza una fecha
+    corrupta (no la deja pasar como "Invalid Date" silenciosa) -- el
+    registro entero se reporta en dropped[]/errors[] vía el try/catch de
+    mapComprasMxApiRecords, nunca se corrompe en silencio.
+
+4.2 100% descartado (5/5 releases inválidos, ocds-shcp):
+    records=0, dropped=5, health.state=interface_changed, nuevos=0. PASA.
+
+4.3 0 registros y 0 descartes con forma válida ({releases: []}, ocds-shcp):
+    dropped=0, nuevos=0, health.state="ok",
+    evidence.coverage.emptyResult=true. PASA.
+
+4.4 INVARIANTE ESTRUCTURAL — conector que produce records sin invocar NUNCA
+    ctx.reportDropped (simula un conector de terceros que no coopera con la
+    convención documentada en ConnectorContext.reportDropped):
+    conector simulado emite 1 de "5 intentados" (los otros 4 se filtran
+    dentro del propio código del conector, sin avisar al pipeline) ->
+
+      stats.dropped   = []
+      stats.errores   = []
+      stats.health.state = "ok"
+      stats.health.evidence.coverage.emptyResult = false
+      stats.nuevos = 1
+
+    HALLAZGO CONFIRMADO: DiscoveryPipeline NO tiene ninguna forma
+    estructural de detectar esto. `reportDropped` es un campo OPCIONAL de
+    `ConnectorContext` (ver src/connectors/types.ts líneas 44-62) invocado
+    por CONVENCIÓN desde dentro de cada `discover()`; el pipeline solo ve
+    lo que el conector decide `yield`-ear y lo que el conector decide
+    reportar. Un conector nuevo (de terceros, o uno de los 5 actuales si
+    alguien olvida la llamada en una refactorización futura) que filtre
+    registros internamente SIN invocar `ctx.reportDropped` produce una fuga
+    invisible, indistinguible de "solo había 1 novedad real" -- EXACTAMENTE
+    la clase de violación de REQ-148 que motivó SR-21/SR-24, pero a nivel
+    de CONTRATO/INTERFAZ, no de un conector concreto. SR-24 cerró los 5
+    conectores CONOCIDOS hoy; no cierra (ni puede cerrar solo con este
+    mecanismo) el caso de un conector futuro que no siga la convención.
+
+--------------------------------------------------------------------------
+5. SR-23 — ataques directos a assertLegitimateResponseBody vía
+   createDofConnector (mismos 6 vectores exigidos por el mandato)
+--------------------------------------------------------------------------
+
+  - meta-refresh (sin vendor conocido, con la palabra "convocatoria" en el
+    cuerpo) -> InterfaceChangedError. PASA (detectInterstitialShellMarker
+    detecta el <meta http-equiv="refresh"> independientemente del match
+    semántico).
+  - <script> con location.replace(...) (interstitial de redirección sin
+    vendor conocido, con número de expediente real en el cuerpo) ->
+    InterfaceChangedError. PASA.
+  - Frontera EXACTA de minUsefulTextBytes (default 120), construida y
+    verificada byte a byte con el MISMO stripping que usa el clasificador:
+
+    ATTACK-EVIDENCE frontera 119/121 bytes:
+    { r119threw: 'InterfaceChangedError', r121threw: undefined }
+
+    119 bytes útiles (con marcador semántico presente) -> RECHAZADO.
+    121 bytes útiles (mismo marcador) -> ACEPTADO. Confirma que el umbral
+    120 es efectivo exactamente donde el código dice que lo es, incluyendo
+    que un marcador semántico presente NO basta por sí solo si el cuerpo es
+    demasiado corto (`interstitialLabel || !hasSemanticMarker`, ver
+    response-classifier.ts línea ~215) -- diseño intencional documentado.
+  - Página LEGÍTIMA CORTA (nota real y breve -- "Se cancela la convocatoria
+    LA-050GYN003-E1-2026.", 100% contenido real, sin ningún patrón de
+    challenge/interstitial):
+
+    ATTACK-EVIDENCE página legítima corta: { usefulBytes: 87, threw: 'InterfaceChangedError' }
+
+    HALLAZGO NUEVO CONFIRMADO (ver definitivo.md §4 para el número
+    asignado): una nota DOF genuina y breve (cancelación, fe de erratas,
+    aviso corto -- 87 bytes de texto útil tras quitar tags) se rechaza como
+    `interface_changed` SOLO por brevedad, aunque contenga el número de
+    expediente real y la palabra "convocatoria". Es un FALSO POSITIVO
+    reproducible con contenido 100% legítimo, de la misma familia que el
+    falso positivo original de SR-23 (plantilla) pero por una causa
+    distinta (longitud, no plantilla) introducida por el propio mecanismo
+    que SR-23 añadió para cerrar el falso negativo del cascarón.
+  - Texto legítimo SIN "convocatoria"/"licitación pública" pero CON patrón
+    de expediente (LA-050GYN003-E1-2026) y relleno >120 bytes -> NO lanza
+    (ok). PASA -- confirma que el tercer marcador semántico (número de
+    procedimiento) es suficiente por sí solo, sin depender de la palabra
+    "convocatoria".
+  - Captcha real (g-recaptcha) para expected:"text" -> CaptchaDetectedError,
+    nunca "ok". PASA (el chequeo de CHALLENGE_MARKERS corre ANTES de
+    cualquier lógica de semanticContentMarkers/interstitial, sin importar
+    `expected`).
+
+--------------------------------------------------------------------------
+6. Regresión de consumidores reales (mismo worktree, mismo HEAD)
+--------------------------------------------------------------------------
+
+$ npm run -w packages/sources test    (con el archivo adversarial ya eliminado)
+ Test Files  20 passed (20)
+      Tests  204 passed (204)
+
+$ npm run -w apps/worker typecheck
+> tsc --noEmit                                                    [OK, sin salida]
+(Confirma que INC-07 -- 3 copias huérfanas *2.ts no rastreadas que rompían
+el typecheck del worker -- ya está resuelto en HEAD: este worktree, clonado
+limpio desde HEAD=ba9a294, NUNCA tuvo esas copias huérfanas porque eran
+archivos no rastreados por git en el árbol de trabajo original, no parte de
+ningún commit.)
+
+$ npm run -w apps/worker test
+ Test Files  11 passed (11)
+      Tests  298 passed (298)
+(coincide con lo declarado en fix-sources-micro.log: "298 pruebas en verde")
+
+$ npm run -w apps/api typecheck
+> tsc --noEmit                                                    [OK, sin salida]
+
+--------------------------------------------------------------------------
+7. Limpieza
+--------------------------------------------------------------------------
+
+$ rm packages/sources/test/ADVERSARIAL-verify-src-micro.test.ts
+$ git status --short
+ M package-lock.json     (solo dependencia @vitest/coverage-v8 agregada por
+                           npm install; sin relación con código bajo prueba)
+$ git worktree remove <scratchpad>/verify-src-micro --force
+(fuera de este log; ejecutado al finalizar la verificación)
+
+Ningún archivo temporal quedó en el repositorio principal. Ninguna petición
+de red real se realizó (todos los ataques usan `fetchImpl`/`Response`
+sintéticas o llaman funciones puras/el conector directamente); no aplica la
+restricción de CAPTCHA-solving.
