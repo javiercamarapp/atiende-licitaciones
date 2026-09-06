@@ -23,10 +23,12 @@ export class SeedApiError extends Error {
 
 export function createSeedClient(apiUrl: string) {
   async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-    const response = await fetch(`${apiUrl}${path}`, {
-      ...init,
-      headers: { "Content-Type": "application/json", ...init.headers },
-    });
+    // Solo agrega `Content-Type: application/json` cuando de verdad hay un
+    // cuerpo -- algunas rutas (p. ej. `POST /auth/2fa/enroll`, sin schema de
+    // body) responden 400 real "Body cannot be empty when content-type is
+    // set to 'application/json'" si el header llega sin cuerpo.
+    const headers = init.body !== undefined ? { "Content-Type": "application/json", ...init.headers } : { ...init.headers };
+    const response = await fetch(`${apiUrl}${path}`, { ...init, headers });
     if (!response.ok) {
       let body: unknown;
       try {
