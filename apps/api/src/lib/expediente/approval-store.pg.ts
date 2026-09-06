@@ -87,6 +87,16 @@ export function replayWorkflow(events: EventRow[]): ApprovalWorkflow {
       workflow.addComment({ scopeRef: event.scope_ref ?? 'expediente', authorId: event.actor_id ?? 'desconocido', authorRole: actorRole, text: event.text_body ?? '' });
     } else if (event.kind === 'record_change') {
       workflow.recordChange({ scope: (event.scope ?? 'expediente') as ApprovalScope, scopeRef: event.scope_ref ?? 'expediente', reason: event.reason ?? 'cambio_de_insumo' });
+    } else if (event.kind === 'record_edit') {
+      // AE-11 (docs/auditoria-2/api-expediente.md): registra qué actor
+      // redactó/editó contenido de cada `scopeRef` -- `approve()` (en
+      // @atiende/expediente) consulta este registro para rechazar la
+      // aprobación de cualquier alcance del que el propio aprobador conste
+      // como autor de contenido (el mismo alcance, o cualquier descendiente
+      // cubierto jerárquicamente). Sin persistir este evento, el registro
+      // se perdería entre una petición y la siguiente (cada petición
+      // reproduce el log sobre una instancia NUEVA de `ApprovalWorkflow`).
+      workflow.recordEdit({ scopeRef: event.scope_ref ?? 'expediente', actorId: event.actor_id ?? 'desconocido' });
     }
   }
   return workflow;
@@ -98,7 +108,7 @@ export async function appendApprovalEvent(
   input: {
     orgId: string;
     proposalId: string;
-    kind: 'request_review' | 'approve' | 'comment' | 'record_change';
+    kind: 'request_review' | 'approve' | 'comment' | 'record_change' | 'record_edit';
     actorId: string | null;
     actorRole: OrgRole;
     scope?: ApprovalScope;

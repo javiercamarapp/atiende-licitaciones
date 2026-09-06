@@ -146,6 +146,24 @@ export async function expedienteProposalRoutes(app: FastifyInstance): Promise<vo
             });
           }
         }
+        // AE-11 (docs/auditoria-2/api-expediente.md, BAJA -- corregido en
+        // packages/expediente, cableado aquí): registra que `userId`
+        // redactó/editó el contenido de esta sección, en CADA PATCH (no
+        // solo cuando el contenido cambia: la autoría es sobre "quién tocó
+        // esta sección", igual que `updated_by` arriba). `approve()` (en
+        // @atiende/expediente) consultará este registro para rechazar la
+        // aprobación de cualquier alcance del que `userId` conste como
+        // autor -- sin este evento persistido, un admin/reviewer que
+        // redacta una sección podría, si otra persona pidió la revisión,
+        // aprobar igual el expediente completo (EX-EXP-08/AE-11).
+        await appendApprovalEvent(tx, {
+          orgId,
+          proposalId: proposal.rows[0].id as string,
+          kind: 'record_edit',
+          actorId: userId,
+          actorRole: request.orgRole!,
+          scopeRef: `seccion:${request.params.sectionKey}`,
+        });
         await recordAudit(tx, { orgId, actorId: userId, action: 'proposal_section.edit', entity: 'proposal_sections', entityId: existing.rows[0].id as string, before: existing.rows[0], after: updated.rows[0], requestId: request.id });
         return updated.rows[0];
       });
