@@ -25,8 +25,24 @@ export async function enrollTwoFactor(): Promise<EnrollTwoFactorResponse> {
   return enrollTwoFactorResponseSchema.parse(raw);
 }
 
-export async function verifyTwoFactorEnrollment(code: string): Promise<VerifyEnrollmentResponse> {
-  const raw = await apiRequest<unknown>("/auth/2fa/verify-enrollment", { method: "POST", body: { code } });
+/**
+ * Confirmar el enrolamiento también emite una sesión de step-up (misma
+ * fila de `step_up_sessions` que un step-up normal, ver docstring del
+ * schema) -- migraciones 0062/0063 (R5-09) hicieron `org_id`/`purpose`
+ * NOT NULL ahí a nivel de esquema, así que declarar ambos es OBLIGATORIO
+ * para no recibir un 500 real de "null value in column org_id" (la ruta
+ * `/2fa/verify-enrollment` en sí no fue actualizada para EXIGIRLOS a nivel
+ * de aplicación como sí lo está `/2fa/step-up`, pero igual los lee del
+ * header/body si vienen). `purpose` es fijo (`"admin.action"`, el más
+ * genérico de la lista cerrada de apps/api -- confirmar el enrolamiento no
+ * autoriza ninguna acción de negocio concreta todavía).
+ */
+export async function verifyTwoFactorEnrollment(code: string, orgId: string): Promise<VerifyEnrollmentResponse> {
+  const raw = await apiRequest<unknown>("/auth/2fa/verify-enrollment", {
+    method: "POST",
+    body: { code, purpose: "admin.action" },
+    orgId,
+  });
   return verifyEnrollmentResponseSchema.parse(raw);
 }
 

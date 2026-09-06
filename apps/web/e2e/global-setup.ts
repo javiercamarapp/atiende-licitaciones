@@ -89,12 +89,17 @@ export default async function globalSetup(): Promise<void> {
   await client.register(writer.email, writer.password);
 
   const adminTokens = await client.login(admin.email, admin.password);
+  // La organización A se crea ANTES de enrolar 2FA a propósito: R5-09
+  // (migraciones 0062/0063) hizo `org_id` NOT NULL en `step_up_sessions`, y
+  // `POST /auth/2fa/verify-enrollment` también inserta ahí -- sin una
+  // organización real que declarar en `X-Org-Id`, esa llamada respondería
+  // 500 (ver docstring de `enrollTwoFactor` en seed-client.ts).
+  const orgA = await client.createOrganization(adminTokens.accessToken, `E2E Org A ${runId}`, `e2e-org-a-${runId}`);
   // REQ-044/064: enrola 2FA de `admin` de una sola vez, ANTES de cualquier
   // test -- aprobar una tarifa o un expediente lo exige (ver
   // e2e/two-factor-helpers.ts para cómo los specs calculan el código
   // vigente en cada step-up).
-  const twoFactor = await client.enrollTwoFactor(adminTokens.accessToken);
-  const orgA = await client.createOrganization(adminTokens.accessToken, `E2E Org A ${runId}`, `e2e-org-a-${runId}`);
+  const twoFactor = await client.enrollTwoFactor(adminTokens.accessToken, orgA.id);
   const orgB = await client.createOrganization(adminTokens.accessToken, `E2E Org B ${runId}`, `e2e-org-b-${runId}`);
 
   const invitation = await client.inviteMember(adminTokens.accessToken, orgA.id, writer.email, "writer");

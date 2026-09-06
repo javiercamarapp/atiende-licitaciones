@@ -126,8 +126,17 @@ export function createSeedClient(apiUrl: string) {
      * primer step-up real demasiado pronto tras el enrolamiento (dentro de
      * la MISMA ventana de 30s) recibiría un 403 real aunque el código sea
      * "fresco" desde la perspectiva del cliente.
+     *
+     * `orgId`: R5-09 (migraciones 0062/0063) hizo `org_id`/`purpose` NOT
+     * NULL en `step_up_sessions` -- `POST /auth/2fa/verify-enrollment`
+     * también inserta ahí (emite una sesión de step-up junto con la
+     * confirmación) y NO fue actualizada para exigirlos a nivel de
+     * aplicación (a diferencia de `/2fa/step-up`), así que sin
+     * `X-Org-Id`/`purpose` reales responde 500 real ("null value in column
+     * org_id"). Por eso el llamador (global-setup.ts) crea la primera
+     * organización ANTES de enrolar 2FA.
      */
-    async enrollTwoFactor(accessToken: string): Promise<{ secretBase32: string; backupCodes: string[]; enrolledAtMs: number }> {
+    async enrollTwoFactor(accessToken: string, orgId: string): Promise<{ secretBase32: string; backupCodes: string[]; enrolledAtMs: number }> {
       const enrollment = await request<{ secretBase32: string; otpauthUrl: string; backupCodes: string[] }>("/auth/2fa/enroll", {
         method: "POST",
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -136,8 +145,8 @@ export function createSeedClient(apiUrl: string) {
       const code = await generateTotpCode({ secret: enrollment.secretBase32 });
       await request("/auth/2fa/verify-enrollment", {
         method: "POST",
-        headers: { Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ code }),
+        headers: { Authorization: `Bearer ${accessToken}`, "X-Org-Id": orgId },
+        body: JSON.stringify({ code, purpose: "admin.action" }),
       });
       return { secretBase32: enrollment.secretBase32, backupCodes: enrollment.backupCodes, enrolledAtMs };
     },

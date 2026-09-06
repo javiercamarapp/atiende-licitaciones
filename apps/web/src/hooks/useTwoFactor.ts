@@ -25,10 +25,21 @@ export function useEnrollTwoFactor() {
   return useMutation({ mutationFn: enrollTwoFactor });
 }
 
+/**
+ * Confirmar el enrolamiento exige una organización activa (ver docstring
+ * de `verifyTwoFactorEnrollment` en lib/api/twofa.ts: la migración 0062
+ * hizo `org_id` NOT NULL en la sesión de step-up que esta llamada también
+ * emite) -- un usuario que aún no pertenece a ninguna organización no
+ * puede completar el enrolamiento todavía.
+ */
 export function useVerifyTwoFactorEnrollment() {
+  const { currentOrgId } = useAuth();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (code: string) => verifyTwoFactorEnrollment(code),
+    mutationFn: (code: string) => {
+      if (!currentOrgId) throw new Error("Necesitas una organización activa para confirmar el enrolamiento de 2FA.");
+      return verifyTwoFactorEnrollment(code, currentOrgId);
+    },
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["auth", "2fa", "status"] }),
   });
 }
