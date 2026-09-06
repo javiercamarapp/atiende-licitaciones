@@ -54,9 +54,14 @@ const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Con
       <SheetOverlay />
       <SheetPrimitive.Content ref={ref} className={cn(sheetVariants({ side }), className)} {...props}>
         {children}
+        {/* W-22: el botón de cerrar medía 28×28px (ícono de 16px + p-1.5) —
+            por debajo del objetivo táctil de ≥44×44px que ya cumplen el
+            resto de controles del drawer (enlaces y botones de acordeón,
+            W-10/W-19). Tamaño fijo `h-11 w-11` (no solo padding) para
+            garantizar 44×44px sin importar el tamaño del ícono interior. */}
         <SheetPrimitive.Close
           aria-label="Cerrar menú"
-          className="absolute right-4 top-4 rounded-full p-1.5 opacity-70 ring-offset-background transition-all hover:bg-muted hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none"
+          className="absolute right-2 top-2 flex h-11 w-11 items-center justify-center rounded-full opacity-70 ring-offset-background transition-all hover:bg-muted hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none"
         >
           <X className="h-4 w-4" aria-hidden="true" />
         </SheetPrimitive.Close>
