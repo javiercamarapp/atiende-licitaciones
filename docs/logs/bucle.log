@@ -108,3 +108,4 @@
 2026-09-06 08:30  RONDA5  reverificador #77 (R5-09/10 API) despachado; #71 web en cierre.
 2026-09-06 08:40  DESPERTAR  #71 en pausa por corridas en segundo plano; #77 en curso.
 2026-09-06 08:43  LATIDO-CRON  a1c165a2 disparó; bucle dinámico VIVO; en curso #71 (cierre web ronda 5), #77 (reverificación R5-09/10).
+2026-09-06 08:44  DESPERTAR  reverificación R5-09/10 (#77) CERRADOS; R5-11 → #78 despachado; #71 web en cierre.
