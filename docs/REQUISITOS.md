@@ -347,3 +347,78 @@ Fuente: `docs/AMPLIACION-BACKOFFICE.md` (ampliación prioritaria del usuario, 20
 ---
 
 **Total de requisitos**: 171 (REQ-001 a REQ-171), organizados en 33 módulos. Los módulos 29-33 provienen de `docs/AMPLIACION-BACKOFFICE.md` (ampliación prioritaria, 2026-09-05). Ver `docs/ACEPTACION.md` para los criterios de aceptación derivados, `docs/BACKLOG.md` para las épicas de implementación y `docs/investigacion/pdf-resumen.md` para el detalle por documento fuente original (secciones 1-28).
+
+## 34. Salida a promoción
+
+Fuente: `docs/AMPLIACION-2-SALIDA.md` (Ampliación 2, instrucción del usuario 2026-09-06), en adelante **AMPLIACION-2**. Decisión relacionada: `docs/DECISIONES.md` D-08. Bloqueos externos previstos por el propio documento fuente: credenciales OAuth de Google, proveedor de correo y dominio remitente con SPF/DKIM, dominio/hosting/BD gestionada, y validación de textos legales por abogado — ninguno de ellos bloquea la construcción del código ni de sus pruebas con dobles/fixtures.
+
+### 34.1 Autenticación con Google (OIDC)
+
+| ID | Requisito | Fuente | Tipo | Prioridad | Criterio verificable |
+|---|---|---|---|---|---|
+| REQ-172 | Botón "Continuar con Google" visible en login y registro, junto al método email+contraseña existente, sin reemplazarlo | AMPLIACION-2 §1 | funcional/UX | alta | Prueba de render: ambos métodos de autenticación visibles y funcionales en la misma pantalla |
+| REQ-173 | Vinculación automática con una cuenta existente cuando el email del token de Google coincide con el email verificado de un usuario ya registrado con email+contraseña | AMPLIACION-2 §1 | funcional/seguridad | alta | Prueba de integración con proveedor OIDC falso: usuario existente + login con Google del mismo email → misma cuenta, sin duplicar |
+| REQ-174 | Login con Google de un email nunca antes registrado crea usuario y su primera organización automáticamente, igual que el registro por email+contraseña | AMPLIACION-2 §1 | funcional | alta | Prueba de integración con proveedor OIDC falso: usuario nuevo + login con Google → usuario y organización creados en una sola operación |
+| REQ-175 | Sesión y refresh token emitidos tras login con Google usan el mismo formato, duración y mecanismo de rotación que los emitidos por email+contraseña | AMPLIACION-2 §1 | técnico/seguridad | alta | Prueba de contrato: tokens de ambos flujos comparten esquema y política de expiración |
+| REQ-176 | Login con Google es compatible con el 2FA/step-up existente: si la cuenta tiene 2FA activo, el login con Google exige el mismo segundo factor antes de completar la sesión | AMPLIACION-2 §1 | seguridad | alta (tolerancia cero) | Prueba de integración: cuenta con 2FA activo + login con Google → exige TOTP antes de emitir sesión completa |
+| REQ-177 | Todo login, vinculación o creación de cuenta vía Google queda registrado en `audit_log` con el mismo detalle (IP, resultado, `correlation_id`) que el flujo de email+contraseña | AMPLIACION-2 §1 | técnico/legal | alta | Prueba de integración: cada evento OIDC aparece en `audit_log` consultable |
+| REQ-178 | Credenciales `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` únicamente por variable de entorno, nunca en el repositorio; sin credenciales reales el flujo contra Google real permanece bloqueado y declarado explícitamente como tal, sin impedir el desarrollo ni las pruebas con un proveedor OIDC falso | AMPLIACION-2 §1 | seguridad/gobierno | alta (tolerancia cero) | Escaneo de secretos limpio para patrones de client secret de Google; flujo real verificable solo cuando el usuario aporte credenciales |
+| REQ-179 | Un token de Google con `email_verified=false` es rechazado explícitamente: nunca crea cuenta, nunca vincula, nunca inicia sesión | AMPLIACION-2 §1 | seguridad | alta (tolerancia cero) | Prueba adversarial con proveedor OIDC falso: token con email no verificado → rechazo explícito, 0 cuentas creadas |
+| REQ-180 | Antes de vincular una cuenta existente por email, el sistema verifica que no exista un conflicto de organización/rol que permita una toma de cuenta no autorizada | AMPLIACION-2 §1 | seguridad | alta | Prueba adversarial: intento de vinculación con email de una cuenta ajena en estado inconsistente es rechazado y auditado |
+
+### 34.2 Correos transaccionales con plantillas
+
+| ID | Requisito | Fuente | Tipo | Prioridad | Criterio verificable |
+|---|---|---|---|---|---|
+| REQ-181 | Catálogo de plantillas de correo transaccional cubre los 10 tipos de la ampliación (verificación de email, invitación a organización, restablecimiento de contraseña, códigos de respaldo/activación de 2FA, alertas de nuevas convocatorias y cambios, matching relevante, aprobación pendiente, paquete listo, recordatorios y vencimientos post-adjudicación, resumen diario/semanal), cada una con asunto, disparador funcional y variables tipadas documentadas | AMPLIACION-2 §2 | funcional/técnico | alta | Catálogo de plantillas consultable con asunto/disparador/variables por cada uno de los 10 tipos |
+| REQ-182 | Proveedor de correo (Resend/Postmark/SMTP) seleccionable por variable de entorno a través de un adaptador único; prohibido `if provider === X` fuera del adaptador | AMPLIACION-2 §2 | técnico | alta | Test estático falla si aparece el patrón prohibido fuera del adaptador; el envío real solo es verificable cuando el usuario aporte credenciales del proveedor |
+| REQ-183 | En desarrollo y en pruebas, todo correo se captura en una bandeja local (nunca sale a la red) cuando no hay proveedor configurado o cuando el entorno es de prueba | AMPLIACION-2 §2 | técnico | alta (tolerancia cero) | Prueba de integración: sin proveedor configurado, 0 llamadas HTTP salientes y el correo queda disponible en la bandeja de captura |
+| REQ-184 | Cada plantilla tiene una vista de previsualización renderizada con datos de ejemplo, accesible desde el back office o una herramienta de desarrollo | AMPLIACION-2 §2 | UX/técnico | media | Prueba de render: cada plantilla del catálogo previsualiza sin variables sin resolver |
+| REQ-185 | Los textos de las plantillas están en español de México, con tono, estructura y componentes visuales equivalentes a Likida, con la marca Atiende (nunca la marca Likida) | AMPLIACION-2 §2 | UX/contenido | media | Revisión de plantillas contra el patrón de referencia D-03; 0 menciones a la marca Likida en el HTML renderizado |
+| REQ-186 | Los enlaces de verificación, invitación y restablecimiento de contraseña son firmados, con expiración, y la firma se valida en el servidor antes de honrar la acción | AMPLIACION-2 §2 | seguridad | alta (tolerancia cero) | Prueba de integración: un enlace expirado o con firma alterada es rechazado por el servidor |
+| REQ-187 | Cada usuario puede configurar preferencias de notificación y darse de baja; los envíos no transaccionales-críticos de seguridad respetan esa preferencia | AMPLIACION-2 §2 | funcional/legal | alta | Prueba de integración: un usuario dado de baja de un tipo de notificación no lo recibe, pero sí recibe los de seguridad |
+| REQ-188 | Todo envío de correo queda registrado con destinatario, plantilla, estado y número de intentos; los envíos fallidos se reintentan mediante jobs con backoff | AMPLIACION-2 §2 | técnico | alta | Prueba de integración: un fallo simulado del proveedor genera un reintento vía job y el registro de envío refleja el histórico de intentos |
+| REQ-189 | Ningún correo se envía a un destinatario que no sea un usuario/miembro de organización registrado o un remitente explícito del formulario de contacto | AMPLIACION-2 §2 | seguridad/legal | alta (tolerancia cero) | Revisión de código y prueba adversarial: no existe ruta que acepte un destinatario arbitrario no registrado |
+| REQ-190 | Ningún envío alcanza la red real si no hay un proveedor de correo configurado por variable de entorno; en su ausencia, el sistema captura o registra el intento sin intentar la entrega | AMPLIACION-2 §2 | técnico | alta (tolerancia cero) | Prueba de integración: sin credenciales de Resend/Postmark/SMTP configuradas, 0 conexiones salientes de red |
+
+### 34.3 Onboarding de producto
+
+| ID | Requisito | Fuente | Tipo | Prioridad | Criterio verificable |
+|---|---|---|---|---|---|
+| REQ-191 | Flujo de onboarding guiado con los pasos registro → verificación → crear organización → perfil de empresa guiado → invitar equipo → primera convocatoria, navegable de principio a fin | AMPLIACION-2 §3 | funcional/UX | alta | Prueba E2E: un usuario nuevo completa los 6 pasos sin salir del flujo guiado |
+| REQ-192 | Checklist de activación visible en el portal que marca cada paso del onboarding como completado o pendiente | AMPLIACION-2 §3 | UX | media | Prueba de render: el checklist refleja el estado real de cada paso tras completarlo |
+| REQ-193 | Los estados vacíos de los módulos principales (empresa, convocatorias, expediente, equipo) incluyen una guía de la siguiente acción concreta, no solo un mensaje de "sin datos" | AMPLIACION-2 §3 | UX | media | Prueba de render: cada estado vacío principal muestra una acción sugerida accionable |
+
+### 34.4 Páginas públicas
+
+| ID | Requisito | Fuente | Tipo | Prioridad | Criterio verificable |
+|---|---|---|---|---|---|
+| REQ-194 | Landing pública de Atiende Licitaciones con la identidad de marca Atiende y la estructura tipo Likida (propuesta de valor, cómo funciona, seguridad/no actuación automática, precios o "solicitar demo" si no hay precios definidos) | AMPLIACION-2 §4 | UX/contenido | alta | Prueba de render: la landing incluye las 4 secciones exigidas con la identidad de marca Atiende, nunca Likida |
+| REQ-195 | Aviso de privacidad y términos de servicio publicados como borrador jurídico marcado explícitamente pendiente de validación por abogado | AMPLIACION-2 §4 | legal | alta | Prueba de render: ambas páginas visibles con etiqueta `borrador_pendiente_validacion_juridica`; la validación final por abogado es un bloqueo externo declarado en `docs/AMPLIACION-2-SALIDA.md` |
+| REQ-196 | Página de contacto con formulario que crea un registro interno y dispara un correo interno de notificación al recibir el envío | AMPLIACION-2 §4 | funcional | media | Prueba de integración: el envío del formulario crea un registro consultable y genera un correo interno capturado |
+| REQ-197 | SEO básico en páginas públicas: metaetiquetas por página, `sitemap.xml` y `robots.txt` | AMPLIACION-2 §4 | técnico/SEO | media | Prueba de render: cada página pública expone título/descripción propios; `sitemap.xml`/`robots.txt` accesibles |
+| REQ-198 | Analítica de páginas públicas sin captura de datos personales identificables (sin PII en eventos, sin cookies de terceros no declaradas) | AMPLIACION-2 §4 | legal/técnico | alta | Revisión de payloads de analítica: 0 campos con PII identificable |
+
+### 34.5 Preparación de despliegue
+
+| ID | Requisito | Fuente | Tipo | Prioridad | Criterio verificable |
+|---|---|---|---|---|---|
+| REQ-199 | Dockerfile de producción para cada servicio desplegable (api, worker, web) | AMPLIACION-2 §5 | técnico/operación | alta | El build de cada Dockerfile produce una imagen sin errores |
+| REQ-200 | `docker-compose` de producción que integra api+worker+web+postgres, con variables de entorno documentadas | AMPLIACION-2 §5 | técnico/operación | alta | Levantar el compose local produce los 4 servicios activos con healthcheck en verde |
+| REQ-201 | Las migraciones de base de datos se ejecutan automáticamente y de forma idempotente al arrancar los servicios que dependen del esquema | AMPLIACION-2 §5 | técnico | alta (tolerancia cero) | Prueba de integración: arrancar el servicio dos veces seguidas no falla ni duplica migraciones |
+| REQ-202 | Cada servicio expone un endpoint/healthcheck consumido por el orquestador (compose u otro) para determinar disponibilidad | AMPLIACION-2 §5 | técnico/operación | alta | Prueba de integración: el healthcheck responde en verde solo cuando el servicio está listo |
+| REQ-203 | Procedimiento de backup de la base de datos documentado (frecuencia, retención, restauración), sin ejecutarse contra ningún entorno real sin autorización | AMPLIACION-2 §5 | operación | media | Runbook de backup revisado y completo; ninguna ejecución real sin autorización explícita |
+| REQ-204 | Runbook de salida a producción documentado: variables requeridas, orden de arranque, verificación post-arranque y procedimiento de rollback | AMPLIACION-2 §5 | operación/gobierno | alta | El runbook revisado cubre las 4 secciones exigidas |
+| REQ-205 | Ningún despliegue a un entorno real ni gasto en infraestructura/proveedores ocurre sin autorización explícita del usuario | AMPLIACION-2 §5 | gobierno | alta (tolerancia cero) | Revisión de proceso: ninguna tarea de esta ampliación ejecuta un despliegue contra un host remoto ni provisiona recursos de pago |
+
+### 34.6 Calidad
+
+| ID | Requisito | Fuente | Tipo | Prioridad | Criterio verificable |
+|---|---|---|---|---|---|
+| REQ-206 | Suite de integración/E2E de autenticación con Google usando un proveedor OIDC falso cubre creación de usuario+organización, vinculación de cuenta existente y rechazo de email no verificado | AMPLIACION-2 §6 | técnico/calidad | alta | Suite en verde con los escenarios S1, S2 y S3 de `docs/ACEPTACION.md` |
+| REQ-207 | Suite de integración/E2E de correos con bandeja de captura cubre el renderizado de cada plantilla, la expiración de enlaces firmados, la baja de notificaciones y el reintento de un envío fallido | AMPLIACION-2 §6 | técnico/calidad | alta | Suite en verde con los escenarios S4, S5, S6 y S7 de `docs/ACEPTACION.md` |
+| REQ-208 | Suite E2E de onboarding completo, desde el registro hasta la primera convocatoria vista | AMPLIACION-2 §6 | técnico/calidad | alta | Suite en verde (escenario S8 de `docs/ACEPTACION.md`) |
+| REQ-209 | Suite de render/accesibilidad de la landing y las páginas públicas, incluyendo vista móvil, sin hallazgos axe critical/serious | AMPLIACION-2 §6 | técnico/calidad | alta | Suite en verde con axe 0 violaciones en desktop y móvil (escenario S9 de `docs/ACEPTACION.md`) |
+| REQ-210 | Esta ampliación pasa por el mismo ciclo de auditoría adversarial y reverificación independiente (regla de 3 vueltas, veredicto CERRADO) que el resto del proyecto antes de marcarse CUMPLIDO | AMPLIACION-2 §6 | gobierno (tolerancia cero) | alta (tolerancia cero) | Informe de auditoría y reverificación independiente citado en `docs/auditoria-1` o `docs/auditoria-2` antes de cerrar cualquier REQ-172 a REQ-209 |
+
+**Total tras Ampliación 2**: 210 requisitos (REQ-001 a REQ-210), organizados en 34 módulos. La sección 34 proviene de `docs/AMPLIACION-2-SALIDA.md` (Ampliación 2, 2026-09-06). Ver `docs/ACEPTACION.md` para los criterios de aceptación y las pruebas mínimas S1-S12, y `docs/BACKLOG.md` para las épicas E13-E17 de esta ampliación.

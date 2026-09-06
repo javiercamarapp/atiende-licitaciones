@@ -286,3 +286,78 @@ Lo que queda, por épica, para que `docs/ACEPTACION.md` pueda considerar CUMPLID
 - **E0**: mantener `BLOQUEOS.md`/`PROGRESO.md` al día en cada ronda futura; decidir si se adopta el patrón literal `tasks/evidence/<id>/` (REQ-126/137) o se declara formalmente que `docs/logs/`+`docs/auditoria-1/`+`docs/auditoria-2/`+commits es el patrón de evidencia oficial del proyecto (ya lo es de facto).
 
 **Higiene de repo (menor, sin impacto en el orden de cierre de ninguna épica)**: R5-12 — comentario desactualizado en `apps/web/src/lib/api/twofa.ts:33-35` sobre el alcance de `/2fa/verify-enrollment` (BAJA, sin código ejecutable ni impacto funcional).
+
+---
+
+# Épicas de Ampliación 2 — Salida a promoción (E13-E17)
+
+Derivadas de `docs/AMPLIACION-2-SALIDA.md` (D-08, `docs/DECISIONES.md`) y de la sección 34 de `docs/REQUISITOS.md` (REQ-172 a REQ-210). Añadidas 2026-09-06, sin tocar el contenido de E1-E12 ni el orden de ejecución ya vigente arriba. Todas parten de **pendiente** (sin trabajo de código a la fecha de esta adición); dependen de E1 (fundamentos de plataforma, autenticación, `audit_log`) y E9 (guardrails/no-actuación) ya CERRADOS CON REVERIFICACIÓN, por lo que no están bloqueadas técnicamente para arrancar.
+
+## E13 — Autenticación con Google (OIDC)
+**Estado: PENDIENTE** — depende de E1 (cerrado, reutiliza sesión/refresh/`audit_log`/2FA existentes).
+
+| Paquete/app | Alcance |
+|---|---|
+| apps/api | Adaptador OIDC de Google, vinculación por email verificado, emisión de sesión/refresh idéntica al flujo existente, integración con 2FA/step-up, emisor de eventos a `audit_log`; proveedor OIDC falso para pruebas |
+| apps/web | Botón "Continuar con Google" en login/registro |
+
+REQ: REQ-172 a REQ-180 (sección 34.1).
+Cierra: REQ-172 a REQ-180 de `docs/ACEPTACION.md`; pruebas mínimas S1, S2, S3.
+
+**Dependencias pendientes:** BLOQUEADO_EXTERNO parcial — `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` reales (consola de Google Cloud) y dominio autorizado (REQ-178) para verificar el flujo contra Google real; el resto (adaptador, vinculación, 2FA, audit, rechazo de email no verificado) se construye y prueba completo con un proveedor OIDC falso, sin bloqueo.
+
+## E14 — Correos transaccionales con plantillas
+**Estado: PENDIENTE** — depende de E1 (cerrado) y del nuevo paquete `packages/mail`.
+
+| Paquete/app | Alcance |
+|---|---|
+| packages/mail (nuevo) | Catálogo de 10 plantillas (asunto/disparador/variables), adaptador único de proveedor (Resend/Postmark/SMTP) por env, bandeja de captura en desarrollo/test, previsualización, enlaces firmados con expiración, registro de envíos, tono/estructura Likida con marca Atiende |
+| apps/worker | Jobs de reintento de envío con backoff |
+| apps/api | Preferencias de notificación/baja por usuario, endpoints de disparo de plantillas |
+
+REQ: REQ-181 a REQ-190 (sección 34.2).
+Cierra: REQ-181 a REQ-190 de `docs/ACEPTACION.md`; pruebas mínimas S4, S5, S6, S7, S12.
+
+**Dependencias pendientes:** BLOQUEADO_EXTERNO parcial — credenciales de un proveedor de correo real (Resend/Postmark/SMTP) y dominio remitente con SPF/DKIM para el envío real (REQ-182, REQ-190); el catálogo, el renderizado, la firma de enlaces, las preferencias y el registro con reintentos se construyen y prueban completos con la bandeja de captura, sin bloqueo.
+
+## E15 — Onboarding de producto
+**Estado: PENDIENTE** — depende de E13 (login), E2 (perfil de empresa, en curso) y E1 (cerrado).
+
+| Paquete/app | Alcance |
+|---|---|
+| apps/web | Flujo guiado registro→verificación→crear organización→perfil de empresa guiado→invitar equipo→primera convocatoria; checklist de activación; estados vacíos guiados en los módulos principales |
+| apps/api | Endpoint(s) de estado de activación/checklist |
+
+REQ: REQ-191 a REQ-193 (sección 34.3).
+Cierra: REQ-191 a REQ-193 de `docs/ACEPTACION.md`; prueba mínima S8.
+
+**Dependencias pendientes:** ninguna externa; trabajo de producto/ingeniería puro. Beneficia de que E13/E14 estén al menos parcialmente construidos (verificación de email e invitación a organización usan plantillas de E14), pero puede avanzar en paralelo con dobles de correo.
+
+## E16 — Páginas públicas y legales
+**Estado: PENDIENTE** — depende de E14 (correo interno de contacto) para el circuito completo del formulario; landing/SEO/analítica no dependen de ninguna otra épica.
+
+| Paquete/app | Alcance |
+|---|---|
+| apps/web | Landing pública con identidad Atiende y estructura Likida, aviso de privacidad y términos (borrador jurídico marcado), página de contacto, SEO básico (metaetiquetas/sitemap/robots.txt), analítica sin datos personales |
+| apps/api | Endpoint de registro de contacto + disparo de correo interno (reutiliza E14) |
+
+REQ: REQ-194 a REQ-198 (sección 34.4).
+Cierra: REQ-194 a REQ-198 de `docs/ACEPTACION.md`; pruebas mínimas S9, S10.
+
+**Dependencias pendientes:** BLOQUEADO_EXTERNO parcial — validación final de los textos legales (aviso de privacidad y términos) por un abogado antes de afirmarlos "vigentes" a un cliente real (REQ-195, mismo patrón que REQ-119/E12); el borrador marcado, la landing, el contacto, el SEO y la analítica sin PII se construyen y prueban completos sin ese bloqueo.
+
+## E17 — Preparación de despliegue
+**Estado: PENDIENTE** — depende de E1 (cerrado, esquema y migraciones existentes de `packages/db`).
+
+| Paquete/app | Alcance |
+|---|---|
+| infra/ (nuevo) | Dockerfiles de producción (api, worker, web), `docker-compose` de producción (api+worker+web+postgres), variables documentadas, ejecución de migraciones al arrancar, healthchecks por servicio, runbook de backup y de salida a producción |
+
+REQ: REQ-199 a REQ-205 (sección 34.5).
+Cierra: REQ-199 a REQ-205 de `docs/ACEPTACION.md`; prueba mínima S11.
+
+**Dependencias pendientes:** BLOQUEADO_EXTERNO para la verificación real de S11 — **Docker no está disponible en el entorno de desarrollo actual** (`docker`/`docker-compose` no instalados), por lo que levantar el `docker-compose` y confirmar healthchecks en verde no puede ejecutarse en este entorno aunque el código esté completo; adicionalmente, dominio público, hosting y base de datos gestionada de producción los aporta el usuario (REQ-203/204/205 exigen explícitamente no desplegar ni gastar sin autorización). Los Dockerfiles, el compose, la documentación de variables, el hook de migraciones al arrancar y los runbooks se construyen completos sin ese bloqueo; solo su verificación end-to-end con contenedores reales queda pendiente del entorno/autorización.
+
+## Pruebas que cierra la Ampliación 2 (resumen)
+
+Las 12 pruebas mínimas obligatorias S1-S12 de `docs/ACEPTACION.md` se reparten así: S1-S3 → E13; S4-S7, S12 → E14; S8 → E15; S9-S10 → E16; S11 → E17 (bloqueada por falta de Docker en el entorno actual, no por diseño). Ninguna de las 12 tiene evidencia construida a la fecha de esta adición (2026-09-06); todas parten de PENDIENTE salvo S11 (BLOQUEADO_EXTERNO por Docker no disponible).

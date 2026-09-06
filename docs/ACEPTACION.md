@@ -221,3 +221,70 @@ Exigidas explícitamente por `docs/AMPLIACION-BACKOFFICE.md`. Cada una debe prob
 **Hallazgo de severidad BAJA genuinamente abierto hoy (ronda 5, sin corregir — fuera del alcance de la corrección de RF-01..04)**: **R5-12** — `apps/web/src/lib/api/twofa.ts:33-35` describe incorrectamente el comportamiento de `apps/api`: afirma que `/2fa/verify-enrollment` "no fue actualizada para EXIGIR orgId/purpose a nivel de aplicación como sí lo está `/2fa/step-up`", cuando ambas rutas los exigen por igual (`modules/twofa/routes.ts`). Es un comentario sin código ejecutable ni impacto funcional (el cliente real ya declara ambos campos siempre). Citado en `docs/auditoria-2/api-r5-09-10-reverificacion.md`, reconfirmado sin corregir en `ronda5-final.md` y `ronda5-final-reverificacion.md`.
 
 **Límites aceptados (regla de 3 vueltas, causa documentada, sin cuarta vuelta)**: AG-05 y AG-12 (`packages/agents`, ver `docs/auditoria-1/agents-cierre.md`); SR-25 y el carácter cooperativo de `reportDropped` (`packages/sources`, ver `docs/auditoria-1/sources-cierre-definitivo.md`); EX-EXP-08 y EX-EXP-10 (`packages/expediente`, ver `docs/auditoria-1/expediente-cierre.md`); DB-07 y DB-09 (`packages/db`, alcance documentado, ver `docs/auditoria-1/db-api-seguridad-reverificacion.md`); concurrencia real de `jobs` (`apps/worker`, WK-04/WK-08, ligada a B-03).
+
+---
+
+## Criterios de aceptación — Ampliación 2: Salida a promoción (REQ-172 a REQ-210)
+
+Fuente: `docs/AMPLIACION-2-SALIDA.md` (D-08, `docs/DECISIONES.md`). Requisitos nuevos, sección 34 de `docs/REQUISITOS.md`. Ningún REQ de esta tabla tiene código construido a la fecha de esta adición (2026-09-06): todos parten de **PENDIENTE** salvo el que depende explícitamente de credenciales externas no disponibles (**BLOQUEADO_EXTERNO**, misma escala estricta definida arriba). Ningún criterio de esta ampliación se marca CUMPLIDO por un mock/fixture: los flujos de Google y de correo se prueban con un proveedor OIDC falso y con captura de correos respectivamente, lo cual habilita EN_EVIDENCIA/CUMPLIDO futuro, pero la integración real contra Google/proveedor de correo/Docker permanece BLOQUEADO_EXTERNO hasta que el usuario aporte credenciales (Google Cloud, Resend/Postmark/SMTP+dominio) o el entorno de ejecución tenga Docker disponible.
+
+| REQ | Criterio de aceptación | Prueba | Paquete(s) responsable(s) | Evidencia actual | Estado |
+|---|---|---|---|---|---|
+| REQ-172 | Botón "Continuar con Google" visible y funcional junto a email+contraseña en login/registro | render | apps/web | Sin código — requisito nuevo de Ampliación 2 | PENDIENTE |
+| REQ-173 | Login con Google de un email verificado que coincide con una cuenta existente vincula sin duplicar | integración | apps/api | Sin código — requiere adaptador OIDC y lógica de vinculación por email | PENDIENTE |
+| REQ-174 | Login con Google de un email nuevo crea usuario + primera organización en una sola operación | integración | apps/api | Sin código — requiere adaptador OIDC | PENDIENTE |
+| REQ-175 | Tokens de sesión/refresh de Google comparten esquema y expiración con los de email+contraseña | integración | apps/api | Sin código | PENDIENTE |
+| REQ-176 | Cuenta con 2FA activo exige el mismo segundo factor tras login con Google | integración | apps/api | Sin código — depende del módulo 2FA ya existente (REQ-044/064, CUMPLIDO) más el adaptador OIDC nuevo | PENDIENTE |
+| REQ-177 | Cada evento de login/vinculación/creación vía Google aparece en `audit_log` | integración | apps/api + packages/db | Sin código — reutiliza el `audit_log` existente (REQ-083, CUMPLIDO), falta el emisor de eventos OIDC | PENDIENTE |
+| REQ-178 | Sin `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` reales, el flujo contra Google real queda bloqueado y declarado como tal; el flujo se prueba con un proveedor OIDC falso | unit + integración | apps/api (config) + transversal (CI/secretos) | Sin credenciales de Google Cloud aportadas por el usuario (bloqueo externo previsto en `docs/AMPLIACION-2-SALIDA.md` §Bloqueos externos); código del adaptador y del doble OIDC falso aún no construidos | BLOQUEADO_EXTERNO |
+| REQ-179 | Token de Google con `email_verified=false` rechazado sin crear ni vincular cuenta | adversarial | apps/api | Sin código | PENDIENTE |
+| REQ-180 | Vinculación bloqueada ante conflicto de organización/rol para el mismo email | adversarial | apps/api | Sin código | PENDIENTE |
+| REQ-181 | Catálogo de 10 plantillas con asunto/disparador/variables documentados | unit | packages/mail (nuevo) | Sin código — paquete `packages/mail` aún no creado | PENDIENTE |
+| REQ-182 | Adaptador único de proveedor de correo por env, sin `if provider === X` fuera del adaptador | unit | packages/mail (nuevo) | Sin código; envío real contra Resend/Postmark/SMTP requiere credenciales del usuario | PENDIENTE |
+| REQ-183 | Sin proveedor configurado, correos se capturan localmente y 0 llamadas HTTP salientes | integración | packages/mail (nuevo) | Sin código | PENDIENTE |
+| REQ-184 | Previsualización renderizada de cada plantilla con datos de ejemplo | render | packages/mail (nuevo) + apps/web | Sin código | PENDIENTE |
+| REQ-185 | Plantillas en español de México, tono/estructura Likida, marca Atiende, 0 menciones a Likida | render | packages/mail (nuevo) | Sin código | PENDIENTE |
+| REQ-186 | Enlaces firmados con expiración; enlace expirado o alterado es rechazado en servidor | integración | apps/api + packages/mail | Sin código | PENDIENTE |
+| REQ-187 | Preferencias de notificación y baja respetadas salvo transaccionales de seguridad | integración | apps/api | Sin código | PENDIENTE |
+| REQ-188 | Registro de envíos con estado/intentos; reintento vía job ante fallo simulado | integración | packages/mail (nuevo) + apps/worker | Sin código | PENDIENTE |
+| REQ-189 | Ningún correo a destinatario no registrado ni no explícito de contacto | adversarial | apps/api + packages/mail | Sin código | PENDIENTE |
+| REQ-190 | Sin credenciales de proveedor configuradas, 0 conexiones salientes de red para correo | integración | packages/mail (nuevo) | Sin código | PENDIENTE |
+| REQ-191 | Onboarding guiado navegable de principio a fin (6 pasos) | E2E | apps/web | Sin código | PENDIENTE |
+| REQ-192 | Checklist de activación refleja estado real de cada paso | render | apps/web | Sin código | PENDIENTE |
+| REQ-193 | Estados vacíos principales incluyen guía de siguiente acción | render | apps/web | Sin código | PENDIENTE |
+| REQ-194 | Landing pública con las 4 secciones exigidas e identidad Atiende | render | apps/web (público) | Sin código — páginas públicas aún no construidas | PENDIENTE |
+| REQ-195 | Aviso de privacidad y términos publicados como borrador marcado `borrador_pendiente_validacion_juridica` | render | apps/web + apps/api (aviso existente REQ-119) | Sin código nuevo para términos de servicio; el aviso de privacidad de REQ-119 ya existe (EN_EVIDENCIA) pero los términos de servicio de esta ampliación son un entregable nuevo; validación final por abogado es bloqueo externo declarado en `docs/AMPLIACION-2-SALIDA.md` | PENDIENTE |
+| REQ-196 | Formulario de contacto crea registro interno y dispara correo interno | integración | apps/web (público) + apps/api | Sin código | PENDIENTE |
+| REQ-197 | Metaetiquetas por página, `sitemap.xml`, `robots.txt` accesibles | render | apps/web (público) | Sin código | PENDIENTE |
+| REQ-198 | Payloads de analítica sin campos con PII identificable | adversarial | apps/web (público) | Sin código — analítica aún no integrada | PENDIENTE |
+| REQ-199 | Dockerfile de producción por servicio (api/worker/web) construye sin errores | integración | infra/ | Sin archivos — `infra/` con Dockerfiles aún no creado | PENDIENTE |
+| REQ-200 | `docker-compose` de producción levanta api+worker+web+postgres con healthcheck en verde | integración | infra/ | Sin archivos; verificación real requiere Docker, **no disponible en el entorno de desarrollo actual** (`docker`/`docker-compose` no instalados) | PENDIENTE |
+| REQ-201 | Migraciones se ejecutan automáticamente e idempotentemente al arrancar | integración | packages/db + infra/ | Sin código de arranque nuevo — reutiliza el runner de migraciones existente de `packages/db`, falta el hook de arranque en contenedor | PENDIENTE |
+| REQ-202 | Cada servicio expone healthcheck consumido por el orquestador | integración | apps/api + apps/worker + apps/web + infra/ | Sin código | PENDIENTE |
+| REQ-203 | Runbook de backup completo (frecuencia/retención/restauración) sin ejecución real | documentación | infra/ (docs) | Sin documento | PENDIENTE |
+| REQ-204 | Runbook de salida a producción cubre variables/orden/verificación/rollback | documentación | infra/ (docs) | Sin documento | PENDIENTE |
+| REQ-205 | Ninguna tarea de esta ampliación ejecuta despliegue real ni gasto sin autorización | revisión de proceso | transversal (gobierno) | Cumplido por disciplina de proceso hasta ahora (ningún despliegue ni gasto ejecutado); sin mecanismo de enforcement automatizado nuevo | PENDIENTE |
+| REQ-206 | Suite E2E de Google (OIDC falso): S1+S2+S3 en verde | integración/E2E | apps/api + apps/web | Sin código | PENDIENTE |
+| REQ-207 | Suite de correos (bandeja de captura): S4+S5+S6+S7 en verde | integración/E2E | packages/mail (nuevo) + apps/api | Sin código | PENDIENTE |
+| REQ-208 | Suite E2E de onboarding completo: S8 en verde | E2E | apps/web | Sin código | PENDIENTE |
+| REQ-209 | Suite de render/accesibilidad de landing y páginas públicas: S9 en verde | render | apps/web (público) | Sin código | PENDIENTE |
+| REQ-210 | Auditoría adversarial y reverificación independiente citada antes de cerrar cualquier REQ de esta ampliación | gobierno | transversal (gobierno) | Sin ronda de auditoría despachada todavía para esta ampliación | PENDIENTE |
+
+## Pruebas mínimas obligatorias de la Ampliación 2 — Salida a promoción
+
+Exigidas explícitamente por la tarea de gobierno de requisitos de Ampliación 2 (2026-09-06), derivadas de `docs/AMPLIACION-2-SALIDA.md`. Cada una debe probar el flujo integrado real con dobles fieles al contrato (proveedor OIDC falso con tokens de forma real, bandeja de captura de correo real) — nunca contra la red externa sin credenciales del usuario.
+
+| # | Prueba mínima | REQ relacionados | Tipo de prueba | Evidencia actual | Estado |
+|---|---|---|---|---|---|
+| S1 | Login con Google (OIDC falso) crea usuario + organización | REQ-172, REQ-174, REQ-177 | integración | Sin código — requiere adaptador OIDC y proveedor OIDC falso de prueba | PENDIENTE |
+| S2 | Login con Google vincula cuenta existente por email verificado | REQ-173, REQ-180 | integración | Sin código | PENDIENTE |
+| S3 | Google con email no verificado → rechazado, 0 cuentas creadas | REQ-179 | adversarial | Sin código | PENDIENTE |
+| S4 | Cada plantilla renderiza con variables reales y pasa validación HTML/accesibilidad básica | REQ-181, REQ-184, REQ-185 | render | Sin código — `packages/mail` aún no existe | PENDIENTE |
+| S5 | Correo de invitación con enlace firmado expira y es rechazado tras vencer | REQ-186 | integración | Sin código | PENDIENTE |
+| S6 | Baja de notificaciones respetada (salvo transaccionales de seguridad) | REQ-187 | integración | Sin código | PENDIENTE |
+| S7 | Envío fallido reintenta vía job y queda registrado con su historial de intentos | REQ-188 | integración | Sin código | PENDIENTE |
+| S8 | Onboarding completo navegado de punta a punta en E2E | REQ-191, REQ-192, REQ-193, REQ-208 | E2E | Sin código | PENDIENTE |
+| S9 | Landing renderiza con axe 0 violaciones, incluida vista móvil | REQ-194, REQ-197, REQ-198, REQ-209 | render | Sin código — landing/páginas públicas aún no construidas | PENDIENTE |
+| S10 | Formulario de contacto crea registro y dispara correo interno | REQ-196 | integración | Sin código | PENDIENTE |
+| S11 | `docker-compose` levanta api+worker+web+postgres y pasa healthchecks | REQ-199, REQ-200, REQ-201, REQ-202 | integración | Sin código; **Docker no está disponible en el entorno de desarrollo actual** (`docker`/`docker-compose` no instalados) — la verificación real de este escenario permanece bloqueada independientemente del código que se construya | BLOQUEADO_EXTERNO |
+| S12 | Ningún envío de correo alcanza la red real sin proveedor configurado | REQ-190 | integración | Sin código | PENDIENTE |
