@@ -89,9 +89,59 @@ export class ApprovalWorkflow {
   private readonly approvals: Approval[] = [];
   private readonly comments: Comment[] = [];
   private readonly changes: ChangeDetected[] = [];
+  /**
+   * AE-11 (auditoría ronda 2, `docs/auditoria-2/api-expediente.md`):
+   * `scopeRef` -> conjunto de `actorId` que han redactado/editado contenido
+   * de ese alcance. Antes de esta corrección, `approve()` solo comparaba el
+   * `actorId` de quien llamó `requestReview` (`submitters`) contra quien
+   * llama `approve()` — un `admin`/`reviewer` que redacta el contenido de
+   * una sección técnica podía, si OTRA persona pidió la revisión, aprobar
+   * el expediente completo (incluida la sección que él mismo escribió) sin
+   * que ninguna comprobación lo detectara. `recordEdit` es OPCIONAL: si el
+   * llamador (`apps/api`) nunca la invoca, este mapa queda vacío y
+   * `approve()` se comporta exactamente igual que antes (cambio aditivo,
+   * compatible con integraciones existentes).
+   */
+  private readonly sectionAuthors = new Map<string, Set<string>>();
 
   getState(): ExpedienteState {
     return this.state;
+  }
+
+  /**
+   * Registra que `actorId` redactó/editó contenido del alcance `scopeRef`
+   * (AE-11) — p. ej. cada vez que `apps/api` guarda una nueva versión del
+   * texto de una sección técnica. `approve()` consulta este registro para
+   * rechazar la aprobación de cualquier alcance (incluido un ancestro
+   * jerárquico, como "expediente" cubriendo todas sus secciones) del que el
+   * propio aprobador conste como autor de contenido, sin importar quién
+   * llamó `requestReview`.
+   */
+  recordEdit(input: { scopeRef: string; actorId: string }): void {
+    const authors = this.sectionAuthors.get(input.scopeRef) ?? new Set<string>();
+    authors.add(input.actorId);
+    this.sectionAuthors.set(input.scopeRef, authors);
+  }
+
+  /** Autores de contenido registrados exactamente para `scopeRef` (sin resolver jerarquía). Solo lectura/depuración. */
+  authorsOf(scopeRef: string): string[] {
+    return [...(this.sectionAuthors.get(scopeRef) ?? [])];
+  }
+
+  /**
+   * Unión de todos los `actorId` autores de contenido de cualquier
+   * `scopeRef` registrado que `approvalScopeRef` cubra (el propio alcance o
+   * cualquier descendiente jerárquico — p. ej. "expediente" cubre
+   * "documento:tecnica" y "seccion:tecnica:experiencia").
+   */
+  private authorsCoveredBy(approvalScopeRef: string): Set<string> {
+    const covered = new Set<string>();
+    for (const [recordedScopeRef, authors] of this.sectionAuthors) {
+      if (isAncestorOrSame(approvalScopeRef, recordedScopeRef)) {
+        for (const actorId of authors) covered.add(actorId);
+      }
+    }
+    return covered;
   }
 
   requestReview(input: { scopeRef: string; actorId: string; actorRole: WorkflowRole }): WorkflowActionResult<void> {
@@ -153,6 +203,16 @@ export class ApprovalWorkflow {
     const submitter = this.submitters.get(input.scopeRef);
     if (submitter !== undefined && submitter === input.actorId) {
       return { ok: false, reason: "autoaprobacion_prohibida:mismo_actor_que_envio_a_revision" };
+    }
+    // AE-11: además de comparar contra quien pidió la revisión, se rechaza
+    // si el propio aprobador consta como autor de contenido de CUALQUIER
+    // alcance cubierto por `input.scopeRef` (el mismo alcance, o cualquier
+    // sección/documento descendiente si se aprueba un ancestro como
+    // "expediente") — sin esto, un admin/reviewer podía redactar una
+    // sección y aprobar igual todo el expediente con solo que OTRA persona
+    // hubiera llamado `requestReview`.
+    if (this.authorsCoveredBy(input.scopeRef).has(input.actorId)) {
+      return { ok: false, reason: "autoaprobacion_prohibida:actor_autor_de_contenido_en_alcance_cubierto" };
     }
 
     const approval: Approval = {

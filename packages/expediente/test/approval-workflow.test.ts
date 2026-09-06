@@ -293,6 +293,80 @@ describe("ApprovalWorkflow — EX-EXP-17: inputsHash exige un HashedInputs sella
   });
 });
 
+/**
+ * AE-11 (auditoría ronda 2, `docs/auditoria-2/api-expediente.md`): antes de
+ * esta corrección, `approve()` solo comparaba el `actorId` de quien llamó
+ * `requestReview` contra quien aprueba — un `admin`/`reviewer` que redactó
+ * el contenido de una sección técnica podía aprobar igual el expediente
+ * completo (incluida su propia sección) si OTRA persona pidió la revisión.
+ * `recordEdit` cierra ese hueco registrando quién redactó cada `scopeRef`;
+ * `approve()` rechaza a cualquier aprobador que conste como autor de
+ * contenido en el alcance que intenta aprobar (o en cualquier descendiente
+ * jerárquico cubierto).
+ */
+describe("ApprovalWorkflow — AE-11: autoaprobación de contenido propio (autor de sección vs. solicitante de revisión)", () => {
+  beforeEach(() => resetApprovalCounters());
+
+  it("rechaza aprobar el EXPEDIENTE COMPLETO si el aprobador redactó el contenido de una sección, aunque OTRA persona haya pedido la revisión", () => {
+    const wf = new ApprovalWorkflow();
+    wf.recordEdit({ scopeRef: "seccion:tecnica:experiencia", actorId: "admin-1" });
+    wf.requestReview({ scopeRef: "expediente", actorId: "writer-1", actorRole: "writer" });
+
+    const result = wf.approve({ scope: "expediente", scopeRef: "expediente", actorId: "admin-1", actorRole: "admin", inputsHash: fakeHashedInputs("h") });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toContain("autoaprobacion_prohibida");
+    expect(wf.getState()).not.toBe("aprobado");
+    expect(wf.listApprovals()).toHaveLength(0);
+  });
+
+  it("rechaza aprobar el DOCUMENTO que contiene una sección redactada por el propio aprobador", () => {
+    const wf = new ApprovalWorkflow();
+    wf.recordEdit({ scopeRef: "seccion:tecnica:experiencia", actorId: "reviewer-1" });
+    wf.requestReview({ scopeRef: "documento:tecnica", actorId: "writer-1", actorRole: "writer" });
+
+    const result = wf.approve({ scope: "documento", scopeRef: "documento:tecnica", actorId: "reviewer-1", actorRole: "reviewer", inputsHash: fakeHashedInputs("h") });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("autoaprobacion_prohibida:actor_autor_de_contenido_en_alcance_cubierto");
+  });
+
+  it("permite aprobar cuando el aprobador NO consta como autor de ninguna sección cubierta por el alcance aprobado", () => {
+    const wf = new ApprovalWorkflow();
+    wf.recordEdit({ scopeRef: "seccion:tecnica:experiencia", actorId: "writer-1" });
+    wf.requestReview({ scopeRef: "expediente", actorId: "writer-1", actorRole: "writer" });
+
+    const result = wf.approve({ scope: "expediente", scopeRef: "expediente", actorId: "reviewer-1", actorRole: "reviewer", inputsHash: fakeHashedInputs("h") });
+
+    expect(result.ok).toBe(true);
+    expect(wf.getState()).toBe("aprobado");
+  });
+
+  it("una sección redactada por X, aprobada de forma independiente por Y, NO bloquea que X apruebe una sección DISTINTA e independiente", () => {
+    const wf = new ApprovalWorkflow();
+    wf.recordEdit({ scopeRef: "seccion:tecnica:experiencia", actorId: "admin-1" });
+
+    const result = wf.approve({ scope: "seccion", scopeRef: "seccion:tecnica:capacidad", actorId: "admin-1", actorRole: "admin", inputsHash: fakeHashedInputs("h") });
+
+    expect(result.ok).toBe(true);
+  });
+
+  it("authorsOf expone los autores registrados de un scopeRef exacto para depuración/auditoría", () => {
+    const wf = new ApprovalWorkflow();
+    wf.recordEdit({ scopeRef: "seccion:tecnica:experiencia", actorId: "admin-1" });
+    wf.recordEdit({ scopeRef: "seccion:tecnica:experiencia", actorId: "admin-2" });
+    expect(wf.authorsOf("seccion:tecnica:experiencia").sort()).toEqual(["admin-1", "admin-2"]);
+    expect(wf.authorsOf("seccion:tecnica:capacidad")).toEqual([]);
+  });
+
+  it("sin ninguna llamada a recordEdit, el comportamiento de approve() es exactamente el de antes (cambio aditivo/retrocompatible)", () => {
+    const wf = new ApprovalWorkflow();
+    wf.requestReview({ scopeRef: "expediente", actorId: "writer-1", actorRole: "writer" });
+    const result = wf.approve({ scope: "expediente", scopeRef: "expediente", actorId: "reviewer-1", actorRole: "reviewer", inputsHash: fakeHashedInputs("h") });
+    expect(result.ok).toBe(true);
+  });
+});
+
 describe("ApprovalWorkflow — comentarios y trazabilidad", () => {
   beforeEach(() => resetApprovalCounters());
 
