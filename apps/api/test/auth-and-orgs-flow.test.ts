@@ -16,7 +16,7 @@ describe('flujo: registro -> login -> crear org -> invitar -> cambiar rol', () =
     await db.close();
   });
 
-  it('registra un usuario nuevo (201) y rechaza email duplicado (409)', async () => {
+  it('registra un usuario nuevo (201) y responde el mismo 201 genérico para un email duplicado (anti-enumeración, API-03)', async () => {
     const res = await app.inject({
       method: 'POST',
       url: '/auth/register',
@@ -25,13 +25,20 @@ describe('flujo: registro -> login -> crear org -> invitar -> cambiar rol', () =
     expect(res.statusCode).toBe(201);
     expect(res.json()).toMatchObject({ email: 'flow@example.com' });
 
+    // Ver docs/auditoria-1/db-api.md API-03: un 409 explícito permitía
+    // enumerar cuentas registradas. Ahora responde el mismo 201 genérico,
+    // sin crear una fila duplicada ni exponer el id real de la cuenta
+    // existente (ver apps/api/test/audit-api03-register-enumeration.test.ts
+    // para la cobertura completa de este comportamiento).
     const dup = await app.inject({
       method: 'POST',
       url: '/auth/register',
       payload: { email: 'flow@example.com', password: 'otra-password' },
     });
-    expect(dup.statusCode).toBe(409);
-    expect(dup.headers['content-type']).toContain('application/problem+json');
+    expect(dup.statusCode).toBe(201);
+
+    const rows = await db.query<{ id: string }>('select id from users where lower(email) = lower($1)', ['flow@example.com']);
+    expect(rows.rows.length).toBe(1);
   });
 
   it('login con credenciales correctas devuelve tokens; con incorrectas da 401', async () => {

@@ -4,7 +4,7 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { hashPassword, verifyPassword } from '../../lib/passwords.js';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../lib/jwt.js';
-import { ConflictError, UnauthorizedError } from '../../lib/errors.js';
+import { UnauthorizedError } from '../../lib/errors.js';
 import { registerBodySchema, loginBodySchema, refreshBodySchema, logoutBodySchema, authTokensSchema } from './schemas.js';
 
 const UNIQUE_VIOLATION = '23505';
@@ -63,7 +63,16 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       } catch (err) {
         const pgErr = err as { code?: string };
         if (pgErr.code === UNIQUE_VIOLATION) {
-          throw new ConflictError('Ya existe una cuenta con ese email');
+          // API-03 (docs/auditoria-1/db-api.md): NUNCA confirmar por status
+          // code (o mensaje) que un email ya está registrado -- eso permite
+          // enumerar cuentas. Se responde el mismo 201 genérico que un
+          // registro nuevo exitoso, sin crear una fila duplicada ni tocar
+          // la cuenta real existente (la contraseña original nunca se
+          // sobrescribe). El `id` devuelto aquí es intencionalmente el
+          // recién generado (no persistido, no el de la cuenta real): no
+          // filtra el id verdadero del usuario existente.
+          reply.code(201);
+          return { id, email };
         }
         throw err;
       }
