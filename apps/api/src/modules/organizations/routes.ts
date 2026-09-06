@@ -126,6 +126,20 @@ export async function organizationRoutes(app: FastifyInstance): Promise<void> {
         throw new ForbiddenError('Solo owner/admin pueden invitar miembros');
       }
 
+      // API-08/API-02 (docs/auditoria-1/db-api-reverificacion.md, ALTA):
+      // el PATCH de cambio de rol ya bloqueaba que un admin (no-owner) se
+      // autopromoviera u otorgara `owner`, pero esta misma ruta de
+      // invitación no tenía la protección equivalente -- un admin podía
+      // invitar directamente a un tercero con `role:'owner'` y, al aceptar
+      // la invitación, el rol se concedía sin control (mismo resultado que
+      // API-02, por una puerta distinta). Misma regla que
+      // `PATCH /organizations/memberships/:userId` (más abajo): solo un
+      // owner puede CONCEDER el rol owner, sea por cambio de rol o por
+      // invitación.
+      if (request.body.role === 'owner' && request.orgRole !== 'owner') {
+        throw new ForbiddenError('Solo un owner puede invitar con el rol owner');
+      }
+
       const idempotencyKey = request.headers['idempotency-key'] as string | undefined;
       const requestHash = hashRequestBody(request.body);
 
