@@ -1,6 +1,43 @@
 import { z } from 'zod';
 import { isoTimestamp, nullableIsoTimestamp } from '../../lib/schema-helpers.js';
 
+/**
+ * REQ-050/056 (E11): calendario OFICIAL de días inhábiles. Carga
+ * administrativa explícita -- `sourceUrl`/`sourceConsultedOn` son
+ * obligatorios porque el propio requisito prohíbe inventar una fecha "de
+ * memoria" (ver docs/legal/verificacion-legal.md, que ya documenta que este
+ * proyecto no pudo verificar en línea el calendario oficial completo en
+ * esta ronda: la tabla se queda vacía hasta que alguien la cargue con una
+ * fuente real).
+ */
+export const calendarHolidayCreateSchema = z.object({
+  jurisdiction: z.string().min(1).default('federal'),
+  year: z.number().int().min(2000).max(2100),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'date debe ser "YYYY-MM-DD"'),
+  label: z.string().min(1),
+  sourceUrl: z.string().url(),
+  sourceConsultedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'sourceConsultedOn debe ser "YYYY-MM-DD"'),
+});
+
+export const calendarHolidaySchema = z.object({
+  id: z.string().uuid(),
+  jurisdiction: z.string(),
+  year: z.number(),
+  date: isoTimestamp,
+  label: z.string(),
+  sourceUrl: z.string(),
+  sourceConsultedOn: isoTimestamp,
+  createdAt: isoTimestamp,
+});
+
+export const calendarHolidayListQuerySchema = z.object({
+  jurisdiction: z.string().optional(),
+  year: z
+    .string()
+    .regex(/^\d+$/, 'year debe ser un entero')
+    .optional(),
+});
+
 export const adminOrgSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),

@@ -18,6 +18,9 @@ import {
   incidentCreateSchema,
   incidentSchema,
   pendingApprovalSchema,
+  calendarHolidayCreateSchema,
+  calendarHolidaySchema,
+  calendarHolidayListQuerySchema,
 } from './schemas.js';
 
 /**
@@ -175,7 +178,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             entityId: request.params.id,
             before: { status: before.rows[0].status },
             after: { status: 'queued' },
-            requestId: request.id,
+            requestId: request.id, correlationId: request.correlationId,
           });
           return updated.rows[0];
         });
@@ -266,7 +269,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           entity: 'incidents',
           entityId: id,
           after: { title, severity },
-          requestId: request.id,
+          requestId: request.id, correlationId: request.correlationId,
         });
         return inserted.rows[0];
       });
@@ -309,7 +312,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             action: 'admin.incident.resolve',
             entity: 'incidents',
             entityId: request.params.id,
-            requestId: request.id,
+            requestId: request.id, correlationId: request.correlationId,
           });
           return updated.rows[0];
         });
@@ -374,7 +377,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       },
     },
     async (request) => {
-      const { entity, actorId, orgId, cursor, limit } = request.query;
+      const { entity, actorId, orgId, correlationId, cursor, limit } = request.query;
       const createdFrom = parseDateFilter(request.query.createdFrom, 'createdFrom');
       const createdTo = parseDateFilter(request.query.createdTo, 'createdTo');
       const pageSize = parsePageSize(limit);
@@ -393,6 +396,10 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       if (actorId) {
         params.push(actorId);
         conditions.push(`actor_id = $${params.length}`);
+      }
+      if (correlationId) {
+        params.push(correlationId);
+        conditions.push(`correlation_id = $${params.length}`);
       }
       if (createdFrom) {
         params.push(createdFrom.toISOString());
@@ -492,7 +499,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             entity: 'tool_calls',
             entityId: request.params.id,
             after: { authorizationStatus: 'approved', approvedBySuperadmin: true },
-            requestId: request.id,
+            requestId: request.id, correlationId: request.correlationId,
           });
           return { kind: 'ok' as const, row: toolCall };
         });
@@ -542,7 +549,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             entity: 'tool_calls',
             entityId: request.params.id,
             after: { authorizationStatus: 'denied', deniedBySuperadmin: true },
-            requestId: request.id,
+            requestId: request.id, correlationId: request.correlationId,
           });
           return { kind: 'ok' as const, row: toolCall };
         });
@@ -552,6 +559,111 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       }
     );
   });
+
+  // ---------------------------------------------------------------------
+  // calendar_holidays (E11, REQ-050/056): calendario OFICIAL de días
+  // inhábiles federales. Tabla de PLATAFORMA (sin org_id, igual que
+  // `source_runs`, ver 0055_e11_post_award_details_and_calendar.sql):
+  // lectura abierta a cualquier usuario autenticado (dato público, lo
+  // consume el motor de plazos de CUALQUIER organización), escritura
+  // reservada a superadmin.
+  // ---------------------------------------------------------------------
+  server.get(
+    '/calendar-holidays',
+    {
+      preHandler: [app.authenticate],
+      schema: {
+        description: 'Calendario oficial de días inhábiles cargado por un administrador (puede estar vacío -- ver calendarNote en /expediente/tenders/:id/post-award).',
+        querystring: calendarHolidayListQuerySchema,
+        response: { 200: z.array(calendarHolidaySchema) },
+      },
+    },
+    async (request) => {
+      const conditions: string[] = ['1 = 1'];
+      const params: unknown[] = [];
+      if (request.query.jurisdiction) {
+        params.push(request.query.jurisdiction);
+        conditions.push(`jurisdiction = $${params.length}`);
+      }
+      if (request.query.year) {
+        params.push(Number(request.query.year));
+        conditions.push(`year = $${params.length}`);
+      }
+      const { rows } = await app.db.transaction(async (tx) => {
+        await tx.query('set local role app_role');
+        await tx.query("select set_config('app.current_user_id', $1, true)", [request.userId]);
+        return tx.query<Record<string, unknown>>(
+          `select * from calendar_holidays where ${conditions.join(' and ')} order by holiday_date asc`,
+          params
+        );
+      });
+      return rows.map(mapCalendarHoliday);
+    }
+  );
+
+  server.post(
+    '/calendar-holidays',
+    {
+      preHandler: [app.authenticate, app.requireSuperadmin],
+      schema: {
+        description: 'Carga un día inhábil oficial (requiere fuente verificable -- sourceUrl + sourceConsultedOn, nunca una fecha "de memoria").',
+        body: calendarHolidayCreateSchema,
+        response: { 201: calendarHolidaySchema },
+      },
+    },
+    async (request, reply) => {
+      const userId = request.userId!;
+      const row = await app.db.transaction(async (tx) => {
+        await tx.query('set local role app_role');
+        await tx.query("select set_config('app.current_user_id', $1, true)", [userId]);
+        const id = randomUUID();
+        const inserted = await tx.query<Record<string, unknown>>(
+          `insert into calendar_holidays (id, jurisdiction, year, holiday_date, label, source_url, source_consulted_on, created_by)
+           values ($1, $2, $3, $4, $5, $6, $7, $8)
+           on conflict (jurisdiction, holiday_date) do update set
+             year = excluded.year, label = excluded.label, source_url = excluded.source_url,
+             source_consulted_on = excluded.source_consulted_on, created_by = excluded.created_by
+           returning *`,
+          [id, request.body.jurisdiction, request.body.year, request.body.date, request.body.label, request.body.sourceUrl, request.body.sourceConsultedOn, userId]
+        );
+        await recordAudit(tx, {
+          orgId: null,
+          actorId: userId,
+          action: 'calendar_holiday.upsert',
+          entity: 'calendar_holidays',
+          entityId: String(inserted.rows[0].id),
+          after: { jurisdiction: request.body.jurisdiction, date: request.body.date, label: request.body.label, sourceUrl: request.body.sourceUrl },
+          requestId: request.id,
+          correlationId: request.correlationId,
+        });
+        return inserted.rows[0];
+      });
+      reply.code(201);
+      return mapCalendarHoliday(row as Record<string, unknown>);
+    }
+  );
+}
+
+function mapCalendarHoliday(r: Record<string, unknown>): {
+  id: string;
+  jurisdiction: string;
+  year: number;
+  date: string | Date;
+  label: string;
+  sourceUrl: string;
+  sourceConsultedOn: string | Date;
+  createdAt: string | Date;
+} {
+  return {
+    id: r.id as string,
+    jurisdiction: r.jurisdiction as string,
+    year: r.year as number,
+    date: r.holiday_date as string | Date,
+    label: r.label as string,
+    sourceUrl: r.source_url as string,
+    sourceConsultedOn: r.source_consulted_on as string | Date,
+    createdAt: r.created_at as string | Date,
+  };
 }
 
 function mapIncident(r: any) {

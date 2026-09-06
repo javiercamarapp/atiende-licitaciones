@@ -115,7 +115,7 @@ describe('AE-09: calendarNote y legalRegime (REQ-050) en el plazo de pago', () =
       method: 'POST',
       url: `/expediente/tenders/${tenderId}/post-award`,
       headers,
-      payload: { kind: 'hito', label: 'Hito genérico' },
+      payload: { kind: 'hito', label: 'Hito genérico', responsibleParty: 'Responsable de prueba' },
     });
     expect(create.statusCode).toBe(201);
     expect(create.json().calendarNote).toBeNull();

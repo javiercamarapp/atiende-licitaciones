@@ -250,22 +250,53 @@ export const submissionSchema = z.object({
 // ---------------------------------------------------------------------------
 // Post-adjudicación (E11)
 // ---------------------------------------------------------------------------
+/**
+ * Ronda 5 (E11, REQ-050..056, ver `apps/api/docs/e11-cobertura.md`): kinds
+ * ampliados con `penalizacion`/`convenio_modificatorio` (registro de
+ * penas convencionales y convenios modificatorios, LOPSRM Art. 59/59 Bis --
+ * ver docs/legal/verificacion-legal.md fila REQ-107, sin tope fijo desde la
+ * reforma DOF 16-abr-2025). Campos estructurados por kind (todos
+ * opcionales a nivel zod porque no todos los kinds los usan; la validación
+ * "obligatorio para este kind" ocurre en el handler, igual que ya hacía
+ * `invoiceVerifiedOn` para kind='pago'):
+ *  - kind='hito'                    -> responsibleParty (nombre/rol/correo del responsable).
+ *  - kind='garantia'                -> guaranteeType (tipo: cumplimiento/anticipo/vicios_ocultos/otro);
+ *                                       la VIGENCIA de la garantía usa `dueDate` (fecha de vencimiento),
+ *                                       no se duplica una segunda fecha con otro nombre.
+ *  - kind='facturacion'             -> cfdiReference (folio fiscal/UUID del CFDI) + acceptanceDate
+ *                                       (fecha en que la dependencia aceptó la factura -- dispara el
+ *                                       cómputo del plazo de pago, igual regla legal que kind='pago').
+ *  - kind='pago'                    -> invoiceVerifiedOn (se conserva por compatibilidad; mismo cómputo).
+ *  - kind='penalizacion' |
+ *    kind='convenio_modificatorio'  -> modificationReference (número/expediente registrado); el monto
+ *                                       reutiliza `amount`.
+ */
 export const followupCreateSchema = z.object({
-  kind: z.enum(['hito', 'garantia', 'facturacion', 'pago', 'otro']),
+  kind: z.enum(['hito', 'garantia', 'facturacion', 'pago', 'penalizacion', 'convenio_modificatorio', 'otro']),
   label: z.string().min(1),
   dueDate: z.string().optional(),
   amount: z.number().optional(),
   notes: z.string().optional(),
   reminderLeadDays: z.number().int().min(0).default(3),
+  /** kind='hito': responsable con nombre/rol/correo (REQ-050..056: "hitos con fechas y responsables"). */
+  responsibleParty: z.string().optional(),
+  /** kind='garantia': tipo de garantía (cumplimiento/anticipo/vicios_ocultos/otro). */
+  guaranteeType: z.string().optional(),
+  /** kind='facturacion': folio fiscal / UUID del CFDI referenciado. */
+  cfdiReference: z.string().optional(),
+  /** kind='facturacion': fecha ISO (YYYY-MM-DD) en que se aceptó la factura -- dispara el cómputo del plazo de pago (mismo motor que kind='pago'/invoiceVerifiedOn). */
+  acceptanceDate: z.string().optional(),
+  /** kind='penalizacion' | 'convenio_modificatorio': número/expediente de la pena convencional o convenio modificatorio registrado. */
+  modificationReference: z.string().optional(),
   /** Para kind='pago': fecha ISO (YYYY-MM-DD) en que se verificó la factura; el plazo se calcula (17 días hábiles, LAASSP Art. 73, o 20 días naturales bajo el régimen abrogado según REQ-050) en vez de que el llamador declare `dueDate` a mano. */
   invoiceVerifiedOn: z.string().optional(),
   /**
    * AE-09 (docs/auditoria-2/api-expediente.md, MEDIA): días "YYYY-MM-DD"
-   * adicionales a excluir del cómputo de días HÁBILES (kind='pago' bajo el
-   * régimen vigente), más allá de sábados/domingos -- este proyecto no trae
-   * un calendario oficial completo de días inhábiles mexicanos codificado
-   * (ver `calendarNote` en la respuesta), así que el llamador puede
-   * declararlos explícitamente cuando los conozca.
+   * adicionales a excluir del cómputo de días HÁBILES (kind='pago'/'facturacion'
+   * bajo el régimen vigente), más allá de sábados/domingos y del calendario
+   * OFICIAL cargado en `calendar_holidays` (ver `GET/POST
+   * /admin/calendar-holidays`) -- el llamador puede declarar días
+   * adicionales que conozca y que aún no estén cargados en la tabla oficial.
    */
   holidays: z.array(z.string()).default([]),
 });
@@ -274,6 +305,10 @@ export const followupUpdateSchema = z.object({
   status: z.enum(['pending', 'in_progress', 'done', 'overdue', 'cancelled']).optional(),
   notes: z.string().optional(),
   dueDate: z.string().nullable().optional(),
+  responsibleParty: z.string().nullable().optional(),
+  guaranteeType: z.string().nullable().optional(),
+  cfdiReference: z.string().nullable().optional(),
+  modificationReference: z.string().nullable().optional(),
 });
 
 export const legalRegimeSchema = z.object({
@@ -299,8 +334,21 @@ export const followupSchema = z.object({
   reminderLeadDays: z.number(),
   jobId: z.string().uuid().nullable(),
   createdAt: isoTimestamp,
-  /** AE-09: solo para kind='pago' -- advertencia explícita de la limitación del calendario de días hábiles usado (ver CALENDAR_LIMITATION_NOTE en lib/expediente/business-days.ts). */
+  responsibleParty: z.string().nullable(),
+  guaranteeType: z.string().nullable(),
+  cfdiReference: z.string().nullable(),
+  acceptanceDate: nullableIsoTimestamp,
+  modificationReference: z.string().nullable(),
+  /** AE-09: solo para kind='pago'/'facturacion' -- advertencia explícita de la limitación del calendario de días hábiles usado (ver CALENDAR_LIMITATION_NOTE en lib/expediente/business-days.ts). */
   calendarNote: z.string().nullable(),
-  /** AE-09/REQ-050: solo para kind='pago' -- régimen legal aplicado, versionado por fecha de convocatoria. */
+  /** AE-09/REQ-050: solo para kind='pago'/'facturacion' -- régimen legal aplicado, versionado por fecha de convocatoria. */
   legalRegime: legalRegimeSchema.nullable(),
+  /**
+   * Alerta de vencimiento (REQ-056, "recordatorios T-72/24/6h" -- alcance de
+   * esta ronda: alerta binaria por día, no por hora): 'vencido' si
+   * `dueDate` ya pasó y el seguimiento no está en un estado terminal
+   * (done/cancelled); 'proximo' si vence dentro de `reminderLeadDays` días;
+   * `null` en cualquier otro caso (sin fecha, terminal, o lejano).
+   */
+  alertLevel: z.enum(['vencido', 'proximo']).nullable(),
 });

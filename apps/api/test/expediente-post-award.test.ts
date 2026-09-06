@@ -43,10 +43,11 @@ describe('expediente — seguimiento post-adjudicación (E11)', () => {
       method: 'POST',
       url: `/expediente/tenders/${tenderId}/post-award`,
       headers,
-      payload: { kind: 'garantia', label: 'Fianza de cumplimiento', dueDate: '2027-01-15', reminderLeadDays: 5 },
+      payload: { kind: 'garantia', label: 'Fianza de cumplimiento', dueDate: '2027-01-15', reminderLeadDays: 5, guaranteeType: 'cumplimiento' },
     });
     expect(create.statusCode).toBe(201);
     expect(create.json().jobId).toBeTruthy();
+    expect(create.json().guaranteeType).toBe('cumplimiento');
 
     const job = await db.query('select kind, status, payload from jobs where id = $1', [create.json().jobId]);
     expect(job.rows[0].kind).toBe('post_award_followup_reminder');
@@ -107,5 +108,128 @@ describe('expediente — seguimiento post-adjudicación (E11)', () => {
       payload: { kind: 'hito', label: 'Entrega parcial' },
     });
     expect(viewerAttempt.statusCode).toBe(403);
+  });
+
+  it('kind="hito" exige responsibleParty; kind="facturacion" exige cfdiReference + acceptanceDate y calcula el mismo plazo legal que kind="pago"', async () => {
+    const owner = await registerAndLogin(app, 'pa-owner-4@example.com');
+    const org = await createOrgFor(app, owner, 'PA Org 4', 'pa-org-4');
+    const tenderId = await createTender(app, org.id, 'pa-004');
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+
+    const hitoSinResponsable = await app.inject({
+      method: 'POST',
+      url: `/expediente/tenders/${tenderId}/post-award`,
+      headers,
+      payload: { kind: 'hito', label: 'Entrega de anexo técnico', dueDate: '2026-06-01' },
+    });
+    expect(hitoSinResponsable.statusCode).toBe(422);
+
+    const hitoOk = await app.inject({
+      method: 'POST',
+      url: `/expediente/tenders/${tenderId}/post-award`,
+      headers,
+      payload: { kind: 'hito', label: 'Entrega de anexo técnico', dueDate: '2026-06-01', responsibleParty: 'María López (administradora del contrato)' },
+    });
+    expect(hitoOk.statusCode).toBe(201);
+    expect(hitoOk.json().responsibleParty).toBe('María López (administradora del contrato)');
+
+    const facturaSinCfdi = await app.inject({
+      method: 'POST',
+      url: `/expediente/tenders/${tenderId}/post-award`,
+      headers,
+      payload: { kind: 'facturacion', label: 'Factura #002', acceptanceDate: '2026-01-05' },
+    });
+    expect(facturaSinCfdi.statusCode).toBe(422);
+
+    // 2026-01-05 es lunes; +17 días hábiles (sin feriados) cae el 2026-01-28 -- mismo cómputo que kind='pago'.
+    const factura = await app.inject({
+      method: 'POST',
+      url: `/expediente/tenders/${tenderId}/post-award`,
+      headers,
+      payload: { kind: 'facturacion', label: 'Factura #002', cfdiReference: 'ABCDEF12-3456-7890-ABCD-EF1234567890', acceptanceDate: '2026-01-05' },
+    });
+    expect(factura.statusCode).toBe(201);
+    expect(factura.json().cfdiReference).toBe('ABCDEF12-3456-7890-ABCD-EF1234567890');
+    expect(factura.json().dueDate).toContain('2026-01-28');
+    expect(factura.json().legalReference).toContain('Art. 73');
+  });
+
+  it('kind="penalizacion"/"convenio_modificatorio" exigen modificationReference registrado', async () => {
+    const owner = await registerAndLogin(app, 'pa-owner-5@example.com');
+    const org = await createOrgFor(app, owner, 'PA Org 5', 'pa-org-5');
+    const tenderId = await createTender(app, org.id, 'pa-005');
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+
+    const sinReferencia = await app.inject({
+      method: 'POST',
+      url: `/expediente/tenders/${tenderId}/post-award`,
+      headers,
+      payload: { kind: 'penalizacion', label: 'Pena convencional por atraso', amount: 15000 },
+    });
+    expect(sinReferencia.statusCode).toBe(422);
+
+    const penalizacion = await app.inject({
+      method: 'POST',
+      url: `/expediente/tenders/${tenderId}/post-award`,
+      headers,
+      payload: { kind: 'penalizacion', label: 'Pena convencional por atraso', amount: 15000, modificationReference: 'PEN-2026-001' },
+    });
+    expect(penalizacion.statusCode).toBe(201);
+    expect(penalizacion.json().modificationReference).toBe('PEN-2026-001');
+    expect(penalizacion.json().amount).toBe(15000);
+
+    const convenio = await app.inject({
+      method: 'POST',
+      url: `/expediente/tenders/${tenderId}/post-award`,
+      headers,
+      payload: { kind: 'convenio_modificatorio', label: 'Convenio modificatorio de plazo', modificationReference: 'CM-2026-001' },
+    });
+    expect(convenio.statusCode).toBe(201);
+  });
+
+  it('alertLevel marca "vencido"/"proximo" según due_date y GET /post-award-alerts agrega todas las convocatorias de la organización', async () => {
+    const owner = await registerAndLogin(app, 'pa-owner-6@example.com');
+    const org = await createOrgFor(app, owner, 'PA Org 6', 'pa-org-6');
+    const tenderId = await createTender(app, org.id, 'pa-006');
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+
+    const past = new Date();
+    past.setUTCDate(past.getUTCDate() - 5);
+    const soon = new Date();
+    soon.setUTCDate(soon.getUTCDate() + 1);
+    const far = new Date();
+    far.setUTCDate(far.getUTCDate() + 90);
+    const toDateOnly = (d: Date) => d.toISOString().slice(0, 10);
+
+    const vencido = await app.inject({
+      method: 'POST',
+      url: `/expediente/tenders/${tenderId}/post-award`,
+      headers,
+      payload: { kind: 'hito', label: 'Hito vencido', dueDate: toDateOnly(past), responsibleParty: 'Responsable A', reminderLeadDays: 3 },
+    });
+    expect(vencido.json().alertLevel).toBe('vencido');
+
+    const proximo = await app.inject({
+      method: 'POST',
+      url: `/expediente/tenders/${tenderId}/post-award`,
+      headers,
+      payload: { kind: 'hito', label: 'Hito próximo', dueDate: toDateOnly(soon), responsibleParty: 'Responsable B', reminderLeadDays: 3 },
+    });
+    expect(proximo.json().alertLevel).toBe('proximo');
+
+    const lejano = await app.inject({
+      method: 'POST',
+      url: `/expediente/tenders/${tenderId}/post-award`,
+      headers,
+      payload: { kind: 'hito', label: 'Hito lejano', dueDate: toDateOnly(far), responsibleParty: 'Responsable C', reminderLeadDays: 3 },
+    });
+    expect(lejano.json().alertLevel).toBeNull();
+
+    const alerts = await app.inject({ method: 'GET', url: '/expediente/post-award-alerts', headers });
+    expect(alerts.statusCode).toBe(200);
+    const labels = alerts.json().map((a: { label: string }) => a.label);
+    expect(labels).toContain('Hito vencido');
+    expect(labels).toContain('Hito próximo');
+    expect(labels).not.toContain('Hito lejano');
   });
 });
