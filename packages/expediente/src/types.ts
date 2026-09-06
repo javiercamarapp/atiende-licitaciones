@@ -34,8 +34,30 @@ export function formatMexicoCityDateTime(iso: string): string {
   }).format(date);
 }
 
-/** `true` si `iso` (fecha límite) ya pasó respecto de `asOfIso` (por defecto ahora). */
+const ISO_OFFSET_PATTERN = /(?:Z|[+-]\d{2}:\d{2})$/;
+
+/**
+ * Verifica que una cadena ISO 8601 traiga offset horario EXPLÍCITO ("Z" o
+ * "±HH:MM") — EX-EXP-04, REQ-160. Rechaza fechas "naive" (sin offset)
+ * porque su interpretación dependería implícitamente de la zona horaria del
+ * proceso Node que las evalúe: la misma cadena "2026-10-20T23:59:59" puede
+ * dar un veredicto de vencimiento distinto según `TZ=UTC` (`false`) o
+ * `TZ=Asia/Tokyo` (`true`). Todas las fechas que entran a este paquete
+ * deben traer offset explícito (America/Mexico_City = "-06:00" o UTC "Z");
+ * `apps/api` es responsable de normalizarlas al persistir.
+ */
+export function assertExplicitOffset(iso: string, label = "fecha"): void {
+  if (typeof iso !== "string" || !ISO_OFFSET_PATTERN.test(iso.trim())) {
+    throw new Error(
+      `${label} sin offset horario explícito (se requiere "Z" o "±HH:MM", p. ej. "-06:00" para America/Mexico_City): "${iso}".`,
+    );
+  }
+}
+
+/** `true` si `iso` (fecha límite) ya pasó respecto de `asOfIso` (por defecto ahora). Ambas deben traer offset explícito (EX-EXP-04). */
 export function isPast(iso: string, asOfIso: string = isoNow()): boolean {
+  assertExplicitOffset(iso, "fecha límite (isPast)");
+  assertExplicitOffset(asOfIso, "fecha de referencia asOfIso (isPast)");
   return new Date(iso).getTime() < new Date(asOfIso).getTime();
 }
 

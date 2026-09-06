@@ -10,7 +10,7 @@
  * llamador (TechnicalProposalBuilder/EconomicProposalBuilder) debe
  * propagarlo como bloqueo, nunca rellenarlo.
  */
-import { isPast } from "./types.js";
+import { assertExplicitOffset, isPast } from "./types.js";
 
 export type ApprovalStatus = "aprobado" | "pendiente_aprobacion" | "rechazado";
 
@@ -162,6 +162,7 @@ export class CompanyDataService {
   constructor(private readonly resolver: CompanyDataResolver) {}
 
   resolveDocumentByType(companyId: string, type: string, asOfIso: string): FieldResolution<CompanyDocument> {
+    assertExplicitOffset(asOfIso, `asOfIso al resolver documento "${type}"`);
     const field = `documento:${type}`;
     const doc = this.resolver.getDocuments(companyId).find((d) => d.type === type);
     if (!doc) return { status: "missing", field };
@@ -175,12 +176,14 @@ export class CompanyDataService {
   }
 
   resolveApprovedRate(companyId: string, concept: string, asOfIso: string): FieldResolution<ApprovedRate> {
+    assertExplicitOffset(asOfIso, `asOfIso al resolver tarifa "${concept}"`);
     const field = `tarifa:${concept}`;
     const rate = this.resolver.getApprovedRates(companyId).find((r) => r.concept === concept);
     if (!rate) return { status: "missing", field };
     if (rate.approvalStatus !== "aprobado") {
       return { status: "blocked", field, reason: "tarifa_no_aprobada", detail: `Tarifa "${concept}" en estado "${rate.approvalStatus}", no "aprobado".` };
     }
+    assertExplicitOffset(rate.validFrom, `tarifa "${concept}".validFrom`);
     if (new Date(rate.validFrom).getTime() > new Date(asOfIso).getTime()) {
       return { status: "blocked", field, reason: "tarifa_aun_no_vigente", detail: `Tarifa "${concept}" vigente desde ${rate.validFrom}, posterior a la fecha del acto (${asOfIso}).` };
     }
