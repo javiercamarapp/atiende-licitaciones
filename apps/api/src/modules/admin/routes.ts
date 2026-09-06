@@ -144,7 +144,11 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       '/jobs/:id/retry',
       {
         preHandler: [app.authenticate, app.requireSuperadmin],
-        schema: { params: z.object({ id: z.string().uuid() }), response: { 200: adminJobSchema } },
+        schema: {
+          description: 'Sin cuerpo (acepta Content-Type: application/json con cuerpo vacío).',
+          params: z.object({ id: z.string().uuid() }),
+          response: { 200: adminJobSchema },
+        },
       },
       async (request) => {
         const row = await app.db.transaction(async (tx) => {
@@ -279,7 +283,11 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       '/incidents/:id/resolve',
       {
         preHandler: [app.authenticate, app.requireSuperadmin],
-        schema: { params: z.object({ id: z.string().uuid() }), response: { 200: incidentSchema } },
+        schema: {
+          description: 'Sin cuerpo (acepta Content-Type: application/json con cuerpo vacío).',
+          params: z.object({ id: z.string().uuid() }),
+          response: { 200: incidentSchema },
+        },
       },
       async (request) => {
         const row = await app.db.transaction(async (tx) => {
@@ -454,7 +462,11 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             keyGenerator: (req: any) => `admin-tool-call-approve:${req.userId ?? 'anon'}`,
           },
         },
-        schema: { params: z.object({ id: z.string().uuid() }), response: { 200: toolCallSchema } },
+        schema: {
+          description: 'Sin cuerpo. Superadmin, cross-org (sin X-Org-Id). 409 si la tool_call ya fue resuelta.',
+          params: z.object({ id: z.string().uuid() }),
+          response: { 200: toolCallSchema },
+        },
       },
       async (request) => {
         const userId = request.userId!;
@@ -502,7 +514,11 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             keyGenerator: (req: any) => `admin-tool-call-deny:${req.userId ?? 'anon'}`,
           },
         },
-        schema: { params: z.object({ id: z.string().uuid() }), response: { 200: toolCallSchema } },
+        schema: {
+          description: 'Sin cuerpo. Superadmin, cross-org (sin X-Org-Id). 409 si la tool_call ya fue resuelta.',
+          params: z.object({ id: z.string().uuid() }),
+          response: { 200: toolCallSchema },
+        },
       },
       async (request) => {
         const userId = request.userId!;

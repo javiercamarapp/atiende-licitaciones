@@ -96,7 +96,11 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
             keyGenerator: (req: any) => `tool-call-approve:${req.orgId ?? 'no-org'}:${req.userId ?? 'anon'}`,
           },
         },
-        schema: { params: z.object({ id: z.string().uuid() }), response: { 200: toolCallSchema } },
+        schema: {
+          description: 'Sin cuerpo (acepta Content-Type: application/json con cuerpo vacío). Solo owner/admin; 409 si la tool_call ya fue resuelta.',
+          params: z.object({ id: z.string().uuid() }),
+          response: { 200: toolCallSchema },
+        },
       },
       async (request) => {
         const orgId = request.orgId!;
@@ -158,7 +162,11 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
             keyGenerator: (req: any) => `tool-call-deny:${req.orgId ?? 'no-org'}:${req.userId ?? 'anon'}`,
           },
         },
-        schema: { params: z.object({ id: z.string().uuid() }), response: { 200: toolCallSchema } },
+        schema: {
+          description: 'Sin cuerpo (acepta Content-Type: application/json con cuerpo vacío). Solo owner/admin; 409 si la tool_call ya fue resuelta.',
+          params: z.object({ id: z.string().uuid() }),
+          response: { 200: toolCallSchema },
+        },
       },
       async (request) => {
         const orgId = request.orgId!;

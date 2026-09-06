@@ -37,6 +37,7 @@ npm run -w apps/api test                 # integración con fastify.inject + PGl
 | `STORAGE_DIR` | No (`.data/storage`) | Directorio local para archivos subidos (documentos de empresa). Disco local con hash sha256, **nunca S3/objeto remoto** en esta ronda. |
 | `CORS_ORIGINS` | No (vacío) | Orígenes permitidos para CORS, separados por coma. Vacío = ningún origen cross-site permitido (falla cerrado). |
 | `PLATFORM_API_KEY` | No (sin valor = ingesta interna deshabilitada) | Clave de plataforma para `X-Platform-Api-Key` en `POST /internal/tenders/ingest` (autentica a apps/worker, no a un tenant). |
+| `RATE_LIMIT_PROFILE` | No (`default`) | `default` (100-300 req/min según ruta) salvo que sea EXACTAMENTE `e2e` (nunca por `NODE_ENV`) — ver "Límites de tasa" más abajo. |
 
 ## Cómo se conecta a un Postgres real en producción
 
@@ -83,6 +84,25 @@ membresía real, nunca solo el header).
   la organización sin ningún owner activo.
 - `DELETE /organizations/memberships/:userId` (owner/admin) — misma
   protección del último owner.
+- `GET /organizations/:orgId/memberships` (ronda 4) — lista los miembros de
+  la organización con su rol real (email/nombre vía `app.org_members`,
+  SECURITY DEFINER, `packages/db/migrations/0052`); visible para **member+**
+  (cualquier rol activo, incluido `viewer`), paginado por cursor. El
+  `:orgId` de la ruta se valida contra `X-Org-Id` (fuente real de la
+  organización activa) — nunca se confía en el parámetro de la URL por sí
+  solo.
+
+### audit-log (ronda 4 — trazabilidad)
+- `GET /audit-log` — bitácora de auditoría (append-only, hash encadenado,
+  ver `packages/db/README.md`) de la organización activa (`X-Org-Id`).
+  Restringido a `reviewer`/`admin`/`owner` (más estricto que la RLS real de
+  `audit_log`, que permite a cualquier rol de la organización). Filtros
+  `entity`/`actorId`/`createdFrom`/`createdTo`, paginado por cursor
+  (orden descendente, lo más reciente primero); nunca devuelve eventos de
+  otra organización, con o sin filtros.
+- `GET /admin/audit-log` (superadmin, ver sección "admin" abajo) — misma
+  bitácora, sin restricción de organización (todas a la vez), con filtro
+  opcional `orgId`.
 
 ### me
 - `GET /me`.
@@ -109,7 +129,11 @@ sensibles) y aprueban tarifas.
   (owner/admin).
 - `GET /company/rates`, `POST /company/rates` (cualquier rol de escritura
   propone en `draft`), `POST /company/rates/:id/approve` /
-  `/reject` (**solo owner/admin**, más estricto que la DB).
+  `/reject` (**solo owner/admin**, más estricto que la DB) — transición de
+  estado **atómica** (`UPDATE ... WHERE ... AND status='draft' RETURNING`,
+  mismo patrón que `tool_calls`/API-09): decidir una tarifa ya decidida
+  (aprobada o archivada) responde 409, nunca re-decide en silencio; dos
+  decisiones concurrentes de la misma tarifa nunca ambas 200.
 - Cada escritura de perfil registra procedencia por fila/campo
   (`field_provenance`: `ownerUserId`, `source='manual'`, `updated_at`) —
   ver `GET .../provenance` en cada subrecurso vía `lib/company-crud.ts`.
@@ -164,6 +188,17 @@ organizaciones.
   presenta como facturación real).
 - `GET/POST /admin/incidents`, `POST /admin/incidents/:id/resolve`.
 - `GET /admin/approvals` — `tool_calls` pendientes de todas las organizaciones.
+- `GET /admin/audit-log` (ronda 4) — bitácora de auditoría de TODAS las
+  organizaciones (filtro opcional `orgId`/`entity`/`actorId`/fecha,
+  paginado), reutilizando los esquemas de `GET /audit-log`.
+- `POST /admin/tool-calls/:id/approve` / `/deny` (ronda 4) — aprobación
+  **cross-org** de una `tool_call` pendiente por superadmin, sin necesidad
+  de `X-Org-Id` ni de rol owner/admin DE esa organización (antes, `GET
+  /admin/approvals` listaba pendientes de todas las organizaciones pero
+  decidir de verdad exigía pertenecer a la organización dueña, dejando el
+  back office de solo lectura para un superadmin externo). Transición
+  atómica igual que la ruta por-org (API-09); `audit_log` con el actor
+  superadmin real y la organización afectada.
 
 ### expediente (E6-E9/E11 — expediente de participación real)
 Integra `@atiende/expediente` (paquete puro, sin DB) sobre `packages/db`
@@ -223,7 +258,14 @@ mutar, `viewer` solo lee), salvo aprobar (ver más abajo).
   aplicación y en la política RLS de `proposal_approvals`,
   `packages/db/migrations/0031`; autoaprobación por el mismo `actorId`
   prohibida — la autoaprobación entre dos CUENTAS de la misma persona física
-  es un límite conocido y documentado de `packages/expediente`, EX-EXP-08),
+  es un límite conocido y documentado de `packages/expediente`, EX-EXP-08).
+  Desde la ronda 4 (AE-11), cada `PATCH .../proposal/sections/:sectionKey`
+  persiste además un evento `record_edit` (actor real + `scopeRef`,
+  `packages/db/migrations/0053`): `approve()` rechaza a cualquier aprobador
+  que conste como autor de contenido del alcance que intenta aprobar (o de
+  un descendiente cubierto), aunque OTRA persona haya pedido la revisión —
+  cierra el hueco de que un `admin`/`reviewer` redactara una sección y
+  luego aprobara igual el expediente completo.
   `POST /approval/comments`, `GET /approval` (recalcula siempre el hash de
   insumos ACTUAL con `sealInputs`/`computeInputsHash` — EX-EXP-17, nunca
   reutiliza un hash guardado — e invalida automáticamente en memoria una
@@ -241,7 +283,13 @@ mutar, `viewer` solo lee), salvo aprobar (ver más abajo).
   alcance `"expediente"` con hash coincidente + sin documentos faltantes) —
   esta ruta nunca lo declara por su cuenta (**A13/A14**).
   `GET /package/latest`, `GET /package/download` (autenticada, cualquier
-  rol de lectura).
+  rol de lectura). Desde la ronda 4 (AE-14), ambas RE-DERIVAN el estado
+  actual (`deriveCurrentManifest`) cuando el último `assemble` había
+  quedado `"ready"`: si la aprobación vigente ya no cubre el estado actual
+  (o el checklist dejó de ser verde), `/latest` reporta `"draft"` con los
+  motivos reales y `/download` responde 409 explícito en vez de servir el
+  ZIP `"ready"` desactualizado. Un paquete que nació `"draft"` sigue
+  descargándose igual que antes (sin regresión de A14).
 - **Presentación declarada por el usuario (E9, A15)** — `GET /submission`,
   `POST /submission/declare` (writer+): registra SOLO que el usuario declara
   haber presentado (fecha + acuse opcional subido por el propio usuario,
@@ -304,18 +352,62 @@ nunca expone mensaje interno ni stack (`lib/errors.ts` +
   `org_id` ya resuelto (igual que ronda 1); `POST /internal/tenders/ingest`
   logra idempotencia real por otra vía (dedupe estructural en
   `tender_versions`, no por `Idempotency-Key`).
-- **Rate limit**: global por IP (100/min) + override en `/auth/login`
-  (5/min). **Alcance limitado**: sin límite verdadero por
-  organización/usuario autenticado (mismo pendiente que ronda 1).
+- **Rate limit** (ver `src/lib/rate-limit-settings.ts`, ronda 4): límites
+  por "tier" configurables por perfil (`config.rateLimitProfile`) en vez de
+  números mágicos repartidos:
+  - `global` (100→**300**/min, IP, hook `onRequest` — no puede depender de
+    `X-Org-Id`/`Authorization` sin verificar: se esquivaría rotándolos).
+  - `auth` (`/auth/login`, 5/min sin cambios).
+  - `sensitiveAction` (30/min, hook `preHandler` — DESPUÉS de
+    `app.requireOrg`/`app.requireSuperadmin`, así que SÍ puede aislar el
+    presupuesto por organización/superadmin): `/agents/tool-calls/:id/
+    approve|deny` y `/admin/tool-calls/:id/approve|deny`.
+  - `RATE_LIMIT_PROFILE=e2e` (literal exacto, nunca por `NODE_ENV`) eleva
+    los tres tiers para un harness E2E intensivo (p. ej.
+    `apps/web scripts/e2e-full.mjs`) sin confundir su propio volumen con un
+    fallo de producto — ver `docs/logs/web-ronda3.log` (429 real de
+    `/auth/login` durante Playwright con varios workers/logins).
+  - Cabeceras `Retry-After`/`X-RateLimit-*` (`@fastify/rate-limit` las
+    agrega por defecto) expuestas a JS cross-origin vía
+    `Access-Control-Expose-Headers` (ver CORS abajo).
+- **CORS** (`@fastify/cors`, ronda 4): `methods`/`allowedHeaders`/
+  `exposedHeaders` explícitos — antes, sin `methods`, el preflight
+  respondía `GET,HEAD,POST` (sin PUT/PATCH/DELETE), bloqueando en el propio
+  navegador cualquier escritura cross-origin real (bug encontrado por
+  apps/web, `docs/logs/web-ronda3.log`).
+- **Content-Security-Policy** (`@fastify/helmet`, ronda 4): CSP real
+  (`default-src`/`script-src 'self'`; `connect-src 'self'` + `CORS_ORIGINS`;
+  `frame-ancestors 'none'`; `object-src 'none'`) + `Permissions-Policy`
+  explícito (helmet 8.x no trae middleware propio para esa cabecera) en
+  TODA respuesta, incluidas 4xx/5xx.
+- **Cuerpo vacío en rutas de acción** (`src/lib/optional-empty-body.ts`,
+  ronda 4): un `POST` de acción sin cuerpo (`approve`/`deny`/`retry`/
+  `resolve`) con `Content-Type: application/json` y cuerpo vacío ya no
+  responde 400 — se registra un content-type parser tolerante SOLO en el
+  scope encapsulado de esas rutas concretas; el resto de la API (rutas que
+  SÍ exigen cuerpo, p. ej. `POST /organizations`) conserva el 400 estricto
+  de Fastify sin cambios.
 - **Auditoría**: `recordAudit` se llama explícitamente dentro de la misma
   transacción de cada mutación relevante (perfil de empresa, tarifas,
   convocatorias ingeridas, decisiones go/no-go, aprobación de tool_calls,
   acciones de back office). `audit_log` mantiene una cadena de hashes
   verificable (`app.verify_audit_log_chain()`, ver `packages/db/README.md`).
+  `GET /audit-log`/`GET /admin/audit-log` (ronda 4) la exponen por HTTP
+  (ver secciones arriba). Eventos de autenticación
+  (`app.record_auth_event`, `login_succeeded`/`refresh_*`/`logout`) exigen
+  desde la ronda 4 (API-14, `packages/db/migrations/0054`) que el
+  `actor_id` declarado coincida con `app.current_user_id()` ya fijado por
+  el llamador, salvo `login_failed` (el único evento genuinamente
+  pre-autenticación) — cierra un vector de forja de auditoría por un
+  llamador con `app_role`.
 - **Almacenamiento de archivos**: disco local (`STORAGE_DIR`) con hash
   sha256, deduplicado por contenido. El contenido llega en base64 dentro
   del cuerpo JSON (no `multipart/form-data`, para no sumar una dependencia
-  solo para esto en esta ronda) — límite defensivo ~22MB decodificado.
+  solo para esto en esta ronda) — límite defensivo ~22MB decodificado
+  (`MAX_BASE64_LENGTH`, `lib/storage.ts`), y desde la ronda 4 (AE-15) el
+  `bodyLimit` real de Fastify se fija coherente con ese límite (antes, el
+  1MiB por defecto de Fastify rechazaba con 413 genérico cualquier subida
+  bastante antes de llegar al chequeo explícito de tamaño).
 - **Matching (relevancia vs. elegibilidad)**: la relevancia reutiliza
   `MatchingEngine` de `@atiende/sources` (paquete puro, sin acceso a la
   base de datos); la elegibilidad dura (documentos/restricciones/

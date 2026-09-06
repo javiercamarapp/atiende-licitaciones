@@ -397,6 +397,7 @@ export async function organizationRoutes(app: FastifyInstance): Promise<void> {
     {
       preHandler: [app.authenticate, app.requireOrg],
       schema: {
+        description: 'Lista los miembros de la organización con su rol real. Visible para member+ (cualquier rol activo).',
         params: membershipListParamsSchema,
         querystring: membershipListQuerySchema,
         response: { 200: membershipListResponseSchema },

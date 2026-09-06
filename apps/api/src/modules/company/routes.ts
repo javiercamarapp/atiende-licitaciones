@@ -577,7 +577,14 @@ export async function companyRoutes(app: FastifyInstance): Promise<void> {
 
   server.post(
     '/rates/:id/approve',
-    { preHandler: [app.authenticate, app.requireOrg], schema: { params: z.object({ id: z.string().uuid() }), response: { 200: rateSchema } } },
+    {
+      preHandler: [app.authenticate, app.requireOrg],
+      schema: {
+        description: 'Sin cuerpo. Solo owner/admin; transición atómica (solo desde draft), 409 si ya fue decidida.',
+        params: z.object({ id: z.string().uuid() }),
+        response: { 200: rateSchema },
+      },
+    },
     async (request) => {
       const orgId = request.orgId!;
       const userId = request.userId!;
@@ -626,7 +633,14 @@ export async function companyRoutes(app: FastifyInstance): Promise<void> {
 
   server.post(
     '/rates/:id/reject',
-    { preHandler: [app.authenticate, app.requireOrg], schema: { params: z.object({ id: z.string().uuid() }), response: { 200: rateSchema } } },
+    {
+      preHandler: [app.authenticate, app.requireOrg],
+      schema: {
+        description: 'Sin cuerpo. Solo owner/admin; transición atómica (solo desde draft), 409 si ya fue decidida.',
+        params: z.object({ id: z.string().uuid() }),
+        response: { 200: rateSchema },
+      },
+    },
     async (request) => {
       const orgId = request.orgId!;
       const userId = request.userId!;
