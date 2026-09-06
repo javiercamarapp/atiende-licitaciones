@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TokenBucketRateLimiter } from "../src/rate-limiter.js";
+import { InvalidAmountError } from "../src/errors.js";
 
 describe("TokenBucketRateLimiter", () => {
   it("permite consumir hasta la capacidad y rechaza después", () => {
@@ -48,5 +49,36 @@ describe("TokenBucketRateLimiter", () => {
     limiter.tryConsume("org-1");
     limiter.reset();
     expect(limiter.tryConsume("org-1")).toBe(true);
+  });
+
+  describe("AG-09 (MEDIA): validación de signo/finitud/enteros en tryConsume()", () => {
+    it("rechaza un valor negativo de tokens en vez de rellenar el bucket a capacidad completa", () => {
+      const limiter = new TokenBucketRateLimiter(10, 0);
+      limiter.tryConsume("org-1", 10); // agota el bucket
+      expect(limiter.getAvailableTokens("org-1")).toBe(0);
+      expect(() => limiter.tryConsume("org-1", -1000)).toThrow(InvalidAmountError);
+      // El intento inválido no debe haber rellenado el bucket.
+      expect(limiter.getAvailableTokens("org-1")).toBe(0);
+    });
+
+    it("rechaza NaN", () => {
+      const limiter = new TokenBucketRateLimiter(10, 0);
+      expect(() => limiter.tryConsume("org-1", NaN)).toThrow(InvalidAmountError);
+    });
+
+    it("rechaza Infinity", () => {
+      const limiter = new TokenBucketRateLimiter(10, 0);
+      expect(() => limiter.tryConsume("org-1", Infinity)).toThrow(InvalidAmountError);
+    });
+
+    it("rechaza valores no enteros (los tokens son unidades discretas)", () => {
+      const limiter = new TokenBucketRateLimiter(10, 0);
+      expect(() => limiter.tryConsume("org-1", 1.5)).toThrow(InvalidAmountError);
+    });
+
+    it("acepta 0 (consumo nulo es válido)", () => {
+      const limiter = new TokenBucketRateLimiter(10, 0);
+      expect(() => limiter.tryConsume("org-1", 0)).not.toThrow();
+    });
   });
 });

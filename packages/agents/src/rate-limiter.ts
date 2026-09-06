@@ -1,3 +1,4 @@
+import { InvalidAmountError } from "./errors.js";
 import type { OrganizationId } from "./types.js";
 
 /**
@@ -37,6 +38,13 @@ export class TokenBucketRateLimiter {
 
   /** Intenta consumir `tokens`; retorna `true` si había suficientes disponibles. */
   tryConsume(organizationId: OrganizationId, tokens = 1): boolean {
+    // AG-09: sin esta validación, `tokens < 0` restaba un negativo
+    // (`bucket.tokens -= tokens`), rellenando el bucket a capacidad máxima
+    // al instante — bypass total del rate limit para esa organización. Los
+    // tokens son unidades discretas, así que también se exige entero.
+    if (Number.isNaN(tokens) || !Number.isFinite(tokens) || tokens < 0 || !Number.isInteger(tokens)) {
+      throw new InvalidAmountError("TokenBucketRateLimiter.tryConsume", tokens);
+    }
     const bucket = this.refill(organizationId);
     if (bucket.tokens < tokens) return false;
     bucket.tokens -= tokens;
