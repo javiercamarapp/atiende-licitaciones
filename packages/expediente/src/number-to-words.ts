@@ -180,10 +180,19 @@ export function centsToPesosWords(cents: bigint, currencyLabel: string = "PESOS 
   if (pesos > BigInt(Number.MAX_SAFE_INTEGER)) {
     throw new Error("Monto demasiado grande para convertir a letra");
   }
-  const pesosWords = integerToWords(Number(pesos));
+  // REQ-031/EX-EXP-05: "uno"/"veintiuno" al final de la cantidad debe
+  // apocoparse a "un"/"veintiún" porque aquí SÍ antecede a un sustantivo
+  // ("PESO"/"PESOS") — a diferencia de `integerToWords`, que deliberadamente
+  // NO apocopa su resultado final porque ahí es la forma cardinal aislada
+  // ("treinta y uno", "mil uno"). Ejemplos: 1 -> "UN PESO", 21 -> "VEINTIÚN
+  // PESOS", 101 -> "CIENTO UN PESOS", 1,000,001 -> "UN MILLÓN UN PESOS".
+  const pesosWords = apocopeUno(integerToWords(Number(pesos)), false);
   const centavosStr = centavos.toString().padStart(2, "0");
-  const label = currencyLabel.includes("00/100")
-    ? currencyLabel.replace("00/100", `${centavosStr}/100`)
-    : `${currencyLabel} ${centavosStr}/100`;
+  // "PESO" en singular únicamente cuando el monto entero de pesos es
+  // exactamente 1 (p. ej. "UN PESO", nunca "UN PESOS").
+  const effectiveCurrencyLabel = pesos === 1n ? currencyLabel.replace(/\bPESOS\b/i, "PESO") : currencyLabel;
+  const label = effectiveCurrencyLabel.includes("00/100")
+    ? effectiveCurrencyLabel.replace("00/100", `${centavosStr}/100`)
+    : `${effectiveCurrencyLabel} ${centavosStr}/100`;
   return `SON: ${pesosWords.toUpperCase()} ${label.toUpperCase()}`;
 }

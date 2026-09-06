@@ -50,4 +50,29 @@ describe("centsToPesosWords", () => {
   it("rechaza montos negativos", () => {
     expect(() => centsToPesosWords(-1n)).toThrow();
   });
+
+  describe("EX-EXP-05: apócope de UN/VEINTIÚN/CIENTO UN peso (REQ-031)", () => {
+    const cases: Array<[bigint, string]> = [
+      [100n, "SON: UN PESO 00/100 M.N."], // $1.00 -> singular "PESO", nunca "UNO PESOS"
+      [2100n, "SON: VEINTIÚN PESOS 00/100 M.N."], // $21.00
+      [3100n, "SON: TREINTA Y UN PESOS 00/100 M.N."], // $31.00
+      [10100n, "SON: CIENTO UN PESOS 00/100 M.N."], // $101.00
+      [100000100n, "SON: UN MILLÓN UN PESOS 00/100 M.N."], // $1,000,001.00
+      [2100000000n, "SON: VEINTIÚN MILLONES PESOS 00/100 M.N."], // $21,000,000.00
+    ];
+
+    it.each(cases)("centsToPesosWords(%s) aplica el apócope correcto", (cents, expected) => {
+      expect(centsToPesosWords(cents)).toBe(expected);
+    });
+
+    it("un monto de exactamente $1.00 usa 'PESO' en singular, no 'PESOS'", () => {
+      expect(centsToPesosWords(100n)).not.toContain("UNO PESOS");
+      expect(centsToPesosWords(100n)).toContain("UN PESO");
+      expect(centsToPesosWords(100n)).not.toContain("PESOS");
+    });
+
+    it("centavos con apócope: $1.01 sigue diciendo 'UN PESO' (singular) con los centavos correctos", () => {
+      expect(centsToPesosWords(101n)).toBe("SON: UN PESO 01/100 M.N.");
+    });
+  });
 });
