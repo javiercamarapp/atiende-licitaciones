@@ -16,6 +16,7 @@ import { recordAudit } from '../../lib/audit.js';
 import { NotFoundError, ValidationAppError } from '../../lib/errors.js';
 import { withTx, requireTender, getOrCreateProposal } from '../../lib/expediente/context.js';
 import { loadCompanyDataResolver } from '../../lib/expediente/company-data-resolver.pg.js';
+import { loadApprovalEvents, replayWorkflow, appendApprovalEvent, persistApprovalSnapshot } from '../../lib/expediente/approval-store.pg.js';
 import { nowIso, timestampToIso } from '../../lib/expediente/dates.js';
 import { proposalSchema, technicalGenerateSchema, economicGenerateSchema, proposalSectionSchema, sectionUpdateSchema } from './schemas.js';
 
@@ -188,14 +189,51 @@ export async function expedienteProposalRoutes(app: FastifyInstance): Promise<vo
         }
 
         const existingReport = (proposal.generation_report as Record<string, unknown> | null) ?? {};
+        const previousTechnical = existingReport.technical as { conditionEvaluations?: Record<string, boolean> } | undefined;
         const generationReport = {
           ...existingReport,
-          technical: { usedCompanyDocumentIds: [...usedCompanyDocumentIds].filter(Boolean), blockers: result.blockers, generatedAt: nowIso() },
+          technical: {
+            usedCompanyDocumentIds: [...usedCompanyDocumentIds].filter(Boolean),
+            blockers: result.blockers,
+            generatedAt: nowIso(),
+            conditionEvaluations: request.body.conditionEvaluations,
+          },
         };
         const updated = await tx.query<Record<string, unknown>>(
           `update proposals set generation_report = $1::jsonb, version = version + 1, invalidated_at = null, invalidated_reason = null where id = $2 and org_id = $3 returning *`,
           [JSON.stringify(generationReport), proposal.id, orgId]
         );
+
+        // Coordinación packages/expediente (docs/auditoria-1/expediente-cierre.md):
+        // `conditionEvaluations` (si un requisito CONDICIONAL aplica al caso
+        // concreto) NO forma parte de `ExpedienteInputs` -- computeInputsHash
+        // no cambia si solo cambia esta declaración, así que un cambio de
+        // aplicabilidad NUNCA invalidaría una aprobación vigente por la vía
+        // del hash de insumos. Se invalida EXPLÍCITAMENTE aquí, con el mismo
+        // mecanismo (recordChange + evento persistido) que usa un cambio de
+        // bases, cada vez que la nueva generación usa una declaración
+        // distinta de la anterior para al menos un requisito.
+        const changedRequirementIds = diffConditionEvaluations(previousTechnical?.conditionEvaluations, request.body.conditionEvaluations);
+        if (previousTechnical !== undefined && changedRequirementIds.length > 0) {
+          const events = await loadApprovalEvents(tx, orgId, proposal.id as string);
+          const workflow = replayWorkflow(events);
+          const reason = `condicion_de_requisito_cambio:${changedRequirementIds.join(',')}`;
+          const change = workflow.recordChange({ scope: 'documento', scopeRef: 'documento:tecnica', reason });
+          if (change.invalidatedApprovalIds.length > 0) {
+            await appendApprovalEvent(tx, { orgId, proposalId: proposal.id as string, kind: 'record_change', actorId: userId, actorRole: request.orgRole!, scope: 'documento', scopeRef: 'documento:tecnica', reason });
+            await persistApprovalSnapshot(tx, orgId, proposal.id as string, workflow);
+            await recordAudit(tx, {
+              orgId,
+              actorId: userId,
+              action: 'approval.invalidate_by_condition_change',
+              entity: 'proposal_approvals',
+              entityId: proposal.id as string,
+              after: { changedRequirementIds, invalidatedApprovalIds: change.invalidatedApprovalIds },
+              requestId: request.id,
+            });
+          }
+        }
+
         await recordAudit(tx, { orgId, actorId: userId, action: 'proposal.technical.generate', entity: 'proposals', entityId: proposal.id as string, after: { blockers: result.blockers.length, sections: result.sections.length }, requestId: request.id });
         return updated.rows[0];
       });
@@ -278,4 +316,20 @@ function renderStatementText(kind: RequirementFulfillmentMapping['kind'], value:
     default:
       throw new ValidationAppError({ kind: 'tipo de mapeo no reconocido' });
   }
+}
+
+/**
+ * Compara la declaración de aplicabilidad de requisitos condicionales
+ * (`conditionEvaluations`, ver technicalGenerateSchema) entre la generación
+ * anterior y la actual, y devuelve los `requirementId` cuyo valor cambió
+ * (incluye un requisito que antes no tenía declaración y ahora sí, o
+ * viceversa). Nunca compara por referencia de objeto -- solo por valor.
+ */
+function diffConditionEvaluations(previous: Record<string, boolean> | undefined, current: Record<string, boolean>): string[] {
+  const prev = previous ?? {};
+  const changed = new Set<string>();
+  for (const key of new Set([...Object.keys(prev), ...Object.keys(current)])) {
+    if (prev[key] !== current[key]) changed.add(key);
+  }
+  return [...changed].sort();
 }

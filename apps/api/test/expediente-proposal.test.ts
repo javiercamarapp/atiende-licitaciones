@@ -184,4 +184,55 @@ describe('expediente — propuesta técnica/económica (E7)', () => {
     expect(writerPatch.json().content).toContain('redactado manualmente');
     expect(writerPatch.json().version).toBe(2);
   });
+
+  it('coordinación packages/expediente (expediente-cierre.md): cambiar la aplicabilidad de un requisito condicional invalida explícitamente una aprobación vigente (no forma parte de ExpedienteInputs, así que el hash no cambia por sí solo)', async () => {
+    const owner = await registerAndLogin(app, 'prop-owner-4@example.com');
+    const org = await createOrgFor(app, owner, 'Prop Org 4', 'prop-org-4');
+    const tenderId = await createTender(app, org.id, 'prop-004');
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+
+    const reqId = await insertRequirement(db, org.id, tenderId, {
+      description: 'En caso de que aplique, el licitante debe presentar manifestación adicional.',
+      obligatoriedad: 'condicional',
+    });
+
+    // Primera generación: el requisito condicional se declara explícitamente
+    // como NO aplicable al caso concreto.
+    const gen1 = await app.inject({
+      method: 'POST',
+      url: `/expediente/tenders/${tenderId}/proposal/technical/generate`,
+      headers,
+      payload: { mappings: [], conditionEvaluations: { [reqId]: false } },
+    });
+    expect(gen1.statusCode).toBe(200);
+
+    const approve = await app.inject({ method: 'POST', url: `/expediente/tenders/${tenderId}/approval/approve`, headers, payload: { scope: 'expediente', scopeRef: 'expediente' } });
+    expect(approve.statusCode).toBe(200);
+    expect(approve.json().fullyApproved).toBe(true);
+
+    // Segunda generación: la MISMA convocatoria/insumos, pero ahora se
+    // declara que el requisito condicional SÍ aplica -- ExpedienteInputs no
+    // incluye conditionEvaluations, así que el hash de insumos sería
+    // idéntico; la invalidación debe ser explícita (no vía hash).
+    const gen2 = await app.inject({
+      method: 'POST',
+      url: `/expediente/tenders/${tenderId}/proposal/technical/generate`,
+      headers,
+      payload: { mappings: [], conditionEvaluations: { [reqId]: true } },
+    });
+    expect(gen2.statusCode).toBe(200);
+
+    const afterChange = await app.inject({ method: 'GET', url: `/expediente/tenders/${tenderId}/approval`, headers });
+    expect(afterChange.json().fullyApproved).toBe(false);
+    expect(afterChange.json().approvals.find((a: any) => a.scope === 'expediente').status).toBe('invalidada');
+
+    // Regenerar con la MISMA declaración que la última vez no debe volver a invalidar nada adicional (no hay cambio real).
+    const gen3 = await app.inject({
+      method: 'POST',
+      url: `/expediente/tenders/${tenderId}/proposal/technical/generate`,
+      headers,
+      payload: { mappings: [], conditionEvaluations: { [reqId]: true } },
+    });
+    expect(gen3.statusCode).toBe(200);
+  });
 });
