@@ -162,6 +162,47 @@ export interface PaymentDeadlineResult {
  * solo aplica al régimen de días HÁBILES (el régimen de días naturales no
  * excluye ningún día).
  */
+// ---------------------------------------------------------------------------
+// REQ-053 (ronda 6): plazo para presentar una inconformidad (LAASSP nueva,
+// Art. 95 -- DOF 16-abr-2025, vigor 17-abr-2025). Verificado puntualmente en
+// `docs/legal/verificacion-legal.md` (fila REQ-104): plazo general de 6 días
+// hábiles siguientes a la notificación del acto impugnado (el fallo, Art.
+// 49 -- fila REQ-103); 10 días hábiles "tratándose de licitaciones públicas
+// internacionales bajo la cobertura de tratados". A diferencia del plazo de
+// pago (REQ-050), este plazo NO se versiona por fecha de convocatoria: la
+// LAASSP nueva rige el cómputo de cualquier inconformidad presentada hoy,
+// sin importar cuándo se publicó la convocatoria original (el requisito de
+// esta ronda no pidió ese versionado para REQ-053, y no se inventa aquí).
+// ---------------------------------------------------------------------------
+export const LAASSP_ART_95_INCONFORMIDAD_BUSINESS_DAYS = 6;
+export const LAASSP_ART_95_INCONFORMIDAD_TRATADOS_BUSINESS_DAYS = 10;
+export const LAASSP_ART_95_LEGAL_REFERENCE =
+  'LAASSP nueva, Art. 95 (DOF 16-abr-2025, vigor 17-abr-2025): la inconformidad debe presentarse dentro de los 6 días hábiles siguientes a la notificación del acto impugnado (10 días hábiles tratándose de licitaciones públicas internacionales bajo la cobertura de tratados). Ver docs/legal/verificacion-legal.md (fila REQ-104).';
+
+export interface InconformidadDeadlineResult {
+  dueDate: string;
+  businessDays: number;
+  legalReference: string;
+  calendarNote: string;
+}
+
+/**
+ * Calcula la fecha límite para presentar una inconformidad, contada en días
+ * hábiles desde la fecha de NOTIFICACIÓN del fallo (nunca desde "hoy" --
+ * quien registra el borrador debe declarar esa fecha explícitamente, ver
+ * `inconformidadGenerateSchema`). `underTradeAgreements` decide 6 vs. 10
+ * días hábiles (Art. 95).
+ */
+export function computeInconformidadDeadline(
+  falloNotifiedOnIsoDate: string,
+  underTradeAgreements: boolean,
+  holidays: readonly string[] = []
+): InconformidadDeadlineResult {
+  const businessDays = underTradeAgreements ? LAASSP_ART_95_INCONFORMIDAD_TRATADOS_BUSINESS_DAYS : LAASSP_ART_95_INCONFORMIDAD_BUSINESS_DAYS;
+  const dueDate = addBusinessDays(falloNotifiedOnIsoDate, businessDays, holidays);
+  return { dueDate, businessDays, legalReference: LAASSP_ART_95_LEGAL_REFERENCE, calendarNote: CALENDAR_LIMITATION_NOTE };
+}
+
 export function computePaymentDeadline(
   invoiceVerifiedOnIsoDate: string,
   tenderPublishedAtIso: string | null | undefined = undefined,
