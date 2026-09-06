@@ -43,20 +43,21 @@ src/
     ingest-client.ts        TenderIngestClient: POST /internal/tenders/ingest (alineado al contrato real de apps/api)
     ingest-mapper.ts        mapTenderRecordToIngestRecord: TenderRecord (@atiende/sources) -> shape de apps/api
   source-runs/
-    source-run-status.ts     Estados finos (7) -> proyección al enum angosto de packages/db
+    source-run-status.ts     Estados finos (8) -> mapeo 1:1 al enum ampliado de packages/db (WK-22)
     source-runs-repository.ts  INSERT en `source_runs`
 test/
-  helpers.ts                createMigratedDb (PGlite + migraciones reales), seedOrgAndUser
-  job-queue.test.ts          Reclamo atómico, backoff+jitter, dead letter, lease, idempotencia, WK-01/WK-10/WK-14
+  helpers.ts                createMigratedDb (PGlite + migraciones reales), seedOrgAndUser, seedMember
+  job-queue.test.ts          Reclamo atómico, backoff+jitter, dead letter, lease, idempotencia, cancelación (WK-01/WK-10/WK-14/WK-22)
   scheduler.test.ts          Unicidad por (tipo, fuente, ventana), WK-04 (lógica secuencial en PGlite) + WK-15 (SQL emitido; concurrencia real de motor PENDIENTE, ref. B-03)
-  ingest-client.test.ts      Contra un servidor HTTP real (node:http), no un mock de fetch; WK-09/WK-17 (tabla de verdad transitorio/permanente)
+  ingest-client.test.ts      Contra un servidor HTTP real (node:http), no un mock de fetch; WK-09/WK-17/WK-20 (tabla de verdad exhaustiva 400-599)/WK-21 (407 vía undici)
   discover-tenders-handler.test.ts  A1/A2/A4 (ver docs/ACEPTACION.md); WK-03/WK-05/WK-06
-  run-agent-handler.test.ts  Esqueleto de run_agent con FakeProvider; WK-08/WK-16
+  run-agent-handler.test.ts  Esqueleto de run_agent con FakeProvider; WK-08/WK-16/WK-19/WK-23
   worker-shutdown.test.ts    Cierre ordenado (SIGTERM), métricas, WK-02/WK-10/WK-14
   config.test.ts             loadConfig() con env vacío/completo/inválido
   schedule-config.test.ts    loadScheduleConfig() con WORKER_SCHEDULE_JSON válido/inválido/vacío
-db-proposals/                Migraciones PENDIENTE esquema (fuera de mi ámbito tocar packages/db),
-                              cada una con su test .pending.test.ts (it.skip) — ver docs/auditoria-1/worker.md
+db-proposals/                Las 3 migraciones propuestas (0026-0028) ya están aplicadas en
+                              packages/db; sus tests acompañantes ya NO son .pending/describe.skip
+                              (activados en la ronda 4, WK-22) — ver docs/auditoria-1/worker-cierre.md
 ```
 
 ## Correcciones de la ronda 2 (auditoría adversarial)
@@ -65,14 +66,19 @@ db-proposals/                Migraciones PENDIENTE esquema (fuera de mi ámbito 
 código de la ronda 1, más un hallazgo WK-13 detectado por re-verificación de
 `packages/agents` (regresión de compilación por un cambio de contrato en esa
 dependencia). Los 13 están corregidos en código/tests en esta ronda; 3
-requieren una migración de `packages/db` fuera de mi ámbito y quedan
-documentados como **PENDIENTE esquema** en `apps/worker/db-proposals/`
-(WK-04 índice único, WK-07 ampliar enum, WK-08 `worker_role`) — sus
-mitigaciones funcionales inmediatas SÍ están aplicadas en código. Ver las
-notas "Corrección ronda 2 (WK-NN)" en cada sección de este README, la
-columna "Estado reparación" de `docs/auditoria-1/worker.md`, y
-`docs/logs/fix-worker-ronda2.log` para la ejecución real de
-`typecheck`/`lint`/`test`/`test:coverage`.
+requerían una migración de `packages/db` fuera de mi ámbito y quedaron
+documentados en su momento como **PENDIENTE esquema** en
+`apps/worker/db-proposals/` (WK-04 índice único, WK-07 ampliar enum, WK-08
+`worker_role`) — sus mitigaciones funcionales inmediatas SÍ estaban
+aplicadas en código desde entonces. Las 3 migraciones propuestas ya se
+incorporaron a `packages/db` (`0026-0028`), y la ronda 4 (WK-22/WK-23, ver
+esa sección más abajo) actualizó el código de `apps/worker` para
+aprovecharlas de verdad — ver las notas "Corrección ronda 2 (WK-NN)" en
+cada sección de este README para el estado original, y "Correcciones de la
+ronda 4" para el cierre. La columna "Estado reparación" de
+`docs/auditoria-1/worker.md`, y `docs/logs/fix-worker-ronda2.log` para la
+ejecución real de `typecheck`/`lint`/`test`/`test:coverage` de esa ronda
+(ver `docs/logs/fix-worker-ronda4.log` para la de esta ronda).
 
 ### `JobQueue` (tabla `jobs`, `packages/db/migrations/0003_system_tables.sql`)
 
@@ -161,14 +167,16 @@ columna "Estado reparación" de `docs/auditoria-1/worker.md`, y
   verificación de concurrencia de motor REAL (Postgres de verdad, con
   conexiones de sistema operativo reales compitiendo) queda **PENDIENTE**
   hasta que exista un Postgres de pruebas en CI (ver "Pendientes" más abajo,
-  ref. B-03). El índice único parcial sigue siendo la solución estructural
-  definitiva, propuesta en `db-proposals/PROPOSAL-02-jobs-dedupe-and-cancelled.sql`
-  (PENDIENTE esquema).
-- **Cancelación**: no hay estado `cancelled` en el enum `job_status` (ver
-  "Pendientes"); `cancel()` usa `dead` con `last_error` describiendo el
-  motivo. Migración propuesta en
-  `db-proposals/PROPOSAL-02-jobs-dedupe-and-cancelled.sql` (PENDIENTE
-  esquema).
+  ref. B-03) — el índice único estructural (ver "Cancelación" abajo) SÍ
+  está aplicado y probado.
+- **Cancelación (corrección ronda 4, WK-22, `docs/auditoria-1/worker-cierre.md`)**:
+  el enum `job_status` tiene `'cancelled'` desde `packages/db/migrations/
+  0027_jobs_dedupe_and_cancelled.sql` (aplicado); `JobQueue.cancel()` ya lo
+  usa directamente (antes de esta ronda seguía escribiendo `'dead'` pese a
+  que el esquema ya lo soportaba — "reparación declarada, código no
+  actualizado"). Distinguible de un dead-letter por reintentos agotados
+  sin necesidad de leer `last_error`. Ver `test/job-queue.test.ts`
+  ("JobQueue: cancelación") y `db-proposals/PROPOSAL-02-jobs-dedupe-and-cancelled.test.ts`.
 
 ### `Worker` (bucle de ejecución)
 
@@ -266,22 +274,20 @@ handler.test.ts` con un conector fake `liveVerification.verified: true`,
 para demostrar que el resto del flujo (envío HTTP, `source_runs` "ok",
 cobertura) funciona en cuanto un conector real se verifique.
 
-**Mapeo de estados finos -> enum angosto de `packages/db`**: ver
-`src/source-runs/source-run-status.ts`. El enum `source_run_status` de
-`packages/db/migrations/0013_source_runs.sql` es MÁS ANGOSTO
-(`ok|failed|captcha|interface_changed|permission_missing|down`) que los 8
-estados finos de este worker (agrega `rate_limited`/`not_configured`/
-`ingest_failed`, este último nuevo en la ronda 2 para WK-03). No se tocó
-esa migración (fuera de alcance: `packages/db`). El estado fino real
-siempre se guarda en `evidence.fineState`/`evidence.message` (columna
-`jsonb`, sin restricción de esquema) y se proyecta al valor más cercano en
-la columna `status`, **nunca** a `ok` para un estado que no lo es. **WK-07
-(`docs/auditoria-1/worker.md`)**: cualquier consumidor futuro que filtre
-por `status = 'failed'` sin inspeccionar `evidence.fineState` pierde la
-distinción entre "nunca verificado"/"limitado por tasa"/"ingesta falló".
-Migración propuesta (amplía el enum a los 8 estados finos) en
-`db-proposals/PROPOSAL-01-widen-source-run-status.sql` (PENDIENTE
-esquema).
+**Mapeo de estados finos -> `status` real (corrección ronda 4, WK-22, `docs/
+auditoria-1/worker-cierre.md`)**: ver `src/source-runs/source-run-status.ts`.
+`packages/db/migrations/0026_widen_source_run_status.sql` ya amplió el enum
+real `source_run_status` con `rate_limited`/`not_configured`/
+`ingest_failed` (los 8 estados finos de este worker tienen ahora
+equivalente exacto). Antes de esta ronda el esquema ya estaba ampliado pero
+`toDbStatus()` seguía proyectando esos 3 valores a `'failed'` —
+"reparación declarada, código no actualizado" (WK-22, ALTA). Ahora el
+mapeo es 1:1: `status` en la base ES el estado fino real, no una
+proyección. `evidence.fineState`/`evidence.message` se siguen escribiendo
+también, por compatibilidad de lectura hacia atrás con cualquier
+consumidor que ya lea de ahí — no porque `status` deje de ser la fuente de
+verdad. Ver `db-proposals/PROPOSAL-01-widen-source-run-status.test.ts`
+(activado, ya no `.pending`/`describe.skip`).
 
 ### `run_agent` (`src/handlers/run-agent.ts`) — ESQUELETO
 
@@ -308,17 +314,43 @@ hacía `UPDATE agent_runs SET ... WHERE id = $1` SIN verificar que
 Con la conexión sin RLS de este worker (ver "Seguridad" abajo), un job
 `run_agent` con `agentRunId`/`organizationId` inconsistentes (bug/dato
 corrupto en quien encola el job) podía sobrescribir en silencio el
-resultado de la corrida de OTRO tenant. Ahora, como defensa en profundidad:
-se fija `app.current_org_id` (vía `set_config`) y el propio `UPDATE` filtra
-explícitamente `org_id = $organizationId` además de `id`; si no coincide,
-no toca ninguna fila y lanza `AgentRunOrgMismatchError` (marcado
-`permanent`, ver WK-10) en vez de un no-op silencioso. Ver
-`test/run-agent-handler.test.ts` ("WK-08").
+resultado de la corrida de OTRO tenant. Como defensa en profundidad
+inicial: se fijaba `app.current_org_id` (vía `set_config`) y el propio
+`UPDATE` filtraba explícitamente `org_id = $organizationId` además de `id`.
 
-## Seguridad: conexión "de plataforma", sin `withTenantContext`
+**Corrección ronda 4 (WK-23, `docs/auditoria-1/worker-cierre.md`, ALTA)**:
+`packages/db/migrations/0028_worker_role.sql` (WK-08 esquema) ya aplicó el
+rol `worker_role` dedicado. Antes de esta ronda, `updateAgentRunRow` fijaba
+`app.current_org_id` pero **nunca** `app.current_user_id` ni adoptaba
+`worker_role` de verdad — el día que la conexión se migrara a ese rol tal
+cual estaba el código, la política RLS de `agent_runs` (`org_id =
+current_org_id() and has_role(org_id, write_roles)`, packages/db/
+migrations/0008) habría bloqueado hasta el `UPDATE` legítimo (falso
+positivo de "otro tenant"), porque `has_role()` depende de
+`current_user_id()`. `updateAgentRunRow` ahora:
+1. Valida `organizationId` y `actorId` como UUID (zod) — fail-closed con
+   mensaje explícito si no lo son.
+2. Corre de verdad como `worker_role` (`set local role worker_role`,
+   ámbito de transacción) y fija `app.current_org_id`/`app.current_user_id`
+   = `actorId` (el actor REAL que originó la corrida — `RunAgentPayload.
+   actorId`, ya conocido por `apps/api` al encolar el job; **no** un
+   usuario de servicio genérico: `0028` no crea ninguno, y su propio
+   comentario documenta que la política de organización existente ya
+   cubre este caso combinada con el actor real).
+3. El filtro explícito `org_id = $organizationId` se mantiene como defensa
+   en profundidad adicional, redundante con RLS pero sin costo.
 
-`apps/worker` escribe en `jobs`, `source_runs` y `agent_runs` usando la
-conexión "propietaria" de las migraciones (`createDbClientFromEnv`), **sin**
+`rowCount === 0` sigue lanzando `AgentRunOrgMismatchError` (permanent, ver
+WK-10) sin importar si la causa es "la fila es de otro tenant" o "RLS
+bloqueó porque `actorId` no tiene membresía de escritura activa en esa
+organización" — ambas son, desde la perspectiva de este job, la misma
+condición de fallo. Ver `test/run-agent-handler.test.ts` ("WK-08"/"WK-23")
+y `db-proposals/PROPOSAL-03-worker-role.test.ts`.
+
+## Seguridad: conexión "de plataforma" para jobs/source_runs; worker_role real para agent_runs
+
+`apps/worker` escribe en `jobs` y `source_runs` usando la conexión
+"propietaria" de las migraciones (`createDbClientFromEnv`), **sin**
 `withTenantContext`/`SET LOCAL ROLE app_role` — igual que el propio runner
 de migraciones de `packages/db`. Esto es intencional para un proceso de
 plataforma: `jobs`/`source_runs` no tienen aislamiento por tenant real (o,
@@ -332,18 +364,72 @@ párrafo anterior subestimaba el alcance real. `packages/db/migrations/
 tiene `FORCE ROW LEVEL SECURITY` aplicada — es decir, con esta conexión el
 worker puede leer/escribir SIN RLS **cualquier tabla del esquema, de
 cualquier tenant**, no solo `jobs`/`source_runs`/`agent_runs`. Es una
-decisión de arquitectura ya compartida con el runner de migraciones (no
-exclusiva de este worker), pero el alcance real es más amplio del que
-sugería este README. Mitigación de defensa en profundidad ya aplicada en
-código: ver "WK-08" en la sección `run_agent` arriba.
+decisión de arquitectura ya compartida con el runner de migraciones.
 
-**Pendiente de endurecimiento** (no implementable sin tocar
-`packages/db`, fuera de alcance de esta ronda): un `worker_role` dedicado
-con exactamente los `GRANT` necesarios (`SELECT/UPDATE` en `jobs`,
-`INSERT/SELECT` en `source_runs`, `UPDATE` en `agent_runs`) en vez de la
-conexión con privilegios de propietario/migraciones, heredando `app_role`
-para que `agent_runs` quede bajo RLS real. Migración propuesta en
-`db-proposals/PROPOSAL-03-worker-role.sql` (PENDIENTE esquema).
+**`agent_runs` es distinto (WK-23, ronda 4)**: `updateAgentRunRow`
+(`src/handlers/run-agent.ts`) es la ÚNICA escritura de este worker sobre
+una tabla de datos de tenant sensible a RLS con semántica de
+autorización real (a diferencia de `jobs`/`source_runs`, que son de
+plataforma). Por eso, y solo para esa operación, el worker SÍ adopta
+`worker_role` de verdad (`set local role worker_role` dentro de la
+transacción de la escritura) con la identidad correcta (`app.
+current_org_id`/`app.current_user_id` del actor real) — ver sección
+`run_agent` arriba. `jobs`/`source_runs` siguen con la conexión
+propietaria (sin cambios): no tienen aislamiento por tenant real que
+`worker_role` cambiaría, y migrar TODA la conexión del proceso a
+`worker_role` (en vez de solo esta escritura puntual) queda fuera de
+alcance de esta ronda — ver "Pendientes" abajo.
+
+## Correcciones de la ronda 4 (corrector, WK-19..23, `docs/auditoria-1/worker-cierre.md`)
+
+Resumen de los 5 hallazgos de la re-verificación adversarial 2 (cierre);
+detalle completo en cada sección referenciada y en `docs/logs/fix-worker-ronda4.log`:
+
+- **WK-19 (BAJA/MEDIA, borde de WK-16)**: el guard fail-closed de
+  `organizationId` usaba un truthy-check (`!organizationId`), que no
+  capturaba un string truthy-pero-inválido (`'  '`, solo espacios) ni un
+  objeto. Ahora valida con `z.string().uuid()` — ver sección `run_agent`.
+- **WK-20 (MEDIA, zona gris HTTP)**: 501 y 505-599 (96 códigos) quedaban
+  sin clasificar explícitamente (ni retryable ni permanent). Ahora la
+  clasificación es exhaustiva para los 200 códigos 400-599: 501/505 son
+  permanentes explícitos (fallas estructurales del servidor), el resto de
+  5xx es transitorio explícito. Ver `src/ingest/ingest-client.ts`
+  (`isRetryableStatus`) y `test/ingest-client.test.ts` ("WK-20: tabla de
+  verdad exhaustiva").
+- **WK-21 (BAJA, curiosidad de plataforma)**: undici (fetch nativo de Node)
+  convierte CUALQUIER HTTP 407 en un `TypeError: fetch failed` genérico
+  (WHATWG fetch spec, paso de status 407 con `window='no-window'`, siempre
+  el caso en Node), indistinguible a simple vista de otros fallos de red.
+  Ahora se detecta por la firma específica de esa `cause` (vacía, sin
+  `.code`/`.message` — a diferencia de DNS/ECONNRESET/ECONNREFUSED, que sí
+  los traen) y se clasifica como error PERMANENTE de configuración de
+  proxy, con mensaje explícito. Ver `isBareUndiciNetworkError` en
+  `src/ingest/ingest-client.ts` y `test/ingest-client.test.ts` ("WK-21").
+- **WK-22 (ALTA, "reparación declarada, código no actualizado")**: el
+  esquema de las 3 propuestas (`packages/db/migrations/0026-0028`) ya
+  estaba aplicado desde hace una ronda, pero 2 de 3 funciones de aplicación
+  nunca se actualizaron para usarlo: `toDbStatus()` seguía proyectando 3
+  estados finos a `'failed'`, y `JobQueue.cancel()` seguía escribiendo
+  `'dead'` en vez de `'cancelled'`. Ambas corregidas; los 3
+  `.pending.test.ts` (`describe.skip`, cuerpos vacíos) se activaron con
+  contenido real (renombrados sin `.pending`, sin `.skip`) y pasan contra
+  la DB migrada. Ver secciones `JobQueue`/`discover_tenders` arriba y
+  `apps/worker/db-proposals/*.test.ts`.
+- **WK-23 (ALTA, forward-looking, ahora cerrada de verdad)**: la RLS real
+  de `worker_role` sobre `agent_runs` bloquearía incluso un `UPDATE`
+  legítimo porque `updateAgentRunRow()` nunca fijaba
+  `app.current_user_id`. Se definió el contrato de identidad leyendo las
+  políticas REALES de `packages/db/migrations/0028_worker_role.sql` (su
+  propio comentario ya documentaba la solución: la política de
+  organización existente de `agent_runs`, sin cambios, se satisface
+  fijando `app.current_user_id` = el actor REAL de la corrida, no un
+  usuario de servicio genérico — 0028 no crea ninguno) y se adaptó el
+  código a ese esquema: `updateAgentRunRow` ahora valida `organizationId`/
+  `actorId` como UUID, adopta `worker_role` de verdad, y fija ambos
+  `set_config`. No hizo falta ninguna `PROPOSAL-04` ni cambio de esquema —
+  las políticas de 0028 YA permiten el update legítimo tal cual están. Ver
+  sección `run_agent`/"Seguridad" arriba, `test/run-agent-handler.test.ts`
+  y `db-proposals/PROPOSAL-03-worker-role.test.ts`.
 
 ## Pendientes / fuera de alcance de esta ronda
 
@@ -366,25 +452,34 @@ para que `agent_runs` quede bajo RLS real. Migración propuesta en
   test de integración cruzada real (worker -> proceso real de apps/api ->
   Postgres) es una buena candidata para una ronda futura una vez que ambos
   paquetes estén commiteados y sus interfaces estabilizadas.
-- **Enum `source_run_status` de `packages/db` más angosto que los 8 estados
-  finos de este worker** (`rate_limited`/`not_configured`/`ingest_failed`
-  sin equivalente exacto — ver arriba, WK-07). Migración propuesta en
-  `db-proposals/PROPOSAL-01-widen-source-run-status.sql` (PENDIENTE
-  esquema), tras la cual `src/source-runs/source-run-status.ts` deja de
-  necesitar la proyección y puede escribir el estado fino directamente en
-  `status`.
-- **`jobs` no tiene columna/índice único para idempotencia real de
-  `jobKey`** ni estado `cancelled` propio (se usa `dead`). Mitigación
-  funcional YA aplicada sin migración (WK-04, ver arriba): `enqueue()`
-  serializa con `pg_advisory_xact_lock` transaccional — **SQL correcto para
-  Postgres real** (verificado por lectura de código y, ahora, por un test
-  que confirma el SQL exacto emitido, ver "WK-15" arriba); en **PGlite solo
-  se verificó la lógica secuencial**, nunca concurrencia de motor real (ver
-  nota WK-15 arriba). El índice único parcial `(kind, payload->>'jobKey')
-  WHERE status IN ('queued','running')` + `'cancelled'` en el enum
-  `job_status` siguen siendo la solución estructural definitiva, propuestos
-  en `db-proposals/PROPOSAL-02-jobs-dedupe-and-cancelled.sql` (PENDIENTE
-  esquema).
+- ~~**Enum `source_run_status` de `packages/db` más angosto que los 8
+  estados finos de este worker**~~ **CERRADO (ronda 4, WK-22)**:
+  `packages/db/migrations/0026_widen_source_run_status.sql` ya amplió el
+  enum real, y `src/source-runs/source-run-status.ts` (`toDbStatus()`) ya
+  usa el mapeo 1:1 — `rate_limited`/`not_configured`/`ingest_failed` se
+  persisten con su propio valor en `status`, no proyectados a `'failed'`.
+  `evidence.fineState` se mantiene por compatibilidad de lectura hacia
+  atrás. Ver `db-proposals/PROPOSAL-01-widen-source-run-status.test.ts`
+  (activado, ya no `.pending`/`describe.skip`).
+- **`jobs` no tiene columna/índice único DEDICADA para idempotencia real de
+  `jobKey`** (se sigue usando `payload.jobKey` + `pg_advisory_xact_lock`
+  transaccional en `enqueue()`, mitigación funcional que sigue siendo
+  correcta y suficiente — ver WK-04/WK-15 arriba). ~~ni estado `cancelled`
+  propio (se usa `dead`)~~ **CERRADO (ronda 4, WK-22)**: el índice único
+  parcial `(kind, payload->>'jobKey') WHERE status IN ('queued','running')`
+  Y el valor `'cancelled'` del enum `job_status` ya están aplicados
+  (`packages/db/migrations/0027_jobs_dedupe_and_cancelled.sql` +
+  `0026b_resolve_duplicate_active_jobs.sql` para el "Paso 0" de datos
+  preexistentes) — `JobQueue.cancel()` ya usa `'cancelled'`, distinguible de
+  un dead-letter por reintentos agotados sin leer `last_error`. Lo que
+  queda genuinamente pendiente, y NO se cierra con WK-22/WK-23 (está
+  ligado a B-03, ver el punto siguiente): `enqueue()` sigue usando
+  SELECT-luego-INSERT + advisory lock en vez de simplificarse a `INSERT ...
+  ON CONFLICT DO NOTHING` (el índice único ya lo permitiría) — es
+  redundante pero no incorrecto (defensa en profundidad adicional sobre el
+  advisory lock), y la simplificación en sí no depende de B-03, solo no se
+  hizo en esta ronda por no ser un hallazgo abierto. Ver
+  `db-proposals/PROPOSAL-02-jobs-dedupe-and-cancelled.test.ts` (activado).
 - **Concurrencia de sistema operativo real de `claim()`/`enqueue()`
   (advisory lock) NO probada — referencia B-03**: PGlite es una sola
   conexión/proceso (ver `packages/db/README.md`, limitación ya documentada
@@ -419,7 +514,52 @@ para que `agent_runs` quede bajo RLS real. Migración propuesta en
   `apps/worker` corre un solo `Worker` (un job a la vez); escalar
   horizontalmente hoy se hace levantando más procesos (cada uno con su
   propio `WORKER_ID`), no con concurrencia dentro del mismo proceso.
-- **`worker_role` dedicado** (ver sección Seguridad arriba).
+- ~~**`worker_role` dedicado**~~ **CERRADO para `agent_runs` (ronda 4,
+  WK-23)**: ver sección Seguridad arriba — `updateAgentRunRow` ya adopta
+  `worker_role` de verdad con la identidad correcta. `jobs`/`source_runs`
+  siguen con la conexión propietaria a propósito (son de plataforma, sin
+  aislamiento por tenant que RLS cambiaría); migrar TODA la conexión del
+  proceso a `worker_role` (no solo esta escritura puntual) sigue siendo un
+  endurecimiento futuro opcional, no un hallazgo abierto.
+
+## Precisión WK-04/WK-08 PARCIAL: qué cierra esta ronda (WK-22/WK-23) y qué sigue ligado a B-03
+
+`docs/auditoria-1/worker-cierre.md` dejó WK-04 y WK-08 como **PARCIAL**
+(mitigación principal cerrada, residual documentado). Esta ronda (WK-22/
+WK-23) cierra el residual de CÓDIGO de ambos; lo único que sigue abierto en
+los dos es, en ambos casos, la MISMA referencia a B-03 (Postgres de pruebas
+real en CI, no disponible en este entorno con PGlite de una sola conexión):
+
+- **WK-04 (unicidad de jobs por `(kind, jobKey)`)**:
+  - CERRADO por esta ronda: `cancel()` ya usa `'cancelled'` (WK-22); el
+    índice único estructural ya está aplicado y probado contra una
+    violación real de restricción (`23505`, PGlite SÍ aplica restricciones
+    únicas reales aunque no concurrencia real).
+  - Ligado a B-03, SIN cambio en esta ronda: la prueba de que el advisory
+    lock serializa de verdad DOS CONEXIONES DE SISTEMA OPERATIVO reales
+    compitiendo (no solo la lógica secuencial que PGlite sí puede probar)
+    sigue pendiente de un Postgres de pruebas real en CI. No es algo que
+    WK-22/WK-23 puedan cerrar por sí solos: ninguna corrección de código en
+    `apps/worker` sustituye la necesidad de ese entorno.
+- **WK-08 (defensa de `agent_runs` contra escritura cruzada de tenant)**:
+  - CERRADO por esta ronda: el gap de integración específico que WK-23
+    identificó (RLS real de `worker_role` + código de `updateAgentRunRow`
+    nunca probados juntos, y el código no fijaba `app.current_user_id`) ya
+    está cerrado — `updateAgentRunRow` adopta `worker_role` de verdad con
+    la identidad del actor real, y `test/run-agent-handler.test.ts`/
+    `db-proposals/PROPOSAL-03-worker-role.test.ts` prueban tanto el update
+    legítimo (con actor real, membresía de escritura activa) como el
+    bloqueo (sin `current_user_id`, o con un actor sin membresía en esa
+    org) contra RLS real (PGlite con `SET LOCAL ROLE worker_role`, no un
+    mock).
+  - Ligado a B-03, SIN cambio en esta ronda: `jobs`/`source_runs` siguen
+    con la conexión propietaria (decisión de arquitectura para tablas de
+    plataforma, no un hallazgo abierto), y la concurrencia de sistema
+    operativo real de esa conexión (igual que WK-04) sigue sin poder
+    demostrarse en PGlite. Esto es INDEPENDIENTE de la identidad de
+    `worker_role` (WK-23, ya cerrada): B-03 es sobre concurrencia de
+    motor, WK-23 era sobre identidad/autorización — dos ejes distintos que
+    esta ronda no debe confundir en la tabla de hallazgos.
 
 ## Cómo correr con Postgres real
 

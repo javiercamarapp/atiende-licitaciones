@@ -450,3 +450,35 @@ reverificación, sin relación con `apps/worker`, verificado con
 `git log c96484a..HEAD -- apps/worker` vacío). Este documento y
 `docs/logs/reverify2-worker.log` son los únicos artefactos persistentes de
 esta reverificación.
+
+---
+
+## 7. Estado reparación (ronda 4, corrector, `docs/logs/fix-worker-ronda4.log`)
+
+Agente Sonnet corrector (vuelta 3, última), sin participación en la
+construcción ni en las reverificaciones previas de este paquete. Ámbito
+exclusivo `apps/worker/**` — sin tocar `packages/db` (las migraciones
+0026-0028 de este documento ya estaban aplicadas y listas; su esquema no
+se modificó). Suite completa `npm run -w apps/worker
+typecheck lint test test:coverage` + `npm run -w packages/db test`
+(solo lectura) con salida real en `docs/logs/fix-worker-ronda4.log`.
+
+| ID | Severidad | Estado reparación | Commit / evidencia |
+|---|---|---|---|
+| WK-19 | BAJA/MEDIA | **CERRADO**. El guard de `organizationId` en `createRunAgentHandler` pasó de un truthy-check (`!organizationId`, no cubría `'  '`/objeto) a `z.string().uuid()` — fail-closed permanente antes de tocar la base, para cualquier valor que no sea un UUID de organización real. | `apps/worker/src/handlers/run-agent.ts`, `apps/worker/test/run-agent-handler.test.ts` (it.each WK-16 ampliado) |
+| WK-20 | MEDIA | **CERRADO**. Clasificación exhaustiva 400-599: `isRetryableStatus()` reemplaza el `Set` fijo; 501/505 (fallas estructurales del servidor) son permanentes explícitos, el resto de 5xx (incluida la zona gris 506-599) es transitorio explícito. Tabla de verdad exhaustiva (los 200 códigos) en test. | `apps/worker/src/ingest/ingest-client.ts`, `apps/worker/test/ingest-client.test.ts` ("WK-20: tabla de verdad exhaustiva") |
+| WK-21 | BAJA | **CERRADO**. `isBareUndiciNetworkError()` detecta la firma específica del "network error" desnudo que undici produce para HTTP 407 (`TypeError: fetch failed` con `cause` vacía, sin `.code`/`.message` — confirmado empíricamente, distinto de DNS/ECONNRESET/ECONNREFUSED) y lo clasifica como error PERMANENTE de configuración de proxy, con mensaje explícito. | `apps/worker/src/ingest/ingest-client.ts`, `apps/worker/test/ingest-client.test.ts` ("WK-21") |
+| WK-22 | **ALTA** | **CERRADO**. `toDbStatus()` ahora mapea 1:1 `rate_limited`/`not_configured`/`ingest_failed` (ya no proyecta a `'failed'`); `JobQueue.cancel()` ahora escribe `'cancelled'` (ya no `'dead'`). Los 3 `.pending.test.ts` de `apps/worker/db-proposals/` se activaron con contenido real (renombrados sin `.pending`, sin `describe.skip`) y pasan contra `createMigratedDb()`. `evidence.fineState` se conserva por compatibilidad de lectura. | `apps/worker/src/source-runs/source-run-status.ts`, `apps/worker/src/queue/job-queue.ts`, `apps/worker/src/queue/types.ts`, `apps/worker/db-proposals/PROPOSAL-01-widen-source-run-status.test.ts`, `apps/worker/db-proposals/PROPOSAL-02-jobs-dedupe-and-cancelled.test.ts` |
+| WK-23 | **ALTA** | **CERRADO** (sin necesidad de `PROPOSAL-04` ni cambio de esquema). Se leyeron las políticas reales de `packages/db/migrations/0028_worker_role.sql` — su propio comentario ya documentaba que la política de organización existente de `agent_runs` se satisface fijando `app.current_user_id` = el actor REAL de la corrida (no un usuario de servicio genérico, que 0028 no crea). `updateAgentRunRow()` ahora valida `organizationId`/`actorId` como UUID (zod), adopta `worker_role` de verdad (`set local role worker_role`) y fija ambos `set_config`. Test contra PGlite migrada con `SET ROLE worker_role`: update legítimo (actor real, membresía de escritura activa) OK; cross-tenant y "org correcta sin identidad de actor" bloqueados por RLS real. | `apps/worker/src/handlers/run-agent.ts`, `apps/worker/test/run-agent-handler.test.ts`, `apps/worker/db-proposals/PROPOSAL-03-worker-role.test.ts` |
+| WK-04 | PARCIAL (sin cambio de veredicto) | El residual de CÓDIGO (`cancel()` sin `'cancelled'`) cierra con WK-22. Lo que sigue ligado a B-03 (concurrencia de sistema operativo real, PGlite de una sola conexión) es exactamente lo mismo que en la ronda anterior — sin cambio, no es un hallazgo que `apps/worker` pueda cerrar por sí solo. Ver `apps/worker/README.md` §"Precisión WK-04/WK-08 PARCIAL". | — |
+| WK-08 | PARCIAL (sin cambio de veredicto) | El residual de INTEGRACIÓN (RLS real + `updateAgentRunRow` nunca probados juntos, identidad de servicio faltante) cierra con WK-23. Lo que sigue ligado a B-03 es independiente de la identidad (un eje distinto: concurrencia de motor, no autorización) y no cambia con esta ronda. Ver `apps/worker/README.md` §"Precisión WK-04/WK-08 PARCIAL". | — |
+
+**Regresión confirmada**: `npm run -w packages/sources typecheck`/
+`packages/agents typecheck` no pudieron confirmarse limpios en esta ronda
+por trabajo concurrente de OTRO agente en `packages/sources` (no
+commiteado, ajeno a este encargo — ver `docs/logs/fix-worker-ronda4.log`
+para el detalle exacto y la evidencia de que es un problema pre-existente
+al inicio de esta corrección, no introducido por ella). `npm run -w
+packages/db test` (144/144, solo lectura) y la suite oficial de
+`apps/worker` (298/298, sin `.pending`/`.skip` restantes en
+`db-proposals/`) sí se confirmaron en verde de punta a punta.
