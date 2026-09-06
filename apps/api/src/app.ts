@@ -22,6 +22,13 @@ import { matchingRoutes } from './modules/matching/routes.js';
 import { goNoGoRoutes } from './modules/matching/go-no-go.routes.js';
 import { agentRoutes } from './modules/agents/routes.js';
 import { adminRoutes } from './modules/admin/routes.js';
+import { expedienteDocumentsRoutes } from './modules/expediente/documents.routes.js';
+import { expedienteProposalRoutes } from './modules/expediente/proposal.routes.js';
+import { expedienteChecklistRoutes } from './modules/expediente/checklist.routes.js';
+import { expedienteApprovalRoutes } from './modules/expediente/approval.routes.js';
+import { expedientePackageRoutes } from './modules/expediente/package.routes.js';
+import { expedienteSubmissionRoutes } from './modules/expediente/submission.routes.js';
+import { expedientePostAwardRoutes } from './modules/expediente/post-award.routes.js';
 import './types.js';
 
 export interface BuildAppOptions {
@@ -117,6 +124,17 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   await app.register(goNoGoRoutes, { prefix: '/tenders' });
   await app.register(agentRoutes, { prefix: '/agents' });
   await app.register(adminRoutes, { prefix: '/admin' });
+
+  // E6-E9/E11 (ronda 3): expediente de participación real sobre
+  // @atiende/expediente. Todas bajo /expediente/... para no colisionar con
+  // las rutas existentes de /tenders/:id (ronda 1/2).
+  await app.register(expedienteDocumentsRoutes, { prefix: '/expediente' });
+  await app.register(expedienteProposalRoutes, { prefix: '/expediente' });
+  await app.register(expedienteChecklistRoutes, { prefix: '/expediente' });
+  await app.register(expedienteApprovalRoutes, { prefix: '/expediente' });
+  await app.register(expedientePackageRoutes, { prefix: '/expediente' });
+  await app.register(expedienteSubmissionRoutes, { prefix: '/expediente' });
+  await app.register(expedientePostAwardRoutes, { prefix: '/expediente' });
 
   return app;
 }
