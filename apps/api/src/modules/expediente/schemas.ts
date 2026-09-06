@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { isoTimestamp, nullableIsoTimestamp } from '../../lib/schema-helpers.js';
+import { isoTimestamp, nullableIsoTimestamp, realCalendarDateString } from '../../lib/schema-helpers.js';
 
 // ---------------------------------------------------------------------------
 // Documentos de bases + matriz de requisitos (E6)
@@ -351,4 +351,246 @@ export const followupSchema = z.object({
    * `null` en cualquier otro caso (sin fecha, terminal, o lejano).
    */
   alertLevel: z.enum(['vencido', 'proximo']).nullable(),
+});
+
+// ---------------------------------------------------------------------------
+// REQ-051 (ronda 6): máquina de estados del contrato post-adjudicación.
+// ---------------------------------------------------------------------------
+export const CONTRACT_STATUS_ENUM = z.enum([
+  'adjudicado',
+  'contrato_firmado_declarado',
+  'en_ejecucion',
+  'entregado',
+  'facturado',
+  'pagado',
+  'cerrado',
+  'modificado',
+  'penalizado',
+  'rescindido',
+  'en_inconformidad',
+]);
+
+export const contractSchema = z.object({
+  id: z.string().uuid(),
+  tenderId: z.string().uuid(),
+  status: CONTRACT_STATUS_ENUM,
+  /** Fecha de fin/vigencia -- insumo directo del radar de renovaciones (REQ-055). */
+  endDate: nullableIsoTimestamp,
+  contractNumber: z.string().nullable(),
+  createdAt: isoTimestamp,
+  updatedAt: isoTimestamp,
+});
+
+/** REQ-055: metadatos administrativos del contrato (fecha de fin, número) -- NO es una transición de estado, no pasa por el grafo de `contract-lifecycle.ts`. */
+export const contractMetadataUpdateSchema = z.object({
+  endDate: realCalendarDateString.nullable().optional(),
+  contractNumber: z.string().min(1).nullable().optional(),
+});
+
+export const contractTransitionRequestSchema = z.object({
+  toStatus: CONTRACT_STATUS_ENUM,
+  /** Motivo obligatorio de la transición -- nunca se registra un cambio de estado sin justificación. */
+  reason: z.string().min(1),
+  /** Referencia de evidencia (p. ej. id de documento subido, folio, o descripción libre) -- opcional. */
+  evidenceRef: z.string().optional(),
+});
+
+export const contractStatusHistoryItemSchema = z.object({
+  id: z.string().uuid(),
+  fromStatus: CONTRACT_STATUS_ENUM.nullable(),
+  toStatus: CONTRACT_STATUS_ENUM,
+  reason: z.string(),
+  actorId: z.string().uuid().nullable(),
+  evidenceRef: z.string().nullable(),
+  createdAt: isoTimestamp,
+});
+
+// ---------------------------------------------------------------------------
+// REQ-052 (ronda 6): extracción del contrato firmado (subido por el usuario;
+// el sistema nunca firma).
+// ---------------------------------------------------------------------------
+export const contractDocumentUploadSchema = z.object({
+  filename: z.string().min(1),
+  mimeType: z.string().min(1).optional(),
+  contentBase64: z.string().min(1),
+});
+
+export const contractDocumentSchema = z.object({
+  id: z.string().uuid(),
+  contractId: z.string().uuid(),
+  originalFilename: z.string().nullable(),
+  mimeType: z.string().nullable(),
+  fileHash: z.string().nullable(),
+  fileSizeBytes: z.number().nullable(),
+  pageCount: z.number().nullable(),
+  textExtractionStatus: z.enum(['extracted', 'requires_ocr', 'failed']),
+  extractionDetail: z.string().nullable(),
+  createdAt: isoTimestamp,
+});
+
+/** Lista CERRADA de campos que el extractor determinista intenta reconocer (REQ-052). */
+export const CONTRACT_FIELD_KEY_ENUM = z.enum([
+  'numero_contrato',
+  'monto_total',
+  'plazo_entrega',
+  'garantia_cumplimiento',
+  'pena_convencional',
+  'deductiva',
+  'forma_pago',
+  'administrador_contrato',
+  'cesion_cobro',
+]);
+
+export const contractExtractedFieldSchema = z.object({
+  id: z.string().uuid(),
+  contractDocumentId: z.string().uuid(),
+  fieldKey: CONTRACT_FIELD_KEY_ENUM,
+  extractedValue: z.string().nullable(),
+  sourcePage: z.number().nullable(),
+  sourceClause: z.string().nullable(),
+  confidence: z.number().nullable(),
+  /** 'sugerido' = extraído, sin confirmar todavía (REQ-052: nunca se da por válido sin confirmación); 'confirmado'/'corregido' = decisión humana ya tomada. */
+  status: z.enum(['sugerido', 'confirmado', 'corregido']),
+  confirmedValue: z.string().nullable(),
+  confirmedBy: z.string().uuid().nullable(),
+  confirmedAt: nullableIsoTimestamp,
+  createdAt: isoTimestamp,
+});
+
+export const contractFieldConfirmSchema = z.object({
+  action: z.enum(['confirm', 'correct']),
+  /** Obligatorio cuando action='correct'; ignorado (el valor extraído se conserva) cuando action='confirm'. */
+  correctedValue: z.string().min(1).optional(),
+});
+
+// ---------------------------------------------------------------------------
+// REQ-053 (ronda 6): redactor de inconformidades (borrador, sin envío).
+// ---------------------------------------------------------------------------
+export const inconformidadFundamentoSchema = z.object({
+  articulo: z.string(),
+  ley: z.string(),
+  jurisdiccion: z.string(),
+  fechaDof: z.string().nullable(),
+  texto: z.string(),
+});
+
+export const inconformidadPlazoSchema = z.object({
+  diasHabiles: z.number(),
+  fechaNotificacionFallo: isoTimestamp,
+  fechaLimite: isoTimestamp,
+  fundamentoLegal: z.string(),
+  bajoTratados: z.boolean(),
+});
+
+export const inconformidadGenerateSchema = z.object({
+  /** Fecha (YYYY-MM-DD) en que se NOTIFICÓ el fallo -- punto de partida del plazo (REQ-053/Art. 95 LAASSP). Obligatoria: nunca se asume "hoy" para un plazo legal. */
+  falloNotifiedOn: realCalendarDateString,
+  /** Si el procedimiento es una licitación pública internacional bajo cobertura de tratados (Art. 95 LAASSP: 10 días hábiles en vez de 6). */
+  bajoTratados: z.boolean().default(false),
+  hechos: z.array(z.string().min(1)).min(1),
+  agravios: z.array(z.string().min(1)).min(1),
+  pruebas: z.array(z.string().min(1)).default([]),
+});
+
+export const inconformidadDraftSchema = z.object({
+  id: z.string().uuid(),
+  tenderId: z.string().uuid(),
+  version: z.number(),
+  status: z.enum(['borrador', 'revisado']),
+  contentHash: z.string(),
+  hechos: z.array(z.string()),
+  agravios: z.array(z.string()),
+  fundamentos: z.array(inconformidadFundamentoSchema),
+  pruebas: z.array(z.string()),
+  plazo: inconformidadPlazoSchema,
+  /**
+   * Guardrail anti-frivolidad determinista (REQ-053, docs/REQUISITOS.md):
+   * heurística explícita basada en la relación pruebas/agravios -- NUNCA
+   * bloquea la generación del borrador, solo advierte. NO es una opinión
+   * legal sobre el fondo del caso.
+   */
+  viability: z.enum(['alta', 'media', 'baja']),
+  viabilityRecommendation: z.string(),
+  /** Marca visible en todo el documento: nunca se envía, siempre requiere revisión humana de un abogado. */
+  disclaimer: z.string(),
+  reviewedBy: z.string().uuid().nullable(),
+  reviewedAt: nullableIsoTimestamp,
+  createdBy: z.string().uuid().nullable(),
+  createdAt: isoTimestamp,
+});
+
+// ---------------------------------------------------------------------------
+// REQ-054 (ronda 6): autopsia del fallo.
+// ---------------------------------------------------------------------------
+export const NO_DISPONIBLE = 'no disponible' as const;
+
+export const falloCriteriaComparisonItemSchema = z.object({ criterio: z.string().min(1), propio: z.string().min(1), ganador: z.string().min(1) });
+
+export const falloAutopsyCreateSchema = z.object({
+  ownProposalStatus: z.enum(['ganadora', 'desechada', 'no_presentada', 'desconocido']).default('desconocido'),
+  /** Motivo de desechamiento tal como aparece en el acta de fallo. Si no se captura, se registra explícitamente NO_DISPONIBLE -- nunca se infiere ni se deja vacío en silencio. */
+  disqualificationReason: z.string().min(1).optional(),
+  ownScore: z.number().optional(),
+  winnerScore: z.number().optional(),
+  ownPrice: z.number().nonnegative().optional(),
+  winnerPrice: z.number().nonnegative().optional(),
+  winnerName: z.string().min(1).optional(),
+  criteriaComparison: z.array(falloCriteriaComparisonItemSchema).default([]),
+  /** Lecciones registradas y vinculadas al perfil de empresa (`company_lessons_learned`) -- al menos una. */
+  lessons: z.array(z.string().min(1)).min(1),
+});
+
+export const lessonLearnedItemSchema = z.object({
+  id: z.string().uuid(),
+  falloAutopsyId: z.string().uuid(),
+  tenderId: z.string().uuid(),
+  lessonText: z.string(),
+  createdAt: isoTimestamp,
+});
+
+export const falloAutopsiaSchema = z.object({
+  id: z.string().uuid(),
+  tenderId: z.string().uuid(),
+  ownProposalStatus: z.string(),
+  /** Motivo de desechamiento de la propuesta propia, o NO_DISPONIBLE si el acta de fallo no lo registra. */
+  disqualificationReason: z.string(),
+  ownScore: z.number().nullable(),
+  winnerScore: z.number().nullable(),
+  ownPrice: z.number().nullable(),
+  winnerPrice: z.number().nullable(),
+  winnerName: z.string(),
+  criteriaComparison: z.array(
+    z.object({ criterio: z.string(), propio: z.string(), ganador: z.string() })
+  ),
+  lessons: z.array(z.string()),
+  linkedToCompanyProfile: z.boolean(),
+  createdAt: isoTimestamp,
+});
+
+// ---------------------------------------------------------------------------
+// REQ-055 (ronda 6): radar de renovaciones.
+// ---------------------------------------------------------------------------
+export const renewalScanRequestSchema = z.object({
+  /** Umbrales de antelación en días (configurable) -- por defecto 90/60/30. */
+  leadDaysThresholds: z.array(z.number().int().positive()).min(1).max(10).default([90, 60, 30]),
+});
+
+export const renewalRadarRunSchema = z.object({
+  runId: z.string().uuid(),
+  alertsCreated: z.number(),
+  evaluatedContracts: z.number(),
+});
+
+export const renewalAlertSchema = z.object({
+  id: z.string().uuid(),
+  contractId: z.string().uuid().nullable(),
+  tenderId: z.string().uuid().nullable(),
+  sourceKind: z.enum(['contract_end_date', 'historical_pattern']),
+  predictedDate: isoTimestamp,
+  leadDays: z.number(),
+  confidence: z.number(),
+  notes: z.string(),
+  jobId: z.string().uuid().nullable(),
+  status: z.string(),
+  createdAt: isoTimestamp,
 });

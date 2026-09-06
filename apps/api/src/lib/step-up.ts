@@ -33,6 +33,11 @@ export const STEP_UP_PURPOSES = [
   'expediente.approval',
   'tool_call.approval',
   'admin.action',
+  // Ronda 6 (REQ-051/REQ-053, migración 0065): transiciones de contrato con
+  // impacto económico/legal (rescindir/penalizar/en_inconformidad/modificar)
+  // y marcar un borrador de inconformidad como revisado por abogado.
+  'expediente.contract_transition',
+  'expediente.inconformidad_review',
 ] as const;
 export type StepUpPurpose = (typeof STEP_UP_PURPOSES)[number];
 

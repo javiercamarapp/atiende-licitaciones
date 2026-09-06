@@ -66,7 +66,13 @@ export async function registerAndLogin(
  * existe una sesión "genérica". Mismos valores usados en todo el resto de
  * `apps/api` (`company/routes.ts`, `expediente/approval.routes.ts`).
  */
-export type TestStepUpPurpose = 'company.rate_approval' | 'expediente.approval' | 'tool_call.approval' | 'admin.action';
+export type TestStepUpPurpose =
+  | 'company.rate_approval'
+  | 'expediente.approval'
+  | 'tool_call.approval'
+  | 'admin.action'
+  | 'expediente.contract_transition'
+  | 'expediente.inconformidad_review';
 
 export interface StepUpScope {
   orgId: string;
