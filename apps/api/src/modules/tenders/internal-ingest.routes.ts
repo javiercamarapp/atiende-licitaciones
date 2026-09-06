@@ -166,14 +166,16 @@ async function ingestOneRecordForOrg(
       ]
     );
 
-    const versionId = await createVersionAndEvent(tx, orgId, tenderId, record, inferredKind);
-
     // Invalidación automática de dependientes (REQ-155/REQ-162, prueba
-    // mínima A3): un cambio de bases/plazo marca como "revisión requerida"
-    // cualquier propuesta/requisito/checklist ya generado para esa
-    // convocatoria, sin borrar ni sobrescribir su contenido.
-    const reason = `Convocatoria modificada (${inferredKind}), versión de origen ${record.sourceVersion}`;
-    await invalidateDependents(tx, orgId, tenderId, reason);
+    // mínima A3): a partir de DB-05 (docs/auditoria-1/db-api.md), el propio
+    // INSERT de `tender_change_events` dispara el trigger
+    // `app.invalidate_tender_dependents` (packages/db/migrations/
+    // 0022_fix_db05_change_event_invalidation.sql), que marca
+    // proposals/requirement_items/compliance_items/proposal_approvals sin
+    // que esta ruta tenga que repetir esa lógica a mano (defensa en
+    // profundidad: cualquier otro código que inserte un change_event futuro
+    // también la dispara).
+    const versionId = await createVersionAndEvent(tx, orgId, tenderId, record, inferredKind);
 
     await auditIngest(tx, orgId, 'tender.ingest.updated', tenderId, record);
 
@@ -201,32 +203,6 @@ async function createVersionAndEvent(
     [eventId, orgId, tenderId, versionId, changeKind, `Versión de origen ${record.sourceVersion} (${changeKind})`]
   );
   return versionId;
-}
-
-async function invalidateDependents(tx: DbExecutor, orgId: string, tenderId: string, reason: string): Promise<void> {
-  await tx.query(
-    `update proposals set invalidated_at = now(), invalidated_reason = $1
-     where org_id = $2 and tender_id = $3 and invalidated_at is null`,
-    [reason, orgId, tenderId]
-  );
-  await tx.query(
-    `update requirement_items set invalidated_at = now(), invalidated_reason = $1
-     where org_id = $2 and tender_id = $3 and invalidated_at is null`,
-    [reason, orgId, tenderId]
-  );
-  await tx.query(
-    `update compliance_items set invalidated_at = now(), invalidated_reason = $1
-     where org_id = $2 and tender_id = $3 and invalidated_at is null`,
-    [reason, orgId, tenderId]
-  );
-  // Aprobaciones ya emitidas quedan `invalidated` (REQ-162): una aprobación
-  // sobre bases obsoletas nunca sigue vigente.
-  await tx.query(
-    `update proposal_approvals set status = 'invalidated'
-     where org_id = $1 and status = 'approved'
-       and proposal_id in (select id from proposals where org_id = $1 and tender_id = $2)`,
-    [orgId, tenderId]
-  );
 }
 
 async function auditIngest(tx: DbExecutor, orgId: string, action: string, tenderId: string, record: TenderRecordIngest): Promise<void> {
