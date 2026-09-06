@@ -1,4 +1,4 @@
-# Informe de estado — Atiende Licitaciones (2026-09-06 05:5x)
+# Informe de estado — Atiende Licitaciones (actualizado 2026-09-06 11:4x; primera versión 05:5x)
 
 Repo: `/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging` (staging; ruta definitiva pendiente, B-01). HEAD: ver `git log`. 341 commits. Orquestación Fable; 70 despachos Sonnet con `model="sonnet"` explícito (docs/AGENTES.md).
 
@@ -13,8 +13,13 @@ Repo: `/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-stagin
 - **Frontend** (apps/web): paridad visual con Restaurantes verificada por render real; a11y axe 0 violaciones en 48 combinaciones; móvil 320/390; conectado a la API real (sesión, Empresa, Convocatorias, Matching, Go/No-Go, Fuentes y frescura, back office parcial); CSP; 80 unit + 98 E2E contra API real (determinista ×2); paquete "Borrador" por defecto y aviso de que la presentación y firma las realiza el usuario.
 - **Legal**: 24 citas verificadas contra fuentes oficiales (LAASSP nueva DOF 16-abr-2025; pago 17 días hábiles; Plataforma Digital de Contrataciones Públicas/SABG; nueva LFPDPPP) — no es asesoría jurídica.
 
-## Tablero de aceptación (docs/TABLERO.md, escala estricta)
-186 criterios: **47 CUMPLIDO**, 53 EN_EVIDENCIA, 77 PENDIENTE, 5 LÍMITE_ACEPTADO, 3 NO_APLICA, 1 BLOQUEADO_EXTERNO. Nota de Fable: la fila E11 del tablero dice "0% construido" pero apps/api tiene `post-award.routes.ts`, migración 0032 y tests (`expediente-post-award.test.ts`); se reconciliará en la próxima pasada del tablero.
+## Tablero de aceptación (docs/TABLERO.md, escala estricta) — tras ronda 5
+186 criterios: **54 CUMPLIDO**, 53 EN_EVIDENCIA, 69 PENDIENTE, 5 LÍMITE_ACEPTADO, 3 NO_APLICA, 2 BLOQUEADO_EXTERNO (commit a644803). Único defecto abierto: R5-12 (BAJA, comentario). E11 reconciliada (post-adjudicación existe desde ronda 3; ronda 5 añadió estructura, alertas y calendario administrable; REQ-051..055 pendientes).
+
+## Ronda 5 (cerrada con reverificación independiente)
+- API: post-adjudicación estructurada, calendario oficial de inhábiles (tabla vacía hasta carga con fuente oficial), procedencia vinculante (REQ-142), correlation_id extremo a extremo (REQ-171), 2FA TOTP con step-up por organización y propósito, de un solo uso, con límite anti fuerza bruta y bloqueo progresivo, exigido en tarifas, expediente y llamadas a herramientas (REQ-044/064); aviso de privacidad versionado (borrador). Migraciones 0055–0063. 238 tests de API, 161 de base de datos. Críticos R5-01/R5-02 y todo R5-03..11 cerrados; RF-01..04 cerrados.
+- Web: flujo completo del expediente y back office conectados a datos reales, enrolamiento 2FA con QR real, step-up con org/propósito, alertas de post-adjudicación, traza por correlación, guard 404 entre organizaciones, aviso de privacidad servido por la API; mutex único de refresco de sesión. 114 tests unitarios; `test:e2e:full` 116/116 en dos corridas (determinista).
+- Verificación local: 29 combinaciones OK, audit y secretos OK; **`apps/web:test:coverage` falla de forma consistente por timeouts bajo instrumentación** (corrección en curso; sin coverage la suite pasa 115/115). INC-10: el repo está bajo iCloud Drive (carga de CPU, copias «2.ts»); decisión del usuario.
 
 ## Pendiente (ejecutable, ronda 5 en curso)
 Conectar en la web el flujo de expediente (bases, cumplimiento, redacción, revisión, entregas, seguimiento) y los paneles restantes de back office; procedencia vinculante (REQ-142); correlation_id extremo a extremo (REQ-171); calendario oficial de inhábiles; 2FA/step-up en aprobaciones económicas; aviso de privacidad; guard 404 de tenant; reconciliación E11.
