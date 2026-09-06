@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import QRCode from "qrcode";
 import { Settings, ShieldCheck, KeyRound } from "lucide-react";
 
 import { SectionHeader } from "@/components/layout/SectionHeader";
@@ -20,6 +21,49 @@ import type { EnrollTwoFactorResponse } from "@/lib/api/schemas";
 
 const codeSchema = z.object({ code: z.string().min(6, "Ingresa el código de 6 dígitos de tu app de autenticación.") });
 type CodeValues = z.infer<typeof codeSchema>;
+
+/**
+ * RF-03 (docs/auditoria-2/ronda5-final.md, BAJA): la copia de esta pantalla
+ * decía "Escanea el código QR" pero nunca se renderizaba ningún QR real
+ * (solo el secreto en texto) -- obligaba a copiar a mano un secreto de 32
+ * caracteres en cada enrolamiento. `qrcode` (generación 100% en cliente, sin
+ * red) dibuja el QR real del `otpauthUrl` en un `<canvas>`; el secreto y la
+ * URL en texto plano (ya existían) se conservan como alternativa accesible
+ * para quien no pueda escanear (lector de pantalla, cámara no disponible,
+ * etc.) -- nunca se elimina la vía textual, solo se agrega la visual.
+ */
+function TotpQrCode({ otpauthUrl }: { otpauthUrl: string }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setFailed(false);
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    QRCode.toCanvas(canvas, otpauthUrl, { width: 176, margin: 1 }).catch(() => {
+      if (!cancelled) setFailed(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [otpauthUrl]);
+
+  // Si la generación falla (entrada inválida, navegador sin <canvas>), no
+  // se muestra un recuadro vacío ni se rompe la página -- el secreto/URL en
+  // texto (siempre presentes junto a este componente) siguen siendo
+  // suficientes para completar el enrolamiento.
+  if (failed) return null;
+
+  return (
+    <canvas
+      ref={canvasRef}
+      role="img"
+      aria-label="Código QR para enrolar la verificación en dos pasos en tu app de autenticación"
+      className="rounded-lg border border-border bg-white p-2"
+    />
+  );
+}
 
 /**
  * REQ-044/064: enrolamiento de 2FA (TOTP) de la CUENTA -- válido para
@@ -96,10 +140,15 @@ function TwoFactorSection() {
               <p className="mt-1 text-xs text-muted-foreground">
                 Escanea el código QR con tu app, o captura el secreto manualmente:
               </p>
-              <p aria-label="Secreto TOTP" className="mt-2 break-all rounded-lg bg-muted/40 p-2 font-mono text-xs">
-                {enrollment.secretBase32}
-              </p>
-              <p className="mt-1 break-all text-xs text-muted-foreground">{enrollment.otpauthUrl}</p>
+              <div className="mt-2 flex flex-wrap items-start gap-4">
+                <TotpQrCode otpauthUrl={enrollment.otpauthUrl} />
+                <div className="min-w-0 flex-1 space-y-1">
+                  <p aria-label="Secreto TOTP" className="break-all rounded-lg bg-muted/40 p-2 font-mono text-xs">
+                    {enrollment.secretBase32}
+                  </p>
+                  <p className="break-all text-xs text-muted-foreground">{enrollment.otpauthUrl}</p>
+                </div>
+              </div>
             </div>
             <div>
               <p className="text-sm font-medium text-foreground">2. Códigos de respaldo (guárdalos ahora — no se muestran de nuevo)</p>

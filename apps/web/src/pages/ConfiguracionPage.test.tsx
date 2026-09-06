@@ -1,6 +1,7 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import { screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import QRCode from "qrcode";
 
 import { renderWithProviders } from "@/test/utils";
 import { server, http, HttpResponse } from "@/test/msw";
@@ -58,5 +59,48 @@ describe("ConfiguracionPage", () => {
     await user.click(screen.getByRole("button", { name: "Confirmar enrolamiento" }));
 
     expect(await screen.findByText(/2FA enrolado y verificado/)).toBeInTheDocument();
+  }, 15000);
+
+  // RF-03 (docs/auditoria-2/ronda5-final.md, BAJA): la pantalla decía
+  // "Escanea el código QR" pero nunca renderizaba ningún QR real (solo
+  // texto) -- jsdom no implementa `HTMLCanvasElement.getContext` (ver
+  // README de apps/web / warnings conocidos de axe-core en esta suite), así
+  // que esta prueba no puede pintar un canvas real en jsdom; en su lugar,
+  // verifica que el componente invoca la librería REAL de generación de QR
+  // (`qrcode`, sin red) con el `otpauthUrl` real del enrolamiento sobre un
+  // `<canvas>` accesible -- la generación visual real la cubre `test:e2e`
+  // (navegador real, con canvas real) al recorrer la misma pantalla.
+  it("RF-03: genera un QR real (canvas) del otpauthUrl, sin dejar de mostrar el secreto como alternativa textual", async () => {
+    const user = userEvent.setup();
+    const toCanvasSpy = vi.spyOn(QRCode, "toCanvas").mockImplementation(async () => undefined as unknown as void);
+    server.use(
+      http.get("*/auth/2fa/status", () => HttpResponse.json({ enrolled: false, enrolledAt: null })),
+      http.post("*/auth/2fa/enroll", () =>
+        HttpResponse.json(
+          { secretBase32: "ABCD1234EFGH5678", otpauthUrl: "otpauth://totp/Atiende:admin@empresa.com?secret=ABCD1234EFGH5678&issuer=Atiende", backupCodes: ["AAAA-1111"] },
+          { status: 201 },
+        ),
+      ),
+    );
+
+    renderWithProviders(<ConfiguracionPage />);
+    await user.click(await screen.findByRole("button", { name: "Enrolar 2FA" }));
+
+    // El secreto en texto (alternativa accesible) sigue presente.
+    expect(await screen.findByText("ABCD1234EFGH5678")).toBeInTheDocument();
+
+    // El QR real se generó (en cliente, sin red) a partir del MISMO
+    // otpauthUrl que devolvió apps/api, sobre un elemento con rol de
+    // imagen y nombre accesible.
+    await waitFor(() =>
+      expect(toCanvasSpy).toHaveBeenCalledWith(
+        expect.anything(),
+        "otpauth://totp/Atiende:admin@empresa.com?secret=ABCD1234EFGH5678&issuer=Atiende",
+        expect.objectContaining({ width: expect.any(Number) }),
+      ),
+    );
+    expect(screen.getByRole("img", { name: /código qr/i })).toBeInTheDocument();
+
+    toCanvasSpy.mockRestore();
   }, 15000);
 });
