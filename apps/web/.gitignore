@@ -4,3 +4,5 @@
 /blob-report/
 
 /e2e/.artifacts/
+.vercel
+.env*
