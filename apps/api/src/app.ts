@@ -15,6 +15,7 @@ import { metricsPlugin } from './plugins/metrics.plugin.js';
 import { healthRoutes } from './modules/health/routes.js';
 import { authRoutes } from './modules/auth/routes.js';
 import { twofaRoutes } from './modules/twofa/routes.js';
+import { legalRoutes } from './modules/legal/routes.js';
 import { organizationRoutes } from './modules/organizations/routes.js';
 import { meRoutes } from './modules/me/routes.js';
 import { companyRoutes } from './modules/company/routes.js';
@@ -205,6 +206,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   });
 
   await app.register(healthRoutes);
+  await app.register(legalRoutes);
   await app.register(authRoutes, { prefix: '/auth' });
   await app.register(twofaRoutes, { prefix: '/auth' });
   await app.register(organizationRoutes, { prefix: '/organizations' });

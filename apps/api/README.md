@@ -80,6 +80,18 @@ Dos encabezados adicionales, transversales a toda la API:
 - `GET /metrics` — métricas Prometheus (`prom-client`), **sin ningún dato de
   tenant** (solo método/ruta/status code).
 
+### legal (ronda 5 — REQ-119/REQ-131)
+- `GET /legal/privacy-notice` — **pública** (sin `Authorization`): aviso de
+  privacidad versionado, servido desde
+  `apps/api/docs/legal/privacy-notice.md` (Markdown con "front matter":
+  `version`, `publishedAt`, `responsible`, `supervisoryAuthority`,
+  `applicableLaw`, `sourceDocument`). Marcado explícitamente
+  `status: "borrador_pendiente_validacion_juridica"` -- el contenido cita
+  `docs/legal/verificacion-legal.md` (LFPDPPP nueva DOF 20-mar-2025;
+  responsable = Atiende Licitaciones; autoridad supervisora = Secretaría
+  Anticorrupción y Buen Gobierno, sucesora del INAI extinto) pero NINGÚN
+  abogado mexicano lo ha validado todavía.
+
 ### auth
 - `POST /auth/register` — responde 201 genérico incluso si el email ya
   existe (anti-enumeración, ver Decisiones de diseño).
