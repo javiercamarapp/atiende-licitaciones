@@ -440,6 +440,38 @@ describe("AgentRunner: no-fabricación de datos sensibles", () => {
   });
 });
 
+describe("AgentRunner: no-fabricación — AG-10 evaluación por defecto (no opt-in)", () => {
+  it("un valor sensible SIN declarar extractSensitiveValues, bajo otro nombre y anidado en un array, ya NO completa silenciosamente", async () => {
+    const deps = makeDeps();
+    deps.registry.register(
+      readTool({
+        name: "compute_price_leaky",
+        outputSchema: z.object({
+          items: z.array(z.object({ costo: z.number(), vigente_hasta: z.string() })),
+        }),
+        handler: async () => ({ items: [{ costo: 1000, vigente_hasta: "2026-12-31" }] }),
+        // Deliberadamente SIN extractSensitiveValues: el hueco que auditó AG-10.
+      }),
+    );
+    const runner = new AgentRunner(deps);
+
+    const run = await runner.run(baseRequest({ steps: [{ toolName: "compute_price_leaky", input: { q: "x" } }] }));
+
+    expect(run.status).toBe("needs_data");
+    const [trace] = await deps.toolCallStore.listToolCalls(run.id);
+    expect(trace.status).toBe("pending_no_fabrication");
+    expect(trace.missingSourcedFields?.length).toBeGreaterThan(0);
+  });
+
+  it("un output sin ningún campo sensible sigue completando normalmente (sin falsos positivos)", async () => {
+    const deps = makeDeps();
+    deps.registry.register(readTool());
+    const runner = new AgentRunner(deps);
+    const run = await runner.run(baseRequest({ steps: [{ toolName: "list_tenders", input: { q: "x" } }] }));
+    expect(run.status).toBe("completed");
+  });
+});
+
 describe("AgentRunner: invalidación por dependencia", () => {
   it("un cambio de bases/plazo invalida una corrida antes de arrancar", async () => {
     const dependencyRegistry = new DependencyInvalidationRegistry();

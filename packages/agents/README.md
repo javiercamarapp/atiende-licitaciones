@@ -119,10 +119,25 @@ vigencia que una herramienta produzca debe venir acompañado de un
 `approvedSourceRef` (`{docId, page?, capturedAt}`). Si falta el valor o la
 referencia, `evaluate()` retorna `pendiente_no_evaluable` con la lista
 exacta de campos faltantes — **nunca** se completa parcialmente con un
-valor inventado. Una herramienta se integra declarando
-`extractSensitiveValues` en su `ToolDefinition`; `AgentRunner` la evalúa
-después de validar el `outputSchema` y, si falta algo, detiene la corrida
-como `needs_data` (el `ToolCallTrace` correspondiente queda en
+valor inventado. Una herramienta puede integrarse de forma explícita
+declarando `extractSensitiveValues` en su `ToolDefinition` (máxima
+precisión: `kind` correcto, `approvedSourceRef` estructurado).
+
+**AG-10 (REQ-164, evaluación por defecto, no opt-in)**: `AgentRunner`
+además corre **siempre** `scanForUnsourcedSensitiveData()` sobre el
+`output` completo de cada tool_call, recorriendo recursivamente objetos y
+arrays con un diccionario de sinónimos (`precio`/`importe`/`costo`/`monto`/
+`tarifa`, `vigencia`/`vigente_hasta`, `certificación`, `referencia`,
+`experiencia`, `firma`, etc.) y detectando números/fechas sospechosos en
+texto libre que combine una palabra clave sensible. Antes, un valor
+sensible bajo un nombre de campo no declarado (`costo` en vez de
+`precioUnitario`), anidado en un array, simplemente nunca se evaluaba y la
+corrida terminaba `completed`. No existe ningún flag para desactivar este
+escaneo por defecto para las categorías sensibles — solo declarar
+`extractSensitiveValues` con la fuente correcta hace que un campo cuente
+como abastecido. `AgentRunner` evalúa ambos mecanismos después de validar
+el `outputSchema` y, si falta algo (por cualquiera de los dos), detiene la
+corrida como `needs_data` (el `ToolCallTrace` correspondiente queda en
 `pending_no_fabrication` con `missingSourcedFields`). Complementa (no
 reemplaza) el guardrail `no_unsourced_claims` de REQ-027/REQ-085, que aplica
 a `Claim`s de texto libre, no a valores estructurados.

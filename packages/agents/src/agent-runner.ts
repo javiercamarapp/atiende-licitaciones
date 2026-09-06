@@ -4,7 +4,7 @@ import { InvalidAmountError, RunCancelledError, RunTimeoutError, RateLimitExceed
 import type { AntiCorruptionGuardrail } from "./guardrails/anticorruption.js";
 import { IdempotencyStore } from "./idempotency.js";
 import type { BudgetLedger, BudgetReservation } from "./budget-ledger.js";
-import { NoFabricationPolicy } from "./no-fabrication.js";
+import { NoFabricationPolicy, scanForUnsourcedSensitiveData } from "./no-fabrication.js";
 import type { TokenBucketRateLimiter } from "./rate-limiter.js";
 import { RetryPolicy } from "./retry.js";
 import type {
@@ -404,31 +404,51 @@ export class AgentRunner {
       return this.stopWith(runId, "failed", describeError(error));
     }
 
-    // No-fabricación (docs/AMPLIACION-BACKOFFICE.md §6): si la herramienta
-    // declara valores sensibles (precio/certificación/experiencia/
-    // referencia/firma/vigencia), cada uno debe traer su fuente aprobada.
-    // Si falta cualquiera, el paso queda "pendiente/no evaluable" con la
-    // lista exacta de datos faltantes — nunca se marca `ok` con un valor
-    // inventado.
+    // No-fabricación (docs/AMPLIACION-BACKOFFICE.md §6, REQ-164): si la
+    // herramienta declara valores sensibles (precio/certificación/
+    // experiencia/referencia/firma/vigencia) vía `extractSensitiveValues`,
+    // cada uno debe traer su fuente aprobada.
+    let explicitlyHandledFields = new Set<string>();
+    let missingFromExplicitCheck: string[] = [];
     if (tool.extractSensitiveValues) {
       const sensitiveValues = tool.extractSensitiveValues(output);
+      explicitlyHandledFields = new Set(sensitiveValues.map((v) => v.fieldName));
       const evaluation = this.noFabricationPolicy.evaluate(sensitiveValues);
       if (evaluation.status === "pendiente_no_evaluable") {
-        if (reservation) this.deps.budgetLedger.consume(reservation.id, costUsd);
-        await this.record(runId, index, step, request, {
-          status: "pending_no_fabrication",
-          startedAt,
-          inputHash,
-          outputHash: hashValue(output),
-          attempts,
-          estimatedTokens: tokens,
-          estimatedCostUsd: costUsd,
-          authorizationDecision,
-          missingSourcedFields: evaluation.missing,
-          error: `datos_sin_fuente_aprobada:${evaluation.missing.join(",")}`,
-        });
-        return this.stopWith(runId, "needs_data", `datos_sin_fuente_aprobada:${evaluation.missing.join(",")}`);
+        missingFromExplicitCheck = evaluation.missing;
       }
+    }
+
+    // AG-10 (REQ-164, tolerancia cero): además de lo anterior (opt-in), se
+    // corre SIEMPRE un escaneo recursivo por defecto de todo el `output`
+    // — ya no depende de que la herramienta declare `extractSensitiveValues`.
+    // Esto cierra el hueco de un valor sensible bajo otro nombre de campo
+    // (`costo` en vez de `precioUnitario`) o anidado en un array, que antes
+    // simplemente nunca se evaluaba y la corrida terminaba `completed`. Los
+    // campos que YA fueron declarados vía `extractSensitiveValues` (sourced
+    // o no) se excluyen del escaneo por defecto: el chequeo explícito ya
+    // los reportó con precisión, y no queremos duplicar el mismo hallazgo.
+    const defaultScanFindings = scanForUnsourcedSensitiveData(output).filter(
+      (finding) => !explicitlyHandledFields.has(finding.fieldName),
+    );
+
+    const allMissing = [...missingFromExplicitCheck, ...defaultScanFindings.map((f) => f.path)];
+
+    if (allMissing.length > 0) {
+      if (reservation) this.deps.budgetLedger.consume(reservation.id, costUsd);
+      await this.record(runId, index, step, request, {
+        status: "pending_no_fabrication",
+        startedAt,
+        inputHash,
+        outputHash: hashValue(output),
+        attempts,
+        estimatedTokens: tokens,
+        estimatedCostUsd: costUsd,
+        authorizationDecision,
+        missingSourcedFields: allMissing,
+        error: `datos_sin_fuente_aprobada:${allMissing.join(",")}`,
+      });
+      return this.stopWith(runId, "needs_data", `datos_sin_fuente_aprobada:${allMissing.join(",")}`);
     }
 
     if (reservation) this.deps.budgetLedger.consume(reservation.id, costUsd);

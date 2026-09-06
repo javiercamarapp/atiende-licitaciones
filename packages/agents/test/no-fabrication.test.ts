@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NoFabricationPolicy, sourcedValueSchema, type SourcedValue } from "../src/no-fabrication.js";
+import { NoFabricationPolicy, scanForUnsourcedSensitiveData, sourcedValueSchema, type SourcedValue } from "../src/no-fabrication.js";
 import { z } from "zod";
 
 describe("NoFabricationPolicy", () => {
@@ -60,5 +60,58 @@ describe("NoFabricationPolicy", () => {
     expect(schema.safeParse({ value: 10, approvedSourceRef: { docId: "d1", capturedAt: "t" } }).success).toBe(true);
     expect(schema.safeParse({ value: null, approvedSourceRef: null }).success).toBe(true);
     expect(schema.safeParse({ value: "no-es-numero", approvedSourceRef: null }).success).toBe(false);
+  });
+
+  describe("AG-10 (ALTA): scanForUnsourcedSensitiveData — evaluación por defecto, no opt-in", () => {
+    it("detecta un campo sensible por sinónimo (costo/vigente_hasta) sin approvedSourceRef, anidado en un array", () => {
+      const findings = scanForUnsourcedSensitiveData({
+        items: [{ costo: 1000, vigente_hasta: "2026-12-31" }],
+      });
+      const kinds = findings.map((f) => f.kind).sort();
+      expect(kinds).toContain("precio");
+      expect(kinds).toContain("vigencia");
+    });
+
+    it("no reporta nada si approvedSourceRef está presente junto al campo sensible (mismo objeto)", () => {
+      const findings = scanForUnsourcedSensitiveData({
+        precio: 100,
+        approvedSourceRef: { docId: "d1", capturedAt: "t" },
+      });
+      expect(findings).toEqual([]);
+    });
+
+    it("reconoce la convención anidada {value, approvedSourceRef}", () => {
+      const sourced = scanForUnsourcedSensitiveData({
+        precio: { value: 100, approvedSourceRef: { docId: "d1", capturedAt: "t" } },
+      });
+      expect(sourced).toEqual([]);
+
+      const unsourced = scanForUnsourcedSensitiveData({ precio: { value: 100, approvedSourceRef: null } });
+      expect(unsourced.length).toBeGreaterThan(0);
+    });
+
+    it("detecta números/fechas sospechosos en texto libre junto a una palabra clave sensible", () => {
+      const findings = scanForUnsourcedSensitiveData({
+        resumen: "El precio final es de $1500 y está vigente hasta 2026-12-31",
+      });
+      expect(findings.some((f) => f.kind === "texto_libre")).toBe(true);
+    });
+
+    it("no genera falsos positivos en texto libre sin palabras clave sensibles (aunque tenga fecha)", () => {
+      const findings = scanForUnsourcedSensitiveData({
+        resumen: "La convocatoria 123 tiene 4 partidas y cierra el 2026-12-31",
+      });
+      expect(findings).toEqual([]);
+    });
+
+    it("no reporta nada para campos comunes no sensibles (count, title)", () => {
+      expect(scanForUnsourcedSensitiveData({ count: 1, title: "convocatoria 123" })).toEqual([]);
+    });
+
+    it("cada hallazgo trae fieldName (para cruzar con extractSensitiveValues) y path completo", () => {
+      const [finding] = scanForUnsourcedSensitiveData({ items: [{ costo: 1000 }] });
+      expect(finding.fieldName).toBe("costo");
+      expect(finding.path).toContain("costo");
+    });
   });
 });
