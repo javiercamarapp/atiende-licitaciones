@@ -8,6 +8,10 @@ import type {
   Role as AgentRole,
 } from '@atiende/agents';
 import type { DbClient, DbExecutor, OrgRole } from '@atiende/db';
+import { BoundedCache } from './bounded-cache.js';
+
+/** AE-10: límite de tamaño de la caché de contexto de tenant (ver BoundedCache) -- generoso para cualquier volumen real de corridas concurrentes por proceso, pero finito. */
+const RUN_CONTEXT_CACHE_MAX_ENTRIES = 10_000;
 
 /**
  * TODO DE UNIFICACIÓN (documentado, no resuelto en esta ronda):
@@ -68,16 +72,26 @@ function toOrgRole(role: AgentRole): OrgRole {
  * reverificación): `createRun`/`recordToolCall` YA conocen el `org_id`/
  * `actor_id` verdaderos en el momento de escribir (vienen del propio
  * `AgentRunCreateInput`/`ToolCallTrace`, nunca de la función oracle). Se
- * cachean en memoria de proceso (`Map`, por instancia de store) y
- * `getRun`/`updateRun`/`listToolCalls` la consultan PRIMERO -- una corrida u
- * tool_call creada por ESTA MISMA instancia de proceso nunca vuelve a tocar
- * la función oracle. Solo se recurre a ella como último recurso (p.ej. tras
- * un reinicio de proceso, tal como se comporta hoy): el riesgo residual
- * documentado por la reverificación sigue existiendo para ESE caso, pero el
- * cierre completo (que el propio caller de `RunStore`/`ToolCallStore` -- el
- * futuro `AgentRunner` de packages/agents -- pase la identidad en cada
- * llamada) exige cambiar una interfaz externa a este paquete, fuera de
- * alcance de esta ronda.
+ * cachean en memoria de proceso (`BoundedCache`, LRU acotado -- ver AE-10
+ * abajo -- por instancia de store) y `getRun`/`updateRun`/`listToolCalls`
+ * la consultan PRIMERO -- una corrida u tool_call creada por ESTA MISMA
+ * instancia de proceso nunca vuelve a tocar la función oracle. Solo se
+ * recurre a ella como último recurso (p.ej. tras un reinicio de proceso,
+ * tal como se comporta hoy): el riesgo residual documentado por la
+ * reverificación sigue existiendo para ESE caso, pero el cierre completo
+ * (que el propio caller de `RunStore`/`ToolCallStore` -- el futuro
+ * `AgentRunner` de packages/agents -- pase la identidad en cada llamada)
+ * exige cambiar una interfaz externa a este paquete, fuera de alcance de
+ * esta ronda.
+ *
+ * AE-10 (docs/auditoria-2/api-expediente.md, BAJA hoy / MEDIA latente):
+ * la versión anterior de esta caché era un `Map` SIN límite de tamaño ni
+ * expiración -- crecería sin cota mientras el proceso viva si una ronda
+ * futura cablea `AgentRunner` a rutas HTTP reales (hoy ninguna lo hace,
+ * confirmado por `grep`). Ahora es un `BoundedCache` (LRU con tamaño
+ * máximo, ver `lib/bounded-cache.ts`): protege incluso ese escenario
+ * futuro sin cambiar el comportamiento observable hoy (el camino común --
+ * la misma instancia que creó el recurso -- sigue sin tocar el oráculo).
  */
 interface RunContext {
   /** `null` solo es real para `PgToolCallStore` (tool_calls de un run de plataforma sin organización); `PgRunStore.createRun` rechaza `organizationId` nulo, así que ahí siempre es `string`. */
@@ -86,7 +100,7 @@ interface RunContext {
 }
 
 export class PgRunStore implements RunStore {
-  private readonly runContextCache = new Map<string, RunContext>();
+  private readonly runContextCache = new BoundedCache<string, RunContext>(RUN_CONTEXT_CACHE_MAX_ENTRIES);
 
   constructor(private readonly db: DbClient) {}
 
@@ -222,7 +236,7 @@ export class PgToolCallStore implements ToolCallStore {
   // objeto los trae, no la función oracle) y los cachea aquí por `runId`
   // para que `listToolCalls` de un run creado por ESTA instancia nunca
   // tenga que llamar a `app.agent_run_context`.
-  private readonly runContextCache = new Map<string, RunContext>();
+  private readonly runContextCache = new BoundedCache<string, RunContext>(RUN_CONTEXT_CACHE_MAX_ENTRIES);
 
   constructor(private readonly db: DbClient) {}
 
