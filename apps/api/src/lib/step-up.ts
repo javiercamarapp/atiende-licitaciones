@@ -100,6 +100,23 @@ export interface StepUpCheckParams {
   userId: string;
   /** Valor crudo del encabezado `X-Step-Up` (id de `step_up_sessions`), si vino. */
   stepUpHeader: string | string[] | undefined;
+  /**
+   * R5-05: organización activa de la acción que está consumiendo el
+   * step-up (`request.orgId`, ya verificado por `app.requireOrg`). Si la
+   * sesión fue creada CON un `orgId` explícito (ver `modules/twofa/routes.ts`),
+   * debe coincidir -- si la sesión es "genérica" (orgId null, comportamiento
+   * previo a esta ronda), no se exige coincidencia.
+   */
+  orgId?: string | null;
+  /**
+   * R5-05: propósito/acción que se está autorizando (p.ej.
+   * "company.rate_approval"). Si la sesión fue creada CON un `purpose`
+   * explícito, debe coincidir exactamente -- si la sesión es "genérica"
+   * (purpose null), cualquier acción puede consumirla (comportamiento
+   * previo a esta ronda, preservado para no romper clientes existentes que
+   * nunca declaran `purpose` al pedir el step-up).
+   */
+  purpose?: string | null;
 }
 
 /**
@@ -110,6 +127,13 @@ export interface StepUpCheckParams {
  * ya limitan la consulta al propio usuario, pero además se filtra
  * explícitamente por `user_id` para que el mensaje de error distinga
  * "no enrolado" de "sesión vencida/inexistente".
+ *
+ * R5-05 (docs/auditoria-2/api-ronda5.md, BAJA-MEDIA): además valida que la
+ * sesión, si fue creada con un `orgId`/`purpose` explícitos, corresponda a
+ * la MISMA organización/acción que se está autorizando ahora -- cierra
+ * (para el cliente que decida declararlos) el hueco de que un mismo
+ * `stepUpToken` sirviera, dentro de la ventana, para aprobar cualquier
+ * número de tarifas/expedientes distintos en cualquier organización.
  */
 export async function requireStepUp(tx: DbExecutor, params: StepUpCheckParams): Promise<void> {
   const totp = await tx.query<{ verified_at: string | Date | null }>(
@@ -129,8 +153,8 @@ export async function requireStepUp(tx: DbExecutor, params: StepUpCheckParams): 
     );
   }
 
-  const session = await tx.query<{ user_id: string; expires_at: string | Date }>(
-    'select user_id, expires_at from step_up_sessions where id = $1',
+  const session = await tx.query<{ user_id: string; expires_at: string | Date; org_id: string | null; purpose: string | null }>(
+    'select user_id, expires_at, org_id, purpose from step_up_sessions where id = $1',
     [header]
   );
   if (session.rows.length === 0 || session.rows[0].user_id !== params.userId) {
@@ -139,6 +163,15 @@ export async function requireStepUp(tx: DbExecutor, params: StepUpCheckParams): 
   const expiresAtMs = new Date(session.rows[0].expires_at).getTime();
   if (Number.isNaN(expiresAtMs) || expiresAtMs <= Date.now()) {
     throw new ForbiddenError('La sesión de verificación en dos pasos expiró. Vuelva a verificar con POST /auth/2fa/step-up.');
+  }
+
+  const sessionOrgId = session.rows[0].org_id;
+  if (sessionOrgId !== null && sessionOrgId !== (params.orgId ?? null)) {
+    throw new ForbiddenError('El encabezado X-Step-Up corresponde a una sesión de verificación en dos pasos atada a OTRA organización. Vuelva a verificar con POST /auth/2fa/step-up para esta organización.');
+  }
+  const sessionPurpose = session.rows[0].purpose;
+  if (sessionPurpose !== null && sessionPurpose !== (params.purpose ?? null)) {
+    throw new ForbiddenError('El encabezado X-Step-Up corresponde a una sesión de verificación en dos pasos emitida para OTRA acción. Vuelva a verificar con POST /auth/2fa/step-up para esta acción.');
   }
 }
 

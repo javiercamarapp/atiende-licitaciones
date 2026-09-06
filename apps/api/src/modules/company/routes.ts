@@ -613,7 +613,9 @@ export async function companyRoutes(app: FastifyInstance): Promise<void> {
           // pasos (TOTP) reciente, distinta del rol que aprueba -- ver
           // lib/step-up.ts. Sin 2FA enrolado o sin X-Step-Up vigente, esto
           // lanza un 403 explícito con instrucción, antes de tocar la fila.
-          await requireStepUp(tx, { userId, stepUpHeader: request.headers['x-step-up'] });
+          // R5-05: si el cliente declaró org/purpose al pedir el step-up,
+          // esta acción concreta debe coincidir -- ver lib/step-up.ts.
+          await requireStepUp(tx, { userId, stepUpHeader: request.headers['x-step-up'], orgId, purpose: 'company.rate_approval' });
           // WI-04 (docs/auditoria-2/web-integrado.md): el check ('draft') y la
           // mutación deben ser LA MISMA sentencia atómica -- mismo patrón que
           // API-09 ya aplica a tool_calls -- para que una tarifa ya

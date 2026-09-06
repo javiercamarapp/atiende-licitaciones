@@ -86,7 +86,14 @@ export async function recordAuthAudit(tx: DbExecutor, entry: AuthAuditEntry): Pr
   ]);
 }
 
-export type SecurityAuditAction = 'twofa.enroll' | 'twofa.verify_enrollment' | 'twofa.step_up_verified';
+export type SecurityAuditAction =
+  | 'twofa.enroll'
+  | 'twofa.verify_enrollment'
+  | 'twofa.step_up_verified'
+  // R5-03: fallos de verificación (código inválido, replay, backup code ya
+  // usado, o cuenta bloqueada) -- ver `lib/twofa-lockout.ts` y 0059.
+  | 'twofa.verification_failed'
+  | 'twofa.step_up_denied';
 
 export interface SecurityAuditEntry {
   action: SecurityAuditAction;

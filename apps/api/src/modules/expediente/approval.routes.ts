@@ -102,7 +102,9 @@ export async function expedienteApprovalRoutes(app: FastifyInstance): Promise<vo
         // pasos (TOTP) reciente, distinta del rol que aprueba -- ver
         // lib/step-up.ts. Sin 2FA enrolado o sin X-Step-Up vigente, 403
         // explícito con instrucción, antes de tocar ningún dato.
-        await requireStepUp(tx, { userId, stepUpHeader: request.headers['x-step-up'] });
+        // R5-05: si el cliente declaró org/purpose al pedir el step-up,
+        // esta acción concreta debe coincidir -- ver lib/step-up.ts.
+        await requireStepUp(tx, { userId, stepUpHeader: request.headers['x-step-up'], orgId, purpose: 'expediente.approval' });
         await requireTender(tx, orgId, request.params.tenderId);
         const proposal = await requireProposal(tx, orgId, request.params.tenderId);
         const events = await loadApprovalEvents(tx, orgId, proposal.id as string);

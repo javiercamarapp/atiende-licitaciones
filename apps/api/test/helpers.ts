@@ -80,6 +80,55 @@ export async function enrollTwoFactor(app: FastifyInstance, accessToken: string)
   return { secretBase32, stepUpToken: verify.json().stepUpToken };
 }
 
+/**
+ * R5-05: variante de {@link enrollTwoFactor} que además devuelve los
+ * `backupCodes` emitidos -- útiles para pedir MÁS de un `stepUpToken`
+ * independiente para el mismo usuario dentro de un mismo test sin chocar
+ * con el rechazo de replay de TOTP (un código de respaldo es de un solo
+ * uso real, así que cada llamada a `stepUpWithCode` con un código distinto
+ * produce una sesión nueva).
+ */
+export async function enrollTwoFactorFull(app: FastifyInstance, accessToken: string): Promise<{ secretBase32: string; backupCodes: string[]; stepUpToken: string }> {
+  const headers = { authorization: `Bearer ${accessToken}` };
+  const enroll = await app.inject({ method: 'POST', url: '/auth/2fa/enroll', headers });
+  if (enroll.statusCode !== 201) {
+    throw new Error(`2fa enroll failed: ${enroll.statusCode} ${enroll.body}`);
+  }
+  const { secretBase32, backupCodes } = enroll.json();
+  const code = await generateTotpCodeForTesting(secretBase32);
+  const verify = await app.inject({ method: 'POST', url: '/auth/2fa/verify-enrollment', headers, payload: { code } });
+  if (verify.statusCode !== 200) {
+    throw new Error(`2fa verify-enrollment failed: ${verify.statusCode} ${verify.body}`);
+  }
+  return { secretBase32, backupCodes, stepUpToken: verify.json().stepUpToken };
+}
+
+/**
+ * R5-05: pide un `stepUpToken` nuevo vía `POST /auth/2fa/step-up` usando un
+ * código de RESPALDO (evita el rechazo de replay de un TOTP recién usado),
+ * con `purpose`/`X-Org-Id` opcionales para atar la sesión resultante a una
+ * acción/organización concreta (ver `lib/step-up.ts`).
+ */
+export async function stepUpWithBackupCode(
+  app: FastifyInstance,
+  accessToken: string,
+  backupCode: string,
+  opts: { purpose?: string; orgId?: string } = {}
+): Promise<string> {
+  const headers: Record<string, string> = { authorization: `Bearer ${accessToken}` };
+  if (opts.orgId) headers['x-org-id'] = opts.orgId;
+  const res = await app.inject({
+    method: 'POST',
+    url: '/auth/2fa/step-up',
+    headers,
+    payload: { code: backupCode, ...(opts.purpose ? { purpose: opts.purpose } : {}) },
+  });
+  if (res.statusCode !== 201) {
+    throw new Error(`2fa step-up failed: ${res.statusCode} ${res.body}`);
+  }
+  return res.json().stepUpToken;
+}
+
 export async function createOrgFor(
   app: FastifyInstance,
   user: RegisteredUser,

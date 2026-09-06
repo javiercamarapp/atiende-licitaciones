@@ -61,7 +61,19 @@ export class IdempotencyConflictError extends AppError {
 }
 
 export class TooManyRequestsError extends AppError {
-  constructor(message = 'Demasiadas solicitudes') {
+  /**
+   * R5-02 (docs/auditoria-2/api-ronda5.md): además del límite genérico de
+   * `@fastify/rate-limit` (que ya expone `Retry-After` automáticamente),
+   * el bloqueo progresivo por fallos de 2FA (contador en DB, ver
+   * `lib/twofa-lockout.ts`) es una decisión de APLICACIÓN, no del plugin de
+   * rate-limit -- así que este error lleva su propio `retryAfterSeconds`
+   * para que `plugins/error-handler.ts` fije el mismo encabezado
+   * `Retry-After` de forma consistente en ambos casos.
+   */
+  constructor(
+    message = 'Demasiadas solicitudes',
+    public retryAfterSeconds?: number
+  ) {
     super(429, 'https://atiende.example/errors/too-many-requests', message);
   }
 }

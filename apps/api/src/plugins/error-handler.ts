@@ -1,7 +1,7 @@
 import fp from 'fastify-plugin';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { hasZodFastifySchemaValidationErrors } from 'fastify-type-provider-zod';
-import { AppError } from '../lib/errors.js';
+import { AppError, TooManyRequestsError } from '../lib/errors.js';
 
 interface ProblemJson {
   type: string;
@@ -18,6 +18,13 @@ async function errorHandlerImpl(app: FastifyInstance): Promise<void> {
     const correlationId = request.correlationId;
 
     if (err instanceof AppError) {
+      // R5-02: bloqueo progresivo por fallos de 2FA -- mismo encabezado
+      // `Retry-After` que ya expone `@fastify/rate-limit` (ver app.ts),
+      // pero fijado a mano porque este 429 lo decide la aplicación (contador
+      // en DB), no el plugin.
+      if (err instanceof TooManyRequestsError && typeof err.retryAfterSeconds === 'number') {
+        reply.header('retry-after', String(Math.max(0, Math.ceil(err.retryAfterSeconds))));
+      }
       const problem: ProblemJson = {
         type: err.type,
         title: err.message,
