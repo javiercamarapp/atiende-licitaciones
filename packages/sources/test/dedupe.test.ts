@@ -39,6 +39,52 @@ describe("computeCrossSourceFingerprint", () => {
     const b = baseRecord({ title: "ADQUISICION DE EQUIPO DE COMPUTO!!" });
     expect(computeCrossSourceFingerprint(a)).toBe(computeCrossSourceFingerprint(b));
   });
+
+  it("SR-07: NO colisiona entre dos procedimientos DISTINTOS de la MISMA entidad con título genérico compartido, cuando su fecha de presentación difiere", () => {
+    // Caso adversarial de la auditoría: misma entidad, mismo día de publicación, título administrativo
+    // genérico ("Adquisición de material de oficina") compartido por dos procedimientos REALES y distintos
+    // (externalId distinto). Antes del fix, título+entidad+fecha de publicación colisionaban en la misma
+    // huella pese a ser procedimientos distintos.
+    const procA = baseRecord({
+      source: "compras-mx",
+      externalId: "PROC-A",
+      title: "Adquisición de material de oficina",
+      dates: { published: "2026-08-01T00:00:00Z", submissionDeadline: "2026-08-20T00:00:00Z" },
+    });
+    const procB = baseRecord({
+      source: "compras-mx",
+      externalId: "PROC-B",
+      title: "Adquisición de material de oficina",
+      dates: { published: "2026-08-01T00:00:00Z", submissionDeadline: "2026-09-10T00:00:00Z" },
+    });
+    expect(computeCrossSourceFingerprint(procA)).not.toBe(computeCrossSourceFingerprint(procB));
+  });
+
+  it("SR-07: sigue reconociendo el MISMO procedimiento cruzado entre fuentes cuando también coincide la fecha de presentación", () => {
+    const a = baseRecord({
+      source: "dof",
+      externalId: "5900001:LA-000-2026",
+      dates: { published: "2026-08-01T00:00:00Z", submissionDeadline: "2026-09-01T00:00:00Z" },
+    });
+    const b = baseRecord({
+      source: "ocds-shcp",
+      externalId: "LA-000-2026",
+      dates: { published: "2026-08-01T00:00:00Z", submissionDeadline: "2026-09-01T00:00:00Z" },
+    });
+    expect(computeCrossSourceFingerprint(a)).toBe(computeCrossSourceFingerprint(b));
+  });
+
+  it("SR-07: incluye el número de procedimiento embebido en el título cuando está presente, distinguiendo dos convocatorias con título/fecha idénticos salvo por ese número", () => {
+    const a = baseRecord({
+      externalId: "PROC-A",
+      title: "Convocatoria LA-012NAY001-E15-2026 para adquisición de material de oficina",
+    });
+    const b = baseRecord({
+      externalId: "PROC-B",
+      title: "Convocatoria LA-016B00003-E22-2026 para adquisición de material de oficina",
+    });
+    expect(computeCrossSourceFingerprint(a)).not.toBe(computeCrossSourceFingerprint(b));
+  });
 });
 
 describe("computeVersionHash / detectChanges", () => {

@@ -17,7 +17,17 @@ export interface UpsertResult {
 export interface TenderRepository {
   upsert(record: TenderRecord): Promise<UpsertResult>;
   findBySourceAndExternalId(source: string, externalId: string): Promise<TenderRecord | undefined>;
-  /** Candidatos de la MISMA convocatoria publicada por otra fuente (REQ-001 cruce entre fuentes). */
+  /**
+   * Candidatos de la MISMA convocatoria publicada por otra fuente (REQ-001
+   * cruce entre fuentes), vía `computeCrossSourceFingerprint` (SR-07). El
+   * resultado es SIEMPRE un candidato a REVISAR (posible falso positivo:
+   * dos procedimientos distintos de la misma entidad con título genérico
+   * compartido pueden colisionar), NUNCA una fusión automática. Ningún
+   * punto de `DiscoveryPipeline`/`processRecord` invoca este método hoy
+   * (no hay fusión automática en este paquete); un consumidor futuro que sí
+   * fusione candidatos debe tratar el resultado como sugerencia, no como
+   * hecho confirmado.
+   */
   findByFingerprint(fingerprint: string): Promise<TenderRecord[]>;
   all(): Promise<TenderRecord[]>;
 }
