@@ -1,0 +1,18 @@
+-- 0035_fix_api10_audit_log_nullable_org.sql
+-- Corrige API-10 (docs/auditoria-1/db-api-reverificacion.md, MEDIA):
+-- `POST /admin/jobs/:id/retry` (y el mismo patrón en
+-- `POST /admin/incidents`/`POST /admin/incidents/:id/resolve`) omitía por
+-- completo el registro en `audit_log` cuando la fila afectada no tenía
+-- `org_id` (jobs de plataforma/discovery sin organización, incidentes sin
+-- organización asociada) -- el comentario del código mencionaba una
+-- "organización de sistema" que en realidad no existía: la condición
+-- `if (row.org_id)` simplemente saltaba la auditoría.
+--
+-- La política RLS de `audit_log` (0008) ya permite un INSERT con `org_id`
+-- NULL cuando el actor es superadmin (`app.is_superadmin() or (org_id =
+-- app.current_org_id() and ...)`-- la rama de superadmin no exige que
+-- `org_id` coincida con nada), así que la única barrera real era la
+-- restricción `NOT NULL` de la columna. Se relaja aquí; `apps/api` deja de
+-- omitir la auditoría en esos casos (ver `lib/audit.ts`/
+-- `modules/admin/routes.ts`).
+alter table audit_log alter column org_id drop not null;

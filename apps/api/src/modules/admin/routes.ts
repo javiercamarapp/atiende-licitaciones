@@ -21,9 +21,12 @@ import {
  * `app.requireSuperadmin` (platform_admins, ver plugins/superadmin.plugin.ts)
  * -- NUNCA por membresía de organización: un superadmin ve TODAS las
  * organizaciones, no solo la suya. Cada mutación queda en `audit_log`
- * (con `org_id` de la organización afectada cuando aplica, o de una
- * organización "de sistema" cuando el evento es verdaderamente
- * plataforma-wide, para respetar el NOT NULL de `audit_log.org_id`).
+ * SIEMPRE (con `org_id` de la organización afectada cuando aplica, o
+ * `org_id = null` cuando el evento es verdaderamente plataforma-wide —
+ * p.ej. reintentar un job de discovery sin organización — `audit_log.
+ * org_id` acepta NULL desde la migración 0035, API-10 en
+ * docs/auditoria-1/db-api-reverificacion.md: antes se omitía la
+ * auditoría por completo en ese caso).
  *
  * Umbral de obsolescencia (REQ-149): 6 horas sin corrida exitosa se marca
  * `isStale=true`. Es un valor por defecto razonable, no configurable por
@@ -147,18 +150,20 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
            where id = $1 returning *`,
           [request.params.id]
         );
-        if (before.rows[0].org_id) {
-          await recordAudit(tx, {
-            orgId: before.rows[0].org_id,
-            actorId: request.userId!,
-            action: 'admin.job.retry',
-            entity: 'jobs',
-            entityId: request.params.id,
-            before: { status: before.rows[0].status },
-            after: { status: 'queued' },
-            requestId: request.id,
-          });
-        }
+        // API-10 (docs/auditoria-1/db-api-reverificacion.md): se audita
+        // SIEMPRE, incluso cuando el job no tiene organización (jobs de
+        // plataforma/discovery) -- `audit_log.org_id` acepta NULL desde la
+        // migración 0035 precisamente para este caso.
+        await recordAudit(tx, {
+          orgId: before.rows[0].org_id,
+          actorId: request.userId!,
+          action: 'admin.job.retry',
+          entity: 'jobs',
+          entityId: request.params.id,
+          before: { status: before.rows[0].status },
+          after: { status: 'queued' },
+          requestId: request.id,
+        });
         return updated.rows[0];
       });
       if (!row) throw new NotFoundError('Job no encontrado');
@@ -238,17 +243,17 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
            values ($1, $2, $3, $4, $5, $6) returning *`,
           [id, orgId ?? null, title, description ?? null, severity ?? 'low', request.userId]
         );
-        if (orgId) {
-          await recordAudit(tx, {
-            orgId,
-            actorId: request.userId!,
-            action: 'admin.incident.create',
-            entity: 'incidents',
-            entityId: id,
-            after: { title, severity },
-            requestId: request.id,
-          });
-        }
+        // API-10: mismo cierre que jobs/retry -- se audita también un
+        // incidente sin organización (plataforma-wide).
+        await recordAudit(tx, {
+          orgId: orgId ?? null,
+          actorId: request.userId!,
+          action: 'admin.incident.create',
+          entity: 'incidents',
+          entityId: id,
+          after: { title, severity },
+          requestId: request.id,
+        });
         return inserted.rows[0];
       });
       reply.code(201);
@@ -275,16 +280,15 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           "update incidents set status = 'resolved', resolved_at = now() where id = $1 returning *",
           [request.params.id]
         );
-        if (before.rows[0].org_id) {
-          await recordAudit(tx, {
-            orgId: before.rows[0].org_id,
-            actorId: request.userId!,
-            action: 'admin.incident.resolve',
-            entity: 'incidents',
-            entityId: request.params.id,
-            requestId: request.id,
-          });
-        }
+        // API-10: mismo cierre -- se audita también un incidente sin organización.
+        await recordAudit(tx, {
+          orgId: before.rows[0].org_id,
+          actorId: request.userId!,
+          action: 'admin.incident.resolve',
+          entity: 'incidents',
+          entityId: request.params.id,
+          requestId: request.id,
+        });
         return updated.rows[0];
       });
       if (!row) throw new NotFoundError('Incidente no encontrado');
