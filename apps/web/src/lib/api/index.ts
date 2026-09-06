@@ -14,3 +14,5 @@ export * from "./matching";
 export * from "./go-no-go";
 export * from "./agents";
 export * from "./admin";
+export * from "./audit";
+export * from "./expediente";

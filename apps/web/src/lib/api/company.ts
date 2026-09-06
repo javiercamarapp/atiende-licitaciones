@@ -5,11 +5,13 @@ import {
   signatorySchema,
   documentSchema,
   rateSchema,
+  experienceSchema,
   type CompanyProfile,
   type Capability,
   type Signatory,
   type CompanyDocument,
   type Rate,
+  type Experience,
 } from "./schemas";
 import { z } from "zod";
 
@@ -132,4 +134,13 @@ export async function approveRate(orgId: string, id: string): Promise<Rate> {
 export async function rejectRate(orgId: string, id: string): Promise<Rate> {
   const raw = await apiRequest<unknown>(`/company/rates/${id}/reject`, { method: "POST", orgId });
   return rateSchema.parse(raw);
+}
+
+// --- experience (solo lectura desde apps/web: usada como fuente de la
+// propuesta técnica en Redacción, ver src/pages/preparacion/RedaccionPage.tsx.
+// La API sí expone POST/PATCH/DELETE, pero esta ronda no agrega su propia
+// pantalla de CRUD -- fuera del alcance despachado.) --------------------------
+export async function listExperience(orgId: string): Promise<Experience[]> {
+  const raw = await apiRequest<unknown>("/company/experience", { orgId });
+  return z.array(experienceSchema).parse(raw);
 }

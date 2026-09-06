@@ -12,13 +12,18 @@ import {
   adminCostByOrgSchema,
   incidentSchema,
   pendingApprovalSchema,
+  auditLogListResponseSchema,
+  toolCallSchema,
   type AdminOrg,
   type AdminConnectorFreshness,
   type AdminJob,
   type AdminCostByOrg,
   type Incident,
   type PendingApproval,
+  type AuditLogListResponse,
+  type ToolCall,
 } from "./schemas";
+import type { AuditLogFilters } from "./audit";
 import { z } from "zod";
 
 export async function listAdminOrganizations(): Promise<AdminOrg[]> {
@@ -72,4 +77,39 @@ export async function resolveAdminIncident(id: string): Promise<Incident> {
 export async function listAdminApprovals(): Promise<PendingApproval[]> {
   const raw = await apiRequest<unknown>("/admin/approvals");
   return z.array(pendingApprovalSchema).parse(raw);
+}
+
+// --- ronda 4: aprobación cross-org de tool_calls (sin X-Org-Id: la
+// organización afectada se resuelve de la propia fila `tool_calls.org_id`
+// en apps/api, nunca de un header) ------------------------------------------
+export async function approveAdminToolCall(id: string): Promise<ToolCall> {
+  const raw = await apiRequest<unknown>(`/admin/tool-calls/${id}/approve`, { method: "POST" });
+  return toolCallSchema.parse(raw);
+}
+
+export async function denyAdminToolCall(id: string): Promise<ToolCall> {
+  const raw = await apiRequest<unknown>(`/admin/tool-calls/${id}/deny`, { method: "POST" });
+  return toolCallSchema.parse(raw);
+}
+
+// --- ronda 4: bitácora de auditoría de TODAS las organizaciones ------------------
+export interface AdminAuditLogFilters extends AuditLogFilters {
+  orgId?: string;
+}
+
+function toAdminAuditQueryString(filters: AdminAuditLogFilters): string {
+  const params = new URLSearchParams();
+  if (filters.orgId) params.set("orgId", filters.orgId);
+  if (filters.entity) params.set("entity", filters.entity);
+  if (filters.actorId) params.set("actorId", filters.actorId);
+  if (filters.createdFrom) params.set("createdFrom", filters.createdFrom);
+  if (filters.createdTo) params.set("createdTo", filters.createdTo);
+  if (filters.cursor) params.set("cursor", filters.cursor);
+  const qs = params.toString();
+  return qs ? `?${qs}` : "";
+}
+
+export async function listAdminAuditLog(filters: AdminAuditLogFilters = {}): Promise<AuditLogListResponse> {
+  const raw = await apiRequest<unknown>(`/admin/audit-log${toAdminAuditQueryString(filters)}`);
+  return auditLogListResponseSchema.parse(raw);
 }

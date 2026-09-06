@@ -341,3 +341,277 @@ export const pendingApprovalSchema = z.object({
   createdAt: z.string(),
 });
 export type PendingApproval = z.infer<typeof pendingApprovalSchema>;
+
+// --- memberships (ronda 4: GET /organizations/:orgId/memberships) --------------
+export const membershipSchema = z.object({
+  userId: z.string(),
+  email: z.string(),
+  fullName: z.string().nullable(),
+  role: z.enum(ORG_ROLES),
+  status: z.string(),
+  joinedAt: z.string(),
+});
+export type Membership = z.infer<typeof membershipSchema>;
+
+export const membershipListResponseSchema = z.object({
+  items: z.array(membershipSchema),
+  nextCursor: z.string().nullable(),
+});
+export type MembershipListResponse = z.infer<typeof membershipListResponseSchema>;
+
+// --- audit log (ronda 4: GET /audit-log, GET /admin/audit-log) -----------------
+export const auditLogEntrySchema = z.object({
+  id: z.string(),
+  orgId: z.string().nullable(),
+  actorId: z.string().nullable(),
+  action: z.string(),
+  entity: z.string(),
+  entityId: z.string().nullable(),
+  before: z.unknown().nullable(),
+  after: z.unknown().nullable(),
+  requestId: z.string().nullable(),
+  createdAt: z.string(),
+});
+export type AuditLogEntry = z.infer<typeof auditLogEntrySchema>;
+
+export const auditLogListResponseSchema = z.object({
+  items: z.array(auditLogEntrySchema),
+  nextCursor: z.string().nullable(),
+});
+export type AuditLogListResponse = z.infer<typeof auditLogListResponseSchema>;
+
+// --- company: experience (E2 -- solo lectura desde apps/web, usada como
+// selector de fuente al mapear la propuesta técnica en Redacción) -------------
+export const experienceSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  clientName: z.string().nullable(),
+  description: z.string().nullable(),
+  contractValue: z.number().nullable(),
+  currency: z.string().nullable(),
+  startDate: z.string().nullable(),
+  endDate: z.string().nullable(),
+  isVerified: z.boolean(),
+  evidenceRef: z.string().nullable(),
+  verifiable: z.boolean(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type Experience = z.infer<typeof experienceSchema>;
+
+// ===============================================================================
+// Expediente de participación (E6-E9/E11) -- 26 rutas bajo
+// /expediente/tenders/:tenderId/..., ver apps/api/README.md módulo "expediente"
+// y apps/api/src/modules/expediente/schemas.ts (fuente de verdad).
+// ===============================================================================
+
+// --- documentos + matriz de requisitos (E6) -------------------------------------
+export const DOCUMENT_KINDS = ["bases", "anexo", "aclaracion", "otro"] as const;
+export type DocumentKind = (typeof DOCUMENT_KINDS)[number];
+
+export const TEXT_EXTRACTION_STATUSES = ["pending", "extracted", "requires_ocr", "failed"] as const;
+export type TextExtractionStatus = (typeof TEXT_EXTRACTION_STATUSES)[number];
+
+export const tenderDocumentSchema = z.object({
+  id: z.string(),
+  documentKind: z.string(),
+  originalFilename: z.string().nullable(),
+  mimeType: z.string().nullable(),
+  fileHash: z.string().nullable(),
+  fileSizeBytes: z.number().nullable(),
+  pageCount: z.number().nullable(),
+  textExtractionStatus: z.enum(TEXT_EXTRACTION_STATUSES),
+  extractionDetail: z.string().nullable().optional(),
+  createdAt: z.string(),
+});
+export type TenderDocument = z.infer<typeof tenderDocumentSchema>;
+
+export const MATRIX_STATUSES = ["pendiente", "en_progreso", "cumplido", "bloqueado", "no_evaluable"] as const;
+export type MatrixStatus = (typeof MATRIX_STATUSES)[number];
+
+export const requirementItemSchema = z.object({
+  id: z.string(),
+  documentId: z.string().nullable(),
+  requirementKind: z.string(),
+  description: z.string(),
+  obligatoriedad: z.enum(["obligatorio", "opcional", "condicional"]),
+  clauseRef: z.string().nullable(),
+  sourcePage: z.number().nullable(),
+  sourceExcerpt: z.string().nullable(),
+  deadlineAt: z.string().nullable(),
+  responsibleRole: z.string().nullable(),
+  assignedTo: z.string().nullable(),
+  matrixStatus: z.enum(MATRIX_STATUSES),
+  extractedBy: z.enum(["rule", "llm"]),
+  confidence: z.number().nullable(),
+  topicKey: z.string().nullable(),
+  requiredEvidence: z.array(z.string()),
+  invalidatedAt: z.string().nullable(),
+  invalidatedReason: z.string().nullable(),
+  createdAt: z.string(),
+});
+export type RequirementItem = z.infer<typeof requirementItemSchema>;
+
+export const requirementConflictSchema = z.object({
+  id: z.string(),
+  topicKey: z.string(),
+  kind: z.enum(["deadline_mismatch", "obligatoriedad_mismatch", "duplicate_ambiguous"]),
+  description: z.string(),
+  requirementIds: z.array(z.string()),
+  status: z.enum(["abierto", "escalado", "resuelto"]),
+  resolvedAt: z.string().nullable(),
+  resolutionNotes: z.string().nullable(),
+  createdAt: z.string(),
+});
+export type RequirementConflict = z.infer<typeof requirementConflictSchema>;
+
+export const matrixBuildResponseSchema = z.object({
+  itemsCreated: z.number(),
+  conflictsCreated: z.number(),
+  documentsUsed: z.number(),
+  documentsSkipped: z.array(z.object({ documentId: z.string(), reason: z.string() })),
+});
+export type MatrixBuildResponse = z.infer<typeof matrixBuildResponseSchema>;
+
+// --- propuesta técnica/económica (E7) -------------------------------------------
+export const proposalSchema = z.object({
+  id: z.string(),
+  tenderId: z.string(),
+  title: z.string(),
+  status: z.string(),
+  version: z.number(),
+  invalidatedAt: z.string().nullable(),
+  invalidatedReason: z.string().nullable(),
+  inputsHash: z.string().nullable(),
+  ivaRate: z.number(),
+  economicTotals: z.unknown().nullable(),
+  generationReport: z.unknown().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type Proposal = z.infer<typeof proposalSchema>;
+
+export const proposalSectionSchema = z.object({
+  id: z.string(),
+  sectionKey: z.string(),
+  title: z.string(),
+  content: z.string(),
+  sources: z.unknown(),
+  version: z.number(),
+  updatedAt: z.string(),
+});
+export type ProposalSection = z.infer<typeof proposalSectionSchema>;
+
+export const REQUIREMENT_MAPPING_KINDS = ["capability", "experience", "document", "signer"] as const;
+export type RequirementMappingKind = (typeof REQUIREMENT_MAPPING_KINDS)[number];
+
+// --- checklist de integridad (E8) -----------------------------------------------
+export const COMPLIANCE_RESULTS = ["verde", "ambar", "rojo"] as const;
+export type ComplianceResult = (typeof COMPLIANCE_RESULTS)[number];
+
+export const complianceItemSchema = z.object({
+  id: z.string(),
+  dimension: z.string().nullable(),
+  result: z.enum(COMPLIANCE_RESULTS).nullable(),
+  label: z.string(),
+  notes: z.string().nullable(),
+  evidenceRef: z.string().nullable(),
+  checkedAt: z.string().nullable(),
+});
+export type ComplianceItem = z.infer<typeof complianceItemSchema>;
+
+export const checklistReportSchema = z.object({
+  overallStatus: z.enum(COMPLIANCE_RESULTS),
+  items: z.array(complianceItemSchema),
+});
+export type ChecklistReport = z.infer<typeof checklistReportSchema>;
+
+// --- aprobación (E8) -------------------------------------------------------------
+export const approvalSchema = z.object({
+  scope: z.string(),
+  scopeRef: z.string(),
+  approvedBy: z.string().nullable(),
+  approvedByRole: z.string(),
+  approvedAt: z.string(),
+  inputsHash: z.string(),
+  status: z.enum(["vigente", "invalidada"]),
+});
+export type Approval = z.infer<typeof approvalSchema>;
+
+export const commentSchema = z.object({
+  scopeRef: z.string(),
+  authorId: z.string().nullable(),
+  authorRole: z.string(),
+  text: z.string(),
+  createdAt: z.string(),
+});
+export type ApprovalComment = z.infer<typeof commentSchema>;
+
+export const approvalStateSchema = z.object({
+  state: z.enum(["borrador", "en_revision", "aprobado"]),
+  approvals: z.array(approvalSchema),
+  comments: z.array(commentSchema),
+  currentInputsHash: z.string(),
+  fullyApproved: z.boolean(),
+});
+export type ApprovalState = z.infer<typeof approvalStateSchema>;
+
+export const APPROVER_ROLES: OrgRole[] = ["owner", "admin", "reviewer"];
+
+// --- paquete final (E8/E9) -------------------------------------------------------
+export const packageAssembleResponseSchema = z.object({
+  id: z.string(),
+  status: z.enum(["draft", "ready"]),
+  draftReasons: z.array(z.string()),
+  missing: z.array(z.string()),
+  generatedAt: z.string(),
+  notice: z.string(),
+});
+export type PackageAssembleResponse = z.infer<typeof packageAssembleResponseSchema>;
+
+// --- presentación declarada por el usuario (E9, A15) ----------------------------
+export const submissionSchema = z.object({
+  id: z.string(),
+  status: z.string(),
+  submittedAt: z.string().nullable(),
+  acknowledgementStorageRef: z.string().nullable(),
+  notes: z.string().nullable(),
+  createdAt: z.string(),
+});
+export type Submission = z.infer<typeof submissionSchema>;
+
+// --- post-adjudicación (E11) ------------------------------------------------------
+export const FOLLOWUP_KINDS = ["hito", "garantia", "facturacion", "pago", "otro"] as const;
+export type FollowupKind = (typeof FOLLOWUP_KINDS)[number];
+
+export const FOLLOWUP_STATUSES = ["pending", "in_progress", "done", "overdue", "cancelled"] as const;
+export type FollowupStatus = (typeof FOLLOWUP_STATUSES)[number];
+
+export const legalRegimeSchema = z.object({
+  law: z.string(),
+  article: z.string(),
+  dofDate: z.string(),
+  effectiveDate: z.string(),
+  unit: z.enum(["dias_habiles", "dias_naturales"]),
+  days: z.number(),
+  reason: z.string(),
+});
+export type LegalRegime = z.infer<typeof legalRegimeSchema>;
+
+export const followupSchema = z.object({
+  id: z.string(),
+  tenderId: z.string(),
+  kind: z.string(),
+  label: z.string(),
+  dueDate: z.string().nullable(),
+  status: z.string(),
+  amount: z.number().nullable(),
+  notes: z.string().nullable(),
+  legalReference: z.string().nullable(),
+  reminderLeadDays: z.number(),
+  jobId: z.string().nullable(),
+  createdAt: z.string(),
+  calendarNote: z.string().nullable(),
+  legalRegime: legalRegimeSchema.nullable(),
+});
+export type Followup = z.infer<typeof followupSchema>;
