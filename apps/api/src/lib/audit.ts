@@ -36,3 +36,42 @@ export async function recordAudit(tx: DbExecutor, entry: AuditEntry): Promise<vo
     ]
   );
 }
+
+export type AuthAuditAction =
+  | 'auth.login_succeeded'
+  | 'auth.login_failed'
+  | 'auth.refresh_succeeded'
+  | 'auth.refresh_reuse_detected'
+  | 'auth.logout';
+
+export interface AuthAuditEntry {
+  actorId: string | null;
+  action: AuthAuditAction;
+  /** NUNCA debe incluir contraseñas ni tokens -- solo metadatos (ip, user-agent, email en login_failed). */
+  after?: unknown;
+  requestId?: string | null;
+}
+
+/**
+ * API-13 (docs/auditoria-1/db-api-seguridad-reverificacion.md): los eventos
+ * de autenticación (login, refresh, logout) ocurren SIN contexto de
+ * organización (`org_id` no aplica) y el actor casi nunca es superadmin --
+ * la política RLS de `audit_log` (0008, relajada en 0035) solo permite un
+ * INSERT con `org_id IS NULL` cuando el actor ES superadmin, así que un
+ * `recordAudit(tx, {orgId: null, ...})` normal fallaría para el login de
+ * cualquier usuario común. `app.record_auth_event` (SECURITY DEFINER,
+ * 0051_fix_api13_auth_audit_log.sql) inserta bypassing RLS -- igual que
+ * `app.create_refresh_token`/`app.rotate_refresh_token` ya hacen sobre
+ * `refresh_tokens` -- pero restringido en SQL a una lista fija de acciones
+ * de autenticación conocidas (nunca una `action`/`entity`/`orgId`
+ * arbitrarios). Requiere `set local role app_role` en la transacción
+ * llamadora, igual que cualquier otra escritura de `apps/api`.
+ */
+export async function recordAuthAudit(tx: DbExecutor, entry: AuthAuditEntry): Promise<void> {
+  await tx.query('select app.record_auth_event($1, $2, $3::jsonb, $4)', [
+    entry.action,
+    entry.actorId,
+    entry.after !== undefined ? JSON.stringify(entry.after) : null,
+    entry.requestId ?? null,
+  ]);
+}

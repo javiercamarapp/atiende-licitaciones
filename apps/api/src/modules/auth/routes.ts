@@ -5,7 +5,9 @@ import { z } from 'zod';
 import { hashPassword, verifyPassword } from '../../lib/passwords.js';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../lib/jwt.js';
 import { UnauthorizedError } from '../../lib/errors.js';
+import { recordAuthAudit } from '../../lib/audit.js';
 import { registerBodySchema, loginBodySchema, refreshBodySchema, logoutBodySchema, authTokensSchema } from './schemas.js';
+import type { FastifyRequest } from 'fastify';
 
 const UNIQUE_VIOLATION = '23505';
 const REFRESH_TTL_DAYS = 30;
@@ -28,9 +30,16 @@ function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
+/** API-13: extrae ip/user-agent de la petición para auditoría -- NUNCA contraseñas ni tokens. */
+function auditContext(request: FastifyRequest): { ip: string; userAgent: string | null } {
+  const ua = request.headers['user-agent'];
+  return { ip: request.ip, userAgent: Array.isArray(ua) ? (ua[0] ?? null) : (ua ?? null) };
+}
+
 async function issueTokenPair(
   app: FastifyInstance,
-  userId: string
+  userId: string,
+  audit: { ip: string; userAgent: string | null; requestId: string }
 ): Promise<{ accessToken: string; refreshToken: string }> {
   const accessToken = await signAccessToken(app.config.jwtSecret, userId);
   const { token: refreshToken, jti } = await signRefreshToken(app.config.jwtSecret, userId);
@@ -50,6 +59,9 @@ async function issueTokenPair(
       userId,
       hashToken(jti),
     ]);
+    // API-13: login exitoso ahora deja rastro en audit_log (actor, ip,
+    // user-agent, request_id -- nunca contraseña ni token).
+    await recordAuthAudit(tx, { actorId: userId, action: 'auth.login_succeeded', after: { ip: audit.ip, userAgent: audit.userAgent }, requestId: audit.requestId });
   });
   return { accessToken, refreshToken };
 }
@@ -134,10 +146,28 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       // el email existía o no.
       const valid = await verifyPassword(password, isUsable ? user!.password_hash : DUMMY_PASSWORD_HASH);
       if (!isUsable || !valid) {
+        // API-13: login fallido queda en audit_log (actor conocido si el
+        // email existe, aunque la contraseña sea incorrecta; null si el
+        // email ni siquiera existe) -- nunca se registra la contraseña
+        // enviada. Best-effort: un fallo al auditar nunca debe convertir un
+        // 401 legítimo en un 500 ni filtrar información adicional.
+        try {
+          await app.db.transaction(async (tx) => {
+            await tx.query('set local role app_role');
+            await recordAuthAudit(tx, {
+              actorId: user?.id ?? null,
+              action: 'auth.login_failed',
+              after: { email, ...auditContext(request) },
+              requestId: request.id,
+            });
+          });
+        } catch {
+          // ver nota arriba: nunca se deja que un fallo de auditoría oculte el 401 real.
+        }
         throw new UnauthorizedError('Credenciales inválidas');
       }
 
-      return issueTokenPair(app, user!.id);
+      return issueTokenPair(app, user!.id, { ...auditContext(request), requestId: request.id });
     }
   );
 
@@ -177,6 +207,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       // solo del token reusado).
       const newAccessToken = await signAccessToken(app.config.jwtSecret, userId);
       const { token: newRefreshToken, jti: newJti } = await signRefreshToken(app.config.jwtSecret, userId);
+      const audit = auditContext(request);
 
       // `app.rotate_refresh_token` NUNCA lanza excepción en el camino de
       // fallo (ver 0043_fix_api01_atomic_refresh_rotation.sql): si lo
@@ -184,14 +215,35 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       // incluida la revocación de familia por reuso hecha dentro de la
       // misma sentencia -- por eso el resultado se distingue por número de
       // filas devueltas (0 = inválido/expirado/reusado), no por catch.
-      const { rows } = await app.db.transaction(async (tx) => {
+      const ok = await app.db.transaction(async (tx) => {
         await tx.query('set local role app_role');
-        return tx.query<{ user_id: string }>(
+        const rotated = await tx.query<{ user_id: string }>(
           `select * from app.rotate_refresh_token($1, $2, $3, now() + interval '${REFRESH_TTL_DAYS} days')`,
           [hashToken(jti), randomUUID(), hashToken(newJti)]
         );
+        if (rotated.rows.length > 0) {
+          // API-13: rotación/refresh exitosos quedan en audit_log.
+          await recordAuthAudit(tx, { actorId: rotated.rows[0].user_id, action: 'auth.refresh_succeeded', after: audit, requestId: request.id });
+          return true;
+        }
+        // API-13 (docs/auditoria-1/db-api-seguridad-reverificacion.md):
+        // 0 filas puede significar token inexistente, expirado, O REUSADO
+        // (ya revocado -- caso en el que `rotate_refresh_token` YA revocó
+        // preventivamente toda la familia de sesiones activas dentro de la
+        // MISMA sentencia/transacción, ver 0043). Solo el caso de REUSO
+        // real tiene valor de seguridad para auditar -- se distingue
+        // consultando `app.find_refresh_token` (mismo hash del token viejo
+        // presentado): `revoked_at is not null` es exactamente la señal
+        // que usa `rotate_refresh_token` para decidir la revocación de
+        // familia.
+        return tx.query<{ user_id: string; revoked_at: string | null }>('select * from app.find_refresh_token($1)', [hashToken(jti)]).then(async (found) => {
+          if (found.rows.length > 0 && found.rows[0].revoked_at !== null) {
+            await recordAuthAudit(tx, { actorId: found.rows[0].user_id, action: 'auth.refresh_reuse_detected', after: audit, requestId: request.id });
+          }
+          return false;
+        });
       });
-      if (rows.length === 0) {
+      if (!ok) {
         throw new UnauthorizedError('Refresh token inválido, expirado o revocado');
       }
 
@@ -208,10 +260,15 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         await app.db.transaction(async (tx) => {
           await tx.query('set local role app_role');
           await tx.query('select app.revoke_refresh_token($1)', [hashToken(payload.jti)]);
+          // API-13: logout deja rastro en audit_log (solo cuando el token
+          // era válido -- un token ya inválido/ajeno no revoca nada, así
+          // que tampoco genera un evento de "logout" real).
+          await recordAuthAudit(tx, { actorId: payload.sub, action: 'auth.logout', after: auditContext(request), requestId: request.id });
         });
       } catch {
         // Logout es idempotente y nunca revela si el token era válido: un
-        // token ya inválido/expirado/ajeno simplemente no revoca nada.
+        // token ya inválido/expirado/ajeno simplemente no revoca nada (ni
+        // se audita, para no filtrar información).
       }
       return reply.code(204).send();
     }
