@@ -1,0 +1,2140 @@
+{
+  "axe": [
+    {
+      "theme": "light",
+      "route": "/login",
+      "label": "Login",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "light",
+      "route": "/panel",
+      "label": "Panel",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "light",
+      "route": "/empresa/perfil-capacidades",
+      "label": "Perfil y capacidades",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "light",
+      "route": "/empresa/documentos-vigencias",
+      "label": "Documentos y vigencias",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "light",
+      "route": "/empresa/firmantes-autorizados",
+      "label": "Firmantes autorizados",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "light",
+      "route": "/empresa/tarifas-aprobadas",
+      "label": "Tarifas aprobadas",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "light",
+      "route": "/convocatorias/descubrimiento",
+      "label": "Descubrimiento",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "light",
+      "route": "/convocatorias/matching",
+      "label": "Matching",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "light",
+      "route": "/convocatorias/fuentes-frescura",
+      "label": "Fuentes y frescura",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "light",
+      "route": "/evaluacion/go-no-go",
+      "label": "Go/No-Go",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "light",
+      "route": "/evaluacion/analisis-bases",
+      "label": "Análisis de bases",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "light",
+      "route": "/preparacion/cumplimiento-documental",
+      "label": "Cumplimiento documental",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "light",
+      "route": "/preparacion/redaccion",
+      "label": "Redacción",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "light",
+      "route": "/preparacion/revision",
+      "label": "Revisión",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "light",
+      "route": "/preparacion/expediente",
+      "label": "Expediente",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "light",
+      "route": "/preparacion/aprobaciones",
+      "label": "Aprobaciones",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "light",
+      "route": "/entrega/entregas",
+      "label": "Entregas",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "light",
+      "route": "/entrega/paquete-descargable",
+      "label": "Paquete descargable",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "light",
+      "route": "/entrega/seguimiento",
+      "label": "Seguimiento post-adjudicación",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "light",
+      "route": "/backoffice/organizaciones",
+      "label": "Organizaciones",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "light",
+      "route": "/backoffice/usuarios-roles",
+      "label": "Usuarios y roles",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "light",
+      "route": "/backoffice/agentes-herramientas",
+      "label": "Agentes y herramientas",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "light",
+      "route": "/backoffice/auditoria",
+      "label": "Auditoría / Trazabilidad",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "light",
+      "route": "/configuracion",
+      "label": "Configuración",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "dark",
+      "route": "/login",
+      "label": "Login",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "dark",
+      "route": "/panel",
+      "label": "Panel",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "dark",
+      "route": "/empresa/perfil-capacidades",
+      "label": "Perfil y capacidades",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "dark",
+      "route": "/empresa/documentos-vigencias",
+      "label": "Documentos y vigencias",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "dark",
+      "route": "/empresa/firmantes-autorizados",
+      "label": "Firmantes autorizados",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "dark",
+      "route": "/empresa/tarifas-aprobadas",
+      "label": "Tarifas aprobadas",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "dark",
+      "route": "/convocatorias/descubrimiento",
+      "label": "Descubrimiento",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "dark",
+      "route": "/convocatorias/matching",
+      "label": "Matching",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "dark",
+      "route": "/convocatorias/fuentes-frescura",
+      "label": "Fuentes y frescura",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "dark",
+      "route": "/evaluacion/go-no-go",
+      "label": "Go/No-Go",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "dark",
+      "route": "/evaluacion/analisis-bases",
+      "label": "Análisis de bases",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "dark",
+      "route": "/preparacion/cumplimiento-documental",
+      "label": "Cumplimiento documental",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "dark",
+      "route": "/preparacion/redaccion",
+      "label": "Redacción",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "dark",
+      "route": "/preparacion/revision",
+      "label": "Revisión",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "dark",
+      "route": "/preparacion/expediente",
+      "label": "Expediente",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "dark",
+      "route": "/preparacion/aprobaciones",
+      "label": "Aprobaciones",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "dark",
+      "route": "/entrega/entregas",
+      "label": "Entregas",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "dark",
+      "route": "/entrega/paquete-descargable",
+      "label": "Paquete descargable",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "dark",
+      "route": "/entrega/seguimiento",
+      "label": "Seguimiento post-adjudicación",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "dark",
+      "route": "/backoffice/organizaciones",
+      "label": "Organizaciones",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "dark",
+      "route": "/backoffice/usuarios-roles",
+      "label": "Usuarios y roles",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "dark",
+      "route": "/backoffice/agentes-herramientas",
+      "label": "Agentes y herramientas",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "dark",
+      "route": "/backoffice/auditoria",
+      "label": "Auditoría / Trazabilidad",
+      "violationCount": 0,
+      "violations": []
+    },
+    {
+      "theme": "dark",
+      "route": "/configuracion",
+      "label": "Configuración",
+      "violationCount": 0,
+      "violations": []
+    }
+  ],
+  "skipLinkFocus": [
+    {
+      "theme": "light",
+      "reducedMotion": "no-preference",
+      "route": "/login",
+      "label": "Login",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(0, 0, 0, 0) 0px 0px 0px 0px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "no-preference",
+      "route": "/panel",
+      "label": "Panel",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "no-preference",
+      "route": "/empresa/perfil-capacidades",
+      "label": "Perfil y capacidades",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "no-preference",
+      "route": "/empresa/documentos-vigencias",
+      "label": "Documentos y vigencias",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "no-preference",
+      "route": "/empresa/firmantes-autorizados",
+      "label": "Firmantes autorizados",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "no-preference",
+      "route": "/empresa/tarifas-aprobadas",
+      "label": "Tarifas aprobadas",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "no-preference",
+      "route": "/convocatorias/descubrimiento",
+      "label": "Descubrimiento",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "no-preference",
+      "route": "/convocatorias/matching",
+      "label": "Matching",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "no-preference",
+      "route": "/convocatorias/fuentes-frescura",
+      "label": "Fuentes y frescura",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "no-preference",
+      "route": "/evaluacion/go-no-go",
+      "label": "Go/No-Go",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "no-preference",
+      "route": "/evaluacion/analisis-bases",
+      "label": "Análisis de bases",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "no-preference",
+      "route": "/preparacion/cumplimiento-documental",
+      "label": "Cumplimiento documental",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "no-preference",
+      "route": "/preparacion/redaccion",
+      "label": "Redacción",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "no-preference",
+      "route": "/preparacion/revision",
+      "label": "Revisión",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "no-preference",
+      "route": "/preparacion/expediente",
+      "label": "Expediente",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "no-preference",
+      "route": "/preparacion/aprobaciones",
+      "label": "Aprobaciones",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "no-preference",
+      "route": "/entrega/entregas",
+      "label": "Entregas",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "no-preference",
+      "route": "/entrega/paquete-descargable",
+      "label": "Paquete descargable",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "no-preference",
+      "route": "/entrega/seguimiento",
+      "label": "Seguimiento post-adjudicación",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "no-preference",
+      "route": "/backoffice/organizaciones",
+      "label": "Organizaciones",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "no-preference",
+      "route": "/backoffice/usuarios-roles",
+      "label": "Usuarios y roles",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "no-preference",
+      "route": "/backoffice/agentes-herramientas",
+      "label": "Agentes y herramientas",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "no-preference",
+      "route": "/backoffice/auditoria",
+      "label": "Auditoría / Trazabilidad",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "no-preference",
+      "route": "/configuracion",
+      "label": "Configuración",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "reduce",
+      "route": "/login",
+      "label": "Login",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(0, 0, 0, 0) 0px 0px 0px 0px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "reduce",
+      "route": "/panel",
+      "label": "Panel",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "reduce",
+      "route": "/empresa/perfil-capacidades",
+      "label": "Perfil y capacidades",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "reduce",
+      "route": "/empresa/documentos-vigencias",
+      "label": "Documentos y vigencias",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "reduce",
+      "route": "/empresa/firmantes-autorizados",
+      "label": "Firmantes autorizados",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "reduce",
+      "route": "/empresa/tarifas-aprobadas",
+      "label": "Tarifas aprobadas",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "reduce",
+      "route": "/convocatorias/descubrimiento",
+      "label": "Descubrimiento",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "reduce",
+      "route": "/convocatorias/matching",
+      "label": "Matching",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "reduce",
+      "route": "/convocatorias/fuentes-frescura",
+      "label": "Fuentes y frescura",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "reduce",
+      "route": "/evaluacion/go-no-go",
+      "label": "Go/No-Go",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "reduce",
+      "route": "/evaluacion/analisis-bases",
+      "label": "Análisis de bases",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "reduce",
+      "route": "/preparacion/cumplimiento-documental",
+      "label": "Cumplimiento documental",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "reduce",
+      "route": "/preparacion/redaccion",
+      "label": "Redacción",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "reduce",
+      "route": "/preparacion/revision",
+      "label": "Revisión",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "reduce",
+      "route": "/preparacion/expediente",
+      "label": "Expediente",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "reduce",
+      "route": "/preparacion/aprobaciones",
+      "label": "Aprobaciones",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "reduce",
+      "route": "/entrega/entregas",
+      "label": "Entregas",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "reduce",
+      "route": "/entrega/paquete-descargable",
+      "label": "Paquete descargable",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "reduce",
+      "route": "/entrega/seguimiento",
+      "label": "Seguimiento post-adjudicación",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "reduce",
+      "route": "/backoffice/organizaciones",
+      "label": "Organizaciones",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "reduce",
+      "route": "/backoffice/usuarios-roles",
+      "label": "Usuarios y roles",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "reduce",
+      "route": "/backoffice/agentes-herramientas",
+      "label": "Agentes y herramientas",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "reduce",
+      "route": "/backoffice/auditoria",
+      "label": "Auditoría / Trazabilidad",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "light",
+      "reducedMotion": "reduce",
+      "route": "/configuracion",
+      "label": "Configuración",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(248, 250, 252) 0px 0px 0px 2px, rgb(29, 79, 215) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(248, 250, 252)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "no-preference",
+      "route": "/login",
+      "label": "Login",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(0, 0, 0, 0) 0px 0px 0px 0px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "no-preference",
+      "route": "/panel",
+      "label": "Panel",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "no-preference",
+      "route": "/empresa/perfil-capacidades",
+      "label": "Perfil y capacidades",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "no-preference",
+      "route": "/empresa/documentos-vigencias",
+      "label": "Documentos y vigencias",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "no-preference",
+      "route": "/empresa/firmantes-autorizados",
+      "label": "Firmantes autorizados",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "no-preference",
+      "route": "/empresa/tarifas-aprobadas",
+      "label": "Tarifas aprobadas",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "no-preference",
+      "route": "/convocatorias/descubrimiento",
+      "label": "Descubrimiento",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "no-preference",
+      "route": "/convocatorias/matching",
+      "label": "Matching",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "no-preference",
+      "route": "/convocatorias/fuentes-frescura",
+      "label": "Fuentes y frescura",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "no-preference",
+      "route": "/evaluacion/go-no-go",
+      "label": "Go/No-Go",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "no-preference",
+      "route": "/evaluacion/analisis-bases",
+      "label": "Análisis de bases",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "no-preference",
+      "route": "/preparacion/cumplimiento-documental",
+      "label": "Cumplimiento documental",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "no-preference",
+      "route": "/preparacion/redaccion",
+      "label": "Redacción",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "no-preference",
+      "route": "/preparacion/revision",
+      "label": "Revisión",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "no-preference",
+      "route": "/preparacion/expediente",
+      "label": "Expediente",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "no-preference",
+      "route": "/preparacion/aprobaciones",
+      "label": "Aprobaciones",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "no-preference",
+      "route": "/entrega/entregas",
+      "label": "Entregas",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "no-preference",
+      "route": "/entrega/paquete-descargable",
+      "label": "Paquete descargable",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "no-preference",
+      "route": "/entrega/seguimiento",
+      "label": "Seguimiento post-adjudicación",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "no-preference",
+      "route": "/backoffice/organizaciones",
+      "label": "Organizaciones",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "no-preference",
+      "route": "/backoffice/usuarios-roles",
+      "label": "Usuarios y roles",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "no-preference",
+      "route": "/backoffice/agentes-herramientas",
+      "label": "Agentes y herramientas",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "no-preference",
+      "route": "/backoffice/auditoria",
+      "label": "Auditoría / Trazabilidad",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "no-preference",
+      "route": "/configuracion",
+      "label": "Configuración",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "reduce",
+      "route": "/login",
+      "label": "Login",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(0, 0, 0, 0) 0px 0px 0px 0px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "reduce",
+      "route": "/panel",
+      "label": "Panel",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "reduce",
+      "route": "/empresa/perfil-capacidades",
+      "label": "Perfil y capacidades",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "reduce",
+      "route": "/empresa/documentos-vigencias",
+      "label": "Documentos y vigencias",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "reduce",
+      "route": "/empresa/firmantes-autorizados",
+      "label": "Firmantes autorizados",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "reduce",
+      "route": "/empresa/tarifas-aprobadas",
+      "label": "Tarifas aprobadas",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "reduce",
+      "route": "/convocatorias/descubrimiento",
+      "label": "Descubrimiento",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "reduce",
+      "route": "/convocatorias/matching",
+      "label": "Matching",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "reduce",
+      "route": "/convocatorias/fuentes-frescura",
+      "label": "Fuentes y frescura",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "reduce",
+      "route": "/evaluacion/go-no-go",
+      "label": "Go/No-Go",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "reduce",
+      "route": "/evaluacion/analisis-bases",
+      "label": "Análisis de bases",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "reduce",
+      "route": "/preparacion/cumplimiento-documental",
+      "label": "Cumplimiento documental",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "reduce",
+      "route": "/preparacion/redaccion",
+      "label": "Redacción",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "reduce",
+      "route": "/preparacion/revision",
+      "label": "Revisión",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "reduce",
+      "route": "/preparacion/expediente",
+      "label": "Expediente",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "reduce",
+      "route": "/preparacion/aprobaciones",
+      "label": "Aprobaciones",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "reduce",
+      "route": "/entrega/entregas",
+      "label": "Entregas",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "reduce",
+      "route": "/entrega/paquete-descargable",
+      "label": "Paquete descargable",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "reduce",
+      "route": "/entrega/seguimiento",
+      "label": "Seguimiento post-adjudicación",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "reduce",
+      "route": "/backoffice/organizaciones",
+      "label": "Organizaciones",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "reduce",
+      "route": "/backoffice/usuarios-roles",
+      "label": "Usuarios y roles",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "reduce",
+      "route": "/backoffice/agentes-herramientas",
+      "label": "Agentes y herramientas",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "reduce",
+      "route": "/backoffice/auditoria",
+      "label": "Auditoría / Trazabilidad",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    },
+    {
+      "theme": "dark",
+      "reducedMotion": "reduce",
+      "route": "/configuracion",
+      "label": "Configuración",
+      "isTarget": true,
+      "outlineStyle": "solid",
+      "outlineColor": "rgba(0, 0, 0, 0)",
+      "outlineWidth": "2px",
+      "boxShadow": "rgb(13, 21, 33) 0px 0px 0px 2px, rgb(79, 150, 238) 0px 0px 0px 4px, rgba(15, 28, 46, 0.08) 0px 4px 24px -4px",
+      "parentBg": "rgba(0, 0, 0, 0)",
+      "bodyBg": "rgb(13, 21, 33)",
+      "rectVisible": true
+    }
+  ],
+  "touchTargets": {
+    "320x568": {
+      "headerControls": [
+        {
+          "name": "hamburguesa",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "name": "organization-switcher-trigger",
+          "width": 180,
+          "height": 36
+        },
+        {
+          "name": "theme-selector-btn-0",
+          "width": 24,
+          "height": 24,
+          "label": "Tema claro"
+        },
+        {
+          "name": "theme-selector-btn-1",
+          "width": 24,
+          "height": 24,
+          "label": "Seguir al sistema"
+        },
+        {
+          "name": "theme-selector-btn-2",
+          "width": 24,
+          "height": 24,
+          "label": "Tema oscuro"
+        }
+      ],
+      "drawerControls": [
+        {
+          "type": "link",
+          "name": "Panel",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Perfil y capacidades",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Documentos y vigencias",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Firmantes autorizados",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Tarifas aprobadas",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Descubrimiento",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Matching",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Fuentes y frescura",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Go/No-Go",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Análisis de bases",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Cumplimiento documental",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Redacción",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Revisión",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Expediente",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Aprobaciones",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Entregas",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Paquete descargable",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Seguimiento post-adjudicación",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Organizaciones",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Usuarios y roles",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Agentes y herramientas",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Auditoría / Trazabilidad",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Configuración",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "group-button",
+          "name": "Análisis",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "group-button",
+          "name": "Empresa",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "group-button",
+          "name": "Convocatorias",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "group-button",
+          "name": "Evaluación",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "group-button",
+          "name": "Preparación",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "group-button",
+          "name": "Entrega y seguimiento",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "group-button",
+          "name": "Back office",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "group-button",
+          "name": "Configuración",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "other-button",
+          "name": "Cerrar menú",
+          "width": 28,
+          "height": 28
+        }
+      ]
+    },
+    "390x844": {
+      "headerControls": [
+        {
+          "name": "hamburguesa",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "name": "organization-switcher-trigger",
+          "width": 180,
+          "height": 36
+        },
+        {
+          "name": "theme-selector-btn-0",
+          "width": 24,
+          "height": 24,
+          "label": "Tema claro"
+        },
+        {
+          "name": "theme-selector-btn-1",
+          "width": 24,
+          "height": 24,
+          "label": "Seguir al sistema"
+        },
+        {
+          "name": "theme-selector-btn-2",
+          "width": 24,
+          "height": 24,
+          "label": "Tema oscuro"
+        }
+      ],
+      "drawerControls": [
+        {
+          "type": "link",
+          "name": "Panel",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Perfil y capacidades",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Documentos y vigencias",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Firmantes autorizados",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Tarifas aprobadas",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Descubrimiento",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Matching",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Fuentes y frescura",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Go/No-Go",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Análisis de bases",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Cumplimiento documental",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Redacción",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Revisión",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Expediente",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Aprobaciones",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Entregas",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Paquete descargable",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Seguimiento post-adjudicación",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Organizaciones",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Usuarios y roles",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Agentes y herramientas",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Auditoría / Trazabilidad",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "link",
+          "name": "Configuración",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "group-button",
+          "name": "Análisis",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "group-button",
+          "name": "Empresa",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "group-button",
+          "name": "Convocatorias",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "group-button",
+          "name": "Evaluación",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "group-button",
+          "name": "Preparación",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "group-button",
+          "name": "Entrega y seguimiento",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "group-button",
+          "name": "Back office",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "group-button",
+          "name": "Configuración",
+          "width": 271,
+          "height": 44
+        },
+        {
+          "type": "other-button",
+          "name": "Cerrar menú",
+          "width": 28,
+          "height": 28
+        }
+      ]
+    }
+  }
+}
