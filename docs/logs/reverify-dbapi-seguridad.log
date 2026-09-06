@@ -1,0 +1,249 @@
+Reverificación adversarial de seguridad — packages/db + apps/api
+(reparación de docs/auditoria-1/db-api-reverificacion.md)
+Fecha: 2026-09-06
+Auditor: agente Sonnet independiente ("reverificador adversarial de
+seguridad"), sin participación en la construcción ni en la reparación.
+
+HEAD final verificado: f1d3bc9 ("docs: cierre api ronda 3; despacho
+auditoría 2 de expediente en API")
+Worktree de trabajo: <scratch>/reverify-sec (creado con `git worktree add
+<scratch>/reverify-sec HEAD`, `npm install` real, eliminado al cerrar).
+Worktree auxiliar temporal: <scratch>/reverify-sec-baseline (fijado en
+a8d5442 para aislar un hallazgo de reproducibilidad — ver §0 — eliminado
+tras usarlo).
+
+Nota operativa: el repositorio principal tuvo actividad concurrente de
+otros agentes durante esta reverificación (HEAD avanzó varias veces:
+5bcaa41 → 038283e → 57d0efb → f1d3bc9, además de trabajo no relacionado en
+apps/web/apps/worker/packages/sources). El worktree se resincronizó
+(`git fetch . main && git checkout FETCH_HEAD`) en cada avance relevante a
+packages/db o apps/api; nunca se usó `git reset`/`checkout <commit>`/
+`stash`/`rebase`/`add -A` en el repo principal.
+
+================================================================
+§0. Hallazgo de reproducibilidad (migración 0034 faltante en git)
+================================================================
+Al recrear el worktree desde HEAD=a8d5442 (el commit citado por el informe
+original como "79/79 verde"), `npm run -w apps/api test` dio 6/79 tests
+ROJOS de forma determinista (reproducido también con maxForks=1, y
+reproducido aislando un solo archivo):
+
+  FAIL test/expediente-checklist-and-approval.test.ts > A12, A11
+  FAIL test/expediente-e2e-flow.test.ts > flujo E2E completo
+  FAIL test/expediente-package-and-submission.test.ts > A14, A13
+  FAIL test/expediente-proposal.test.ts > coordinación condición cambiante
+
+Causa raíz identificada: packages/db/migrations/0034_expediente_approval_
+inputs_snapshot.sql (columna inputs_snapshot jsonb en
+proposal_approval_events, requerida por approval-store.pg.ts) existía en
+el ÁRBOL DE TRABAJO del autor original desde antes de a8d5442 pero NUNCA
+se había hecho `git add`/commit — es decir, todas las corridas de test que
+el informe original cita como verdes SÍ tenían ese archivo en disco (por
+eso pasaban), pero un `git worktree add` desde el HISTORIAL DE COMMITS no
+lo trae. Confirmado con `git log --all -- packages/db/migrations/0034_*`
+(solo aparece en el commit 5bcaa41, posterior a a8d5442, título "fix(db):
+commitea la migración 0034 (faltaba en el historial)").
+
+Reproducción exacta:
+$ cd <scratch>/reverify-sec-baseline   # worktree fijado en a8d5442
+$ npm install && npm run -w apps/api test
+...
+ Test Files  4 failed | 20 passed (24)
+      Tests  6 failed | 73 passed (79)
+$ ls packages/db/migrations | grep 0034   # -> vacío en a8d5442
+
+Tras resincronizar a HEAD>=5bcaa41 (donde 0034 SÍ está comiteada), la
+misma suite pasa 79/79 de forma estable (ver §2). Esto es un problema de
+higiene de commits ya CORREGIDO en el propio HEAD que se está
+reverificando (por el mismo autor, en 5bcaa41, antes de que esta
+reverificación lo señalara) — se documenta aquí porque afecta la
+confiabilidad de CUALQUIER cifra de "N/N verde" citada en un log si no se
+verifica también que los archivos referenciados estén realmente
+comiteados, no solo presentes en el disco del agente que los escribió.
+
+================================================================
+§1. Ancestría y contenido real de los 10 commits citados
+================================================================
+$ git log --oneline --graph 21b6a8c~2..a8d5442
+* a8d5442 docs: actualiza estado de reparación DB-02/08/09/10/11/12, API-01/02/03/08/09 + log final
+* 2632874 fix(api): invalida explícitamente la aprobación al cambiar aplicabilidad de un requisito condicional
+* 13c044f docs(db): corrige nota de portabilidad de sha256() (PG14+, no PG11)
+* 616f15e docs(db): DB-11 - corrige comentario impreciso de grants de worker_role
+* 21b6a8c fix(db): DB-09 (mitigación parcial) - app.agent_run_context bootstrap guard
+* 3fd1093 fix(api): API-03 - close login timing oracle (always run scrypt)
+* 31780e9 fix(db,api): API-01/API-09 - atomic refresh rotation with reuse-detection family revoke
+* 3f25760 fix(db): DB-02 (reabierto)/DB-10 - vigencia de tarifa contra submission_deadline
+* 32a581d docs: cierre expediente; micro-corrección de dos hallazgos bajos
+* 7eb4ce7 fix(api): API-08/API-02 - only an owner can grant the owner role via invitation
+* 38b157e fix(db): DB-12 (audit sweep) - app.my_organizations required caller context
+...
+* 2b6b2f7 fix(db): DB-08 - refresh token SECURITY DEFINER functions require matching caller context
+
+Los 10 commits forman una cadena lineal real (ningún merge, ningún commit
+huérfano), todos ancestros de HEAD, con `git show --stat` confirmando
+exactamente los archivos que cada mensaje afirma tocar (migraciones SQL +
+tests nuevos + cambios mínimos y quirúrgicos en routes.ts). Verificado
+individualmente uno por uno (salida completa omitida aquí por espacio,
+disponible repitiendo `git show --stat <hash>` sobre cada uno).
+
+================================================================
+§2. Suites completas (HEAD final f1d3bc9)
+================================================================
+$ npm run -w packages/db test
+ Test Files  19 passed (19)
+      Tests  144 passed (144)
+
+$ npm run -w apps/api test
+ Test Files  29 passed (29)
+      Tests  95 passed (95)
+
+$ npm run -w packages/db typecheck   -> OK (tsc --noEmit, 0 errores)
+$ npm run -w apps/api typecheck      -> OK
+$ npm run -w packages/db lint        -> OK (eslint src test)
+$ npm run -w apps/api lint           -> OK
+
+(95 = 79 originales de a8d5442 + 4 de security-api09-tool-calls-atomic.test.ts
++ 4 de security-api10-audit-log-null-org.test.ts + 4 de
+security-api11-file-magic-bytes.test.ts + 4 de
+security-api12-platform-key-constant-time.test.ts − compensaciones de
+tests reescritos; verificado archivo por archivo con `npx vitest run
+--reporter=verbose`, no solo el total.)
+
+================================================================
+§3. Ataques ejecutados (packages/db, PGlite en memoria, script temporal
+zz-adversarial-reverify-sec.test.ts, borrado al cerrar)
+================================================================
+11/11 verdes. Resultados relevantes:
+
+- Timezone de sesión SIN fijar explícitamente en packages/db:
+  `select current_setting('TimeZone')` -> "Etc/GMT+6" (heredado del TZ del
+  SO del worktree, que resultó ser CST/UTC-6 — coincidencia del entorno,
+  NO una configuración explícita del código). Ver DB-13 en el informe.
+
+- GUC app.current_user_id: `set_config('app.current_user_id', <cualquier
+  uuid>, true)` se acepta sin ninguna validación contra la tabla `users`
+  ni contra ninguna prueba de autenticación real — confirmado que
+  apps/api es el ÚNICO guardián (JWT firmado -> request.userId -> este
+  set_config), vía grep exhaustivo de todos los call-sites en apps/api/src
+  (ninguno pasa un valor no derivado de request.userId/request.orgId).
+
+- SET ROLE app_role -> worker_role / -> postgres: en PGlite, AMBOS
+  tuvieron éxito (current_user resultante = el rol pedido). Investigado a
+  fondo: NO es una vulneración de RLS/políticas — es porque, tanto en
+  PGlite como (documentado explícitamente en packages/db/README.md) en la
+  arquitectura de producción prevista, la conexión física subyacente NO es
+  un login nativo de `app_role` sino el usuario propietario de las
+  migraciones (superusuario en PGlite; "normalmente el propietario de la
+  base de datos" en producción), y `SET LOCAL ROLE app_role` es solo una
+  convención de aplicación para activar RLS — un superusuario puede
+  `SET ROLE` a cualquier rol sin importar membership. Mismo riesgo
+  arquitectónico ya documentado por el proyecto para DB-07. Ver DB-14 en
+  el informe (no es un hallazgo nuevo distinto, es la misma raíz).
+
+- DB-12 (my_organizations): sin contexto -> 0 filas (nunca error, nunca
+  datos de otra org), confirmado con datos reales de otra organización
+  presentes en la BD. La firma pública ya no acepta p_user_id (invocarla
+  con un argumento lanza error de firma inexistente).
+
+- DB-08 (superadmin revocando sesiones ajenas): confirmado que un
+  superadmin SÍ puede revocar todas las sesiones de otro usuario (by
+  design, 0040) — y que la función SQL en sí NO escribe ninguna fila en
+  audit_log (0 filas tras la operación). La auditoría de este evento
+  depende 100% de que la CAPA apps/api la registre explícitamente — hoy
+  apps/api no expone ningún endpoint que llame a esta función (confirmado
+  también en apps/api, ver §4), así que hoy esto es inalcanzable via HTTP,
+  no solo no auditado.
+
+- DB-02/DB-10 caso inverso (tarifa vigente A LA FECHA DEL ACTO pero
+  vencida HOY): INSERT aceptado correctamente (REQ-023 funciona en ambas
+  direcciones, no solo la probada por el test oficial).
+
+- DB-02/DB-10 submission_deadline NULL: cae a current_date, tarifa vencida
+  hoy sigue rechazándose — comportamiento previo preservado.
+
+- DB-02/DB-10 zona horaria: con submission_deadline='2026-01-15T05:00:00Z'
+  y valid_until='2026-01-14', el resultado (aceptado/rechazado) depende
+  del TimeZone de sesión de Postgres (nunca fijado por packages/db). En
+  este entorno (Etc/GMT+6) el resultado fue "accepted"; con TimeZone=UTC
+  (default muy común en Postgres gestionado en la nube) el mismo dato
+  habría dado "rejected" — confirmado por cálculo manual de la conversión
+  de zona horaria, no por tener dos servidores Postgres distintos a mano.
+
+- Auditoría SECURITY DEFINER exhaustiva contra HEAD real (incluye
+  0029-0039): 15 funciones en pg_proc/app, las 15 en la lista blanca del
+  test oficial, 0 sin revisar. Ninguna de las migraciones 0029-0039
+  (extensiones de expediente, ronda 3) introdujo una función SECURITY
+  DEFINER nueva.
+
+================================================================
+§4. Ataques ejecutados (apps/api, fastify.inject + PGlite, script
+temporal zz-adversarial-reverify-sec.test.ts, borrado al cerrar)
+================================================================
+11/11 verdes. Resultados relevantes:
+
+- API-01 reuso tras rotación: token viejo reusado -> 401; el token HIJO
+  recién emitido (nunca usado) TAMBIÉN queda revocado por la respuesta de
+  familia completa -> 401. Confirmado además que NINGUNA fila se escribe
+  en audit_log por este evento (0 filas) — ver API-13 en el informe.
+
+- API-01 3 refresh concurrentes con el MISMO token (Promise.all):
+  exactamente 1×200 + 2×401 en todas las corridas.
+
+- API-01 token robado tras logout: logout revoca el refresh token; el
+  intento posterior del "atacante" con el mismo token -> 401.
+
+- API-08 variante "PATCH de invitación pendiente": NO EXISTE tal ruta en
+  el código real (solo POST /invitations y POST /invitations/accept) —
+  confirmado con PATCH /organizations/invitations/:id -> 404. La
+  superficie de ataque descrita en el encargo no existe hoy.
+
+- API-08 variante "aceptar y luego autopromoverse": admin invita hasta
+  writer -> invitado acepta (rol writer) -> el propio invitado intenta
+  PATCH .../memberships/:userId con role:'owner' -> 403 (bloqueado, mismo
+  guard de API-02).
+
+- Control positivo (2 owners): con exactamente 2 owners activos, un owner
+  SÍ puede degradar al otro a writer (200); tras eso solo queda 1 owner, y
+  degradarlo a él ahora falla con 409 (protección del último owner
+  funcionando en el límite exacto).
+
+- Confirmado en runtime (no solo grep): `app.printRoutes()` no contiene
+  ninguna ruta que coincida con /revoke|session/i — no existe endpoint de
+  revocación de sesiones ajenas por superadmin.
+
+- Confirmado en runtime: ninguna ruta bajo /agents/* invoca
+  RunStore.getRun/updateRun por :id individual — el gap de DB-09 residual
+  es inalcanzable vía HTTP hoy (solo alcanzable invocando
+  packages/agents-agent-stores.pg.ts directamente, como hace el nuevo test
+  oficial security-db09-agent-run-context-cache.test.ts).
+
+- API-03, 100 muestras/lado (el doble de las 50 oficiales), misma
+  metodología (app aislada, máx. 5 logins/app por el rate-limiter de
+  5/min): mediana existente=26.61ms, mediana inexistente=28.53ms,
+  ratio=1.07x (umbral <1.5x). Confirma el cierre con el doble de potencia
+  estadística que el test oficial.
+
+- Enumeración por /auth/register: verificado que un email duplicado
+  devuelve 201 genérico (igual que uno nuevo), sin crear una segunda fila,
+  sin sobrescribir la contraseña original, sin filtrar el id real —
+  diseño correcto ya cerrado, confirmado independientemente.
+
+- Enumeración por invitaciones: token inexistente -> 409 "Invitación no
+  encontrada" (mensaje genérico, no distingue "no existe" de "ajena a tu
+  email"/"expirada" en el status code — solo en el texto, que ya es
+  polimórfico entre esos 3 casos según el código de routes.ts).
+
+================================================================
+§5. Comandos de referencia (reproducibles)
+================================================================
+git worktree add <scratch>/reverify-sec HEAD
+cd <scratch>/reverify-sec && npm install
+npm run -w packages/db test
+npm run -w apps/api test
+npm run -w packages/db typecheck && npm run -w packages/db lint
+npm run -w apps/api typecheck && npm run -w apps/api lint
+# scripts adversariales: packages/db/test/zz-adversarial-reverify-sec.test.ts
+# y apps/api/test/zz-adversarial-reverify-sec.test.ts (temporales, borrados)
+cd /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging
+git worktree remove <scratch>/reverify-sec --force
+git worktree remove <scratch>/reverify-sec-baseline --force
