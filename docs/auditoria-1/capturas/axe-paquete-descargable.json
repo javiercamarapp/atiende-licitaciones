@@ -1,0 +1,22 @@
+{
+  "url": "http://localhost:4173/entrega/paquete-descargable",
+  "violations": [
+    {
+      "id": "heading-order",
+      "impact": "moderate",
+      "description": "Ensure the order of headings is semantically correct",
+      "help": "Heading levels should only increase by one",
+      "nodes": [
+        {
+          "target": [
+            "h3"
+          ],
+          "html": "<h3 class=\"font-display font-semibold tracking-tight text-base\">La presentación y firma las realiza el usuario</h3>",
+          "failureSummary": "Fix any of the following:\n  Heading order invalid"
+        }
+      ]
+    }
+  ],
+  "passes": 36,
+  "incomplete": []
+}

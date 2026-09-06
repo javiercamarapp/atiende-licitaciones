@@ -1,0 +1,96 @@
+=== Registro ronda 1 (packages/db + apps/api) ===
+Fecha: 2026-09-06T01:04:06Z
+Node: v25.6.1  npm: 11.12.1
+
+$ npm install
+
+up to date, audited 637 packages in 1s
+
+199 packages are looking for funding
+  run `npm fund` for details
+
+5 vulnerabilities (3 moderate, 1 high, 1 critical)
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+exit code: 0
+
+$ npm run -w packages/db test
+
+> @atiende/db@0.1.0 test
+> vitest run
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/packages/db[39m
+
+ [32m✓[39m test/backoffice-extension.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 5572[2mms[22m[39m
+ [32m✓[39m test/jobs-locking.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 6017[2mms[22m[39m
+ [32m✓[39m test/org-bootstrap.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 6033[2mms[22m[39m
+ [32m✓[39m test/rls-roles.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 6287[2mms[22m[39m
+ [32m✓[39m test/rls-isolation.test.ts [2m([22m[2m68 tests[22m[2m)[22m[33m 6485[2mms[22m[39m
+ [32m✓[39m test/idempotency-and-audit.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 6928[2mms[22m[39m
+ [32m✓[39m test/migrate.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 8003[2mms[22m[39m
+   [33m[2m✓[22m[39m migraciones[2m > [22maplican todas sin error y quedan registradas en schema_migrations [33m5926[2mms[22m[39m
+   [33m[2m✓[22m[39m migraciones[2m > [22mse pueden aplicar dos veces sin error (idempotente): la segunda vez no repite nada [33m940[2mms[22m[39m
+   [33m[2m✓[22m[39m migraciones[2m > [22mensureMigrationsTable es idempotente [33m544[2mms[22m[39m
+   [33m[2m✓[22m[39m migraciones[2m > [22mcrea todas las tablas de dominio esperadas [33m591[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m7 passed[39m[22m[90m (7)[39m
+[2m      Tests [22m [1m[32m90 passed[39m[22m[90m (90)[39m
+[2m   Start at [22m 19:04:19
+[2m   Duration [22m 8.44s[2m (transform 270ms, setup 0ms, collect 468ms, tests 45.32s, environment 1ms, prepare 601ms)[22m
+
+exit code: 0
+
+$ npm run -w packages/db typecheck
+
+> @atiende/db@0.1.0 typecheck
+> tsc --noEmit
+
+exit code: 0
+
+$ npm run -w packages/db lint
+
+> @atiende/db@0.1.0 lint
+> eslint src test
+
+exit code: 0
+
+$ npm run -w apps/api typecheck
+
+> @atiende/api@0.1.0 typecheck
+> tsc --noEmit
+
+exit code: 0
+
+$ npm run -w apps/api lint
+
+> @atiende/api@0.1.0 lint
+> eslint src test
+
+exit code: 0
+
+$ npm run -w apps/api test
+
+> @atiende/api@0.1.0 test
+> vitest run
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/api[39m
+
+ [32m✓[39m test/auth-and-orgs-flow.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 2335[2mms[22m[39m
+ [32m✓[39m test/isolation-and-idempotency.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 3311[2mms[22m[39m
+ [32m✓[39m test/rate-limit-and-health.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 4220[2mms[22m[39m
+   [33m[2m✓[22m[39m salud (healthz/readyz)[2m > [22mGET /healthz siempre responde 200 sin tocar la base de datos [33m1041[2mms[22m[39m
+   [33m[2m✓[22m[39m salud (healthz/readyz)[2m > [22mGET /readyz responde 200 con la base de datos disponible [33m659[2mms[22m[39m
+   [33m[2m✓[22m[39m salud (healthz/readyz)[2m > [22mGET /readyz responde 503 si la base de datos no está disponible [33m601[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m3 passed[39m[22m[90m (3)[39m
+[2m      Tests [22m [1m[32m12 passed[39m[22m[90m (12)[39m
+[2m   Start at [22m 19:04:31
+[2m   Duration [22m 4.74s[2m (transform 99ms, setup 0ms, collect 637ms, tests 9.87s, environment 1ms, prepare 134ms)[22m
+
+exit code: 0
+

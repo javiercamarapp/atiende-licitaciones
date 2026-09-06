@@ -1,0 +1,98 @@
+# Log auditoría adversarial ronda 1 — apps/web (Atiende Licitaciones)
+# Generado: 2026-09-06T00:58:23Z
+# Node: v25.6.1  npm: 11.12.1
+# Commit auditado: 6ded3a0384df6d3b3a35b08fc5ef30bb96c49625 (6ded3a0 docs: cierre web ronda 1 y despacho auditoría web)
+
+## Rubro 1 — Reproducibilidad (clon limpio en scratchpad, commit a43efd7)
+
+=== $ git clone (--no-local) + checkout a43efd7 ===
+OK — árbol resultante: apps/web, docs/, package.json (SIN apps/api, SIN packages/*, SIN package-lock.json — ninguno de los tres está trackeado en git en ningún commit del historial)
+
+=== $ npm install (raíz, clon limpio, node v25.6.1 / npm 11.12.1) ===
+npm warn deprecated whatwg-encoding@3.1.1: Use @exodus/bytes instead for a more spec-conformant and faster implementation
+npm warn deprecated eslint@9.39.5: This version is no longer supported. Please see https://eslint.org/version-support for other options.
+
+added 499 packages, and audited 501 packages in 17s
+
+164 packages are looking for funding
+  run `npm fund` for details
+
+found 0 vulnerabilities
+--- EXIT CODE: 0 ---
+
+=== $ npm run -w apps/web typecheck (clon limpio) ===
+
+> @atiende/web@0.1.0 typecheck
+> tsc -b --noEmit
+
+vite.config.ts(3,18): error TS2307: Cannot find module 'path' or its corresponding type declarations.
+vite.config.ts(15,37): error TS2339: Property 'dirname' does not exist on type 'ImportMeta'.
+npm error Lifecycle script `typecheck` failed with error:
+npm error code 2
+npm error path /private/tmp/claude-501/-Users-javiercamaraportepetit/***/scratchpad/clone-test/apps/web
+npm error workspace @atiende/web@0.1.0
+npm error location /private/tmp/claude-501/-Users-javiercamaraportepetit/***/scratchpad/clone-test/apps/web
+npm error command failed
+npm error command sh -c tsc -b --noEmit
+--- EXIT CODE: 2 ---
+
+=== $ npm run -w apps/web lint (clon limpio) ===
+
+> @atiende/web@0.1.0 lint
+> eslint .
+
+--- EXIT CODE: 0 ---
+
+=== $ npm run -w apps/web test (clon limpio) ===
+
+> @atiende/web@0.1.0 test
+> NODE_OPTIONS=--no-experimental-webstorage vitest run
+
+
+ RUN  v4.1.11 /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-test/apps/web
+
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-test/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-test/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-test/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-test/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-test/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-test/node_modules/axe-core/axe.js:17087:41)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-test/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-test/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-test/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-test/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-test/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-test/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-test/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-test/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-test/node_modules/axe-core/axe.js:17087:41)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-test/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-test/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/clone-test/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+
+ Test Files  8 passed (8)
+      Tests  29 passed (29)
+   Start at  18:59:56
+   Duration  1.53s (transform 339ms, setup 988ms, import 1.57s, tests 1.10s, environment 2.69s)
+
+--- EXIT CODE: 0 ---
+
+=== $ npm run -w apps/web build (clon limpio) ===
+
+> @atiende/web@0.1.0 build
+> tsc -b && vite build
+
+vite.config.ts(3,18): error TS2307: Cannot find module 'path' or its corresponding type declarations.
+vite.config.ts(15,37): error TS2339: Property 'dirname' does not exist on type 'ImportMeta'.
+npm error Lifecycle script `build` failed with error:
+npm error code 2
+npm error path /private/tmp/claude-501/-Users-javiercamaraportepetit/***/scratchpad/clone-test/apps/web
+npm error workspace @atiende/web@0.1.0
+npm error location /private/tmp/claude-501/-Users-javiercamaraportepetit/***/scratchpad/clone-test/apps/web
+npm error command failed
+npm error command sh -c tsc -b && vite build
+--- EXIT CODE: 2 ---

@@ -1,0 +1,85 @@
+{
+  "url": "http://localhost:4173/login",
+  "violations": [
+    {
+      "id": "landmark-one-main",
+      "impact": "moderate",
+      "description": "Ensure the document has a main landmark",
+      "help": "Document should have one main landmark",
+      "nodes": [
+        {
+          "target": [
+            "html"
+          ],
+          "html": "<html lang=\"es\">",
+          "failureSummary": "Fix all of the following:\n  Document does not have a main landmark"
+        }
+      ]
+    },
+    {
+      "id": "page-has-heading-one",
+      "impact": "moderate",
+      "description": "Ensure that the page, or at least one of its frames contains a level-one heading",
+      "help": "Page should contain a level-one heading",
+      "nodes": [
+        {
+          "target": [
+            "html"
+          ],
+          "html": "<html lang=\"es\">",
+          "failureSummary": "Fix all of the following:\n  Page must have a level-one heading"
+        }
+      ]
+    },
+    {
+      "id": "region",
+      "impact": "moderate",
+      "description": "Ensure all page content is contained by landmarks",
+      "help": "All page content should be contained by landmarks",
+      "nodes": [
+        {
+          "target": [
+            ".text-2xl"
+          ],
+          "html": "<span class=\"font-display text-2xl font-bold tracking-tight\" style=\"color: rgb(29, 78, 216);\">atiende</span>",
+          "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks"
+        },
+        {
+          "target": [
+            "h3"
+          ],
+          "html": "<h3 class=\"font-display text-xl font-semibold leading-none tracking-tight\">Accede a tu panel de licitaciones</h3>",
+          "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks"
+        },
+        {
+          "target": [
+            "p"
+          ],
+          "html": "<p class=\"text-sm text-muted-foreground\">Gestiona convocatorias, evaluaciones y entregas en un solo lugar.</p>",
+          "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks"
+        },
+        {
+          "target": [
+            ".bg-muted"
+          ],
+          "html": "<div role=\"tablist\" aria-orientation=\"horizontal\" class=\"h-10 items-center justify-center rounded-full bg-muted p-1 text-muted-foreground mb-4 grid w-full grid-cols-2\" tabindex=\"0\" data-orientation=\"horizontal\" style=\"outline: none;\">",
+          "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks"
+        },
+        {
+          "target": [
+            "#radix-\\:r0\\:-content-password"
+          ],
+          "html": "<div data-state=\"active\" data-orientation=\"horizontal\" role=\"tabpanel\" aria-labelledby=\"radix-:r0:-trigger-p...\" id=\"radix-:r0:-content-p...\" tabindex=\"0\" class=\"mt-4 focus-visible:o...\" style=\"animation-duration: ...\">",
+          "failureSummary": "Fix any of the following:\n  Some page content is not contained by landmarks"
+        }
+      ]
+    }
+  ],
+  "passes": 33,
+  "incomplete": [
+    {
+      "id": "aria-valid-attr-value",
+      "impact": "critical"
+    }
+  ]
+}

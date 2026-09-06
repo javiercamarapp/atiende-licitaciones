@@ -1,0 +1,15 @@
+{
+  "url": "http://localhost:4173/panel",
+  "violations": [],
+  "passes": 33,
+  "incomplete": [
+    {
+      "id": "aria-hidden-focus",
+      "impact": "serious"
+    },
+    {
+      "id": "duplicate-id-aria",
+      "impact": "critical"
+    }
+  ]
+}
