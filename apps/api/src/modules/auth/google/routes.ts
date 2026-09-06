@@ -25,7 +25,7 @@ import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import type { DbExecutor } from '@atiende/db';
-import { AppError, BadRequestError, ForbiddenError, TooManyRequestsError, UnauthorizedError } from '../../../lib/errors.js';
+import { AppError, BadRequestError, ConflictError, ForbiddenError, TooManyRequestsError, UnauthorizedError } from '../../../lib/errors.js';
 import { recordAuthAudit } from '../../../lib/audit.js';
 import { decryptSecret, verifyTotpCode, hashBackupCode, assertSixDigitCode } from '../../../lib/step-up.js';
 import { checkTwofaLockout, recordTwofaFailure, resetTwofaFailures } from '../../../lib/twofa-lockout.js';
@@ -40,6 +40,31 @@ import { signPending2faToken, verifyPending2faToken } from './pending-2fa.js';
 import { googleStartResponseSchema, googleCallbackQuerySchema, googleVerify2faBodySchema, googleAuthResultSchema } from './schemas.js';
 
 const OAUTH_STATE_TTL_MINUTES = 10;
+
+/**
+ * GO-07 (docs/auditoria-2/api-google.md): SQLSTATE de Postgres para
+ * `unique_violation` -- el MISMO código que `POST /auth/register` ya captura
+ * explícitamente en `modules/auth/routes.ts` para no convertir una carrera
+ * entre dos registros simultáneos en un 500. Se replica aquí, en espejo, para
+ * el flujo de Google.
+ */
+const UNIQUE_VIOLATION = '23505';
+
+/**
+ * GO-07: número TOTAL de intentos de `resolveGoogleIdentityOnce`. Dos basta
+ * por construcción: la única forma de recibir `23505` es que OTRA transacción
+ * ganara la carrera y YA HAYA COMMITEADO la fila (usuario o identidad) --
+ * el segundo intento abre una transacción nueva, con un snapshot posterior a
+ * ese commit, así que ya la ve y toma la rama de vinculación/login normal.
+ * Un tercer intento no aportaría información nueva (y un bucle sin techo
+ * sería un vector de amplificación bajo carga).
+ */
+const IDENTITY_RESOLUTION_ATTEMPTS = 2;
+
+/** GO-07: ¿este error es una violación de restricción única de Postgres? (mismo criterio que `/auth/register`). */
+function isUniqueViolation(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && (err as { code?: unknown }).code === UNIQUE_VIOLATION;
+}
 
 /** Un código de respaldo tiene forma "XXXX-XXXX"; cualquier otra cosa se intenta como TOTP de 6 dígitos (mismo criterio que `modules/twofa/routes.ts`). */
 function looksLikeBackupCode(code: string): boolean {
@@ -84,7 +109,7 @@ async function auditGoogleRejected(app: FastifyInstance, params: RejectAuditPara
 /** Sentinel interno: distingue "rechazo de negocio ya auditado" de cualquier otro error inesperado en `handleCallback`. */
 class GoogleRejectionError extends Error {
   constructor(
-    public httpStatus: 401 | 403,
+    public httpStatus: 401 | 403 | 409,
     public reason: string,
     public userMessage: string,
     public actorId: string | null = null
@@ -112,8 +137,13 @@ interface ResolvedIdentity {
  * `app.find_identity_by_subject`/`app.find_user_by_email`, ambas
  * pre-sesión y SECURITY DEFINER, o por el `id` recién insertado), y TODO lo
  * que sigue en la misma transacción corre ya bajo ese contexto real.
+ *
+ * UN SOLO INTENTO: puede lanzar `23505` si otra transacción concurrente ganó
+ * la carrera entre el `find_*` y el `insert` (ver GO-07). El reintento --y la
+ * traducción a una respuesta limpia si ni así se resuelve-- viven en
+ * `resolveGoogleIdentity`, no aquí.
  */
-async function resolveGoogleIdentity(
+async function resolveGoogleIdentityOnce(
   app: FastifyInstance,
   claims: { sub: string; email: string },
   audit: { ip: string; userAgent: string | null; requestId: string }
@@ -239,6 +269,69 @@ async function resolveGoogleIdentity(
 
     return { userId, isNewUser, linkedNow, acceptedInvitations, requiresTwoFactor, hasAnyOrganization };
   });
+}
+
+/**
+ * GO-07 (docs/auditoria-2/api-google.md, MODERADA): resuelve la identidad de
+ * Google tolerando la CARRERA entre dos callbacks concurrentes del mismo
+ * email/subject nunca visto (doble clic, dos pestañas, o un intento
+ * deliberado de forzarla).
+ *
+ * El problema: `resolveGoogleIdentityOnce` decide qué rama tomar leyendo
+ * `app.find_identity_by_subject`/`app.find_user_by_email` y DESPUÉS inserta.
+ * Dos transacciones simultáneas pueden leer ambas "no existe" antes de que
+ * ninguna commitee; la segunda en llegar al `INSERT` recibe un `23505` de
+ * `ux_users_email_lower` (0002) o de `user_identities (provider, subject)` /
+ * `(provider, user_id)` (0071). Sin este manejo, esa excepción cruda
+ * atravesaba `handleCallback` (que solo distinguía `GoogleRejectionError`)
+ * hasta el manejador genérico -> **500**, con el mensaje crudo de Postgres
+ * reflejado al cliente fuera de producción.
+ *
+ * La reparación es el espejo exacto del patrón que `POST /auth/register` ya
+ * usa para esta MISMA clase de carrera (`UNIQUE_VIOLATION` en
+ * `modules/auth/routes.ts`), adaptado a que aquí sí queremos continuar el
+ * flujo: reintentar la resolución completa una vez. El reintento abre una
+ * transacción NUEVA, cuyo snapshot ya incluye el commit del ganador, así que
+ * encuentra la fila y sigue por la rama de vinculación/login normal --
+ * el usuario recibe su sesión, no un error.
+ *
+ * Se reintenta la transacción ENTERA (en vez de un `savepoint` alrededor de
+ * cada `INSERT`) por dos razones: en Postgres la transacción queda abortada
+ * tras el error, y `app.find_*` son funciones PRE-SESIÓN que se niegan a
+ * correr si `app.current_user_id()` ya está fijado (0019/0044/0071) -- releer
+ * dentro de la misma transacción, que ya fijó ese contexto, sería imposible.
+ *
+ * Si el segundo intento vuelve a chocar (escenario patológico: alguien
+ * forzando la carrera en bucle), se responde un **409 controlado** --
+ * auditado como cualquier otro rechazo, con un mensaje de negocio propio y
+ * sin filtrar el error de Postgres ni traza alguna.
+ *
+ * NOTA: no cambia en absoluto la compuerta `sin_acceso` (D-09,
+ * docs/DECISIONES.md) -- este reintento solo decide CÓMO se resuelve la
+ * identidad, nunca si se crea una organización.
+ */
+async function resolveGoogleIdentity(
+  app: FastifyInstance,
+  claims: { sub: string; email: string },
+  audit: { ip: string; userAgent: string | null; requestId: string }
+): Promise<ResolvedIdentity> {
+  for (let attempt = 1; attempt <= IDENTITY_RESOLUTION_ATTEMPTS; attempt += 1) {
+    try {
+      return await resolveGoogleIdentityOnce(app, claims, audit);
+    } catch (err) {
+      // Un rechazo de negocio ya decidido (cuenta inactiva, conflicto de
+      // REQ-180...) NUNCA se reintenta: reintentarlo no cambiaría nada y
+      // duplicaría su auditoría. Cualquier error que no sea `23505` tampoco
+      // es esta carrera: se propaga tal cual.
+      if (err instanceof GoogleRejectionError || !isUniqueViolation(err)) throw err;
+    }
+  }
+
+  throw new GoogleRejectionError(
+    409,
+    'identity_race_unresolved',
+    'Otro inicio de sesión con Google para esta misma cuenta se completó al mismo tiempo. Vuelva a intentarlo.'
+  );
 }
 
 export async function googleAuthRoutes(app: FastifyInstance): Promise<void> {
@@ -388,6 +481,9 @@ export async function googleAuthRoutes(app: FastifyInstance): Promise<void> {
         if (err instanceof GoogleRejectionError) {
           await auditGoogleRejected(app, { actorId: err.actorId, reason: err.reason, ip, userAgent, requestId: request.id });
           if (err.httpStatus === 403) throw new ForbiddenError(err.userMessage);
+          // GO-07: carrera de identidad no resuelta tras el reintento --
+          // 409 explícito y auditado, nunca un 500 con el error de Postgres.
+          if (err.httpStatus === 409) throw new ConflictError(err.userMessage);
           throw new UnauthorizedError(err.userMessage);
         }
         throw err;

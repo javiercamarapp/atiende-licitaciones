@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { randomUUID } from 'node:crypto';
+import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
-import type { DbClient } from '@atiende/db';
+import type { DbClient, DbExecutor, QueryResult } from '@atiende/db';
 import { createTestApp, registerAndLogin, createOrgFor, enrollTwoFactorFull } from './helpers.js';
 import { startFakeOidcProvider, parseAuthorizationUrl, type FakeOidcProvider } from './helpers/fake-oidc.js';
 
@@ -40,6 +41,11 @@ describe('REQ-172..180: login con Google (OIDC falso)', () => {
     const built = await createTestApp({ rateLimitProfile: 'e2e' });
     app = built.app;
     db = built.db;
+    installStaleReadHarness(db);
+  });
+
+  afterEach(() => {
+    staleReadHook = null;
   });
 
   afterAll(async () => {
@@ -62,6 +68,54 @@ describe('REQ-172..180: login con Google (OIDC falso)', () => {
     const query: Record<string, string> = { state };
     if (code) query.code = code;
     return app.inject({ method: 'GET', url: '/auth/google/callback', query });
+  }
+
+  /**
+   * GO-07 (docs/auditoria-2/api-google.md): banco de pruebas DETERMINISTA
+   * para la condición de carrera entre dos callbacks de Google simultáneos.
+   *
+   * La auditoría no pudo dispararla con dos peticiones realmente paralelas
+   * porque PGlite es UNA sola conexión lógica: las dos transacciones se
+   * serializan y la segunda ya ve la fila de la primera, así que el `23505`
+   * nunca llega a ocurrir. Lo que sí se puede reproducir con total fidelidad
+   * es la MITAD del perdedor de la carrera: su lectura RANCIA. Este gancho
+   * fuerza que una consulta concreta (`app.find_user_by_email` /
+   * `app.find_identity_by_subject`) devuelva 0 filas la primera vez --
+   * exactamente lo que vería una transacción cuyo snapshot es anterior al
+   * commit del ganador-- mientras la fila ganadora SÍ existe de verdad en la
+   * base. El `INSERT` posterior choca entonces contra la restricción única
+   * REAL (`ux_users_email_lower` de 0002, `user_identities (provider,
+   * subject)` de 0071) y produce un `23505` REAL de Postgres, no simulado.
+   */
+  let staleReadHook: ((sql: string) => boolean) | null = null;
+
+  function installStaleReadHarness(client: DbClient): void {
+    const realTransaction = client.transaction.bind(client);
+    client.transaction = <T>(fn: (tx: DbExecutor) => Promise<T>): Promise<T> =>
+      realTransaction(async (tx) => {
+        const wrapped: DbExecutor = {
+          async query<Row = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<QueryResult<Row>> {
+            if (staleReadHook?.(sql)) return { rows: [], rowCount: 0 };
+            return tx.query<Row>(sql, params);
+          },
+        };
+        return fn(wrapped);
+      });
+  }
+
+  /** Devuelve un gancho que finge `n` lecturas rancias de `fragment` y luego se comporta con normalidad. */
+  function staleFor(fragment: string, times: number): { hook: (sql: string) => boolean; remaining: () => number } {
+    let left = times;
+    return {
+      hook: (sql: string) => {
+        if (left > 0 && sql.includes(fragment)) {
+          left -= 1;
+          return true;
+        }
+        return false;
+      },
+      remaining: () => left,
+    };
   }
 
   it('S1: login con Google de un email nunca antes registrado crea usuario y entra por invitación pendiente (REQ-172/174/177)', async () => {
@@ -335,6 +389,144 @@ describe('REQ-172..180: login con Google (OIDC falso)', () => {
 
     const rejected = await db.query("select 1 from audit_log where actor_id = $1 and action = 'auth.google_rejected'", [owner.id]);
     expect(rejected.rows.length).toBe(1);
+  });
+
+  it('GO-07: carrera al crear un usuario nuevo (23505 real en users) se resuelve vinculando la cuenta ganadora, sin 500', async () => {
+    const email = 'go07-carrera-nuevo@example.com';
+    // El "ganador" de la carrera: para cuando nuestra petición llega a su
+    // INSERT, la otra transacción concurrente YA commiteó esta cuenta.
+    const winnerId = randomUUID();
+    await db.query(
+      'insert into users (id, email, password_hash, full_name, email_verified_at) values ($1, $2, null, null, now())',
+      [winnerId, email]
+    );
+
+    const { state, nonce, codeChallenge } = await startFlow();
+    const code = provider.issueAuthorizationCode({
+      sub: 'google-sub-go07-nuevo',
+      email,
+      emailVerified: true,
+      aud: GOOGLE_CLIENT_ID,
+      nonce,
+      codeChallenge,
+    });
+
+    // Solo el PRIMER `find_user_by_email` lee rancio -> el callback toma la
+    // rama "usuario nuevo" y su `insert into users` choca con
+    // `ux_users_email_lower`.
+    const stale = staleFor('find_user_by_email', 1);
+    staleReadHook = stale.hook;
+
+    const res = await callback(code, state);
+    // La rama de la carrera se ejercitó de verdad (el gancho se consumió).
+    expect(stale.remaining()).toBe(0);
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(typeof body.accessToken).toBe('string');
+    // El ganador no pertenece a ninguna organización: la compuerta
+    // `sin_acceso` (D-09, docs/DECISIONES.md) sigue exactamente igual --
+    // este arreglo solo evita el 500, nunca crea una organización.
+    expect(body.status).toBe('sin_acceso');
+
+    // Ni cuenta duplicada ni identidad huérfana: la identidad quedó vinculada
+    // a la cuenta que ganó la carrera.
+    const users = await db.query<{ c: string }>('select count(*)::text as c from users where lower(email) = lower($1)', [email]);
+    expect(users.rows[0].c).toBe('1');
+    const identity = await db.query<{ user_id: string }>(
+      "select user_id from user_identities where provider = 'google' and subject = $1",
+      ['google-sub-go07-nuevo']
+    );
+    expect(identity.rows).toHaveLength(1);
+    expect(identity.rows[0].user_id).toBe(winnerId);
+  });
+
+  it('GO-07: carrera al insertar la identidad (23505 real en user_identities) termina en sesión emitida, sin 500', async () => {
+    const email = 'go07-carrera-identidad@example.com';
+    const user = await registerAndLogin(app, email);
+    await createOrgFor(app, user, 'Org GO-07', `org-go07-${Date.now()}`);
+    // El ganador de la carrera ya vinculó ESTA identidad de Google.
+    await db.query('insert into user_identities (user_id, provider, subject, email) values ($1, $2, $3, $4)', [
+      user.id,
+      'google',
+      'google-sub-go07-identidad',
+      email,
+    ]);
+
+    const { state, nonce, codeChallenge } = await startFlow();
+    const code = provider.issueAuthorizationCode({
+      sub: 'google-sub-go07-identidad',
+      email,
+      emailVerified: true,
+      aud: GOOGLE_CLIENT_ID,
+      nonce,
+      codeChallenge,
+    });
+
+    // Solo el PRIMER `find_identity_by_subject` lee rancio -> el callback cae
+    // en la rama de vinculación por email y su `insert into user_identities`
+    // choca con `unique (provider, subject)`.
+    const stale = staleFor('find_identity_by_subject', 1);
+    staleReadHook = stale.hook;
+
+    const res = await callback(code, state);
+    expect(stale.remaining()).toBe(0);
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(typeof body.accessToken).toBe('string');
+
+    // La sesión emitida es real y utilizable (no un token de consolación).
+    const me = await app.inject({ method: 'GET', url: '/organizations', headers: { authorization: `Bearer ${body.accessToken}` } });
+    expect(me.statusCode).toBe(200);
+
+    // Ninguna identidad duplicada para ese usuario.
+    const identities = await db.query<{ c: string }>('select count(*)::text as c from user_identities where user_id = $1', [user.id]);
+    expect(identities.rows[0].c).toBe('1');
+  });
+
+  it('GO-07: si la carrera persiste tras el reintento, responde 409 controlado (nunca 500 ni el error crudo de Postgres)', async () => {
+    const email = 'go07-carrera-persistente@example.com';
+    await db.query(
+      'insert into users (id, email, password_hash, full_name, email_verified_at) values ($1, $2, null, null, now())',
+      [randomUUID(), email]
+    );
+
+    const { state, nonce, codeChallenge } = await startFlow();
+    const code = provider.issueAuthorizationCode({
+      sub: 'google-sub-go07-persistente',
+      email,
+      emailVerified: true,
+      aud: GOOGLE_CLIENT_ID,
+      nonce,
+      codeChallenge,
+    });
+
+    // Escenario patológico: TODOS los intentos leen rancio (alguien forzando
+    // la carrera en bucle) -- el reintento no puede resolverla nunca.
+    staleReadHook = (sql: string) => sql.includes('find_user_by_email');
+
+    const res = await callback(code, state);
+    expect(res.statusCode).toBe(409);
+    const body = res.json();
+    expect(body.status).toBe(409);
+    expect(body.type).toBe('https://atiende.example/errors/conflict');
+    expect(String(body.title)).toMatch(/Vuelva a intentarlo/);
+    // Sin fuga del error crudo de Postgres ni de traza de pila.
+    expect(res.body).not.toMatch(/23505|duplicate key|ux_users_email_lower|unique constraint/i);
+    expect(res.body).not.toMatch(/\bat .+routes\.(ts|js)/);
+
+    // Nada a medias: ni cuenta duplicada ni identidad creada.
+    const users = await db.query<{ c: string }>('select count(*)::text as c from users where lower(email) = lower($1)', [email]);
+    expect(users.rows[0].c).toBe('1');
+    const identities = await db.query("select 1 from user_identities where provider = 'google' and subject = $1", [
+      'google-sub-go07-persistente',
+    ]);
+    expect(identities.rows).toHaveLength(0);
+
+    // REQ-177: el rechazo quedó auditado como cualquier otro.
+    const audited = await db.query(
+      "select 1 from audit_log where action = 'auth.google_rejected' and after->>'reason' = 'identity_race_unresolved'"
+    );
+    expect(audited.rows).toHaveLength(1);
   });
 
   it('GET /auth/google/start devuelve una URL de autorización real del proveedor OIDC configurado (PKCE + state + nonce)', async () => {
