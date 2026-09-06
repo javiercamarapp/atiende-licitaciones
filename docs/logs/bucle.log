@@ -103,3 +103,4 @@
 2026-09-06 08:01  DESPERTAR  #71 (web ronda 5) sigue ejecutando pruebas en segundo plano (R5-09 web commiteado 4f44a26); #76 en curso.
 2026-09-06 08:10  DESPERTAR  #71 sigue iterando E2E en segundo plano (ef7fa7b hace 28 s); #76 en curso.
 2026-09-06 08:17  DESPERTAR  #71 activo (227369b hace 22 s, 21 procesos de prueba); #76 en curso.
+2026-09-06 08:23  DESPERTAR  #71 sigue en pausa por corridas en segundo plano; #76 en curso.
