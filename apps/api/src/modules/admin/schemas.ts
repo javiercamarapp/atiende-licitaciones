@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { isoTimestamp, nullableIsoTimestamp } from '../../lib/schema-helpers.js';
+import { isoTimestamp, nullableIsoTimestamp, realCalendarDateString } from '../../lib/schema-helpers.js';
 
 /**
  * REQ-050/056 (E11): calendario OFICIAL de días inhábiles. Carga
@@ -13,10 +13,19 @@ import { isoTimestamp, nullableIsoTimestamp } from '../../lib/schema-helpers.js'
 export const calendarHolidayCreateSchema = z.object({
   jurisdiction: z.string().min(1).default('federal'),
   year: z.number().int().min(2000).max(2100),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'date debe ser "YYYY-MM-DD"'),
+  // R5-07 (BAJA): antes solo validaba el PATRÓN "YYYY-MM-DD" -- una fecha
+  // inexistente como "2026-02-30" pasaba la validación de Zod y reventaba
+  // en Postgres con un 500 ("date/time field value out of range") en vez
+  // de un 422 explícito de validación de cliente.
+  date: realCalendarDateString,
   label: z.string().min(1),
-  sourceUrl: z.string().url(),
-  sourceConsultedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'sourceConsultedOn debe ser "YYYY-MM-DD"'),
+  // R5-06 (BAJA): `z.string().url()` acepta cualquier esquema
+  // (`javascript:...`, `data:...`, `ftp://...`). Solo superadmin escribe
+  // esta tabla, pero si `apps/web` alguna vez renderiza `sourceUrl` como
+  // enlace clicable sin sanitizar, un esquema no-http(s) abre un vector de
+  // auto-XSS/descarga para quien abra ese enlace desde el back office.
+  sourceUrl: z.string().url().refine((u) => /^https?:\/\//i.test(u), { message: 'sourceUrl debe usar esquema http o https' }),
+  sourceConsultedOn: realCalendarDateString,
 });
 
 export const calendarHolidaySchema = z.object({
