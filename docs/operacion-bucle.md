@@ -20,6 +20,12 @@ Este bucle es NUEVO y separado del de Atiende Hoteles (cron `f24bfd35`, que no s
 - Orquestador: Fable (`claude-fable-5-1`) SOLO en esta sesión. Default global de `~/.claude/settings.json` = `sonnet` (no modificado).
 - Ejecutores: `Agent(subagent_type=general-purpose, model="sonnet")` en cada despacho; se exige a descendientes pasar `model="sonnet"`. Registro en `docs/AGENTES.md`.
 
+## Estado persistente de reanudación (leer SIEMPRE al despertar o tras compactar)
+1. `docs/AMPLIACION-BACKOFFICE.md` — ampliación prioritaria del usuario (ciclo completo back office; reglas duras: nunca inventar datos/precios/firmas, nunca enviar/firmar/actuar en portales). Es parte del alcance obligatorio.
+2. `docs/REQUISITOS.md` + `docs/ACEPTACION.md` (REQ-001..140 + REQ-141+ de la ampliación) y `docs/BACKLOG.md` (orden de trabajo).
+3. `docs/PROGRESO.md` (último paso), `docs/BLOQUEOS.md`, `docs/DECISIONES.md`, `docs/AGENTES.md`, `docs/auditoria-N/`, `git log`.
+Regla: no repetir trabajo validado; no rehacer investigación (completa); verificación puntual solo de fuentes/API/reglas que cambian.
+
 ## Alcance del ciclo (patrón Likida adaptado)
 implementación (Sonnet) → pruebas (Sonnet, salida real guardada en `docs/logs/`) → auditoría adversarial (Sonnet, contexto independiente, un archivo por rubro en `docs/auditoria-N/`, hallazgo separado de reparación, registrar también lo correcto) → corrección (Sonnet, un hallazgo = un commit) → reverificación (Sonnet). Fable despacha, verifica y decide; nunca construye.
 
@@ -34,7 +40,7 @@ cd /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging   
 claude --model fable
 # dentro de la sesión:
 /loop
-# y pegar: "Lee docs/operacion-bucle.md, docs/PROGRESO.md, docs/BLOQUEOS.md y docs/AGENTES.md y reanuda el ciclo Likida de Atiende Licitaciones; solo agentes model=sonnet; crea cron de respaldo nuevo con CronCreate y verifica con CronList."
+# y pegar: "Lee docs/operacion-bucle.md (sección Estado persistente), docs/AMPLIACION-BACKOFFICE.md, docs/BACKLOG.md, docs/PROGRESO.md, docs/BLOQUEOS.md y docs/AGENTES.md y reanuda el ciclo Likida de Atiende Licitaciones; solo agentes model=sonnet; crea cron de respaldo nuevo con CronCreate y verifica con CronList."
 ```
 Reanudar desde archivos: `docs/PROGRESO.md` (último paso), `docs/BLOQUEOS.md`, `docs/auditoria-N/`, `git log`. No repetir trabajo validado.
 

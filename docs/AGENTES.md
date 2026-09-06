@@ -14,3 +14,4 @@ Nota: la herramienta Agent de esta versión no expone el ID de modelo del subage
 | 6 | 2026-09-05 | impl-api-db-ronda1 → packages/db (migraciones Postgres + RLS sobre PGlite, tests adversariales) y apps/api (Fastify, auth JWT, orgs, idempotencia, rate limit, audit) | model="sonnet" | pendiente | en curso |
 | 7 | 2026-09-05 | impl-agents-ronda1 → packages/agents (ToolRegistry, autorización, guardrails, AgentRunner, idempotencia, reintentos, presupuesto, rate limit, LLMProvider/Router, OpenAI Responses pendiente credenciales) | model="sonnet" | pendiente | en curso |
 | 8 | 2026-09-05 | impl-sources-ronda1 → packages/sources (TenderRecord, conectores ComprasMX/OCDS-SHCP/DOF/PDN-S6/estatales, DiscoveryPipeline, MatchingEngine) | model="sonnet" | pendiente | en curso |
+| 9 | 2026-09-05 | requisitos-ampliacion-backoffice → docs/REQUISITOS.md secc. 29–33 (REQ-141+), docs/ACEPTACION.md, docs/BACKLOG.md | model="sonnet" | pendiente | en curso |
