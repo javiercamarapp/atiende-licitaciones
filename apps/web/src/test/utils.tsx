@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthProvider } from "@/hooks/useAuth";
 
 export function renderWithProviders(ui: ReactElement, { route = "/" }: { route?: string } = {}) {
   const queryClient = new QueryClient({
@@ -14,7 +15,14 @@ export function renderWithProviders(ui: ReactElement, { route = "/" }: { route?:
     return (
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <MemoryRouter initialEntries={[route]}>{children}</MemoryRouter>
+          <MemoryRouter initialEntries={[route]}>
+            {/* Sin refresh token guardado (ver src/test/setup.ts, que limpia
+                localStorage entre pruebas), AuthProvider resuelve a
+                "unauthenticated" de forma síncrona-observable (sin red) —
+                cualquier componente que use useAuth() puede montarse en un
+                test sin necesitar MSW ni una sesión real. */}
+            <AuthProvider>{children}</AuthProvider>
+          </MemoryRouter>
         </TooltipProvider>
       </QueryClientProvider>
     );

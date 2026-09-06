@@ -1,41 +1,62 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { Building2 } from "lucide-react";
 
-import { listOrganizaciones } from "@/lib/api";
+import { useAuth } from "@/hooks/useAuth";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
+const ROLE_LABELS: Record<string, string> = {
+  owner: "Propietario",
+  admin: "Administrador",
+  analyst: "Analista",
+  writer: "Editor",
+  reviewer: "Revisor",
+  viewer: "Solo lectura",
+};
+
 /**
- * Selector de organización del header. Placeholder controlado por estado
- * local (no hay organización "de demo" hardcodeada): mientras no exista
- * backend o la organización no tenga datos, se muestra deshabilitado con un
- * rótulo honesto en vez de simular una organización real.
+ * Selector de organización del header, con datos reales de
+ * `GET /organizations` (memberships del usuario autenticado, cada una con
+ * su rol real). Cambiar de organización actualiza el header `X-Org-Id` que
+ * usa el resto de la app (ver hooks/useAuth.tsx) — el servidor sigue
+ * revalidando la membresía en cada petición (`app.requireOrg`), este
+ * selector solo decide CUÁL header enviar.
  */
 export function OrganizationSwitcher() {
-  const [selected, setSelected] = useState<string | undefined>(undefined);
-  const { data: organizaciones, isLoading } = useQuery({
-    queryKey: ["organizaciones"],
-    queryFn: listOrganizaciones,
-    retry: false,
-  });
+  const { memberships, currentOrgId, currentMembership, switchOrg } = useAuth();
 
-  const opciones = organizaciones ?? [];
-  const sinOrganizaciones = !isLoading && opciones.length === 0;
+  const sinOrganizaciones = memberships.length === 0;
 
   return (
-    <Select
-      value={selected}
-      onValueChange={setSelected}
-      disabled={isLoading || sinOrganizaciones}
-    >
-      <SelectTrigger aria-label="Organización" className="h-9 w-[180px] gap-2 text-sm sm:w-[220px]">
+    <Select value={currentOrgId ?? undefined} onValueChange={switchOrg} disabled={sinOrganizaciones}>
+      {/*
+       * W-21/W-22 (docs/auditoria-1/web-reverificacion-2.md): esta pieza
+       * usaba `w-[180px]`/`w-[200px]` FIJO, que nunca se encoge — dentro del
+       * header sin `flex-wrap` eso empujaba a `ThemeSelector` fuera del
+       * viewport (invisible/intocable) en todo ancho <466px, y el propio
+       * disparador medía 36px de alto (por debajo del objetivo de ≥44px que
+       * ya cumplen enlaces/botones de acordeón, W-10/W-19). Ahora: `h-11`
+       * (44px reales, no solo padding) + ancho fluido (`min-w-0 flex-1` en
+       * móvil, con techo `max-w-[9.5rem]`; ancho fijo mayor desde `sm`) con
+       * `truncate` en el contenido (abajo) para que un nombre de
+       * organización largo jamás vuelva a forzar overflow del header.
+       */}
+      <SelectTrigger
+        aria-label="Organización"
+        className="h-11 min-w-0 max-w-[9.5rem] flex-1 gap-1.5 text-sm sm:max-w-none sm:w-[240px] sm:flex-none"
+      >
         <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" strokeWidth={1.75} />
-        <SelectValue placeholder={sinOrganizaciones ? "Sin organizaciones" : "Selecciona organización"} />
+        <SelectValue placeholder={sinOrganizaciones ? "Sin organizaciones" : "Selecciona organización"}>
+          {currentMembership && (
+            <span className="truncate">
+              {currentMembership.name}
+              <span className="ml-1.5 text-xs text-muted-foreground">({ROLE_LABELS[currentMembership.role] ?? currentMembership.role})</span>
+            </span>
+          )}
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
-        {opciones.map((org) => (
+        {memberships.map((org) => (
           <SelectItem key={org.id} value={org.id}>
-            {org.nombre}
+            {org.name} <span className="text-xs text-muted-foreground">({ROLE_LABELS[org.role] ?? org.role})</span>
           </SelectItem>
         ))}
       </SelectContent>

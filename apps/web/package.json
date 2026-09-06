@@ -12,7 +12,8 @@
     "test": "NODE_OPTIONS=--no-experimental-webstorage vitest run",
     "test:watch": "NODE_OPTIONS=--no-experimental-webstorage vitest",
     "test:coverage": "NODE_OPTIONS=--no-experimental-webstorage vitest run --coverage",
-    "test:e2e": "npm run build && playwright test"
+    "test:e2e": "npm run build && playwright test",
+    "test:e2e:full": "node scripts/e2e-full.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -59,6 +60,7 @@
     "eslint-plugin-react-refresh": "^0.4.16",
     "globals": "^15.14.0",
     "jsdom": "^25.0.1",
+    "msw": "^2.15.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
     "typescript": "~5.6.3",

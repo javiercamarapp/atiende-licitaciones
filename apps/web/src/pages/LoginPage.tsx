@@ -2,16 +2,16 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Mail, Lock, Sparkles } from "lucide-react";
+import { Lock } from "lucide-react";
+import { Navigate, useLocation } from "react-router-dom";
 
 import { AtiendeWordmark } from "@/components/AtiendeLogo";
 import { SkipLink } from "@/components/SkipLink";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { ErrorState } from "@/components/ui/error-state";
-import { ApiError, login, requestMagicLink } from "@/lib/api";
+import { useAuth, describeApiError } from "@/hooks/useAuth";
 import { toast } from "@/components/ui/sonner";
 import "./login.css";
 
@@ -21,12 +21,8 @@ const passwordSchema = z.object({
 });
 type PasswordValues = z.infer<typeof passwordSchema>;
 
-const magicLinkSchema = z.object({
-  email: z.string().min(1, "Ingresa tu correo electrónico.").email("Ingresa un correo electrónico válido."),
-});
-type MagicLinkValues = z.infer<typeof magicLinkSchema>;
-
 function PasswordLoginForm() {
+  const { login } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const form = useForm<PasswordValues>({
@@ -41,7 +37,7 @@ function PasswordLoginForm() {
       await login(values);
       toast.success("Sesión iniciada correctamente.");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Ocurrió un error inesperado al iniciar sesión.");
+      setError(describeApiError(err));
     } finally {
       setSubmitting(false);
     }
@@ -86,77 +82,32 @@ function PasswordLoginForm() {
   );
 }
 
-function MagicLinkForm() {
-  const [error, setError] = useState<string | null>(null);
-  const [sent, setSent] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const form = useForm<MagicLinkValues>({
-    resolver: zodResolver(magicLinkSchema),
-    defaultValues: { email: "" },
-  });
+export default function LoginPage() {
+  const { status } = useAuth();
+  const location = useLocation();
 
-  const onSubmit = async (values: MagicLinkValues) => {
-    setError(null);
-    setSubmitting(true);
-    try {
-      await requestMagicLink(values);
-      setSent(true);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Ocurrió un error inesperado al enviar el enlace.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  if (sent) {
-    return (
-      <p role="status" className="rounded-2xl border border-border bg-muted/50 p-4 text-sm text-foreground">
-        Si el correo existe en nuestro sistema, te enviamos un enlace de acceso. Revisa tu bandeja de entrada.
-      </p>
-    );
+  // Si ya hay sesión (p. ej. el refresh token restauró una sesión al
+  // recargar /login directamente), no tiene sentido mostrar el formulario:
+  // se redirige a la ruta que se pedía originalmente o al panel.
+  if (status === "authenticated") {
+    const from = (location.state as { from?: { pathname: string } } | null)?.from?.pathname ?? "/panel";
+    return <Navigate to={from} replace />;
   }
 
-  return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-4">
-        <FormField
-          control={form.control}
-          name="email"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Correo electrónico</FormLabel>
-              <FormControl>
-                <Input type="email" autoComplete="email" placeholder="tu@empresa.com" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        {error && <ErrorState message={error} onRetry={() => setError(null)} />}
-        <Button type="submit" className="w-full gap-2" disabled={submitting}>
-          <Sparkles className="h-4 w-4" aria-hidden="true" />
-          {submitting ? "Enviando enlace…" : "Enviar enlace de acceso"}
-        </Button>
-      </form>
-    </Form>
-  );
-}
-
-export default function LoginPage() {
   return (
     // LoginPage es la única pantalla que no usa <AppShell/> (que ya aporta
     // <main>/<h1> a todas las demás), así que necesita su propio landmark y
     // encabezado real — sin esto axe reporta landmark-one-main,
     // page-has-heading-one y region (W-08).
     //
-    // Layout a pantalla partida (W-11): el login real de atiende-restaurantes
-    // no se parece al que describía docs/investigacion/frontend-restaurantes.md
-    // (login de tabs sin más) — el real es un layout de dos columnas con
-    // kicker + titular serif + formulario a la izquierda y una lámina
-    // decorativa a la derecha (oculta en móvil). Se adopta esa misma anatomía
-    // aquí; las divergencias deliberadas (tabs contraseña/enlace mágico en vez
-    // de solo enlace mágico + Google OAuth, sin foto de cocina) están
-    // documentadas en README.md § "Paridad del login con Restaurantes".
+    // Layout a pantalla partida (W-11, ver README § "Paridad del login con
+    // Restaurantes"). Ronda 3: se retira la pestaña de enlace mágico — no
+    // existe ningún endpoint `/auth/magic-link` (ni equivalente) en
+    // apps/api (ver apps/api/README.md, módulo `auth`: solo
+    // register/login/refresh/logout con contraseña); mantenerla habría
+    // sido una acción de UI sin backend real detrás, exactamente lo que
+    // esta ronda busca eliminar. Si el backend añade ese flujo en una
+    // ronda futura, se puede reintroducir la pestaña.
     <main className="min-h-screen bg-background lg:grid lg:grid-cols-2">
       <SkipLink targetId="login-form">Saltar al formulario de acceso</SkipLink>
 
@@ -175,47 +126,24 @@ export default function LoginPage() {
               Gestiona convocatorias, evaluaciones y entregas en un solo lugar.
             </p>
 
-            <div className="mt-9">
-              {/* tabIndex={-1} (W-09): sin esto el skip-link no puede mover el
-                  foco aquí porque un <div> sin tabindex no es un destino de
-                  foco válido — verificado por teclado real, no solo por axe.
-                  W-18: `focus:outline-none` sin reemplazo dejaba el foco
-                  invisible; mismo patrón de anillo de foco que
-                  #main-content (AppShell.tsx) y las primitivas shadcn. */}
-              <Tabs
-                defaultValue="password"
-                id="login-form"
-                tabIndex={-1}
-                className="rounded-2xl ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              >
-                <TabsList className="mb-4 grid w-full grid-cols-2">
-                  <TabsTrigger value="password" className="gap-1.5">
-                    <Lock className="h-3.5 w-3.5" aria-hidden="true" />
-                    Contraseña
-                  </TabsTrigger>
-                  <TabsTrigger value="magic-link" className="gap-1.5">
-                    <Mail className="h-3.5 w-3.5" aria-hidden="true" />
-                    Enlace mágico
-                  </TabsTrigger>
-                </TabsList>
-                <TabsContent value="password">
-                  <PasswordLoginForm />
-                </TabsContent>
-                <TabsContent value="magic-link">
-                  <MagicLinkForm />
-                </TabsContent>
-              </Tabs>
+            {/* W-18: al retirar el <Tabs/> que envolvía este formulario
+                (ronda 3, ver más abajo), se perdieron sin querer las clases
+                del anillo de foco visible que llevaba ese wrapper
+                (`focus-visible:ring-2 ...`) — quedaba `focus-visible:outline-none`
+                SIN reemplazo, exactamente el bug original de W-18. Mismo
+                patrón de anillo que #main-content (AppShell.tsx). */}
+            <div
+              id="login-form"
+              tabIndex={-1}
+              className="mt-9 rounded-2xl ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              <PasswordLoginForm />
             </div>
           </div>
         </div>
       </section>
 
-      {/* Lámina decorativa: el origen usa una foto de una cocina comercial
-          (fuera de dominio para licitaciones y sin licencia para reusar) —
-          aquí es un degradado con los mismos tokens de marca en vez de una
-          imagen de stock genérica, ver README.md. `aria-hidden` porque es
-          puramente decorativa (no aporta información que no esté ya en el
-          formulario). */}
+      {/* Lámina decorativa: ver README.md. */}
       <aside
         aria-hidden="true"
         className="relative hidden overflow-hidden bg-[linear-gradient(160deg,hsl(var(--primary))_0%,hsl(216_45%_9%)_100%)] lg:flex lg:flex-col lg:justify-end lg:p-10"
