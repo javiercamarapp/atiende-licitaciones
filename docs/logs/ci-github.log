@@ -1,0 +1,70 @@
+# CI GitHub Actions — diagnóstico (2026-09-06)
+
+## Causa raíz
+Todos los jobs del workflow `Quality` (.github/workflows/quality.yml) fallan en
+~5-6s con conclusión `failure` y "log not found" para los steps. La anotación
+literal devuelta por la API de check-runs, IDÉNTICA en todos los jobs y en
+todas las ejecuciones revisadas, es:
+
+  "The job was not started because recent account payments have failed or
+   your spending limit needs to be increased. Please check the 'Billing &
+   plans' section in your settings"
+
+Esto es un problema de FACTURACIÓN de la cuenta de GitHub (javiercamarapp),
+NO un defecto de sintaxis/lógica del workflow. GitHub rechaza arrancar
+runners hospedados para toda la organización/cuenta hasta que se resuelva el
+estado de pago o se incremente el spending limit en Settings → Billing & plans.
+
+## Validación de sintaxis (actionlint)
+Se instaló actionlint 1.7.12 (+ shellcheck 0.11.0) vía Homebrew y se ejecutó
+sobre .github/workflows/quality.yml:
+
+  $ actionlint .github/workflows/quality.yml
+  .github/workflows/quality.yml:149:9: shellcheck reported issue in this script:
+  SC2034:warning:1:1: i appears unused. Verify use (or export if used externally) [shellcheck]
+      |
+  149 |         run: |
+      |         ^~~~
+
+Único hallazgo: un warning cosmético de shellcheck (variable `i` del bucle
+`for i in $(seq 1 30)` en el step "Esperar Postgres del servicio", no
+utilizada dentro del cuerpo del bucle porque se sale con `exit 0` en
+`pg_isready`). No es un error de sintaxis ni de expresiones de GitHub
+Actions, no bloquea la ejecución, y NO se ha modificado el YAML (fuera de
+alcance según instrucción del coordinador: causa ya confirmada = facturación).
+
+No hay errores de: sintaxis YAML, expresiones `${{ }}`, versiones de
+`actions/setup-node`, matrices de workspaces, permisos del `GITHUB_TOKEN` ni
+pasos previos al checkout. El fallo ocurre ANTES de que el runner arranque
+(no hay logs de step porque el job nunca se programó).
+
+## Ejecuciones revisadas (todas con la misma anotación de facturación)
+
+| run_id      | conclusion | commit  | creado (UTC)         | jobs afectados                                                                 |
+|-------------|-----------|---------|-----------------------|---------------------------------------------------------------------------------|
+| 34052641130 | failure   | a314f9c | 2026-09-06T18:43:50Z | workspace-checks (7), db-postgres, e2e-web, npm-audit, check-secrets — todos    |
+| 34052762340 | failure   | 7bd9ad8 | 2026-09-06T18:46:08Z | ídem                                                                             |
+| 34053154571 | failure   | c1575b6 | 2026-09-06T18:53:46Z | ídem                                                                             |
+| 34053437664 | failure   | de7c950 | 2026-09-06T18:59:26Z | ídem (detalle abajo)                                                             |
+| 34053942172 | failure   | 7097ea3 | 2026-09-06T19:08:32Z | ídem (commit ya titulado "B-06 facturación GitHub" por otro agente)             |
+| 34053957852 | failure   | a9c1acb | 2026-09-06T19:08:52Z | ídem — confirma que el problema persiste tras el commit más reciente            |
+
+Detalle de check-runs para 34053437664 (commit de7c950), todos `failure` con
+la misma anotación de facturación:
+  packages/expediente, packages/db, apps/api, e2e-web (Playwright),
+  packages/agents, apps/web, packages/sources,
+  db-postgres (migraciones + RLS real), check-secrets, apps/worker,
+  npm audit (prod, alta+)
+
+## Estado final
+No hay ejecución verde disponible: el bloqueo es externo al repositorio
+(facturación de la cuenta GitHub) y no puede resolverse desde el código o el
+workflow. El job `db-postgres` (Postgres 16 real + migraciones + RLS) NUNCA
+llegó a ejecutarse en ninguna corrida observada — no se puede confirmar ni
+desmentir su comportamiento hasta que la cuenta recupere capacidad de
+runners.
+
+## Acción recomendada (fuera del alcance de este agente)
+Resolver el estado de pago o aumentar el spending limit en:
+https://github.com/settings/billing
+No se requiere ningún cambio en .github/workflows/quality.yml.
