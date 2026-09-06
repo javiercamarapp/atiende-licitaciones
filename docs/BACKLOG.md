@@ -368,3 +368,6 @@ Las 12 pruebas mínimas obligatorias S1-S12 de `docs/ACEPTACION.md` se reparten 
 
 ## E19 — Google: desvinculación (GO-09, BAJA)
 - Endpoint para desvincular la identidad Google de una cuenta que ya tiene contraseña (nunca dejar la cuenta sin ningún método de acceso); UI en perfil/sesiones (ronda perfil).
+
+## E20 — Índice de correlation_id en agent_runs (BAJA, tras WK6-02)
+- Migración en packages/db: columna `agent_runs.correlation_id` (poblada desde output JSONB) + índice; adaptar la consulta REQ-171 del worker. Un solo escritor de migraciones a la vez (hoy el agente de correos #109).

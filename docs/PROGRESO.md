@@ -320,3 +320,6 @@ Formato por entrada: requisito · acción · archivos/commit · prueba · result
 
 ## Auditoría — Google OIDC en la API (2026-09-06 14:2x)
 - **Acción:** auditor #101, commit `3847748`. Sin bypass en 8 ataques adversariales; 503 limpio sin credenciales; 429 en el tier de auth; función SECURITY DEFINER de invitaciones resistió. **GO-01** (REQ-174 exigía organización automática; la implementación aplica compuerta `sin_acceso`) → **D-09**: se adopta la compuerta, REQ-174 reformulado en REQUISITOS/ACEPTACION, web ronda 8 añade `/sin-acceso` + onboarding «Crear organización» sobre `POST /orgs`. **GO-07** (carrera 23505) y **GO-03** (issuer https) → corrector #104. GO-09 (desvincular Google) → backlog.
+
+## Corrección — worker K (2026-09-06 16:0x)
+- **Acción:** corrector #106 (Opus, D-10) cerró WK6-01/02/03 en `c778526`, `caee2fe`, `93ea69f`. Hallazgo propio: el script de mutación que dejó el Sonnet cortado probaba HEAD sin los arreglos (falso «no detectada»); corregido y verificado en vivo (bajo mutación la suite falla con 2 fallos). 383/383 tests en 4 corridas completas, 0 timeouts. **Límite documentado:** la consulta por correlation_id (REQ-171) va contra JSONB sin índice; columna indexada `agent_runs.correlation_id` → backlog E20 (packages/db). **Siguiente:** reverificación independiente del worker K junto con las demás correcciones en curso.
