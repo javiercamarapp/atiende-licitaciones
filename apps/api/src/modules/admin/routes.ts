@@ -4,6 +4,7 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { NotFoundError, ConflictError } from '../../lib/errors.js';
 import { recordAudit } from '../../lib/audit.js';
+import { requireStepUp } from '../../lib/step-up.js';
 import { withOptionalEmptyJsonBody } from '../../lib/optional-empty-body.js';
 import { encodeCursor, decodeCursor, parsePageSize, toIsoString } from '../../lib/cursor.js';
 import { mapToolCall } from '../agents/routes.js';
@@ -453,6 +454,21 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   // organización AFECTADA (nunca `org_id: null`, a diferencia de jobs/
   // incidentes de plataforma: una `tool_call` siempre pertenece a una
   // organización).
+  //
+  // R5-11 (docs/auditoria-2/api-r5-09-10-reverificacion.md): esta
+  // aprobación cross-org exige ADEMÁS verificación en dos pasos (TOTP)
+  // reciente, con `purpose: 'admin.action'` -- un superadmin sin 2FA
+  // enrolado recibe el mismo 403 con instrucción que cualquier otro
+  // consumidor de `requireStepUp` (ver lib/step-up.ts). Como esta ruta NO
+  // lleva `X-Org-Id` (la organización afectada se resuelve de la propia
+  // fila), el `orgId` que `requireStepUp` exige para el emparejamiento se
+  // obtiene de un SELECT previo sobre la MISMA fila que luego se muta: el
+  // superadmin debe pedir su `stepUpToken` (`X-Org-Id`/`purpose:
+  // 'admin.action'`) atado a la organización DUEÑA de la tool_call concreta
+  // que va a resolver -- una sesión de step-up no sirve para aprobar/denegar
+  // una tool_call de otra organización. Si la tool_call no existe, se
+  // responde 404 sin exigir step-up (nada que autorizar todavía) y la
+  // sesión de step-up del superadmin queda sin consumir.
   // ---------------------------------------------------------------------
   await withOptionalEmptyJsonBody(server, (scoped) => {
     const s = scoped.withTypeProvider<ZodTypeProvider>();
@@ -480,6 +496,19 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         const row = await app.db.transaction(async (tx) => {
           await tx.query('set local role app_role');
           await tx.query("select set_config('app.current_user_id', $1, true)", [userId]);
+
+          // R5-11: la organización afectada se resuelve de la propia fila
+          // (esta ruta nunca lleva X-Org-Id) -- se necesita ANTES de exigir
+          // step-up, para comprobar que la sesión presentada está atada a
+          // ESA organización concreta. Si la fila no existe, 404 sin exigir
+          // step-up (ver comentario arriba del bloque).
+          const target = await tx.query<{ org_id: string }>('select org_id from tool_calls where id = $1', [request.params.id]);
+          if (target.rows.length === 0) {
+            return { kind: 'not_found' as const };
+          }
+          const affectedOrgId = target.rows[0].org_id;
+          await requireStepUp(tx, { userId, stepUpHeader: request.headers['x-step-up'], orgId: affectedOrgId, purpose: 'admin.action' });
+
           // API-09: mismo cierre atómico que `agents/routes.ts` (check +
           // mutación en la MISMA sentencia) -- ver comentario ahí.
           const updated = await tx.query(
@@ -488,8 +517,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
             [userId, request.params.id]
           );
           if (updated.rows.length === 0) {
-            const existing = await tx.query('select id from tool_calls where id = $1', [request.params.id]);
-            return existing.rows.length === 0 ? { kind: 'not_found' as const } : { kind: 'not_pending' as const };
+            return { kind: 'not_pending' as const };
           }
           const toolCall = updated.rows[0] as Record<string, unknown>;
           await recordAudit(tx, {
@@ -532,14 +560,22 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         const row = await app.db.transaction(async (tx) => {
           await tx.query('set local role app_role');
           await tx.query("select set_config('app.current_user_id', $1, true)", [userId]);
+
+          // R5-11: mismo step-up cross-org que approve() -- ver comentario ahí.
+          const target = await tx.query<{ org_id: string }>('select org_id from tool_calls where id = $1', [request.params.id]);
+          if (target.rows.length === 0) {
+            return { kind: 'not_found' as const };
+          }
+          const affectedOrgId = target.rows[0].org_id;
+          await requireStepUp(tx, { userId, stepUpHeader: request.headers['x-step-up'], orgId: affectedOrgId, purpose: 'admin.action' });
+
           const updated = await tx.query(
             `update tool_calls set authorization_status = 'denied', approved_by = $1, approved_at = now()
              where id = $2 and authorization_status = 'pending' returning *`,
             [userId, request.params.id]
           );
           if (updated.rows.length === 0) {
-            const existing = await tx.query('select id from tool_calls where id = $1', [request.params.id]);
-            return existing.rows.length === 0 ? { kind: 'not_found' as const } : { kind: 'not_pending' as const };
+            return { kind: 'not_pending' as const };
           }
           const toolCall = updated.rows[0] as Record<string, unknown>;
           await recordAudit(tx, {

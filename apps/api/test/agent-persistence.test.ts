@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createHash, randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import type { DbClient } from '@atiende/db';
-import { createTestApp, registerAndLogin, createOrgFor } from './helpers.js';
+import { createTestApp, registerAndLogin, createOrgFor, enrollTwoFactorFull, stepUpWithBackupCode } from './helpers.js';
 import { PgRunStore, PgToolCallStore } from '../src/lib/agent-stores.pg.js';
 
 describe('persistencia de packages/agents (RunStore/ToolCallStore sobre Postgres)', () => {
@@ -109,6 +109,8 @@ describe('persistencia de packages/agents (RunStore/ToolCallStore sobre Postgres
     );
     const toolCallId = toolCallRows[0].id;
 
+    // R5-11: writer no puede aprobar de todos modos (el chequeo de rol
+    // ocurre ANTES de exigir step-up), sin necesidad de enrolar 2FA.
     const writerAttempt = await app.inject({
       method: 'POST',
       url: `/agents/tool-calls/${toolCallId}/approve`,
@@ -116,19 +118,24 @@ describe('persistencia de packages/agents (RunStore/ToolCallStore sobre Postgres
     });
     expect(writerAttempt.statusCode).toBe(403);
 
+    // R5-11: aprobar exige step-up (purpose 'tool_call.approval') -- se pide
+    // un token por cada llamada (una sesión es de un solo uso).
+    const { backupCodes, stepUpToken } = await enrollTwoFactorFull(app, owner.accessToken, { orgId: org.id, purpose: 'tool_call.approval' });
     const ownerApprove = await app.inject({
       method: 'POST',
       url: `/agents/tool-calls/${toolCallId}/approve`,
-      headers: { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id },
+      headers: { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': stepUpToken },
     });
     expect(ownerApprove.statusCode).toBe(200);
     expect(ownerApprove.json().authorizationStatus).toBe('approved');
 
-    // Re-aprobar una ya resuelta falla (no re-ejecuta ni duplica).
+    // Re-aprobar una ya resuelta falla (no re-ejecuta ni duplica) -- con un
+    // step-up NUEVO (el anterior ya se consumió).
+    const secondStepUp = await stepUpWithBackupCode(app, owner.accessToken, backupCodes[0], { orgId: org.id, purpose: 'tool_call.approval' });
     const doubleApprove = await app.inject({
       method: 'POST',
       url: `/agents/tool-calls/${toolCallId}/approve`,
-      headers: { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id },
+      headers: { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': secondStepUp },
     });
     expect(doubleApprove.statusCode).toBe(409);
 

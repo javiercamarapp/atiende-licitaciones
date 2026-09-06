@@ -333,3 +333,17 @@ pasada de `apps/web` (fuera del alcance de escritura de este agente).
   (`tool_call.approval`/`admin.action` sin consumidor real — aprobación de
   `tool_calls`, incluida la cross-org de superadmin, sin ningún step-up) y
   R5-12 (comentario desactualizado en `apps/web/src/lib/api/twofa.ts`).
+
+---
+
+## Estado reparación (corrector, post-reverificación)
+
+Agregado por el agente corrector Sonnet `fix-api-r5-11`, ámbito exclusivo
+`apps/api/src/modules/agents/**` + `apps/api/src/modules/admin/**` (solo
+`tool_calls`) + sus tests + `apps/api/README.md`. Evidencia de comandos
+reales en `docs/logs/fix-api-r5-11.log`. Solo se actualiza la fila R5-11
+(R5-12 es `apps/web`, fuera del alcance de este corrector).
+
+| Hallazgo | Estado reparación | Commit / evidencia |
+| --- | --- | --- |
+| R5-11 (BAJA-MEDIA) | **CORREGIDO** | `POST /agents/tool-calls/:id/approve\|deny` (org-scoped) ahora llama `requireStepUp` con `purpose: 'tool_call.approval'` y el `orgId` ya validado por `app.requireOrg` (mismo patrón que `company/routes.ts`/`expediente/approval.routes.ts`, `apps/api/src/modules/agents/routes.ts`). `POST /admin/tool-calls/:id/approve\|deny` (superadmin, cross-org, sin `X-Org-Id`) ahora llama `requireStepUp` con `purpose: 'admin.action'`, resolviendo el `orgId` de un `SELECT org_id from tool_calls where id = $1` previo sobre la misma fila que luego se muta (esta ruta nunca lleva `X-Org-Id`; `apps/api/src/modules/admin/routes.ts`) -- un superadmin sin 2FA enrolado recibe 403 con instrucción, igual que cualquier otro consumidor de `requireStepUp`; una `tool_call` inexistente sigue respondiendo 404 sin exigir step-up (nada que autorizar todavía). Tests nuevos: `apps/api/test/security-r511-tool-call-stepup.test.ts` (org-scoped: sin 2FA → 403 con instrucción, sin `X-Step-Up` → 403, `purpose` incorrecto → 403, `orgId` incorrecto → 403, step-up correcto → 200 con sesión consumida y no reutilizable). `apps/api/test/ronda4-admin-tool-calls.test.ts` ampliado con los mismos casos para el cross-org de superadmin (sin 2FA → 403, sin `X-Step-Up` → 403, `purpose` incorrecto → 403, éxito → 200 con sesión consumida, 404 sin exigir step-up). Ajustados sin debilitar ninguna aserción: `apps/api/test/agent-persistence.test.ts`, `apps/api/test/security-api09-tool-calls-atomic.test.ts` y `apps/api/test/ronda4-empty-body.test.ts` (piden un `stepUpToken` por cada acción que ahora lo exige, vía `enrollTwoFactorFull`/`stepUpWithBackupCode`). `npm run -w apps/api typecheck lint test` verde, salida completa en `docs/logs/fix-api-r5-11.log`. |

@@ -5,6 +5,7 @@ import { MEMBERSHIP_ADMIN_ROLES } from '@atiende/db';
 import { NotFoundError, ConflictError } from '../../lib/errors.js';
 import { recordAudit } from '../../lib/audit.js';
 import { requireOrgRole } from '../../lib/authorize.js';
+import { requireStepUp } from '../../lib/step-up.js';
 import { withOptionalEmptyJsonBody } from '../../lib/optional-empty-body.js';
 import { agentRunSchema, toolCallSchema, toolCallListQuerySchema } from './schemas.js';
 
@@ -108,15 +109,23 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
         // Aprobar una tool_call pendiente es una decisión de riesgo (puede ser
         // `external`/`irreversible` en packages/agents): se reserva a
         // owner/admin, igual que el resto de aprobaciones sensibles de esta
-        // ronda (tarifas, roles). Re-autenticación no exigida en esta ronda
-        // (documentado como pendiente), pero SÍ se registra quién aprobó
-        // (approved_by/approved_at) y queda en audit_log.
+        // ronda (tarifas, roles).
         requireOrgRole(request, MEMBERSHIP_ADMIN_ROLES, 'Solo owner/admin pueden aprobar una tool_call pendiente');
 
         const row = await app.db.transaction(async (tx) => {
           await tx.query('set local role app_role');
           await tx.query("select set_config('app.current_org_id', $1, true)", [orgId]);
           await tx.query("select set_config('app.current_user_id', $1, true)", [userId]);
+
+          // R5-11 (docs/auditoria-2/api-r5-09-10-reverificacion.md): aprobar
+          // una tool_call puede autorizar gasto/envío/uso de API en nombre
+          // de la organización -- exige verificación en dos pasos (TOTP)
+          // reciente, distinta del rol que aprueba, igual que
+          // company/rates y expediente/approval (ver lib/step-up.ts). Sin
+          // 2FA enrolado o sin X-Step-Up vigente, 403 explícito ANTES de
+          // tocar la fila; el `stepUpToken` presentado debe estar atado
+          // EXACTAMENTE a esta organización/acción y se consume de un solo uso.
+          await requireStepUp(tx, { userId, stepUpHeader: request.headers['x-step-up'], orgId, purpose: 'tool_call.approval' });
 
           // API-09 (docs/auditoria-1/db-api-reverificacion.md): el check
           // (`pending`) y la mutación deben ser LA MISMA sentencia atómica --
@@ -177,6 +186,9 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
           await tx.query('set local role app_role');
           await tx.query("select set_config('app.current_org_id', $1, true)", [orgId]);
           await tx.query("select set_config('app.current_user_id', $1, true)", [userId]);
+
+          // R5-11: mismo step-up que approve() -- ver comentario ahí.
+          await requireStepUp(tx, { userId, stepUpHeader: request.headers['x-step-up'], orgId, purpose: 'tool_call.approval' });
 
           // API-09: mismo cierre atómico que approve() -- ver comentario ahí.
           const updated = await tx.query(

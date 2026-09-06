@@ -59,11 +59,13 @@ describe('POST sin cuerpo con Content-Type: application/json (ronda 4)', () => {
     const owner = await registerAndLogin(app, 'eb-owner-2@example.com');
     const org = await createOrgFor(app, owner, 'EB Org 2', 'eb-org-2');
     const toolCallId = await seedPendingToolCall(db, org.id);
+    // R5-11: approve() exige step-up (purpose 'tool_call.approval').
+    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken, { orgId: org.id, purpose: 'tool_call.approval' });
 
     const res = await app.inject({
       method: 'POST',
       url: `/agents/tool-calls/${toolCallId}/approve`,
-      headers: { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'content-type': 'application/json' },
+      headers: { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'content-type': 'application/json', 'x-step-up': stepUpToken },
       payload: '',
     });
     expect(res.statusCode).toBe(200);
@@ -74,11 +76,12 @@ describe('POST sin cuerpo con Content-Type: application/json (ronda 4)', () => {
     const owner = await registerAndLogin(app, 'eb-owner-3@example.com');
     const org = await createOrgFor(app, owner, 'EB Org 3', 'eb-org-3');
     const toolCallId = await seedPendingToolCall(db, org.id);
+    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken, { orgId: org.id, purpose: 'tool_call.approval' });
 
     const res = await app.inject({
       method: 'POST',
       url: `/agents/tool-calls/${toolCallId}/deny`,
-      headers: { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'content-type': 'application/json' },
+      headers: { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'content-type': 'application/json', 'x-step-up': stepUpToken },
       payload: '',
     });
     expect(res.statusCode).toBe(200);
@@ -133,11 +136,14 @@ describe('POST sin cuerpo con Content-Type: application/json (ronda 4)', () => {
     const toolCallId = await seedPendingToolCall(db, org.id);
     const superadminUser = await registerAndLogin(app, 'eb-superadmin-7@example.com');
     await makeSuperadmin(db, superadminUser.id);
+    // R5-11: la aprobación cross-org exige step-up (purpose 'admin.action')
+    // atado a la organización DUEÑA de la tool_call concreta.
+    const { stepUpToken } = await enrollTwoFactor(app, superadminUser.accessToken, { orgId: org.id, purpose: 'admin.action' });
 
     const res = await app.inject({
       method: 'POST',
       url: `/admin/tool-calls/${toolCallId}/approve`,
-      headers: { authorization: `Bearer ${superadminUser.accessToken}`, 'content-type': 'application/json' },
+      headers: { authorization: `Bearer ${superadminUser.accessToken}`, 'content-type': 'application/json', 'x-step-up': stepUpToken },
       payload: '',
     });
     expect(res.statusCode).toBe(200);

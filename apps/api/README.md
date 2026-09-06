@@ -68,12 +68,15 @@ Dos encabezados adicionales, transversales a toda la API:
   se refleja en la respuesta (`X-Correlation-Id`) y se propaga a
   `audit_log`/`jobs`/`proposals`/`package_manifests` (ver `GET
   /audit-log?correlationId=`).
-- `X-Step-Up` (REQ-044/064): exigido por `POST .../rates/:id/approve` y
-  `POST .../approval/approve` -- debe ser un `stepUpToken` vigente, NO
-  CONSUMIDO (R5-09: de un solo uso) y atado a esta MISMA organización/acción,
-  emitido por `POST /auth/2fa/step-up` (o por `POST /auth/2fa/verify-enrollment`,
-  ver módulo `2fa` abajo). Sin 2FA enrolado, o sin el encabezado, o con un
-  token vencido/ajeno/ya usado/atado a otra organización o acción, la API
+- `X-Step-Up` (REQ-044/064): exigido por `POST .../rates/:id/approve`,
+  `POST .../approval/approve`, `POST /agents/tool-calls/:id/approve|deny`
+  (R5-11, `purpose: 'tool_call.approval'`) y `POST /admin/tool-calls/:id/
+  approve|deny` (R5-11, `purpose: 'admin.action'`, ver detalle en `admin`
+  abajo) -- debe ser un `stepUpToken` vigente, NO CONSUMIDO (R5-09: de un
+  solo uso) y atado a esta MISMA organización/acción, emitido por `POST
+  /auth/2fa/step-up` (o por `POST /auth/2fa/verify-enrollment`, ver módulo
+  `2fa` abajo). Sin 2FA enrolado, o sin el encabezado, o con un token
+  vencido/ajeno/ya usado/atado a otra organización o acción, la API
   responde 403 con una instrucción explícita.
 
 ### health
@@ -167,6 +170,27 @@ coincidan. La migración 0062 también invalidó (borró) cualquier sesión
 `POST /company/rates/:id/approve` y `POST .../approval/approve` declaran
 sus propios `purpose` internos (`company.rate_approval`/
 `expediente.approval`) al llamar a `requireStepUp`.
+
+**R5-11 (docs/auditoria-2/api-r5-09-10-reverificacion.md, BAJA-MEDIA,
+cerrado)**: `tool_call.approval`/`admin.action` estaban reservados en el
+enum desde R5-09 pero ningún endpoint real los exigía todavía -- aprobar
+o denegar una `tool_call` pendiente de un agente (puede autorizar
+gasto/envío/uso de API en nombre de la organización, y en el caso de
+superadmin es además cross-org) no pedía ninguna verificación en dos
+pasos. Fijado: `POST /agents/tool-calls/:id/approve|deny` (org-scoped,
+`owner`/`admin`) ahora llama `requireStepUp` con `purpose:
+'tool_call.approval'` y el `orgId` ya validado por `app.requireOrg`, igual
+que `company`/`expediente`. `POST /admin/tool-calls/:id/approve|deny`
+(superadmin, cross-org) llama `requireStepUp` con `purpose: 'admin.action'`
+-- como esta ruta nunca lleva `X-Org-Id` (la organización afectada se
+resuelve de la propia fila de `tool_calls`), el `orgId` para el
+emparejamiento se obtiene de un SELECT previo sobre esa misma fila: el
+superadmin debe pedir su `stepUpToken` atado a la organización DUEÑA de la
+`tool_call` concreta que va a resolver (una sesión no sirve para
+aprobar/denegar una `tool_call` de otra organización). Un superadmin sin
+2FA enrolado recibe el mismo 403 con instrucción que cualquier otro
+consumidor de `requireStepUp`. Si la `tool_call` no existe, se responde
+404 sin exigir step-up (nada que autorizar todavía).
 
 ### organizations
 - `POST /organizations`, `GET /organizations`.
@@ -270,9 +294,10 @@ sensibles) y aprueban tarifas.
 
 ### agents (persistencia de `packages/agents`)
 - `GET /agents/runs`, `GET /agents/tool-calls` (filtro `status`).
-- `POST /agents/tool-calls/:id/approve` / `/deny` (owner/admin) — registra
-  `approved_by`/`approved_at` + `audit_log`; una `tool_call` ya resuelta no
-  puede reaprobarse/redenegarse (409).
+- `POST /agents/tool-calls/:id/approve` / `/deny` (owner/admin) — exige
+  `X-Step-Up` (R5-11, `purpose: 'tool_call.approval'`, ver sección
+  "Encabezados" arriba); registra `approved_by`/`approved_at` + `audit_log`;
+  una `tool_call` ya resuelta no puede reaprobarse/redenegarse (409).
 - `PgRunStore`/`PgToolCallStore` (`src/lib/agent-stores.pg.ts`) implementan
   `RunStore`/`ToolCallStore` de `@atiende/agents` sobre Postgres real.
 
@@ -300,7 +325,11 @@ organizaciones.
   decidir de verdad exigía pertenecer a la organización dueña, dejando el
   back office de solo lectura para un superadmin externo). Transición
   atómica igual que la ruta por-org (API-09); `audit_log` con el actor
-  superadmin real y la organización afectada.
+  superadmin real y la organización afectada. Exige `X-Step-Up` (R5-11,
+  `purpose: 'admin.action'`) atado a la organización DUEÑA de la
+  `tool_call` (resuelta de la propia fila, ya que esta ruta nunca lleva
+  `X-Org-Id`, ver "Encabezados" arriba) — un superadmin sin 2FA enrolado
+  recibe 403 igual que cualquier otro consumidor de `requireStepUp`.
 - `GET /admin/calendar-holidays` (REQ-050/056, ronda 5, `?jurisdiction=`/
   `?year=`) — calendario oficial de días inhábiles; lectura abierta a
   cualquier usuario autenticado (no solo superadmin: cualquier
@@ -789,3 +818,32 @@ solo, pasa establemente en <2s por caso).
   `modules/auth/routes.ts` -- sin migración nueva (`after` ya es `jsonb`
   sin esquema fijo). Test en el mismo archivo que R5-02/R5-03
   (`security-r502-r503-twofa-brute-force.test.ts`).
+- **R5-11 (BAJA-MEDIA, cerrado)**: `tool_call.approval`/`admin.action`
+  existían en `STEP_UP_PURPOSES` (y en el CHECK de la migración 0063)
+  desde R5-09, pero ningún endpoint real los exigía todavía -- aprobar o
+  denegar una `tool_call` pendiente de un agente (puede autorizar
+  gasto/envío/uso de API en nombre de la organización, y en el caso de
+  superadmin es además cross-org) no pedía ninguna verificación en dos
+  pasos, pese a que el propio enum ya reservaba un valor específico para
+  cada caso. No era una regresión de R5-09/R5-10 (ninguno de los dos
+  commits tocó `modules/agents/routes.ts`/`modules/admin/routes.ts`) y ya
+  estaba declarado honestamente en `docs/PROGRESO.md` ("tool_calls sin
+  2FA"), pero se consideró que el riesgo era real y se cerró en esta
+  ronda. Fijado: `POST /agents/tool-calls/:id/approve|deny` (org-scoped)
+  llama `requireStepUp` con `purpose: 'tool_call.approval'` y el `orgId`
+  ya validado por `app.requireOrg` (mismo patrón que `company`/
+  `expediente`). `POST /admin/tool-calls/:id/approve|deny` (superadmin,
+  cross-org, sin `X-Org-Id`) llama `requireStepUp` con `purpose:
+  'admin.action'`, resolviendo el `orgId` de un SELECT previo sobre la
+  propia fila de `tool_calls` (la organización afectada, nunca de un
+  header) -- un superadmin sin 2FA enrolado recibe el mismo 403 con
+  instrucción que cualquier otro consumidor de `requireStepUp`; una
+  `tool_call` inexistente sigue respondiendo 404 sin exigir step-up. Tests:
+  `apps/api/test/security-r511-tool-call-stepup.test.ts` (org-scoped: sin
+  2FA, sin `X-Step-Up`, `purpose`/organización incorrectos, éxito con
+  sesión consumida) y `apps/api/test/ronda4-admin-tool-calls.test.ts`
+  (cross-org: superadmin sin 2FA, sin `X-Step-Up`, `purpose` incorrecto,
+  éxito con sesión consumida, 404 sin exigir step-up); ajustados además
+  `agent-persistence.test.ts`, `security-api09-tool-calls-atomic.test.ts` y
+  `ronda4-empty-body.test.ts` para pedir un `stepUpToken` por cada acción
+  que ahora lo exige.

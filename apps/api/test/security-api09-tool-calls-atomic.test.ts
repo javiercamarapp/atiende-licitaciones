@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { DbClient } from '@atiende/db';
-import { createTestApp, registerAndLogin, createOrgFor } from './helpers.js';
+import { createTestApp, registerAndLogin, createOrgFor, enrollTwoFactorFull, stepUpWithBackupCode } from './helpers.js';
 
 /**
  * API-09 (docs/auditoria-1/db-api-reverificacion.md) — mitad de tool_calls:
@@ -48,10 +48,17 @@ describe('API-09 — aprobación/denegación de tool_calls es atómica (check-th
     const org = await createOrgFor(app, owner, 'API09 Org 1', 'api09-org-1');
     const toolCallId = await seedPendingToolCall(app, db, org.id, owner.id);
     const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+    // R5-11: approve() ahora exige step-up (purpose 'tool_call.approval') --
+    // cada llamada concurrente presenta su PROPIA sesión de un solo uso.
+    const { backupCodes } = await enrollTwoFactorFull(app, owner.accessToken, { orgId: org.id, purpose: 'tool_call.approval' });
+    const [stepUp1, stepUp2] = await Promise.all([
+      stepUpWithBackupCode(app, owner.accessToken, backupCodes[0], { orgId: org.id, purpose: 'tool_call.approval' }),
+      stepUpWithBackupCode(app, owner.accessToken, backupCodes[1], { orgId: org.id, purpose: 'tool_call.approval' }),
+    ]);
 
     const [first, second] = await Promise.all([
-      app.inject({ method: 'POST', url: `/agents/tool-calls/${toolCallId}/approve`, headers }),
-      app.inject({ method: 'POST', url: `/agents/tool-calls/${toolCallId}/approve`, headers }),
+      app.inject({ method: 'POST', url: `/agents/tool-calls/${toolCallId}/approve`, headers: { ...headers, 'x-step-up': stepUp1 } }),
+      app.inject({ method: 'POST', url: `/agents/tool-calls/${toolCallId}/approve`, headers: { ...headers, 'x-step-up': stepUp2 } }),
     ]);
     const codes = [first.statusCode, second.statusCode].sort();
     expect(codes).toEqual([200, 409]);
@@ -68,10 +75,15 @@ describe('API-09 — aprobación/denegación de tool_calls es atómica (check-th
     const org = await createOrgFor(app, owner, 'API09 Org 2', 'api09-org-2');
     const toolCallId = await seedPendingToolCall(app, db, org.id, owner.id);
     const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+    const { backupCodes } = await enrollTwoFactorFull(app, owner.accessToken, { orgId: org.id, purpose: 'tool_call.approval' });
+    const [approveStepUp, denyStepUp] = await Promise.all([
+      stepUpWithBackupCode(app, owner.accessToken, backupCodes[0], { orgId: org.id, purpose: 'tool_call.approval' }),
+      stepUpWithBackupCode(app, owner.accessToken, backupCodes[1], { orgId: org.id, purpose: 'tool_call.approval' }),
+    ]);
 
     const [approve, deny] = await Promise.all([
-      app.inject({ method: 'POST', url: `/agents/tool-calls/${toolCallId}/approve`, headers }),
-      app.inject({ method: 'POST', url: `/agents/tool-calls/${toolCallId}/deny`, headers }),
+      app.inject({ method: 'POST', url: `/agents/tool-calls/${toolCallId}/approve`, headers: { ...headers, 'x-step-up': approveStepUp } }),
+      app.inject({ method: 'POST', url: `/agents/tool-calls/${toolCallId}/deny`, headers: { ...headers, 'x-step-up': denyStepUp } }),
     ]);
     const codes = [approve.statusCode, deny.statusCode].sort();
     expect(codes).toEqual([200, 409]);
