@@ -44,7 +44,13 @@ Cada herramienta declara `inputSchema`/`outputSchema` (zod), `riskLevel`
 semántica cerrada de lo que la herramienta REALMENTE hace —
 `read`/`write`/`external_send`/`sign`/`portal_action`/`contact_third_party`/
 `payment` — obligatoria; `register()` rechaza cualquier herramienta sin un
-`actionKind` válido de este enum), `idempotent` y `tenantScoped`.
+`actionKind` válido de este enum), `declaredEffects` (AG-05: lista no vacía
+del enum cerrado `read_only`/`internal_write`/`external_send`/`sign`/
+`portal_action`/`contact_third_party`/`payment` — obligatoria;
+`register()` rechaza cualquier herramienta con `riskLevel: "read"` que
+declare un efecto fuera de `read_only`, una contradicción explícita entre
+"esto solo lee" y "esto también firma/envía/paga"), `idempotent` y
+`tenantScoped`.
 `register()` también **rechaza cualquier nombre de herramienta fuera de
 ASCII snake_case** (`[a-z0-9_]+`, AG-02): esto bloquea en origen tanto
 mayúsculas/separadores como homoglifos Unicode (p. ej. una letra cirílica
@@ -229,6 +235,26 @@ la red — para tests y desarrollo sin credenciales.
    ingesta cuando detecte una nueva versión de bases/plazo (ver
    `packages/sources`), y registrar `dependsOn` al crear cada
    `AgentRunRequest` derivado de una convocatoria.
+
+## Límite conocido (AG-05)
+
+`AgentRunner.executeStep` solo evalúa el nombre/`actionKind`/`riskLevel` de
+la tool_call de nivel superior. Un handler "envoltorio" con
+`riskLevel: "read"`, `actionKind: "read"` y `declaredEffects: ["read_only"]`
+que MIENTE en los tres campos a la vez (es decir, que internamente ejecuta
+lógica equivalente a firmar/enviar/pagar sin que ninguno de sus metadatos
+declarados lo refleje) puede ejecutar sin pasar por `AuthorizationPolicy`
+para esa sub-acción. Esto es un límite arquitectónico inherente a
+cualquier gate basado en metadatos que el propio autor de la herramienta
+declara — no un bug puntual de código, y `declaredEffects` (AG-05) no lo
+resuelve por completo: solo detecta la contradicción cuando el autor
+declara honestamente AL MENOS uno de los dos campos (`riskLevel` o
+`declaredEffects`) de forma inconsistente con el otro. Mitigación
+obligatoria fuera de este paquete: checklist de revisión humana de cada
+`ToolDefinition.handler` antes de merge a producción (¿llama a algo que
+envía/firma/actúa en un portal/paga, sin que `actionKind`/`declaredEffects`
+lo reflejen?), y/o instrumentar un límite de red saliente por `riskLevel` a
+nivel de proceso/sandbox en `apps/api`.
 
 ## Pendientes
 

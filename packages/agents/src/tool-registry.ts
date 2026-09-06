@@ -1,6 +1,7 @@
 import type { z } from "zod";
-import { ACTION_KINDS, type ActionKind, type Role, type RiskLevel } from "./types.js";
+import { ACTION_KINDS, EFFECT_KINDS, type ActionKind, type EffectKind, type Role, type RiskLevel } from "./types.js";
 import {
+  InvalidDeclaredEffectsError,
   InvalidToolNameError,
   MissingActionKindError,
   ToolNotFoundError,
@@ -63,6 +64,14 @@ export interface ToolDefinition<Input = unknown, Output = unknown> {
    * cualquier herramienta sin un `actionKind` válido de este enum cerrado.
    */
   actionKind: ActionKind;
+  /**
+   * Efectos que el `handler` declara honestamente que produce (AG-05,
+   * límite conocido: ver README). Obligatorio y no vacío. `register()`
+   * rechaza cualquier herramienta cuyo `riskLevel` sea `"read"` pero
+   * declare un efecto fuera de `"read_only"` — una contradicción explícita
+   * entre "esto solo lee" y "esto también firma/envía/paga".
+   */
+  declaredEffects: EffectKind[];
   /** Si la misma llamada (mismo idempotency key) puede repetirse sin efecto adicional. */
   idempotent: boolean;
   /** Si la herramienta opera sobre datos de una organización (recibe `organizationId` inyectado). */
@@ -94,6 +103,7 @@ export class ToolRegistry {
   register<Input, Output>(tool: ToolDefinition<Input, Output>): void {
     this.assertValidToolName(tool);
     this.assertValidActionKind(tool);
+    this.assertValidDeclaredEffects(tool);
     this.assertNoForbiddenFields(tool);
     this.tools.set(tool.name, tool as AnyToolDefinition);
   }
@@ -109,6 +119,32 @@ export class ToolRegistry {
   private assertValidActionKind(tool: AnyToolDefinition): void {
     if (!(ACTION_KINDS as readonly string[]).includes(tool.actionKind as string)) {
       throw new MissingActionKindError(tool.name, tool.actionKind);
+    }
+  }
+
+  /**
+   * AG-05: `declaredEffects` es obligatorio, no vacío, y debe pertenecer al
+   * enum cerrado `EFFECT_KINDS`. Además, un `riskLevel: "read"` no puede
+   * declarar ningún efecto fuera de `"read_only"` — esa contradicción
+   * explícita ("esto solo lee" + "esto también firma/envía") se rechaza en
+   * el registro. Límite conocido: esto NO detecta un handler que mienta en
+   * AMBOS campos a la vez (ver README, sección "Límite conocido (AG-05)").
+   */
+  private assertValidDeclaredEffects(tool: AnyToolDefinition): void {
+    const effects = tool.declaredEffects;
+    if (!Array.isArray(effects) || effects.length === 0) {
+      throw new InvalidDeclaredEffectsError(tool.name, "declaredEffects es obligatorio y no puede estar vacío");
+    }
+    for (const effect of effects) {
+      if (!(EFFECT_KINDS as readonly string[]).includes(effect)) {
+        throw new InvalidDeclaredEffectsError(tool.name, `efecto desconocido "${effect}"`);
+      }
+    }
+    if (tool.riskLevel === "read" && effects.some((effect) => effect !== "read_only")) {
+      throw new InvalidDeclaredEffectsError(
+        tool.name,
+        `riskLevel "read" no puede declarar efectos fuera de "read_only" (declarados: ${effects.join(", ")})`,
+      );
     }
   }
 

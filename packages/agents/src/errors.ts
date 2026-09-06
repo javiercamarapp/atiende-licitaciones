@@ -47,6 +47,17 @@ export class InvalidToolNameError extends AgentsError {
   }
 }
 
+export class InvalidDeclaredEffectsError extends AgentsError {
+  constructor(readonly toolName: string, readonly reason: string) {
+    super(
+      `La herramienta "${toolName}" declara efectos inválidos: ${reason} (AG-05: declaredEffects es ` +
+        "obligatorio, debe pertenecer al enum cerrado, y un riskLevel 'read' no puede declarar ningún " +
+        "efecto fuera de 'read_only')",
+      false,
+    );
+  }
+}
+
 export class UnauthorizedToolInputError extends AgentsError {
   constructor(readonly toolName: string, readonly field: string) {
     super(

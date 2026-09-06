@@ -34,6 +34,7 @@ function readTool(overrides: Partial<ToolDefinition<any, any>> = {}): ToolDefini
     outputSchema: z.object({ count: z.number() }),
     riskLevel: "read",
     actionKind: "read",
+    declaredEffects: ["read_only"],
     idempotent: true,
     tenantScoped: true,
     handler: async () => ({ count: 1 }),

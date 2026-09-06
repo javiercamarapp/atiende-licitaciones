@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { ToolRegistry, type ToolDefinition } from "../src/tool-registry.js";
 import {
+  InvalidDeclaredEffectsError,
   InvalidToolNameError,
   MissingActionKindError,
   ToolNotFoundError,
@@ -18,6 +19,7 @@ function makeTool(overrides: Partial<ToolDefinition<any, any>> = {}): ToolDefini
     outputSchema: z.object({ title: z.string() }),
     riskLevel: "read",
     actionKind: "read",
+    declaredEffects: ["read_only"],
     idempotent: true,
     tenantScoped: true,
     handler: async (input: { tenderId: string }) => ({ title: `convocatoria ${input.tenderId}` }),
@@ -156,6 +158,47 @@ describe("ToolRegistry", () => {
       for (const actionKind of ACTION_KINDS) {
         expect(() => registry.register(makeTool({ name: `tool_${actionKind}`, actionKind }))).not.toThrow();
       }
+    });
+  });
+
+  describe("AG-05 (MEDIA): declaredEffects obligatorio y consistente con riskLevel", () => {
+    it("rechaza el registro si la herramienta no declara declaredEffects", () => {
+      const registry = new ToolRegistry();
+      const toolWithout = { ...makeTool(), declaredEffects: undefined } as unknown as ToolDefinition<any, any>;
+      expect(() => registry.register(toolWithout)).toThrow(InvalidDeclaredEffectsError);
+    });
+
+    it("rechaza declaredEffects vacío", () => {
+      const registry = new ToolRegistry();
+      expect(() => registry.register(makeTool({ declaredEffects: [] }))).toThrow(InvalidDeclaredEffectsError);
+    });
+
+    it("rechaza un valor de efecto fuera del enum cerrado", () => {
+      const registry = new ToolRegistry();
+      const bad = { ...makeTool(), declaredEffects: ["hace_de_todo"] } as unknown as ToolDefinition<any, any>;
+      expect(() => registry.register(bad)).toThrow(InvalidDeclaredEffectsError);
+    });
+
+    it("rechaza un handler riskLevel='read' que declara un efecto fuera de read_only (contradicción explícita)", () => {
+      const registry = new ToolRegistry();
+      expect(() =>
+        registry.register(makeTool({ riskLevel: "read", declaredEffects: ["external_send"] })),
+      ).toThrow(InvalidDeclaredEffectsError);
+      expect(() =>
+        registry.register(makeTool({ name: "otro", riskLevel: "read", declaredEffects: ["read_only", "sign"] })),
+      ).toThrow(InvalidDeclaredEffectsError);
+    });
+
+    it("acepta riskLevel='read' con declaredEffects: ['read_only']", () => {
+      const registry = new ToolRegistry();
+      expect(() => registry.register(makeTool({ riskLevel: "read", declaredEffects: ["read_only"] }))).not.toThrow();
+    });
+
+    it("permite que herramientas de riesgo mayor (write/external/irreversible) declaren efectos no-read_only", () => {
+      const registry = new ToolRegistry();
+      expect(() =>
+        registry.register(makeTool({ name: "firmar", riskLevel: "irreversible", actionKind: "sign", declaredEffects: ["sign"] })),
+      ).not.toThrow();
     });
   });
 

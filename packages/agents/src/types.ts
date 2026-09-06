@@ -60,6 +60,30 @@ export const ACTION_KINDS = [
 
 export type ActionKind = (typeof ACTION_KINDS)[number];
 
+/**
+ * AG-05: efectos que un `ToolDefinition.handler` declara honestamente que
+ * produce, más allá de su `actionKind`/`riskLevel` declarado. Es una
+ * verificación de CONSISTENCIA, no una sandbox real: un handler "envoltorio"
+ * que MIENTE tanto en `riskLevel` como en `declaredEffects` (declara
+ * `read`/`["read_only"]` pero internamente firma/envía) no puede detectarse
+ * por este medio — ver la sección "Límite conocido (AG-05)" del README.
+ * Lo que SÍ garantiza `ToolRegistry.register()`: un handler cuyo
+ * `riskLevel` es `"read"` NO PUEDE declarar ningún efecto fuera de
+ * `read_only` (si lo hace, es una contradicción explícita que se rechaza
+ * en el registro, en vez de pasar desapercibida).
+ */
+export const EFFECT_KINDS = [
+  "read_only",
+  "internal_write",
+  "external_send",
+  "sign",
+  "portal_action",
+  "contact_third_party",
+  "payment",
+] as const;
+
+export type EffectKind = (typeof EFFECT_KINDS)[number];
+
 /** Los tres niveles de modelo por costo definidos en REQ-124. */
 export type ModelTier = "economico" | "estandar" | "premium";
 
