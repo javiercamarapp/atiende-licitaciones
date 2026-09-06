@@ -1,0 +1,517 @@
+# Re-verificación adversarial 2 (cierre) — apps/worker
+# Worktree: git worktree add <scratchpad>/reverify2-worker HEAD (eliminado al terminar)
+# HEAD verificado: c96484a
+
+=== 1. Ancestria de los 6+1 commits citados ===
+--- ab5fa95 ---
+ancestor: OK
+ab5fa95e009e31019f33b64d9172ad8631e34f7e fix(worker): WK-14 fencing real por lease token en complete/fail/deadLetterPermanent
+
+ apps/worker/src/queue/errors.ts          |  28 ++++++
+ apps/worker/src/queue/job-queue.ts       | 143 ++++++++++++++++++++++---------
+ apps/worker/src/queue/worker.ts          | 129 +++++++++++++++++++---------
+ apps/worker/test/job-queue.test.ts       | 124 +++++++++++++++++++++++----
+ apps/worker/test/worker-shutdown.test.ts |   6 +-
+ 5 files changed, 334 insertions(+), 96 deletions(-)
+
+--- 95f3a03 ---
+ancestor: OK
+95f3a0306827ad64ef18a3d6246a29e167ad0f95 fix(worker): WK-16 fail-closed en run_agent para organizationId nulo/vacío
+
+ apps/worker/src/handlers/run-agent.ts      | 53 +++++++++++++++++++++--
+ apps/worker/test/run-agent-handler.test.ts | 69 ++++++++++++++++++++++++++++++
+ 2 files changed, 118 insertions(+), 4 deletions(-)
+
+--- e9879f3 ---
+ancestor: OK
+e9879f3ee986242b8c2bf721707bd2c346786db6 fix(worker): WK-17 408 y 425 transitorios en TenderIngestClient
+
+ apps/worker/src/ingest/ingest-client.ts | 15 +++++-
+ apps/worker/test/ingest-client.test.ts  | 84 ++++++++++++++++++++++++++++++++-
+ 2 files changed, 97 insertions(+), 2 deletions(-)
+
+--- 521b321 ---
+ancestor: OK
+521b32195932df14471cc2a1aa3029e4adb0b41e fix(worker): corrige typecheck de la tabla de verdad WK-17 (it.each de 3 columnas)
+
+ apps/worker/test/ingest-client.test.ts | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- b6b879f ---
+ancestor: OK
+b6b879ff398006ace6aa4738d91f3aad35f42e7d docs(worker): WK-15 honestidad del test de concurrencia WK-04 + SQL emitido
+
+ apps/worker/README.md              |  70 +++++++++++++-------
+ apps/worker/test/scheduler.test.ts | 131 ++++++++++++++++++++++++++++++++++++-
+ 2 files changed, 176 insertions(+), 25 deletions(-)
+
+--- 7ab874c ---
+ancestor: OK
+7ab874cb814893a2d388f62705c8ec5d1ab0cdaa docs(worker): PROPOSAL-02 dedupe previo + nota CONCURRENTLY/ventana de mantenimiento
+
+ ...AL-02-jobs-dedupe-and-cancelled.pending.test.ts | 41 ++++++++--
+ .../PROPOSAL-02-jobs-dedupe-and-cancelled.sql      | 87 ++++++++++++++++++++++
+ 2 files changed, 120 insertions(+), 8 deletions(-)
+
+--- d88d334 ---
+ancestor: OK
+d88d33475a70cf3106a729ffb95cc4c55cde4bc1 docs(worker): columna Estado reparación (WK-14..18) + log ronda 3
+
+ docs/auditoria-1/worker-reverificacion.md |  33 ++++-
+ docs/logs/fix-worker-ronda3.log           | 229 ++++++++++++++++++++++++++++++
+ 2 files changed, 255 insertions(+), 7 deletions(-)
+
+=== npm run -w apps/worker typecheck ===
+
+> @atiende/worker@0.1.0 typecheck
+> tsc --noEmit
+
+=== npm run -w apps/worker lint ===
+
+> @atiende/worker@0.1.0 lint
+> eslint src test
+
+=== npm run -w apps/worker test ===
+
+> @atiende/worker@0.1.0 test
+> vitest run
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify2-worker/apps/worker[39m
+
+ [2m[90m↓[39m[22m db-proposals/PROPOSAL-02-jobs-dedupe-and-cancelled.pending.test.ts [2m([22m[2m3 tests[22m[2m | [22m[33m3 skipped[39m[2m)[22m
+ [32m✓[39m test/config.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [2m[90m↓[39m[22m db-proposals/PROPOSAL-03-worker-role.pending.test.ts [2m([22m[2m2 tests[22m[2m | [22m[33m2 skipped[39m[2m)[22m
+ [2m[90m↓[39m[22m db-proposals/PROPOSAL-01-widen-source-run-status.pending.test.ts [2m([22m[2m1 test[22m[2m | [22m[33m1 skipped[39m[2m)[22m
+ [32m✓[39m test/schedule-config.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/ingest-client.test.ts [2m([22m[2m20 tests[22m[2m)[22m[90m 275[2mms[22m[39m
+ [32m✓[39m test/worker-shutdown.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 9584[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: cierre ordenado (SIGTERM)[2m > [22mdeja terminar el job en curso, libera el lock, y no reclama nuevos jobs tras stop() [33m2722[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: cierre ordenado (SIGTERM)[2m > [22msi el handler no respeta AbortSignal, stop() igual resuelve tras shutdownTimeoutMs (no cuelga para siempre) [33m1677[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: cierre ordenado (SIGTERM)[2m > [22mllamar stop() dos veces es seguro (idempotente) [33m1415[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: cierre ordenado (SIGTERM)[2m > [22mWK-02: si el heartbeat detecta que se perdió el lease (fencing), aborta el handler y NO persiste ningún resultado [33m1156[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: cierre ordenado (SIGTERM)[2m > [22mWK-10: un error permanente dead-letra en el primer intento, sin gastar el ciclo de backoff [33m1362[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: cierre ordenado (SIGTERM)[2m > [22mmétricas: cuenta succeeded/retried/dead por tipo de job [33m1250[2mms[22m[39m
+ [32m✓[39m test/run-agent-handler.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 10065[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mejecuta con FakeProvider por defecto (sin OPENAI_API_KEY) y refleja el resultado en agent_runs [33m2613[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22msin agentRunId en el payload, igual ejecuta el AgentRunner sin fallar (uso "fire and forget") [33m1167[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mWK-08: un job run_agent con organizationId de otro tenant nunca actualiza la fila real (falla explícito, no-op silencioso) [33m1246[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mWK-16: organizationId null con agentRunId presente falla permanente ("org requerida"), agent_runs NUNCA se toca [33m1276[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mWK-16: organizationId undefined con agentRunId presente falla permanente ("org requerida"), agent_runs NUNCA se toca [33m1196[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mWK-16: organizationId string vacío con agentRunId presente falla permanente ("org requerida"), agent_runs NUNCA se toca [33m1398[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mun rol sin permiso para el riesgo de la herramienta hace que la corrida termine "denied" -> el job falla explícitamente [33m1167[2mms[22m[39m
+ [32m✓[39m test/scheduler.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 11534[2mms[22m[39m
+   [33m[2m✓[22m[39m Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150[2m > [22mvarios tick() dentro de la misma ventana encolan un solo job por fuente [33m2697[2mms[22m[39m
+   [33m[2m✓[22m[39m Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150[2m > [22mavanzar a la siguiente ventana sí encola un nuevo job, sin duplicar el anterior [33m1118[2mms[22m[39m
+   [33m[2m✓[22m[39m Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150[2m > [22muna fuente deshabilitada (enabled: false) nunca se encola [33m1226[2mms[22m[39m
+   [33m[2m✓[22m[39m Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150[2m > [22mel job encolado ya trae sourceId en el payload para que discover_tenders sepa qué conector correr [33m1281[2mms[22m[39m
+   [33m[2m✓[22m[39m Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150[2m > [22mdos Scheduler concurrentes (dos procesos) nunca duplican el job de la misma fuente+ventana — 20 iteraciones (lógica secuencial en PGlite, NO concurrencia de motor real — ver nota WK-15) [33m1224[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable[2m > [22mla primera sentencia de la transacción es pg_advisory_xact_lock(hashtext($1)::bigint) con params=[`${kind}:${jobKey}`] [33m1302[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable[2m > [22mla clave del advisory lock es estable entre llamadas (mismo kind+jobKey -> mismo string, sin importar el payload) [33m1116[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable[2m > [22mun jobKey distinto produce una clave de lock distinta (sin colisión entre ventanas/fuentes) [33m870[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable[2m > [22menqueue() SIN jobKey no abre transacción ni toma ningún advisory lock (solo el camino con jobKey lo necesita) [33m698[2mms[22m[39m
+ [32m✓[39m test/discover-tenders-handler.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 12112[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A4: fuente inaccesible/no verificada nunca es "0 nuevas" silencioso[2m > [22mlos 5 conectores reales de packages/sources hoy no tienen liveVerification.verified=true: se reporta not_configured explícito, nunca "ok" [33m2639[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A4: fuente inaccesible/no verificada nunca es "0 nuevas" silencioso[2m > [22mun conector que lanza error con "captcha" en el mensaje se clasifica como captcha_detected, no "ok" [33m1111[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A4: fuente inaccesible/no verificada nunca es "0 nuevas" silencioso[2m > [22mfuente sin conector registrado nunca produce "0 nuevas": falla explícito con not_configured [33m1370[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay[2m > [22mconvocatoria nueva de una fuente verificada: se ingiere vía HTTP y source_runs queda "ok" [33m1236[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay[2m > [22mreplay del mismo lote (misma corrida repetida) envía el mismo payload de ingesta — idempotente (A2) [33m1348[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay[2m > [22muna corrida sin registros nuevos NO llama al endpoint de ingesta pero sí queda "ok" (no confundir con fuente caída) [33m1289[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay[2m > [22mWK-06: coverage.expected viene de payload.expectedTotal si se da; source_runs "ok" lo persiste [33m1071[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — WK-03/WK-05/WK-06: honestidad de coverage y registro SIEMPRE de source_runs[2m > [22msi discover() tiene éxito pero el POST de ingesta falla, source_runs SIEMPRE se registra (ingest_failed) [33m733[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — WK-03/WK-05/WK-06: honestidad de coverage y registro SIEMPRE de source_runs[2m > [22msi discover() falla a mitad de iteración, coverage.obtained es 0 (nunca cuenta lo descartado) [33m683[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — WK-03/WK-05/WK-06: honestidad de coverage y registro SIEMPRE de source_runs[2m > [22msin payload.expectedTotal, coverage.expected es null CON un motivo explícito, en las 4 rutas [33m629[2mms[22m[39m
+ [32m✓[39m test/job-queue.test.ts [2m([22m[2m19 tests[22m[2m)[22m[33m 17446[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: reclamo atómico sin doble procesamiento[2m > [22mN workers > M jobs: cada job se reclama como máximo una vez [33m2768[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: reclamo atómico sin doble procesamiento[2m > [22mun job ya en running no es reclamado dos veces por workers adicionales [33m1188[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: reclamo atómico sin doble procesamiento[2m > [22mun job claimeado incrementa attempts y queda en running con locked_by [33m1200[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-01 — claim() respeta max_attempts también en recuperación de lease (crash real)[2m > [22mun job que crashea repetidamente (nunca completa/falla) termina en "dead", nunca "running" eterno [33m1316[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: reintentos con backoff exponencial + jitter[2m > [22mcada fallo reprograma next_run_at con backoff creciente hasta max_attempts, luego "dead" [33m1214[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: reintentos con backoff exponencial + jitter[2m > [22mel jitter mantiene el delay dentro del rango esperado (no determinista pero acotado) [33m1470[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: lease expirado se recupera[2m > [22mun job running cuyo lease expiró es reclamable por otro worker [33m1181[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: lease expirado se recupera[2m > [22mheartbeat extiende el lease y evita que otro worker lo recupere [33m747[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: cancelación[2m > [22mcancelar un job queued lo deja fuera de circulación (dead) y no se reclama [33m645[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: cancelación[2m > [22mcancelar un job running también lo detiene [33m607[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: idempotencia por jobKey[2m > [22mencolar dos veces con el mismo jobKey mientras el primero sigue activo no duplica [33m578[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: idempotencia por jobKey[2m > [22muna vez terminado (succeeded), un nuevo jobKey (otra ventana) sí encola [33m555[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-10 — deadLetterPermanent (errores permanentes, sin ciclo de backoff)[2m > [22mdead-letra inmediatamente en el primer intento, sin importar max_attempts [33m564[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: complete[2m > [22mcomplete limpia el lock y marca succeeded [33m598[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: complete[2m > [22mcomplete con un lockedBy equivocado lanza StaleLeaseError y no persiste nada (protege contra confirmaciones cruzadas) [33m577[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent()[2m > [22mWORKER_ID reutilizado tras "reinicio" (mismo string, lease token distinto): complete() del zombie de la generación anterior es rechazado [33m561[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent()[2m > [22mfail() del zombie con lockedBy viejo también es rechazado (no aplica backoff/dead-letter equivocado) [33m558[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent()[2m > [22mdeadLetterPermanent() del zombie con lockedBy viejo también es rechazado [33m549[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent()[2m > [22mheartbeat() del zombie con lockedBy viejo retorna false (ya lo hacía por attempts en WK-02; ahora también por lease token) [33m565[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m8 passed[39m[22m[2m | [22m[33m3 skipped[39m[90m (11)[39m
+[2m      Tests [22m [1m[32m79 passed[39m[22m[2m | [22m[33m6 skipped[39m[90m (85)[39m
+[2m   Start at [22m 21:14:39
+[2m   Duration [22m 17.89s[2m (transform 680ms, setup 0ms, collect 1.39s, tests 61.02s, environment 1ms, prepare 702ms)[22m
+
+=== npm run -w apps/worker test:coverage ===
+
+> @atiende/worker@0.1.0 test:coverage
+> vitest run --coverage
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify2-worker/apps/worker[39m
+      [2mCoverage enabled with [22m[33mv8[39m
+
+ [32m✓[39m test/config.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [2m[90m↓[39m[22m db-proposals/PROPOSAL-03-worker-role.pending.test.ts [2m([22m[2m2 tests[22m[2m | [22m[33m2 skipped[39m[2m)[22m
+ [2m[90m↓[39m[22m db-proposals/PROPOSAL-02-jobs-dedupe-and-cancelled.pending.test.ts [2m([22m[2m3 tests[22m[2m | [22m[33m3 skipped[39m[2m)[22m
+ [2m[90m↓[39m[22m db-proposals/PROPOSAL-01-widen-source-run-status.pending.test.ts [2m([22m[2m1 test[22m[2m | [22m[33m1 skipped[39m[2m)[22m
+ [32m✓[39m test/schedule-config.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/ingest-client.test.ts [2m([22m[2m20 tests[22m[2m)[22m[33m 314[2mms[22m[39m
+ [32m✓[39m test/worker-shutdown.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 11303[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: cierre ordenado (SIGTERM)[2m > [22mdeja terminar el job en curso, libera el lock, y no reclama nuevos jobs tras stop() [33m2873[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: cierre ordenado (SIGTERM)[2m > [22msi el handler no respeta AbortSignal, stop() igual resuelve tras shutdownTimeoutMs (no cuelga para siempre) [33m1849[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: cierre ordenado (SIGTERM)[2m > [22mllamar stop() dos veces es seguro (idempotente) [33m1375[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: cierre ordenado (SIGTERM)[2m > [22mWK-02: si el heartbeat detecta que se perdió el lease (fencing), aborta el handler y NO persiste ningún resultado [33m1513[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: cierre ordenado (SIGTERM)[2m > [22mWK-10: un error permanente dead-letra en el primer intento, sin gastar el ciclo de backoff [33m1616[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: cierre ordenado (SIGTERM)[2m > [22mmétricas: cuenta succeeded/retried/dead por tipo de job [33m2075[2mms[22m[39m
+ [32m✓[39m test/run-agent-handler.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 11446[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mejecuta con FakeProvider por defecto (sin OPENAI_API_KEY) y refleja el resultado en agent_runs [33m2694[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22msin agentRunId en el payload, igual ejecuta el AgentRunner sin fallar (uso "fire and forget") [33m1352[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mWK-08: un job run_agent con organizationId de otro tenant nunca actualiza la fila real (falla explícito, no-op silencioso) [33m1209[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mWK-16: organizationId null con agentRunId presente falla permanente ("org requerida"), agent_runs NUNCA se toca [33m1214[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mWK-16: organizationId undefined con agentRunId presente falla permanente ("org requerida"), agent_runs NUNCA se toca [33m1379[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mWK-16: organizationId string vacío con agentRunId presente falla permanente ("org requerida"), agent_runs NUNCA se toca [33m1536[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mun rol sin permiso para el riesgo de la herramienta hace que la corrida termine "denied" -> el job falla explícitamente [33m2060[2mms[22m[39m
+ [32m✓[39m test/scheduler.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 13630[2mms[22m[39m
+   [33m[2m✓[22m[39m Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150[2m > [22mvarios tick() dentro de la misma ventana encolan un solo job por fuente [33m2850[2mms[22m[39m
+   [33m[2m✓[22m[39m Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150[2m > [22mavanzar a la siguiente ventana sí encola un nuevo job, sin duplicar el anterior [33m1519[2mms[22m[39m
+   [33m[2m✓[22m[39m Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150[2m > [22muna fuente deshabilitada (enabled: false) nunca se encola [33m1350[2mms[22m[39m
+   [33m[2m✓[22m[39m Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150[2m > [22mel job encolado ya trae sourceId en el payload para que discover_tenders sepa qué conector correr [33m1351[2mms[22m[39m
+   [33m[2m✓[22m[39m Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150[2m > [22mdos Scheduler concurrentes (dos procesos) nunca duplican el job de la misma fuente+ventana — 20 iteraciones (lógica secuencial en PGlite, NO concurrencia de motor real — ver nota WK-15) [33m1618[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable[2m > [22mla primera sentencia de la transacción es pg_advisory_xact_lock(hashtext($1)::bigint) con params=[`${kind}:${jobKey}`] [33m2084[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable[2m > [22mla clave del advisory lock es estable entre llamadas (mismo kind+jobKey -> mismo string, sin importar el payload) [33m1271[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable[2m > [22mun jobKey distinto produce una clave de lock distinta (sin colisión entre ventanas/fuentes) [33m757[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable[2m > [22menqueue() SIN jobKey no abre transacción ni toma ningún advisory lock (solo el camino con jobKey lo necesita) [33m829[2mms[22m[39m
+ [32m✓[39m test/discover-tenders-handler.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 14015[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A4: fuente inaccesible/no verificada nunca es "0 nuevas" silencioso[2m > [22mlos 5 conectores reales de packages/sources hoy no tienen liveVerification.verified=true: se reporta not_configured explícito, nunca "ok" [33m2623[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A4: fuente inaccesible/no verificada nunca es "0 nuevas" silencioso[2m > [22mun conector que lanza error con "captcha" en el mensaje se clasifica como captcha_detected, no "ok" [33m1380[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A4: fuente inaccesible/no verificada nunca es "0 nuevas" silencioso[2m > [22mfuente sin conector registrado nunca produce "0 nuevas": falla explícito con not_configured [33m1397[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay[2m > [22mconvocatoria nueva de una fuente verificada: se ingiere vía HTTP y source_runs queda "ok" [33m1316[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay[2m > [22mreplay del mismo lote (misma corrida repetida) envía el mismo payload de ingesta — idempotente (A2) [33m1491[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay[2m > [22muna corrida sin registros nuevos NO llama al endpoint de ingesta pero sí queda "ok" (no confundir con fuente caída) [33m2111[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay[2m > [22mWK-06: coverage.expected viene de payload.expectedTotal si se da; source_runs "ok" lo persiste [33m1306[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — WK-03/WK-05/WK-06: honestidad de coverage y registro SIEMPRE de source_runs[2m > [22msi discover() tiene éxito pero el POST de ingesta falla, source_runs SIEMPRE se registra (ingest_failed) [33m751[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — WK-03/WK-05/WK-06: honestidad de coverage y registro SIEMPRE de source_runs[2m > [22msi discover() falla a mitad de iteración, coverage.obtained es 0 (nunca cuenta lo descartado) [33m769[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — WK-03/WK-05/WK-06: honestidad de coverage y registro SIEMPRE de source_runs[2m > [22msin payload.expectedTotal, coverage.expected es null CON un motivo explícito, en las 4 rutas [33m870[2mms[22m[39m
+ [32m✓[39m test/job-queue.test.ts [2m([22m[2m19 tests[22m[2m)[22m[33m 20075[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: reclamo atómico sin doble procesamiento[2m > [22mN workers > M jobs: cada job se reclama como máximo una vez [33m2682[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: reclamo atómico sin doble procesamiento[2m > [22mun job ya en running no es reclamado dos veces por workers adicionales [33m1367[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: reclamo atómico sin doble procesamiento[2m > [22mun job claimeado incrementa attempts y queda en running con locked_by [33m1256[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-01 — claim() respeta max_attempts también en recuperación de lease (crash real)[2m > [22mun job que crashea repetidamente (nunca completa/falla) termina en "dead", nunca "running" eterno [33m1312[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: reintentos con backoff exponencial + jitter[2m > [22mcada fallo reprograma next_run_at con backoff creciente hasta max_attempts, luego "dead" [33m1375[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: reintentos con backoff exponencial + jitter[2m > [22mel jitter mantiene el delay dentro del rango esperado (no determinista pero acotado) [33m1831[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: lease expirado se recupera[2m > [22mun job running cuyo lease expiró es reclamable por otro worker [33m1888[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: lease expirado se recupera[2m > [22mheartbeat extiende el lease y evita que otro worker lo recupere [33m773[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: cancelación[2m > [22mcancelar un job queued lo deja fuera de circulación (dead) y no se reclama [33m725[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: cancelación[2m > [22mcancelar un job running también lo detiene [33m914[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: idempotencia por jobKey[2m > [22mencolar dos veces con el mismo jobKey mientras el primero sigue activo no duplica [33m668[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: idempotencia por jobKey[2m > [22muna vez terminado (succeeded), un nuevo jobKey (otra ventana) sí encola [33m656[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-10 — deadLetterPermanent (errores permanentes, sin ciclo de backoff)[2m > [22mdead-letra inmediatamente en el primer intento, sin importar max_attempts [33m658[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: complete[2m > [22mcomplete limpia el lock y marca succeeded [33m659[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: complete[2m > [22mcomplete con un lockedBy equivocado lanza StaleLeaseError y no persiste nada (protege contra confirmaciones cruzadas) [33m653[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent()[2m > [22mWORKER_ID reutilizado tras "reinicio" (mismo string, lease token distinto): complete() del zombie de la generación anterior es rechazado [33m657[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent()[2m > [22mfail() del zombie con lockedBy viejo también es rechazado (no aplica backoff/dead-letter equivocado) [33m671[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent()[2m > [22mdeadLetterPermanent() del zombie con lockedBy viejo también es rechazado [33m659[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent()[2m > [22mheartbeat() del zombie con lockedBy viejo retorna false (ya lo hacía por attempts en WK-02; ahora también por lease token) [33m670[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m8 passed[39m[22m[2m | [22m[33m3 skipped[39m[90m (11)[39m
+[2m      Tests [22m [1m[32m79 passed[39m[22m[2m | [22m[33m6 skipped[39m[90m (85)[39m
+[2m   Start at [22m 21:14:57
+[2m   Duration [22m 20.61s[2m (transform 753ms, setup 0ms, collect 1.52s, tests 70.79s, environment 1ms, prepare 694ms)[22m
+
+[34m % [39m[2mCoverage report from [22m[33mv8[39m
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-------------------|---------|----------|---------|---------|-------------------
+[32;1mAll files         [0m | [32;1m  90.41[0m | [32;1m   82.23[0m | [32;1m  81.42[0m | [32;1m  90.41[0m | [31;1m                 [0m 
+[32;1m src              [0m | [32;1m    100[0m | [32;1m   85.71[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  config.ts       [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  logger.ts       [0m | [32;1m    100[0m | [31;1m   33.33[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m17               [0m 
+[32;1m src/handlers     [0m | [32;1m  96.01[0m | [32;1m   81.96[0m | [33;1m     75[0m | [32;1m  96.01[0m | [31;1m                 [0m 
+[32;1m  ...er-tenders.ts[0m | [32;1m  98.52[0m | [32;1m   85.29[0m | [33;1m     60[0m | [32;1m  98.52[0m | [31;1m106-107          [0m 
+[32;1m  run-agent.ts    [0m | [32;1m  93.04[0m | [33;1m   77.77[0m | [32;1m     90[0m | [32;1m  93.04[0m | [31;1m...99,101,251-252[0m 
+[32;1m src/ingest       [0m | [32;1m    100[0m | [33;1m   77.55[0m | [32;1m   87.5[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  ingest-client.ts[0m | [32;1m    100[0m | [32;1m   82.22[0m | [32;1m  85.71[0m | [32;1m    100[0m | [33;1m...69,174,181,190[0m 
+[32;1m  ingest-mapper.ts[0m | [32;1m    100[0m | [31;1m      25[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m32-37            [0m 
+[32;1m src/queue        [0m | [32;1m  84.67[0m | [32;1m   83.33[0m | [32;1m  86.66[0m | [32;1m  84.67[0m | [31;1m                 [0m 
+[32;1m  backoff.ts      [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  errors.ts       [0m | [32;1m    100[0m | [33;1m      75[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m23               [0m 
+[32;1m  job-queue.ts    [0m | [32;1m  89.13[0m | [32;1m   90.24[0m | [32;1m  83.33[0m | [32;1m  89.13[0m | [31;1m...43-347,355-363[0m 
+[33;1m  metrics.ts      [0m | [33;1m  78.94[0m | [32;1m   83.33[0m | [33;1m  66.66[0m | [33;1m  78.94[0m | [31;1m26-27,30-31      [0m 
+[32;1m  types.ts        [0m | [32;1m    100[0m | [33;1m      75[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m59               [0m 
+[33;1m  worker.ts       [0m | [33;1m  77.64[0m | [33;1m    77.5[0m | [32;1m    100[0m | [33;1m  77.64[0m | [31;1m...96-202,219-229[0m 
+[32;1m src/scheduler    [0m | [32;1m  90.38[0m | [32;1m   88.23[0m | [32;1m     80[0m | [32;1m  90.38[0m | [31;1m                 [0m 
+[32;1m  ...ule-config.ts[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  scheduler.ts    [0m | [32;1m  85.29[0m | [32;1m   81.81[0m | [33;1m     75[0m | [32;1m  85.29[0m | [31;1m63-67            [0m 
+[33;1m src/source-runs  [0m | [33;1m  78.57[0m | [32;1m      80[0m | [33;1m     50[0m | [33;1m  78.57[0m | [31;1m                 [0m 
+[32;1m  ...run-status.ts[0m | [32;1m   87.5[0m | [32;1m     100[0m | [33;1m     50[0m | [32;1m   87.5[0m | [31;1m61-62            [0m 
+[33;1m  ...repository.ts[0m | [33;1m  73.07[0m | [33;1m      75[0m | [33;1m     50[0m | [33;1m  73.07[0m | [31;1m63-69            [0m 
+-------------------|---------|----------|---------|---------|-------------------
+=== npm run -w apps/worker test:coverage (rerun, exit code check) ===
+
+> @atiende/worker@0.1.0 test:coverage
+> vitest run --coverage
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify2-worker/apps/worker[39m
+      [2mCoverage enabled with [22m[33mv8[39m
+
+ [2m[90m↓[39m[22m db-proposals/PROPOSAL-02-jobs-dedupe-and-cancelled.pending.test.ts [2m([22m[2m3 tests[22m[2m | [22m[33m3 skipped[39m[2m)[22m
+ [2m[90m↓[39m[22m db-proposals/PROPOSAL-03-worker-role.pending.test.ts [2m([22m[2m2 tests[22m[2m | [22m[33m2 skipped[39m[2m)[22m
+ [32m✓[39m test/config.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [2m[90m↓[39m[22m db-proposals/PROPOSAL-01-widen-source-run-status.pending.test.ts [2m([22m[2m1 test[22m[2m | [22m[33m1 skipped[39m[2m)[22m
+ [32m✓[39m test/schedule-config.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/ingest-client.test.ts [2m([22m[2m20 tests[22m[2m)[22m[90m 289[2mms[22m[39m
+ [32m✓[39m test/worker-shutdown.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 8047[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: cierre ordenado (SIGTERM)[2m > [22mdeja terminar el job en curso, libera el lock, y no reclama nuevos jobs tras stop() [33m2233[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: cierre ordenado (SIGTERM)[2m > [22msi el handler no respeta AbortSignal, stop() igual resuelve tras shutdownTimeoutMs (no cuelga para siempre) [33m1667[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: cierre ordenado (SIGTERM)[2m > [22mllamar stop() dos veces es seguro (idempotente) [33m1076[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: cierre ordenado (SIGTERM)[2m > [22mWK-02: si el heartbeat detecta que se perdió el lease (fencing), aborta el handler y NO persiste ningún resultado [33m1042[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: cierre ordenado (SIGTERM)[2m > [22mWK-10: un error permanente dead-letra en el primer intento, sin gastar el ciclo de backoff [33m1003[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: cierre ordenado (SIGTERM)[2m > [22mmétricas: cuenta succeeded/retried/dead por tipo de job [33m1026[2mms[22m[39m
+ [32m✓[39m test/run-agent-handler.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 8159[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mejecuta con FakeProvider por defecto (sin OPENAI_API_KEY) y refleja el resultado en agent_runs [33m2041[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22msin agentRunId en el payload, igual ejecuta el AgentRunner sin fallar (uso "fire and forget") [33m1136[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mWK-08: un job run_agent con organizationId de otro tenant nunca actualiza la fila real (falla explícito, no-op silencioso) [33m999[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mWK-16: organizationId null con agentRunId presente falla permanente ("org requerida"), agent_runs NUNCA se toca [33m991[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mWK-16: organizationId undefined con agentRunId presente falla permanente ("org requerida"), agent_runs NUNCA se toca [33m963[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mWK-16: organizationId string vacío con agentRunId presente falla permanente ("org requerida"), agent_runs NUNCA se toca [33m990[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mun rol sin permiso para el riesgo de la herramienta hace que la corrida termine "denied" -> el job falla explícitamente [33m1040[2mms[22m[39m
+ [32m✓[39m test/scheduler.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 9643[2mms[22m[39m
+   [33m[2m✓[22m[39m Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150[2m > [22mvarios tick() dentro de la misma ventana encolan un solo job por fuente [33m2096[2mms[22m[39m
+   [33m[2m✓[22m[39m Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150[2m > [22mavanzar a la siguiente ventana sí encola un nuevo job, sin duplicar el anterior [33m1107[2mms[22m[39m
+   [33m[2m✓[22m[39m Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150[2m > [22muna fuente deshabilitada (enabled: false) nunca se encola [33m949[2mms[22m[39m
+   [33m[2m✓[22m[39m Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150[2m > [22mel job encolado ya trae sourceId en el payload para que discover_tenders sepa qué conector correr [33m937[2mms[22m[39m
+   [33m[2m✓[22m[39m Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150[2m > [22mdos Scheduler concurrentes (dos procesos) nunca duplican el job de la misma fuente+ventana — 20 iteraciones (lógica secuencial en PGlite, NO concurrencia de motor real — ver nota WK-15) [33m977[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable[2m > [22mla primera sentencia de la transacción es pg_advisory_xact_lock(hashtext($1)::bigint) con params=[`${kind}:${jobKey}`] [33m1007[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable[2m > [22mla clave del advisory lock es estable entre llamadas (mismo kind+jobKey -> mismo string, sin importar el payload) [33m978[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable[2m > [22mun jobKey distinto produce una clave de lock distinta (sin colisión entre ventanas/fuentes) [33m871[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable[2m > [22menqueue() SIN jobKey no abre transacción ni toma ningún advisory lock (solo el camino con jobKey lo necesita) [33m719[2mms[22m[39m
+ [32m✓[39m test/discover-tenders-handler.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 10020[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A4: fuente inaccesible/no verificada nunca es "0 nuevas" silencioso[2m > [22mlos 5 conectores reales de packages/sources hoy no tienen liveVerification.verified=true: se reporta not_configured explícito, nunca "ok" [33m1983[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A4: fuente inaccesible/no verificada nunca es "0 nuevas" silencioso[2m > [22mun conector que lanza error con "captcha" en el mensaje se clasifica como captcha_detected, no "ok" [33m1122[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A4: fuente inaccesible/no verificada nunca es "0 nuevas" silencioso[2m > [22mfuente sin conector registrado nunca produce "0 nuevas": falla explícito con not_configured [33m878[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay[2m > [22mconvocatoria nueva de una fuente verificada: se ingiere vía HTTP y source_runs queda "ok" [33m987[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay[2m > [22mreplay del mismo lote (misma corrida repetida) envía el mismo payload de ingesta — idempotente (A2) [33m932[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay[2m > [22muna corrida sin registros nuevos NO llama al endpoint de ingesta pero sí queda "ok" (no confundir con fuente caída) [33m972[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay[2m > [22mWK-06: coverage.expected viene de payload.expectedTotal si se da; source_runs "ok" lo persiste [33m1017[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — WK-03/WK-05/WK-06: honestidad de coverage y registro SIEMPRE de source_runs[2m > [22msi discover() tiene éxito pero el POST de ingesta falla, source_runs SIEMPRE se registra (ingest_failed) [33m747[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — WK-03/WK-05/WK-06: honestidad de coverage y registro SIEMPRE de source_runs[2m > [22msi discover() falla a mitad de iteración, coverage.obtained es 0 (nunca cuenta lo descartado) [33m699[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — WK-03/WK-05/WK-06: honestidad de coverage y registro SIEMPRE de source_runs[2m > [22msin payload.expectedTotal, coverage.expected es null CON un motivo explícito, en las 4 rutas [33m680[2mms[22m[39m
+ [32m✓[39m test/job-queue.test.ts [2m([22m[2m19 tests[22m[2m)[22m[33m 16089[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: reclamo atómico sin doble procesamiento[2m > [22mN workers > M jobs: cada job se reclama como máximo una vez [33m1982[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: reclamo atómico sin doble procesamiento[2m > [22mun job ya en running no es reclamado dos veces por workers adicionales [33m1139[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: reclamo atómico sin doble procesamiento[2m > [22mun job claimeado incrementa attempts y queda en running con locked_by [33m934[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-01 — claim() respeta max_attempts también en recuperación de lease (crash real)[2m > [22mun job que crashea repetidamente (nunca completa/falla) termina en "dead", nunca "running" eterno [33m971[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: reintentos con backoff exponencial + jitter[2m > [22mcada fallo reprograma next_run_at con backoff creciente hasta max_attempts, luego "dead" [33m970[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: reintentos con backoff exponencial + jitter[2m > [22mel jitter mantiene el delay dentro del rango esperado (no determinista pero acotado) [33m986[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: lease expirado se recupera[2m > [22mun job running cuyo lease expiró es reclamable por otro worker [33m936[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: lease expirado se recupera[2m > [22mheartbeat extiende el lease y evita que otro worker lo recupere [33m885[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: cancelación[2m > [22mcancelar un job queued lo deja fuera de circulación (dead) y no se reclama [33m703[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: cancelación[2m > [22mcancelar un job running también lo detiene [33m684[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: idempotencia por jobKey[2m > [22mencolar dos veces con el mismo jobKey mientras el primero sigue activo no duplica [33m663[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: idempotencia por jobKey[2m > [22muna vez terminado (succeeded), un nuevo jobKey (otra ventana) sí encola [33m655[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-10 — deadLetterPermanent (errores permanentes, sin ciclo de backoff)[2m > [22mdead-letra inmediatamente en el primer intento, sin importar max_attempts [33m665[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: complete[2m > [22mcomplete limpia el lock y marca succeeded [33m651[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: complete[2m > [22mcomplete con un lockedBy equivocado lanza StaleLeaseError y no persiste nada (protege contra confirmaciones cruzadas) [33m655[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent()[2m > [22mWORKER_ID reutilizado tras "reinicio" (mismo string, lease token distinto): complete() del zombie de la generación anterior es rechazado [33m657[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent()[2m > [22mfail() del zombie con lockedBy viejo también es rechazado (no aplica backoff/dead-letter equivocado) [33m655[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent()[2m > [22mdeadLetterPermanent() del zombie con lockedBy viejo también es rechazado [33m646[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent()[2m > [22mheartbeat() del zombie con lockedBy viejo retorna false (ya lo hacía por attempts en WK-02; ahora también por lease token) [33m651[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m8 passed[39m[22m[2m | [22m[33m3 skipped[39m[90m (11)[39m
+[2m      Tests [22m [1m[32m79 passed[39m[22m[2m | [22m[33m6 skipped[39m[90m (85)[39m
+[2m   Start at [22m 21:15:28
+[2m   Duration [22m 16.52s[2m (transform 533ms, setup 0ms, collect 1.23s, tests 52.25s, environment 1ms, prepare 671ms)[22m
+
+[34m % [39m[2mCoverage report from [22m[33mv8[39m
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-------------------|---------|----------|---------|---------|-------------------
+[32;1mAll files         [0m | [32;1m  90.41[0m | [32;1m   82.15[0m | [32;1m  81.42[0m | [32;1m  90.41[0m | [31;1m                 [0m 
+[32;1m src              [0m | [32;1m    100[0m | [32;1m   85.71[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  config.ts       [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  logger.ts       [0m | [32;1m    100[0m | [31;1m   33.33[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m17               [0m 
+[32;1m src/handlers     [0m | [32;1m  96.01[0m | [32;1m   81.96[0m | [33;1m     75[0m | [32;1m  96.01[0m | [31;1m                 [0m 
+[32;1m  ...er-tenders.ts[0m | [32;1m  98.52[0m | [32;1m   85.29[0m | [33;1m     60[0m | [32;1m  98.52[0m | [31;1m106-107          [0m 
+[32;1m  run-agent.ts    [0m | [32;1m  93.04[0m | [33;1m   77.77[0m | [32;1m     90[0m | [32;1m  93.04[0m | [31;1m...99,101,251-252[0m 
+[32;1m src/ingest       [0m | [32;1m    100[0m | [33;1m   77.08[0m | [32;1m   87.5[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  ingest-client.ts[0m | [32;1m    100[0m | [32;1m   81.81[0m | [32;1m  85.71[0m | [32;1m    100[0m | [33;1m...69,174,181,190[0m 
+[32;1m  ingest-mapper.ts[0m | [32;1m    100[0m | [31;1m      25[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m32-37            [0m 
+[32;1m src/queue        [0m | [32;1m  84.67[0m | [32;1m   83.33[0m | [32;1m  86.66[0m | [32;1m  84.67[0m | [31;1m                 [0m 
+[32;1m  backoff.ts      [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  errors.ts       [0m | [32;1m    100[0m | [33;1m      75[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m23               [0m 
+[32;1m  job-queue.ts    [0m | [32;1m  89.13[0m | [32;1m   90.24[0m | [32;1m  83.33[0m | [32;1m  89.13[0m | [31;1m...43-347,355-363[0m 
+[33;1m  metrics.ts      [0m | [33;1m  78.94[0m | [32;1m   83.33[0m | [33;1m  66.66[0m | [33;1m  78.94[0m | [31;1m26-27,30-31      [0m 
+[32;1m  types.ts        [0m | [32;1m    100[0m | [33;1m      75[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m59               [0m 
+[33;1m  worker.ts       [0m | [33;1m  77.64[0m | [33;1m    77.5[0m | [32;1m    100[0m | [33;1m  77.64[0m | [31;1m...96-202,219-229[0m 
+[32;1m src/scheduler    [0m | [32;1m  90.38[0m | [32;1m   88.23[0m | [32;1m     80[0m | [32;1m  90.38[0m | [31;1m                 [0m 
+[32;1m  ...ule-config.ts[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  scheduler.ts    [0m | [32;1m  85.29[0m | [32;1m   81.81[0m | [33;1m     75[0m | [32;1m  85.29[0m | [31;1m63-67            [0m 
+[33;1m src/source-runs  [0m | [33;1m  78.57[0m | [32;1m      80[0m | [33;1m     50[0m | [33;1m  78.57[0m | [31;1m                 [0m 
+[32;1m  ...run-status.ts[0m | [32;1m   87.5[0m | [32;1m     100[0m | [33;1m     50[0m | [32;1m   87.5[0m | [31;1m61-62            [0m 
+[33;1m  ...repository.ts[0m | [33;1m  73.07[0m | [33;1m      75[0m | [33;1m     50[0m | [33;1m  73.07[0m | [31;1m63-69            [0m 
+-------------------|---------|----------|---------|---------|-------------------
+EXIT=0 (gate lines>=85 branches>=80 satisfied: 90.41/82.23)
+
+=== Regresion: packages/sources, packages/agents, packages/db typecheck ===
+=== npm run -w packages/sources typecheck ===
+
+> @atiende/sources@0.1.0 typecheck
+> tsc --noEmit
+
+=== npm run -w packages/agents typecheck ===
+
+> @atiende/agents@0.1.0 typecheck
+> tsc --noEmit
+
+=== npm run -w packages/db typecheck ===
+
+> @atiende/db@0.1.0 typecheck
+> tsc --noEmit
+
+
+=== Ataques adversariales WK-14/WK-16/WK-15/WK-17/pending-proposals (archivos temporales zz-reverify2-*.test.ts, nunca commiteados, eliminados al terminar) ===
+
+ RUN  v2.1.9 /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify2-worker/apps/worker
+
+stdout | test/zz-reverify2-wk17.test.ts > REVERIFY2 WK-17: tabla completa 400-599 + errores de red + abort > resumen zona gris (501, 505-599): reportado tras el barrido
+WK-17-sweep: total en zona gris (retryable=false, permanent=false) = 96 (esperado: 501 + 505..599 = 96 códigos)
+
+ ✓ test/zz-reverify2-wk17.test.ts (205 tests) 3737ms
+   ✓ REVERIFY2 WK-17: tabla completa 400-599 + errores de red + abort > ETIMEDOUT (servidor que nunca responde): transitorio vía timeout del cliente 309ms
+   ✓ REVERIFY2 WK-17: tabla completa 400-599 + errores de red + abort > DNS: host inexistente (ENOTFOUND) clasificado transitorio, no cuelga 2008ms
+   ✓ REVERIFY2 WK-17: tabla completa 400-599 + errores de red + abort > abort externo a mitad de un reintento: se propaga como IngestApiError no permanente 338ms
+stdout | test/zz-reverify2-wk16.test.ts > REVERIFY2 WK-16: organizationId con valores exóticos > organizationId = "  " (solo espacios): pasa el guard "falsy"
+WK-16 espacios: threw= true errName= error agent_runs.status= running
+
+stdout | test/zz-reverify2-pending-proposals.test.ts > REVERIFY2: activación real de los .pending.test.ts contra la DB migrada (0026-0028 aplicadas) > PROPOSAL-01 (WK-07) > recordSourceRun con fineState=rate_limited: ¿persiste status=rate_limited?
+PROPOSAL-01: fineState=rate_limited -> status real = failed
+
+stdout | test/zz-reverify2-pending-proposals.test.ts > REVERIFY2: activación real de los .pending.test.ts contra la DB migrada (0026-0028 aplicadas) > PROPOSAL-01 (WK-07) > recordSourceRun con fineState=not_configured: ¿persiste status=not_configured?
+PROPOSAL-01: fineState=not_configured -> status real = failed
+
+stdout | test/zz-reverify2-wk16.test.ts > REVERIFY2 WK-16: organizationId con valores exóticos > organizationId = objeto ({}): truthy, bypassa el guard
+WK-16 objeto: threw= true errMsg= invalid input syntax for type uuid: "[object Object]"
+
+ ✓ test/zz-reverify2-wk16.test.ts (4 tests) 11295ms
+   ✓ REVERIFY2 WK-16: organizationId con valores exóticos > organizationId = "  " (solo espacios): pasa el guard "falsy" 3604ms
+   ✓ REVERIFY2 WK-16: organizationId con valores exóticos > organizationId = 0 (número): fail-closed via !organizationId 2313ms
+   ✓ REVERIFY2 WK-16: organizationId con valores exóticos > organizationId = false (booleano): fail-closed via !organizationId 2387ms
+   ✓ REVERIFY2 WK-16: organizationId con valores exóticos > organizationId = objeto ({}): truthy, bypassa el guard 2990ms
+ ✓ test/zz-reverify2-wk14.test.ts (4 tests) 11568ms
+   ✓ REVERIFY2 WK-14: ataques adversariales de fencing > zombie con token viejo: heartbeat/complete/fail/dead tras que B reclamó, todo rechazado sin persistir 3958ms
+   ✓ REVERIFY2 WK-14: ataques adversariales de fencing > A y B con el MISMO workerId (reinicio): tokens distintos -> rechazo cruzado 2226ms
+   ✓ REVERIFY2 WK-14: ataques adversariales de fencing > job vuelve a queued tras fail() de B; A (token viejo) intenta complete -> rechazado 2262ms
+   ✓ REVERIFY2 WK-14: ataques adversariales de fencing > locked_by compuesto: workerId con "::" propio no rompe el fencing (comparación siempre EXACTA, nunca se parsea) 3120ms
+stdout | test/zz-reverify2-pending-proposals.test.ts > REVERIFY2: activación real de los .pending.test.ts contra la DB migrada (0026-0028 aplicadas) > PROPOSAL-02 (WK-04/WK-15) > cancel() usa el estado "cancelled" dedicado: ¿pasa hoy?
+PROPOSAL-02: cancel() -> status real = dead
+
+stdout | test/zz-reverify2-wk15.test.ts > REVERIFY2 WK-15: dedupe real contra la migración 0027 aplicada > JobQueue.cancel() sigue usando "dead", NO "cancelled" (código de aplicación no actualizado pese al enum ya disponible)
+WK-15/PROPOSAL-02: cancel() status real = dead (enum "cancelled" disponible desde 0027 pero no usado en código)
+
+ ✓ test/zz-reverify2-wk15.test.ts (5 tests) 13165ms
+   ✓ REVERIFY2 WK-15: dedupe real contra la migración 0027 aplicada > el índice único parcial ux_jobs_kind_jobkey_active existe realmente en la DB migrada 4156ms
+   ✓ REVERIFY2 WK-15: dedupe real contra la migración 0027 aplicada > 'cancelled' existe como valor real del enum job_status 2705ms
+   ✓ REVERIFY2 WK-15: dedupe real contra la migración 0027 aplicada > violación real del índice único: un INSERT directo duplicado es rechazado por Postgres 2473ms
+   ✓ REVERIFY2 WK-15: dedupe real contra la migración 0027 aplicada > una vez succeeded, el mismo (kind, jobKey) SÍ puede reutilizarse (índice parcial) 2482ms
+   ✓ REVERIFY2 WK-15: dedupe real contra la migración 0027 aplicada > JobQueue.cancel() sigue usando "dead", NO "cancelled" (código de aplicación no actualizado pese al enum ya disponible) 1347ms
+stdout | test/zz-reverify2-pending-proposals.test.ts > REVERIFY2: activación real de los .pending.test.ts contra la DB migrada (0026-0028 aplicadas) > PROPOSAL-03 (WK-08) > SET ROLE worker_role + org_id de orgA no puede tocar fila de orgB (RLS bloquea)
+PROPOSAL-03: setRoleWorked= true rlsBlocked= true
+
+stdout | test/zz-reverify2-pending-proposals.test.ts > REVERIFY2: activación real de los .pending.test.ts contra la DB migrada (0026-0028 aplicadas) > PROPOSAL-03 (WK-08) > org_id correcto pero SIN current_user_id (lo que hace updateAgentRunRow hoy): RLS bloquea incluso lo legítimo
+PROPOSAL-03: org correcto SIN current_user_id -> rowCount = 0 (esperado 0: RLS exige has_role, que exige current_user_id)
+
+ ❯ test/zz-reverify2-pending-proposals.test.ts (11 tests | 3 failed) 16772ms
+   ✓ REVERIFY2: activación real de los .pending.test.ts contra la DB migrada (0026-0028 aplicadas) > PROPOSAL-01 (WK-07) > el enum source_run_status YA tiene rate_limited/not_configured/ingest_failed (0026 aplicada) 3446ms
+   × REVERIFY2: activación real de los .pending.test.ts contra la DB migrada (0026-0028 aplicadas) > PROPOSAL-01 (WK-07) > recordSourceRun con fineState=rate_limited: ¿persiste status=rate_limited? 2308ms
+     → expected 'failed' to be 'rate_limited' // Object.is equality
+   × REVERIFY2: activación real de los .pending.test.ts contra la DB migrada (0026-0028 aplicadas) > PROPOSAL-01 (WK-07) > recordSourceRun con fineState=not_configured: ¿persiste status=not_configured? 2325ms
+     → expected 'failed' to be 'not_configured' // Object.is equality
+   ✓ REVERIFY2: activación real de los .pending.test.ts contra la DB migrada (0026-0028 aplicadas) > PROPOSAL-02 (WK-04/WK-15) > segundo INSERT directo con la misma (kind, jobKey) activa viola el índice único (23505) 2751ms
+   × REVERIFY2: activación real de los .pending.test.ts contra la DB migrada (0026-0028 aplicadas) > PROPOSAL-02 (WK-04/WK-15) > cancel() usa el estado "cancelled" dedicado: ¿pasa hoy? 1710ms
+     → expected 'dead' to be 'cancelled' // Object.is equality
+   ✓ REVERIFY2: activación real de los .pending.test.ts contra la DB migrada (0026-0028 aplicadas) > PROPOSAL-02 (WK-04/WK-15) > PASO 0: query de detección de duplicados activos devuelve 0 filas en DB recién migrada 1066ms
+   ✓ REVERIFY2: activación real de los .pending.test.ts contra la DB migrada (0026-0028 aplicadas) > PROPOSAL-03 (WK-08) > worker_role existe como rol de Postgres tras 0028 730ms
+   ✓ REVERIFY2: activación real de los .pending.test.ts contra la DB migrada (0026-0028 aplicadas) > PROPOSAL-03 (WK-08) > worker_role tiene grants EXACTAMENTE sobre jobs/source_runs/agent_runs 679ms
+   ✓ REVERIFY2: activación real de los .pending.test.ts contra la DB migrada (0026-0028 aplicadas) > PROPOSAL-03 (WK-08) > SET ROLE worker_role + org_id de orgA no puede tocar fila de orgB (RLS bloquea) 605ms
+   ✓ REVERIFY2: activación real de los .pending.test.ts contra la DB migrada (0026-0028 aplicadas) > PROPOSAL-03 (WK-08) > org_id correcto pero SIN current_user_id (lo que hace updateAgentRunRow hoy): RLS bloquea incluso lo legítimo 576ms
+   ✓ REVERIFY2: activación real de los .pending.test.ts contra la DB migrada (0026-0028 aplicadas) > PROPOSAL-03 (WK-08) > org_id Y current_user_id correctos: RLS SÍ permite la actualización 575ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/zz-reverify2-pending-proposals.test.ts > REVERIFY2: activación real de los .pending.test.ts contra la DB migrada (0026-0028 aplicadas) > PROPOSAL-01 (WK-07) > recordSourceRun con fineState=rate_limited: ¿persiste status=rate_limited?
+AssertionError: expected 'failed' to be 'rate_limited' // Object.is equality
+
+Expected: "rate_limited"
+Received: "failed"
+
+ ❯ test/zz-reverify2-pending-proposals.test.ts:32:26
+     30|       const row = await recordSourceRun(db, { sourceId: 'dof' as any, …
+     31|       console.log('PROPOSAL-01: fineState=rate_limited -> status real …
+     32|       expect(row.status).toBe('rate_limited');
+       |                          ^
+     33|     });
+     34| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  test/zz-reverify2-pending-proposals.test.ts > REVERIFY2: activación real de los .pending.test.ts contra la DB migrada (0026-0028 aplicadas) > PROPOSAL-01 (WK-07) > recordSourceRun con fineState=not_configured: ¿persiste status=not_configured?
+AssertionError: expected 'failed' to be 'not_configured' // Object.is equality
+
+Expected: "not_configured"
+Received: "failed"
+
+ ❯ test/zz-reverify2-pending-proposals.test.ts:38:26
+     36|       const row = await recordSourceRun(db, { sourceId: 'dof' as any, …
+     37|       console.log('PROPOSAL-01: fineState=not_configured -> status rea…
+     38|       expect(row.status).toBe('not_configured');
+       |                          ^
+     39|     });
+     40|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  test/zz-reverify2-pending-proposals.test.ts > REVERIFY2: activación real de los .pending.test.ts contra la DB migrada (0026-0028 aplicadas) > PROPOSAL-02 (WK-04/WK-15) > cancel() usa el estado "cancelled" dedicado: ¿pasa hoy?
+AssertionError: expected 'dead' to be 'cancelled' // Object.is equality
+
+Expected: "cancelled"
+Received: "dead"
+
+ ❯ test/zz-reverify2-pending-proposals.test.ts:62:33
+     60|       const cancelled = await queue.cancel(job.id, 'motivo de prueba');
+     61|       console.log('PROPOSAL-02: cancel() -> status real =', cancelled!…
+     62|       expect(cancelled!.status).toBe('cancelled');
+       |                                 ^
+     63|     });
+     64| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+ Test Files  1 failed | 4 passed (5)
+      Tests  3 failed | 226 passed (229)
+   Start at  21:27:03
+   Duration  17.27s (transform 394ms, setup 0ms, collect 819ms, tests 56.54s, environment 0ms, prepare 395ms)
+
+
+=== Sanity final: suite oficial sin archivos zz-* (79 tests, 6 skip, sin regresion) ===
+   ✓ JobQueue: idempotencia por jobKey > encolar dos veces con el mismo jobKey mientras el primero sigue activo no duplica 552ms
+   ✓ JobQueue: idempotencia por jobKey > una vez terminado (succeeded), un nuevo jobKey (otra ventana) sí encola 528ms
+   ✓ JobQueue: WK-10 — deadLetterPermanent (errores permanentes, sin ciclo de backoff) > dead-letra inmediatamente en el primer intento, sin importar max_attempts 521ms
+   ✓ JobQueue: complete > complete limpia el lock y marca succeeded 535ms
+   ✓ JobQueue: complete > complete con un lockedBy equivocado lanza StaleLeaseError y no persiste nada (protege contra confirmaciones cruzadas) 531ms
+   ✓ JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent() > WORKER_ID reutilizado tras "reinicio" (mismo string, lease token distinto): complete() del zombie de la generación anterior es rechazado 551ms
+   ✓ JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent() > fail() del zombie con lockedBy viejo también es rechazado (no aplica backoff/dead-letter equivocado) 552ms
+   ✓ JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent() > deadLetterPermanent() del zombie con lockedBy viejo también es rechazado 567ms
+   ✓ JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent() > heartbeat() del zombie con lockedBy viejo retorna false (ya lo hacía por attempts en WK-02; ahora también por lease token) 701ms
+
+ Test Files  8 passed | 3 skipped (11)
+      Tests  79 passed | 6 skipped (85)
+   Start at  21:27:31
+   Duration  15.55s (transform 679ms, setup 0ms, collect 1.42s, tests 50.69s, environment 5ms, prepare 552ms)
+
