@@ -21,6 +21,87 @@
 -- (apps/worker/src/queue/job-queue.ts) reusa `dead` con
 -- `last_error = 'cancelado: <motivo>'`, indistinguible de un dead-letter por
 -- reintentos agotados si alguien mira solo `status` sin leer `last_error`.
+--
+-- ============================================================================
+-- RIESGOS DE DESPLIEGUE (WK-15/reverificación, docs/auditoria-1/
+-- worker-reverificacion.md §5) — LEER ANTES DE APLICAR EN PRODUCCIÓN
+-- ============================================================================
+--
+-- Riesgo 1 — el CREATE UNIQUE INDEX puede FALLAR si ya hay duplicados
+-- activos: esto es EXACTAMENTE lo que WK-04 confirmó que podía pasar antes
+-- de que el advisory lock de `JobQueue.enqueue()` se desplegara — sistemas
+-- ya en producción antes de esa mitigación podrían arrastrar duplicados
+-- históricos aún `queued`/`running` para la misma `(kind, jobKey)`. Es una
+-- falla SEGURA (bloquea el índice, no corrompe datos), pero hay que
+-- detectarlos y resolverlos ANTES del `CREATE UNIQUE INDEX` de abajo — ver
+-- "Paso 0" más abajo.
+--
+-- Riesgo 2 — `CREATE INDEX` simple (no `CONCURRENTLY`) toma un lock que
+-- bloquea escrituras concurrentes sobre `jobs` mientras se construye el
+-- índice: para una tabla de cola EN VIVO (`claim()`/`heartbeat()`/`fail()`
+-- corriendo sin parar) esto es una ventana de bloqueo real de despliegue,
+-- no solo un detalle de estilo. `CREATE UNIQUE INDEX CONCURRENTLY` evitaría
+-- ese bloqueo, PERO Postgres exige que se ejecute FUERA de cualquier bloque
+-- de transacción ("CREATE INDEX CONCURRENTLY cannot run inside a
+-- transaction block") — y el runner de migraciones de este repo
+-- (`packages/db/src/migrate.ts`, `applyMigrations()` -> `db.exec(sql)`)
+-- envía el archivo completo como UN SOLO mensaje multi-sentencia: el driver
+-- `pg` (protocolo simple) y PGlite ejecutan eso en una transacción implícita
+-- del servidor. En la práctica, `CONCURRENTLY` NO FUNCIONA tal cual dentro
+-- de este archivo (fallaría con ese mismo error), y separarlo a un archivo
+-- de una sola sentencia no basta por sí solo: `applyMigrations()` seguiría
+-- envolviendo esa única sentencia en la misma transacción implícita del
+-- protocolo, así que requeriría además un cambio en el propio runner de
+-- `packages/db` (fuera de mi ámbito) para ejecutar ESA sentencia concreta
+-- en modo autocommit. Mientras ese cambio de runner no exista: aplicar este
+-- `CREATE UNIQUE INDEX` (sin `CONCURRENTLY`, tal como está abajo) DURANTE
+-- UNA VENTANA DE MANTENIMIENTO explícita (tráfico bajo/pausado), aceptando
+-- el lock de escritura por el tiempo que tarde en construirse el índice
+-- (proporcional al tamaño de `jobs` en ese momento) — o, si el volumen de
+-- `jobs` en producción ya es grande, ejecutar manualmente
+-- `CREATE UNIQUE INDEX CONCURRENTLY` por fuera de `applyMigrations()`
+-- (una conexión ad-hoc con autocommit) antes de que esta migración se
+-- marque como aplicada, y solo entonces incorporar aquí la versión
+-- `IF NOT EXISTS` como no-op de verificación.
+--
+-- ============================================================================
+-- PASO 0 — detección y resolución de duplicados activos (ejecutar y revisar
+-- ANTES del CREATE UNIQUE INDEX; ver Riesgo 1 arriba). Query de detección:
+-- ============================================================================
+--
+--   select kind, payload ->> 'jobKey' as job_key, count(*) as duplicados,
+--          array_agg(id order by created_at) as job_ids
+--   from jobs
+--   where payload ? 'jobKey' and status in ('queued', 'running')
+--   group by kind, payload ->> 'jobKey'
+--   having count(*) > 1;
+--
+-- Si esa query no devuelve filas, no hay nada que resolver: el
+-- `CREATE UNIQUE INDEX` de abajo aplicará sin fallar. Si devuelve filas,
+-- resolución recomendada (conserva el job MÁS RECIENTE de cada grupo —
+-- normalmente el que tiene más probabilidad de reflejar el estado actual
+-- de la fuente/ventana — y cancela los demás con `JobQueue.cancel()` o,
+-- directamente por SQL, marcándolos `dead` con un `last_error` explícito
+-- que documente la causa; NUNCA borrar filas de `jobs`, es historial):
+--
+--   with duplicados as (
+--     select id,
+--            row_number() over (
+--              partition by kind, payload ->> 'jobKey'
+--              order by created_at desc
+--            ) as rn
+--     from jobs
+--     where payload ? 'jobKey' and status in ('queued', 'running')
+--   )
+--   update jobs
+--   set status = 'dead',
+--       locked_at = null,
+--       locked_by = null,
+--       last_error = 'cancelado: duplicado histórico de (kind, jobKey) detectado antes de aplicar PROPOSAL-02-jobs-dedupe-and-cancelled.sql (WK-04/WK-15), se conservó el más reciente'
+--   where id in (select id from duplicados where rn > 1);
+--
+-- Repetir la query de detección después de la resolución: debe devolver 0
+-- filas antes de continuar con el `CREATE UNIQUE INDEX` de abajo.
 
 alter type job_status add value if not exists 'cancelled';
 
@@ -28,6 +109,12 @@ alter type job_status add value if not exists 'cancelled';
 -- dentro de payload), solo mientras el job sigue "vivo" (queued/running):
 -- una vez succeeded/dead/cancelled, la misma clave puede volver a usarse
 -- para una ventana futura sin chocar con el historial.
+--
+-- Ver "RIESGOS DE DESPLIEGUE" arriba: aplicar dentro de una ventana de
+-- mantenimiento (este `CREATE INDEX` NO usa `CONCURRENTLY` porque el runner
+-- de migraciones de este repo lo ejecutaría dentro de una transacción
+-- implícita, donde `CONCURRENTLY` no es válido) y solo después de confirmar
+-- con la query de detección del "PASO 0" que no hay duplicados activos.
 create unique index if not exists ux_jobs_kind_jobkey_active
   on jobs (kind, (payload ->> 'jobKey'))
   where payload ? 'jobKey' and status in ('queued', 'running');
