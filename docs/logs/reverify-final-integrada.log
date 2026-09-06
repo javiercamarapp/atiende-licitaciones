@@ -1,0 +1,679 @@
+=== Sun Sep  6 04:25:44 CST 2026 START ===
+HEAD: 2e67badb7c61e99c08f9125be60becb9902f08f4
+--- apps/api typecheck ---
+
+> @atiende/api@0.1.0 typecheck
+> tsc --noEmit
+
+--- apps/api lint ---
+
+> @atiende/api@0.1.0 lint
+> eslint src test
+
+--- apps/api test ---
+
+> @atiende/api@0.1.0 test
+> vitest run
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-final/apps/api[39m
+
+ [32m✓[39m test/expediente-proposal.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 6204[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — propuesta técnica/económica (E7)[2m > [22mgenera la propuesta técnica real: capacidad aprobada resuelve en texto trazable; sin mapeo declarado queda PENDIENTE (nunca inventa) [33m1966[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — propuesta técnica/económica (E7)[2m > [22mA8: propuesta económica con tarifa NO aprobada se rechaza de punta a punta (sin total parcial); tras aprobar la tarifa, el cálculo procede [33m1012[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — propuesta técnica/económica (E7)[2m > [22mviewer no puede editar una sección de la propuesta; writer sí, con nueva versión [33m2047[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — propuesta técnica/económica (E7)[2m > [22mcoordinación packages/expediente (expediente-cierre.md): cambiar la aplicabilidad de un requisito condicional invalida explícitamente una aprobación vigente (no forma parte de ExpedienteInputs, así que el hash no cambia por sí solo) [33m1177[2mms[22m[39m
+ [32m✓[39m test/expediente-documents-and-matrix.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 6603[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — documentos de bases y matriz de requisitos (E6)[2m > [22msube un PDF real con texto, lo extrae vía pdf-parse y construye la matriz de requisitos [33m2094[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — documentos de bases y matriz de requisitos (E6)[2m > [22mun documento de formato no soportado (ni PDF ni texto reconocible) queda "failed" explícito, nunca texto vacío en silencio [33m1042[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — documentos de bases y matriz de requisitos (E6)[2m > [22mviewer no puede subir documentos ni editar la matriz; writer sí puede editar responsable/estado [33m2210[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — documentos de bases y matriz de requisitos (E6)[2m > [22mA6: dos versiones de bases con plazos distintos para el mismo tema generan un conflicto escalado, y la matriz vieja queda invalidada preservando historial [33m1256[2mms[22m[39m
+ [32m✓[39m test/company-profile.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 8344[2mms[22m[39m
+   [33m[2m✓[22m[39m perfil de empresa (E2)[2m > [22mPUT /company/profile (owner) crea el perfil con procedencia por campo; viewer no puede escribirlo [33m1865[2mms[22m[39m
+   [33m[2m✓[22m[39m perfil de empresa (E2)[2m > [22mwriter puede crear una capability (rol de escritura); viewer no puede [33m1091[2mms[22m[39m
+   [33m[2m✓[22m[39m perfil de empresa (E2)[2m > [22mexperiencia sin evidenceRef queda marcada verifiable=false (REQ-143) [33m1602[2mms[22m[39m
+   [33m[2m✓[22m[39m perfil de empresa (E2)[2m > [22mcompany_documents: documento vencido se refleja con status expired (REQ-023, A7) [33m1486[2mms[22m[39m
+   [33m[2m✓[22m[39m perfil de empresa (E2)[2m > [22mA8: approved_rates -- writer propone (draft), solo owner/admin aprueban; tarifa no aprobada no es utilizable [33m1036[2mms[22m[39m
+   [33m[2m✓[22m[39m perfil de empresa (E2)[2m > [22mA5/aislamiento: capabilities de una organización no son visibles para otra [33m1262[2mms[22m[39m
+ [32m✓[39m test/expediente-e2e-flow.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 1911[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — flujo E2E completo (E6-E11)[2m > [22mrecorre bases -> matriz -> perfil -> propuesta -> checklist -> aprobación -> paquete ready -> descarga -> cambio de bases -> invalidación -> draft [33m1910[2mms[22m[39m
+ [32m✓[39m test/tenders-and-ingest.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 9069[2mms[22m[39m
+   [33m[2m✓[22m[39m convocatorias e ingesta interna (E3/E4)[2m > [22mPOST /internal/tenders/ingest sin X-Platform-Api-Key es rechazado (401/403) [33m1820[2mms[22m[39m
+   [33m[2m✓[22m[39m convocatorias e ingesta interna (E3/E4)[2m > [22mA1: nueva publicación crea la convocatoria y una versión inicial [33m996[2mms[22m[39m
+   [33m[2m✓[22m[39m convocatorias e ingesta interna (E3/E4)[2m > [22mA2: reingestar exactamente la misma versión es un no-op idempotente (0 filas nuevas) [33m1703[2mms[22m[39m
+   [33m[2m✓[22m[39m convocatorias e ingesta interna (E3/E4)[2m > [22mA3: una modificación con nueva versión de origen adelanta el plazo, crea evento e invalida dependientes [33m1402[2mms[22m[39m
+   [33m[2m✓[22m[39m convocatorias e ingesta interna (E3/E4)[2m > [22mlista de convocatorias no filtra entre organizaciones (aislamiento por org_id) [33m953[2mms[22m[39m
+   [33m[2m✓[22m[39m convocatorias e ingesta interna (E3/E4)[2m > [22mviewer no puede escribir en go/no-go pero sí lee tenders (viewer solo lee) [33m1230[2mms[22m[39m
+   [33m[2m✓[22m[39m convocatorias e ingesta interna (E3/E4)[2m > [22mGET /tenders/sources/freshness responde para cualquier usuario autenticado (sin X-Org-Id) [33m963[2mms[22m[39m
+ [32m✓[39m test/expediente-package-and-submission.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 4007[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — paquete final y presentación declarada (E8/E9)[2m > [22mA14: expediente incompleto (sin checklist verde ni aprobación) nunca ensambla "ready", siempre "draft" con motivos explícitos [33m1556[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — paquete final y presentación declarada (E8/E9)[2m > [22mA13: expediente completo (checklist verde real + aprobación vigente con hash coincidente) ensambla "ready" y el ZIP se relee con el manifiesto correcto [33m1315[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — paquete final y presentación declarada (E8/E9)[2m > [22mA15: submissions solo registra la declaración del usuario (fecha + acuse subido); nunca envía nada, y el módulo no importa ningún cliente HTTP saliente [33m1136[2mms[22m[39m
+ [32m✓[39m test/expediente-checklist-and-approval.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 5076[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — checklist de integridad y flujo de aprobación (E8)[2m > [22mejecuta el checklist real (7 dimensiones) y lo persiste en compliance_items [33m1713[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — checklist de integridad y flujo de aprobación (E8)[2m > [22mA12: writer no puede aprobar (solo reviewer/admin/owner); autoaprobación (mismo actor) prohibida; comentarios visibles [33m1668[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — checklist de integridad y flujo de aprobación (E8)[2m > [22mA11: cambiar un insumo real (perfil de empresa) después de aprobar invalida la aprobación automáticamente [33m1693[2mms[22m[39m
+ [32m✓[39m test/agent-persistence.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 6188[2mms[22m[39m
+   [33m[2m✓[22m[39m persistencia de packages/agents (RunStore/ToolCallStore sobre Postgres)[2m > [22mPgRunStore: createRun/getRun/updateRun persisten y sobreviven una relectura real (no solo en memoria) [33m1629[2mms[22m[39m
+   [33m[2m✓[22m[39m persistencia de packages/agents (RunStore/ToolCallStore sobre Postgres)[2m > [22mPgToolCallStore: recordToolCall/listToolCalls persisten trazas reales por paso [33m1947[2mms[22m[39m
+   [33m[2m✓[22m[39m persistencia de packages/agents (RunStore/ToolCallStore sobre Postgres)[2m > [22maprobación de tool_calls pendientes: writer no puede aprobar; owner sí, y queda en audit_log [33m1342[2mms[22m[39m
+   [33m[2m✓[22m[39m persistencia de packages/agents (RunStore/ToolCallStore sobre Postgres)[2m > [22mGET /agents/runs y /agents/tool-calls no filtran entre organizaciones [33m1269[2mms[22m[39m
+ [32m✓[39m test/matching-and-go-no-go.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 4030[2mms[22m[39m
+   [33m[2m✓[22m[39m matching y go/no-go (E5)[2m > [22mA5: dos organizaciones con perfiles distintos no filtran datos entre sí en matching [33m1288[2mms[22m[39m
+ [32m✓[39m test/security-ae01-asofiso-server-derived.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 4146[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-01: asOfIso NUNCA lo decide el cliente -- se deriva de tenders.submission_deadline[2m > [22mbloquea con 422 explícito ("fecha de presentación desconocida") si el tender no tiene submission_deadline [33m1707[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-01: asOfIso NUNCA lo decide el cliente -- se deriva de tenders.submission_deadline[2m > [22mrechaza una tarifa vigente HOY pero vencida a la fecha de presentación, aunque el cliente envíe un asOfIso de "hoy" para intentar revivirla [33m1234[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-01: asOfIso NUNCA lo decide el cliente -- se deriva de tenders.submission_deadline[2m > [22macepta una tarifa vigente tanto hoy como a la fecha de presentación (no bloquea el caso correcto) [33m1205[2mms[22m[39m
+ [32m✓[39m test/security-ae02-section-edit-invalidates-approval.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 2862[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-02: editar el contenido de una sección tras una aprobación vigente la invalida[2m > [22maprobar -> editar sección -> el expediente vuelve a estado "sin aprobar" (fullyApproved:false, aprobación invalidada) [33m1912[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-02: editar el contenido de una sección tras una aprobación vigente la invalida[2m > [22meditar una sección SIN cambiar el contenido (mismo texto) no invalida ninguna aprobación vigente [33m949[2mms[22m[39m
+ [32m✓[39m test/auth-and-orgs-flow.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 1916[2mms[22m[39m
+ [32m✓[39m test/ronda4-audit-log.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 12741[2mms[22m[39m
+   [33m[2m✓[22m[39m GET /audit-log (ronda 4)[2m > [22mowner ve la bitácora real de su organización (al menos la creación de la org queda registrada) [33m1740[2mms[22m[39m
+   [33m[2m✓[22m[39m GET /audit-log (ronda 4)[2m > [22mwriter recibe 403 (solo reviewer/admin/owner leen la bitácora, más estricto que la RLS real) [33m1654[2mms[22m[39m
+   [33m[2m✓[22m[39m GET /audit-log (ronda 4)[2m > [22mreviewer SÍ puede leer la bitácora [33m1708[2mms[22m[39m
+   [33m[2m✓[22m[39m GET /audit-log (ronda 4)[2m > [22mcross-org: NUNCA devuelve eventos de otra organización, ni con filtros [33m1290[2mms[22m[39m
+   [33m[2m✓[22m[39m GET /audit-log (ronda 4)[2m > [22mfiltro por entity funciona (solo devuelve entradas de esa entidad, todas de la propia org) [33m987[2mms[22m[39m
+   [33m[2m✓[22m[39m GET /audit-log (ronda 4)[2m > [22mpaginado por cursor: limit=1 no repite ni pierde entradas [33m1280[2mms[22m[39m
+   [33m[2m✓[22m[39m GET /audit-log (ronda 4)[2m > [22mun createdFrom inválido responde 400 explícito (nunca deja que Postgres reviente el casteo) [33m1063[2mms[22m[39m
+   [33m[2m✓[22m[39m GET /admin/audit-log (ronda 4, superadmin)[2m > [22mun usuario normal recibe 403 [33m888[2mms[22m[39m
+   [33m[2m✓[22m[39m GET /admin/audit-log (ronda 4, superadmin)[2m > [22mun superadmin ve eventos de TODAS las organizaciones (nunca filtrados por tenant) [33m1080[2mms[22m[39m
+   [33m[2m✓[22m[39m GET /admin/audit-log (ronda 4, superadmin)[2m > [22mfiltro por orgId en /admin/audit-log acota a una sola organización [33m1050[2mms[22m[39m
+ [32m✓[39m test/admin-backoffice.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 7209[2mms[22m[39m
+   [33m[2m✓[22m[39m back office / superadmin (E10)[2m > [22mun usuario normal recibe 403 en cualquier ruta /admin/*; superadmin ve datos reales [33m1762[2mms[22m[39m
+   [33m[2m✓[22m[39m back office / superadmin (E10)[2m > [22mGET /admin/connectors/freshness expone el estado explícito de source_runs (nunca lista vacía silenciosa, A4) [33m969[2mms[22m[39m
+   [33m[2m✓[22m[39m back office / superadmin (E10)[2m > [22mjobs: listar y reintentar un job fallido lo regresa a queued [33m1056[2mms[22m[39m
+   [33m[2m✓[22m[39m back office / superadmin (E10)[2m > [22mcostos por organización: agregado real desde agent_runs, marcado explícitamente como estimado [33m1289[2mms[22m[39m
+   [33m[2m✓[22m[39m back office / superadmin (E10)[2m > [22mincidentes: crear y resolver; un usuario normal no puede [33m940[2mms[22m[39m
+   [33m[2m✓[22m[39m back office / superadmin (E10)[2m > [22maprobaciones pendientes: el back office ve tool_calls pendientes de TODAS las organizaciones [33m1193[2mms[22m[39m
+ [32m✓[39m test/security-api13-auth-audit-log.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 5237[2mms[22m[39m
+   [33m[2m✓[22m[39m API-13: eventos de autenticación quedan en audit_log[2m > [22mlogin exitoso registra auth.login_succeeded con actor, ip, user-agent y request_id (sin contraseña) [33m1545[2mms[22m[39m
+   [33m[2m✓[22m[39m API-13: eventos de autenticación quedan en audit_log[2m > [22mlogin fallido (contraseña incorrecta y email inexistente) registra auth.login_failed sin la contraseña [33m1016[2mms[22m[39m
+   [33m[2m✓[22m[39m API-13: eventos de autenticación quedan en audit_log[2m > [22mreutilizar un refresh token ya rotado registra auth.refresh_reuse_detected (revocación de familia visible en audit_log) [33m857[2mms[22m[39m
+   [33m[2m✓[22m[39m API-13: eventos de autenticación quedan en audit_log[2m > [22mun refresh simplemente inválido/inexistente NO genera un evento de reuso (solo el reuso real tiene valor de auditoría) [33m1016[2mms[22m[39m
+   [33m[2m✓[22m[39m API-13: eventos de autenticación quedan en audit_log[2m > [22mlogout con token válido registra auth.logout; logout con token inválido no registra nada (no filtra información) [33m803[2mms[22m[39m
+ [32m✓[39m test/audit-api01-refresh-rotation.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 1735[2mms[22m[39m
+ [32m✓[39m test/security-api08-invite-owner-escalation.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 4547[2mms[22m[39m
+   [33m[2m✓[22m[39m API-08: solo un owner puede invitar con el rol owner[2m > [22mun admin (no-owner) NO puede invitar a un tercero con role:owner [33m1562[2mms[22m[39m
+   [33m[2m✓[22m[39m API-08: solo un owner puede invitar con el rol owner[2m > [22mextremo a extremo: si la invitación como owner se hubiera creado, aceptarla NO debe terminar en rol owner (defensa en profundidad) [33m977[2mms[22m[39m
+   [33m[2m✓[22m[39m API-08: solo un owner puede invitar con el rol owner[2m > [22mun admin SÍ puede invitar hasta el rol admin (no se rompe el caso legítimo) [33m1112[2mms[22m[39m
+   [33m[2m✓[22m[39m API-08: solo un owner puede invitar con el rol owner[2m > [22mun owner SÍ puede invitar con role:owner [33m896[2mms[22m[39m
+ [32m✓[39m test/ronda4-empty-body.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 7563[2mms[22m[39m
+   [33m[2m✓[22m[39m POST sin cuerpo con Content-Type: application/json (ronda 4)[2m > [22mPOST /organizations (SÍ exige cuerpo real) sigue respondiendo 400 con Content-Type: application/json y cuerpo vacío [33m1530[2mms[22m[39m
+   [33m[2m✓[22m[39m POST sin cuerpo con Content-Type: application/json (ronda 4)[2m > [22mPOST /agents/tool-calls/:id/approve acepta Content-Type: application/json con cuerpo vacío (200, no 400) [33m965[2mms[22m[39m
+   [33m[2m✓[22m[39m POST sin cuerpo con Content-Type: application/json (ronda 4)[2m > [22mPOST /agents/tool-calls/:id/deny acepta cuerpo vacío con Content-Type: application/json [33m1034[2mms[22m[39m
+   [33m[2m✓[22m[39m POST sin cuerpo con Content-Type: application/json (ronda 4)[2m > [22mPOST /admin/jobs/:id/retry acepta cuerpo vacío con Content-Type: application/json [33m999[2mms[22m[39m
+   [33m[2m✓[22m[39m POST sin cuerpo con Content-Type: application/json (ronda 4)[2m > [22mPOST /admin/incidents/:id/resolve acepta cuerpo vacío con Content-Type: application/json [33m987[2mms[22m[39m
+   [33m[2m✓[22m[39m POST sin cuerpo con Content-Type: application/json (ronda 4)[2m > [22mPOST /admin/incidents (SÍ exige cuerpo real, en el MISMO archivo que /resolve) sigue rechazando cuerpo vacío [33m1059[2mms[22m[39m
+   [33m[2m✓[22m[39m POST sin cuerpo con Content-Type: application/json (ronda 4)[2m > [22mPOST /admin/tool-calls/:id/approve|deny (cross-org) también aceptan cuerpo vacío con Content-Type: application/json [33m987[2mms[22m[39m
+ [32m✓[39m test/ronda4-admin-tool-calls.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 5614[2mms[22m[39m
+   [33m[2m✓[22m[39m POST /admin/tool-calls/:id/approve|deny (ronda 4, superadmin cross-org)[2m > [22mun usuario normal (no superadmin) recibe 403 en approve y en deny [33m1430[2mms[22m[39m
+   [33m[2m✓[22m[39m POST /admin/tool-calls/:id/approve|deny (ronda 4, superadmin cross-org)[2m > [22mun superadmin (sin ser owner/admin de la organización dueña) SÍ puede aprobar cross-org, y queda en audit_log con la org afectada [33m1125[2mms[22m[39m
+   [33m[2m✓[22m[39m POST /admin/tool-calls/:id/approve|deny (ronda 4, superadmin cross-org)[2m > [22mdoble aprobación de la MISMA tool_call responde 409 en el segundo intento [33m1240[2mms[22m[39m
+   [33m[2m✓[22m[39m POST /admin/tool-calls/:id/approve|deny (ronda 4, superadmin cross-org)[2m > [22mdeny también funciona cross-org para un superadmin [33m1030[2mms[22m[39m
+   [33m[2m✓[22m[39m POST /admin/tool-calls/:id/approve|deny (ronda 4, superadmin cross-org)[2m > [22muna tool_call inexistente responde 404 [33m789[2mms[22m[39m
+ [32m✓[39m test/security-ae09-payment-deadline-calendar-and-regime.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 4337[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-09: calendarNote y legalRegime (REQ-050) en el plazo de pago[2m > [22mconvocatoria publicada bajo la ley nueva (>= 2025-04-17): 17 días hábiles, Art. 73, calendarNote explícito [33m1435[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-09: calendarNote y legalRegime (REQ-050) en el plazo de pago[2m > [22mconvocatoria publicada ANTES de la reforma (< 2025-04-17): 20 días naturales, Art. 51 (régimen abrogado) [33m1152[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-09: calendarNote y legalRegime (REQ-050) en el plazo de pago[2m > [22msin fecha de convocatoria conocida, usa por defecto el régimen vigente (ley nueva), nunca la ley abrogada sin evidencia [33m943[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-09: calendarNote y legalRegime (REQ-050) en el plazo de pago[2m > [22mun hito genérico (kind != "pago") no incluye calendarNote/legalRegime (null) [33m806[2mms[22m[39m
+ [32m✓[39m test/security-db09-agent-run-context-cache.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 2196[2mms[22m[39m
+   [33m[2m✓[22m[39m DB-09 residual — la caché de PgRunStore/PgToolCallStore evita el oracle en el camino común[2m > [22mPgRunStore: updateRun/getRun de un run creado por la MISMA instancia funciona sin el oracle; una instancia NUEVA sí lo necesita y falla si está revocado [33m1413[2mms[22m[39m
+   [33m[2m✓[22m[39m DB-09 residual — la caché de PgRunStore/PgToolCallStore evita el oracle en el camino común[2m > [22mPgToolCallStore: listToolCalls de un run grabado por la MISMA instancia funciona sin el oracle; una instancia NUEVA sí lo necesita [33m783[2mms[22m[39m
+ [32m✓[39m test/ronda4-rate-limit-profile.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 5358[2mms[22m[39m
+   [33m[2m✓[22m[39m RATE_LIMIT_PROFILE (ronda 4)[2m > [22mperfil default: POST /auth/login sigue devolviendo 429 en el 6º intento del minuto (comportamiento real sin cambios) [33m1659[2mms[22m[39m
+   [33m[2m✓[22m[39m RATE_LIMIT_PROFILE (ronda 4)[2m > [22mperfil e2e (activado EXPLÍCITAMENTE vía override de config, nunca por defecto): 20 intentos de login seguidos NO disparan 429 [33m1526[2mms[22m[39m
+   [33m[2m✓[22m[39m RATE_LIMIT_PROFILE (ronda 4)[2m > [22mrespuesta de 429 trae Retry-After y cabeceras X-RateLimit-* (documentación del comportamiento ya provisto por @fastify/rate-limit) [33m1006[2mms[22m[39m
+   [33m[2m✓[22m[39m RATE_LIMIT_PROFILE (ronda 4)[2m > [22m/agents/tool-calls/:id/approve aísla el presupuesto por organización (agotar el límite en org A no afecta a org B) [33m1162[2mms[22m[39m
+ [32m✓[39m test/security-ae11-record-edit-blocks-self-approval.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 1688[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-11: quien editó el contenido de una sección no puede aprobar ese alcance, aunque otra persona haya pedido revisión[2m > [22mwriter edita una sección -> luego promovido a reviewer -> intenta aprobar "expediente" -> 403 explícito (autor de contenido) [33m1687[2mms[22m[39m
+ [32m✓[39m test/security-ae14-package-status-re-derived.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 1800[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-14: GET /package/latest y /package/download re-derivan el estado real (no sirven el "ready" viejo)[2m > [22mpaquete "ready" -> invalidar la aprobación (editar sección) -> /package/latest reporta "draft"; /package/download responde 409, nunca el ZIP viejo [33m1800[2mms[22m[39m
+ [32m✓[39m test/security-wi04-approved-rates-atomic.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 4431[2mms[22m[39m
+   [33m[2m✓[22m[39m WI-04: POST /company/rates/:id/approve|reject son transiciones de estado condicionales[2m > [22mdos aprobaciones concurrentes de la MISMA tarifa: exactamente una 200, la otra 409 -- nunca las dos 200 [33m1470[2mms[22m[39m
+   [33m[2m✓[22m[39m WI-04: POST /company/rates/:id/approve|reject son transiciones de estado condicionales[2m > [22maprobar una tarifa YA aprobada responde 409 (nunca re-decide en silencio) [33m866[2mms[22m[39m
+   [33m[2m✓[22m[39m WI-04: POST /company/rates/:id/approve|reject son transiciones de estado condicionales[2m > [22mrechazar una tarifa YA aprobada responde 409 (reject solo aplica sobre draft) [33m1277[2mms[22m[39m
+   [33m[2m✓[22m[39m WI-04: POST /company/rates/:id/approve|reject son transiciones de estado condicionales[2m > [22mapprove y reject concurrentes de la MISMA tarifa draft: exactamente uno 200, el otro 409 [33m817[2mms[22m[39m
+ [32m✓[39m test/expediente-post-award.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 3414[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — seguimiento post-adjudicación (E11)[2m > [22mcrea un hito genérico con recordatorio encolado en jobs (sin envío externo) [33m1693[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — seguimiento post-adjudicación (E11)[2m > [22mkind="pago" calcula el vencimiento a 17 días hábiles (LAASSP Art. 73) desde la verificación de la factura, con fuente legal citada [33m816[2mms[22m[39m
+   [33m[2m✓[22m[39m expediente — seguimiento post-adjudicación (E11)[2m > [22mviewer no puede crear ni actualizar seguimientos; writer sí [33m905[2mms[22m[39m
+ [32m✓[39m test/isolation-and-idempotency.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 2518[2mms[22m[39m
+ [32m✓[39m test/security-ae08-full-profile-hash.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 2236[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-08: companyProfileHash cubre capabilities/experience/signatories/... (no solo company_profiles)[2m > [22mcambiar un FIRMANTE (authorized_signatories) después de aprobar invalida la aprobación automáticamente [33m1274[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-08: companyProfileHash cubre capabilities/experience/signatories/... (no solo company_profiles)[2m > [22mcambiar una CAPABILITY después de aprobar también invalida la aprobación [33m961[2mms[22m[39m
+[90mstdout[2m | test/security-ae03-ae05-magic-bytes-fullscan-zip.test.ts[2m > [22m[2mAE-03/AE-05: magic bytes en todo el buffer + rechazo de ZIP (anti zip-bomb)[2m > [22m[2msigue aceptando un PDF real y completo (%PDF-...%%EOF) sin falsos positivos
+[22m[39mWarning: Indexing all PDF objects
+
+ [32m✓[39m test/security-ae03-ae05-magic-bytes-fullscan-zip.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 7008[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-03/AE-05: magic bytes en todo el buffer + rechazo de ZIP (anti zip-bomb)[2m > [22mrechaza un ejecutable MZ precedido de padding cero (firma NO en offset 0) [33m1726[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-03/AE-05: magic bytes en todo el buffer + rechazo de ZIP (anti zip-bomb)[2m > [22mrechaza un PDF válido con un stub MZ completo anexado AL FINAL (polígloto) [33m817[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-03/AE-05: magic bytes en todo el buffer + rechazo de ZIP (anti zip-bomb)[2m > [22mrechaza un PDF válido con la firma MZ incrustada EN MEDIO del contenido [33m905[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-03/AE-05: magic bytes en todo el buffer + rechazo de ZIP (anti zip-bomb)[2m > [22mrechaza un archivo que declara ser PDF (%PDF- en el header) pero NO contiene %%EOF [33m914[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-03/AE-05: magic bytes en todo el buffer + rechazo de ZIP (anti zip-bomb)[2m > [22mrechaza un ZIP genérico (magic bytes PK\x03\x04) como documento -- protección anti zip-bomb [33m820[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-03/AE-05: magic bytes en todo el buffer + rechazo de ZIP (anti zip-bomb)[2m > [22msigue aceptando un PDF real y completo (%PDF-...%%EOF) sin falsos positivos [33m1008[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-03/AE-05: magic bytes en todo el buffer + rechazo de ZIP (anti zip-bomb)[2m > [22msigue aceptando texto plano legítimo sin falsos positivos [33m818[2mms[22m[39m
+ [32m✓[39m test/security-ae04-sanitize-extracted-text.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 2262[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-04: el texto extraído se sanitiza (sin HTML/script) antes de persistir[2m > [22mun documento de texto plano con <script> embebido se persiste SIN el script (sanitizado) [33m1366[2mms[22m[39m
+   [33m[2m✓[22m[39m AE-04: el texto extraído se sanitiza (sin HTML/script) antes de persistir[2m > [22mun documento que es ÍNTEGRAMENTE HTML/script queda "failed" (nunca "extracted" con texto vacío) [33m896[2mms[22m[39m
+ [32m✓[39m test/audit-api02-role-escalation.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 2409[2mms[22m[39m
+   [33m[2m✓[22m[39m API-02: escalada de rol y protección del último owner[2m > [22mun owner SÍ puede promover a otro miembro a owner [33m890[2mms[22m[39m
+ [32m✓[39m test/security-api09-tool-calls-atomic.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 2138[2mms[22m[39m
+   [33m[2m✓[22m[39m API-09 — aprobación/denegación de tool_calls es atómica (check-then-act sin ventana TOCTOU)[2m > [22mdos aprobaciones concurrentes de la MISMA tool_call: exactamente una tiene éxito (200), la otra 409 -- nunca las dos 200 [33m1334[2mms[22m[39m
+   [33m[2m✓[22m[39m API-09 — aprobación/denegación de tool_calls es atómica (check-then-act sin ventana TOCTOU)[2m > [22mapprove y deny concurrentes de la MISMA tool_call: exactamente uno tiene éxito, nunca ambos [33m803[2mms[22m[39m
+ [32m✓[39m test/audit-db07-tenant-context-pattern.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 7[2mms[22m[39m
+ [32m✓[39m test/ronda4-memberships.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 4198[2mms[22m[39m
+   [33m[2m✓[22m[39m GET /organizations/:orgId/memberships (ronda 4)[2m > [22mmember+ (cualquier rol, incluido viewer) ve la lista de miembros con su rol real [33m1364[2mms[22m[39m
+   [33m[2m✓[22m[39m GET /organizations/:orgId/memberships (ronda 4)[2m > [22mun usuario SIN membresía en esa organización recibe 403 (RLS + app.requireOrg) [33m1043[2mms[22m[39m
+   [33m[2m✓[22m[39m GET /organizations/:orgId/memberships (ronda 4)[2m > [22mcross-org: no filtra miembros de OTRA organización aunque el :orgId de la URL sea distinto de X-Org-Id [33m917[2mms[22m[39m
+   [33m[2m✓[22m[39m GET /organizations/:orgId/memberships (ronda 4)[2m > [22mpaginado: limit=1 devuelve nextCursor y la segunda página completa la lista sin duplicados [33m873[2mms[22m[39m
+ [32m✓[39m test/ronda4-cors.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 1290[2mms[22m[39m
+ [32m✓[39m test/security-api10-audit-log-null-org.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 2267[2mms[22m[39m
+   [33m[2m✓[22m[39m API-10 — audit_log registra eventos de plataforma sin organización (org_id NULL)[2m > [22mreintentar un job SIN org_id (discovery/plataforma) queda auditado con org_id = null [33m1460[2mms[22m[39m
+   [33m[2m✓[22m[39m API-10 — audit_log registra eventos de plataforma sin organización (org_id NULL)[2m > [22mcrear y resolver un incidente SIN organización queda auditado con org_id = null [33m807[2mms[22m[39m
+ [32m✓[39m test/security-wi01-csp-headers.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 1308[2mms[22m[39m
+ [32m✓[39m test/security-api11-file-magic-bytes.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 4082[2mms[22m[39m
+   [33m[2m✓[22m[39m API-11 — subida de documentos rechaza ejecutables y llaves/certificados por magic bytes[2m > [22mun ejecutable PE (MZ) se rechaza con 422, sin escribir ningún archivo [33m1367[2mms[22m[39m
+   [33m[2m✓[22m[39m API-11 — subida de documentos rechaza ejecutables y llaves/certificados por magic bytes[2m > [22muna llave privada PEM se rechaza con 422 [33m954[2mms[22m[39m
+   [33m[2m✓[22m[39m API-11 — subida de documentos rechaza ejecutables y llaves/certificados por magic bytes[2m > [22mun certificado DER en bruto (.cer binario) se rechaza con 422 [33m815[2mms[22m[39m
+   [33m[2m✓[22m[39m API-11 — subida de documentos rechaza ejecutables y llaves/certificados por magic bytes[2m > [22mun documento legítimo (texto plano) se sigue aceptando sin falsos positivos [33m945[2mms[22m[39m
+ [32m✓[39m test/expediente-text-extraction.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 16[2mms[22m[39m
+ [32m✓[39m test/security-ae15-body-limit.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 1340[2mms[22m[39m
+ [32m✓[39m test/audit-api03-register-enumeration.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 1439[2mms[22m[39m
+ [32m✓[39m test/security-ae10-bounded-cache.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/security-api12-platform-key-constant-time.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 4891[2mms[22m[39m
+   [33m[2m✓[22m[39m API-12 — comparación de X-Platform-Api-Key sigue siendo correcta con timingSafeEqual[2m > [22mla clave correcta autentica (200) [33m1256[2mms[22m[39m
+   [33m[2m✓[22m[39m API-12 — comparación de X-Platform-Api-Key sigue siendo correcta con timingSafeEqual[2m > [22muna clave más CORTA que la esperada se rechaza (401), no lanza por longitud desigual [33m883[2mms[22m[39m
+   [33m[2m✓[22m[39m API-12 — comparación de X-Platform-Api-Key sigue siendo correcta con timingSafeEqual[2m > [22muna clave más LARGA que la esperada se rechaza (401), no lanza por longitud desigual [33m754[2mms[22m[39m
+   [33m[2m✓[22m[39m API-12 — comparación de X-Platform-Api-Key sigue siendo correcta con timingSafeEqual[2m > [22muna clave de la misma longitud pero distinta en el ÚLTIMO byte se rechaza (401) [33m658[2mms[22m[39m
+   [33m[2m✓[22m[39m API-12 — comparación de X-Platform-Api-Key sigue siendo correcta con timingSafeEqual[2m > [22muna clave de la misma longitud pero distinta en el PRIMER byte se rechaza (401) [33m719[2mms[22m[39m
+   [33m[2m✓[22m[39m API-12 — comparación de X-Platform-Api-Key sigue siendo correcta con timingSafeEqual[2m > [22msin encabezado se rechaza (401) [33m620[2mms[22m[39m
+ [32m✓[39m test/audit-api04-org-id-validation.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 1108[2mms[22m[39m
+ [32m✓[39m test/rate-limit-and-health.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 3184[2mms[22m[39m
+   [33m[2m✓[22m[39m salud (healthz/readyz)[2m > [22mGET /healthz siempre responde 200 sin tocar la base de datos [33m654[2mms[22m[39m
+   [33m[2m✓[22m[39m salud (healthz/readyz)[2m > [22mGET /readyz responde 200 con la base de datos disponible [33m673[2mms[22m[39m
+   [33m[2m✓[22m[39m salud (healthz/readyz)[2m > [22mGET /readyz responde 503 si la base de datos no está disponible [33m670[2mms[22m[39m
+ [32m✓[39m test/audit-api06-docs-json-gate.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 996[2mms[22m[39m
+ [32m✓[39m test/security-api03-login-timing.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 18441[2mms[22m[39m
+   [33m[2m✓[22m[39m API-03: /auth/login no es un oráculo de timing de existencia de cuenta[2m > [22mla mediana de latencia de login con email existente (password incorrecta) y con email inexistente difiere menos de 1.5x en 50 muestras por lado [33m18441[2mms[22m[39m
+[90mstdout[2m | test/security-api03-login-timing.test.ts[2m > [22m[2mAPI-03: /auth/login no es un oráculo de timing de existencia de cuenta[2m > [22m[2mla mediana de latencia de login con email existente (password incorrecta) y con email inexistente difiere menos de 1.5x en 50 muestras por lado
+[22m[39mAPI-03 login timing: mediana existente=31.99ms, mediana inexistente=28.79ms, ratio=1.11x
+
+ [32m✓[39m test/audit-api05-security-headers.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 845[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m48 passed[39m[22m[90m (48)[39m
+[2m      Tests [22m [1m[32m180 passed[39m[22m[90m (180)[39m
+[2m   Start at [22m 04:26:01
+[2m   Duration [22m 56.28s[2m (transform 675ms, setup 0ms, collect 11.94s, tests 192.22s, environment 5ms, prepare 1.62s)[22m
+
+--- packages/db typecheck/lint/test ---
+
+> @atiende/db@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @atiende/db@0.1.0 lint
+> eslint src test
+
+
+> @atiende/db@0.1.0 test
+> vitest run
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-final/packages/db[39m
+
+ [32m✓[39m test/rls-roles.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 3892[2mms[22m[39m
+ [32m✓[39m test/security-db10-rate-validity-submission-deadline.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 4060[2mms[22m[39m
+ [32m✓[39m test/ronda2-extensions.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 4089[2mms[22m[39m
+ [32m✓[39m test/backoffice-extension.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 4137[2mms[22m[39m
+ [32m✓[39m test/rls-ronda3-expediente.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 4157[2mms[22m[39m
+ [32m✓[39m test/audit-db05-change-event-invalidation.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 4199[2mms[22m[39m
+ [32m✓[39m test/security-definer-audit.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 4196[2mms[22m[39m
+ [32m✓[39m test/migration-0026b-duplicate-jobs-safety-net.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 7094[2mms[22m[39m
+   [33m[2m✓[22m[39m 0026b: resuelve duplicados activos preexistentes antes del índice único de 0027[2m > [22muna base con jobs activos duplicados por (kind, jobKey) migra limpiamente hasta el final [33m4023[2mms[22m[39m
+   [33m[2m✓[22m[39m 0026b: resuelve duplicados activos preexistentes antes del índice único de 0027[2m > [22mapp.resolve_duplicate_active_jobs() es idempotente: una segunda ejecución no toca nada más [33m3070[2mms[22m[39m
+ [32m✓[39m test/security-db13-rate-validity-timezone.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 3613[2mms[22m[39m
+ [32m✓[39m test/audit-db02-rate-validity.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 3788[2mms[22m[39m
+ [32m✓[39m test/audit-db01-security-definer-scope.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 3703[2mms[22m[39m
+ [32m✓[39m test/audit-db06-audit-log-hash-chain.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 3691[2mms[22m[39m
+ [32m✓[39m test/jobs-locking.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 3711[2mms[22m[39m
+ [32m✓[39m test/security-api14-auth-audit-actor-match.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 3824[2mms[22m[39m
+ [32m✓[39m test/worker-role-and-job-proposals.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 9051[2mms[22m[39m
+ [32m✓[39m test/idempotency-and-audit.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 5996[2mms[22m[39m
+ [32m✓[39m test/audit-db03-rate-reapproval.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 2971[2mms[22m[39m
+ [32m✓[39m test/org-bootstrap.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 2452[2mms[22m[39m
+ [32m✓[39m test/org-members-function.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 2412[2mms[22m[39m
+ [32m✓[39m test/security-db09-agent-run-context.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 2436[2mms[22m[39m
+ [32m✓[39m test/rls-isolation.test.ts [2m([22m[2m70 tests[22m[2m)[22m[33m 3002[2mms[22m[39m
+ [32m✓[39m test/migrate.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 4071[2mms[22m[39m
+   [33m[2m✓[22m[39m migraciones[2m > [22maplican todas sin error y quedan registradas en schema_migrations [33m2463[2mms[22m[39m
+   [33m[2m✓[22m[39m migraciones[2m > [22mse pueden aplicar dos veces sin error (idempotente): la segunda vez no repite nada [33m616[2mms[22m[39m
+   [33m[2m✓[22m[39m migraciones[2m > [22mensureMigrationsTable es idempotente [33m444[2mms[22m[39m
+   [33m[2m✓[22m[39m migraciones[2m > [22mcrea todas las tablas de dominio esperadas [33m548[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m22 passed[39m[22m[90m (22)[39m
+[2m      Tests [22m [1m[32m156 passed[39m[22m[90m (156)[39m
+[2m   Start at [22m 04:27:08
+[2m   Duration [22m 12.84s[2m (transform 365ms, setup 0ms, collect 995ms, tests 90.55s, environment 2ms, prepare 1.06s)[22m
+
+--- apps/web typecheck/test (unit) ---
+
+> @atiende/web@0.1.0 typecheck
+> tsc -b --noEmit
+
+
+> @atiende/web@0.1.0 test
+> NODE_OPTIONS=--no-experimental-webstorage vitest run
+
+
+ RUN  v4.1.11 /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-final/apps/web
+
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-final/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-final/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-final/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-final/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-final/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-final/node_modules/axe-core/axe.js:17087:41)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-final/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-final/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-final/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-final/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-final/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-final/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-final/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-final/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-final/node_modules/axe-core/axe.js:17087:41)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-final/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-final/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-final/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+
+ Test Files  15 passed (15)
+      Tests  79 passed (79)
+   Start at  04:27:31
+   Duration  1.79s (transform 1.01s, setup 2.65s, import 2.51s, tests 1.75s, environment 4.30s)
+
+--- apps/worker typecheck/test ---
+
+> @atiende/worker@0.1.0 typecheck
+> tsc --noEmit
+
+
+> @atiende/worker@0.1.0 test
+> vitest run
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-final/apps/worker[39m
+
+ [32m✓[39m test/ingest-client.test.ts [2m([22m[2m225 tests[22m[2m)[22m[33m 1517[2mms[22m[39m
+ [32m✓[39m test/config.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/schedule-config.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m db-proposals/PROPOSAL-01-widen-source-run-status.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 5056[2mms[22m[39m
+   [33m[2m✓[22m[39m PROPOSAL-01 (WK-07/WK-22): source_run_status ampliado a 8 estados finos[2m > [22mrate_limited y not_configured se persisten como su propio valor en status, no como failed [33m3451[2mms[22m[39m
+   [33m[2m✓[22m[39m PROPOSAL-01 (WK-07/WK-22): source_run_status ampliado a 8 estados finos[2m > [22mingest_failed (WK-03) también se persiste con su propio valor, no como failed [33m1604[2mms[22m[39m
+ [32m✓[39m db-proposals/PROPOSAL-02-jobs-dedupe-and-cancelled.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 6660[2mms[22m[39m
+   [33m[2m✓[22m[39m PROPOSAL-02 (WK-04/WK-15/WK-22): índice único (kind, jobKey) activo + cancelled[2m > [22mun segundo INSERT directo (sin pasar por el advisory lock) con la misma (kind, jobKey) activa viola el índice único [33m3514[2mms[22m[39m
+   [33m[2m✓[22m[39m PROPOSAL-02 (WK-04/WK-15/WK-22): índice único (kind, jobKey) activo + cancelled[2m > [22mcancel() usa el estado "cancelled" dedicado, distinguible de "dead" sin leer last_error [33m1724[2mms[22m[39m
+   [33m[2m✓[22m[39m PROPOSAL-02 (WK-04/WK-15/WK-22): índice único (kind, jobKey) activo + cancelled[2m > [22mPASO 0 (WK-15): la query de detección de duplicados activos devuelve 0 filas en una base recién migrada [33m1422[2mms[22m[39m
+ [32m✓[39m test/worker-shutdown.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 10389[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: cierre ordenado (SIGTERM)[2m > [22mdeja terminar el job en curso, libera el lock, y no reclama nuevos jobs tras stop() [33m3550[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: cierre ordenado (SIGTERM)[2m > [22msi el handler no respeta AbortSignal, stop() igual resuelve tras shutdownTimeoutMs (no cuelga para siempre) [33m1983[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: cierre ordenado (SIGTERM)[2m > [22mllamar stop() dos veces es seguro (idempotente) [33m1344[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: cierre ordenado (SIGTERM)[2m > [22mWK-02: si el heartbeat detecta que se perdió el lease (fencing), aborta el handler y NO persiste ningún resultado [33m1041[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: cierre ordenado (SIGTERM)[2m > [22mWK-10: un error permanente dead-letra en el primer intento, sin gastar el ciclo de backoff [33m873[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: cierre ordenado (SIGTERM)[2m > [22mmétricas: cuenta succeeded/retried/dead por tipo de job [33m1596[2mms[22m[39m
+ [32m✓[39m db-proposals/PROPOSAL-03-worker-role.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 11782[2mms[22m[39m
+   [33m[2m✓[22m[39m PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real[2m > [22mworker_role existe y está NOLOGIN (solo alcanzable vía SET ROLE desde una conexión con privilegios) [33m3483[2mms[22m[39m
+   [33m[2m✓[22m[39m PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real[2m > [22mworker_role tiene EXACTAMENTE grants sobre {jobs, source_runs, agent_runs}, ninguna otra tabla [33m1813[2mms[22m[39m
+   [33m[2m✓[22m[39m PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real[2m > [22mworker_role puede ver/crear jobs de PLATAFORMA (org_id NULL) [33m1352[2mms[22m[39m
+   [33m[2m✓[22m[39m PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real[2m > [22mworker_role puede leer/escribir source_runs sin ser superadmin [33m1000[2mms[22m[39m
+   [33m[2m✓[22m[39m PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real[2m > [22mWK-23: worker_role con org_id correcto pero SIN current_user_id fijado no puede actualizar agent_runs (ni siquiera su propio tenant) [33m1031[2mms[22m[39m
+   [33m[2m✓[22m[39m PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real[2m > [22mWK-23: worker_role con org_id y current_user_id (actor real) correctos SÍ actualiza agent_runs de su propio tenant [33m1645[2mms[22m[39m
+   [33m[2m✓[22m[39m PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real[2m > [22mworker_role con app.current_org_id de la org A no puede actualizar una fila agent_runs de la org B [33m1456[2mms[22m[39m
+ [32m✓[39m test/scheduler.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 14151[2mms[22m[39m
+   [33m[2m✓[22m[39m Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150[2m > [22mvarios tick() dentro de la misma ventana encolan un solo job por fuente [33m3439[2mms[22m[39m
+   [33m[2m✓[22m[39m Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150[2m > [22mavanzar a la siguiente ventana sí encola un nuevo job, sin duplicar el anterior [33m1681[2mms[22m[39m
+   [33m[2m✓[22m[39m Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150[2m > [22muna fuente deshabilitada (enabled: false) nunca se encola [33m1294[2mms[22m[39m
+   [33m[2m✓[22m[39m Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150[2m > [22mel job encolado ya trae sourceId en el payload para que discover_tenders sepa qué conector correr [33m1117[2mms[22m[39m
+   [33m[2m✓[22m[39m Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150[2m > [22mdos Scheduler concurrentes (dos procesos) nunca duplican el job de la misma fuente+ventana — 20 iteraciones (lógica secuencial en PGlite, NO concurrencia de motor real — ver nota WK-15) [33m1057[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable[2m > [22mla primera sentencia de la transacción es pg_advisory_xact_lock(hashtext($1)::bigint) con params=[`${kind}:${jobKey}`] [33m1345[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable[2m > [22mla clave del advisory lock es estable entre llamadas (mismo kind+jobKey -> mismo string, sin importar el payload) [33m1468[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable[2m > [22mun jobKey distinto produce una clave de lock distinta (sin colisión entre ventanas/fuentes) [33m1642[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue.enqueue(): WK-15 — el SQL emitido usa pg_advisory_xact_lock con una clave estable[2m > [22menqueue() SIN jobKey no abre transacción ni toma ningún advisory lock (solo el camino con jobKey lo necesita) [33m1106[2mms[22m[39m
+ [32m✓[39m test/run-agent-handler.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 14105[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mejecuta con FakeProvider por defecto (sin OPENAI_API_KEY) y refleja el resultado en agent_runs [33m3454[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22msin agentRunId en el payload, igual ejecuta el AgentRunner sin fallar (uso "fire and forget") [33m1611[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mWK-08: un job run_agent con organizationId de otro tenant nunca actualiza la fila real (falla explícito, no-op silencioso) [33m1514[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mWK-16: organizationId null con agentRunId presente falla permanente ("org requerida"), agent_runs NUNCA se toca [33m955[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mWK-16: organizationId undefined con agentRunId presente falla permanente ("org requerida"), agent_runs NUNCA se toca [33m1013[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mWK-16: organizationId string vacío con agentRunId presente falla permanente ("org requerida"), agent_runs NUNCA se toca [33m1472[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mWK-23: organizationId correcto pero actorId sin membresía en esa organización — RLS bajo worker_role bloquea el update legítimo en apariencia [33m1540[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mWK-23: actorId con formato inválido (no UUID) falla permanente y explícito, agent_runs NUNCA se toca [33m1444[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mun rol sin permiso para el riesgo de la herramienta hace que la corrida termine "denied" -> el job falla explícitamente [33m1101[2mms[22m[39m
+ [32m✓[39m test/discover-tenders-handler.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 15034[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A4: fuente inaccesible/no verificada nunca es "0 nuevas" silencioso[2m > [22mlos 5 conectores reales de packages/sources hoy no tienen liveVerification.verified=true: se reporta not_configured explícito, nunca "ok" [33m3388[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A4: fuente inaccesible/no verificada nunca es "0 nuevas" silencioso[2m > [22mun conector que lanza error con "captcha" en el mensaje se clasifica como captcha_detected, no "ok" [33m1669[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A4: fuente inaccesible/no verificada nunca es "0 nuevas" silencioso[2m > [22mfuente sin conector registrado nunca produce "0 nuevas": falla explícito con not_configured [33m1412[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay[2m > [22mconvocatoria nueva de una fuente verificada: se ingiere vía HTTP y source_runs queda "ok" [33m1045[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay[2m > [22mreplay del mismo lote (misma corrida repetida) envía el mismo payload de ingesta — idempotente (A2) [33m1292[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay[2m > [22muna corrida sin registros nuevos NO llama al endpoint de ingesta pero sí queda "ok" (no confundir con fuente caída) [33m1506[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay[2m > [22mWK-06: coverage.expected viene de payload.expectedTotal si se da; source_runs "ok" lo persiste [33m1662[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — WK-03/WK-05/WK-06: honestidad de coverage y registro SIEMPRE de source_runs[2m > [22msi discover() tiene éxito pero el POST de ingesta falla, source_runs SIEMPRE se registra (ingest_failed) [33m1185[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — WK-03/WK-05/WK-06: honestidad de coverage y registro SIEMPRE de source_runs[2m > [22msi discover() falla a mitad de iteración, coverage.obtained es 0 (nunca cuenta lo descartado) [33m1077[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — WK-03/WK-05/WK-06: honestidad de coverage y registro SIEMPRE de source_runs[2m > [22msin payload.expectedTotal, coverage.expected es null CON un motivo explícito, en las 4 rutas [33m794[2mms[22m[39m
+ [32m✓[39m test/job-queue.test.ts [2m([22m[2m19 tests[22m[2m)[22m[33m 20845[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: reclamo atómico sin doble procesamiento[2m > [22mN workers > M jobs: cada job se reclama como máximo una vez [33m3120[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: reclamo atómico sin doble procesamiento[2m > [22mun job ya en running no es reclamado dos veces por workers adicionales [33m1416[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: reclamo atómico sin doble procesamiento[2m > [22mun job claimeado incrementa attempts y queda en running con locked_by [33m1353[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-01 — claim() respeta max_attempts también en recuperación de lease (crash real)[2m > [22mun job que crashea repetidamente (nunca completa/falla) termina en "dead", nunca "running" eterno [33m1326[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: reintentos con backoff exponencial + jitter[2m > [22mcada fallo reprograma next_run_at con backoff creciente hasta max_attempts, luego "dead" [33m985[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: reintentos con backoff exponencial + jitter[2m > [22mel jitter mantiene el delay dentro del rango esperado (no determinista pero acotado) [33m1143[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: lease expirado se recupera[2m > [22mun job running cuyo lease expiró es reclamable por otro worker [33m1459[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: lease expirado se recupera[2m > [22mheartbeat extiende el lease y evita que otro worker lo recupere [33m1889[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: cancelación[2m > [22mcancelar un job queued lo deja fuera de circulación (cancelled, no dead) y no se reclama [33m957[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: cancelación[2m > [22mcancelar un job running también lo detiene, con estado cancelled (WK-22) [33m950[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: idempotencia por jobKey[2m > [22mencolar dos veces con el mismo jobKey mientras el primero sigue activo no duplica [33m725[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: idempotencia por jobKey[2m > [22muna vez terminado (succeeded), un nuevo jobKey (otra ventana) sí encola [33m649[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-10 — deadLetterPermanent (errores permanentes, sin ciclo de backoff)[2m > [22mdead-letra inmediatamente en el primer intento, sin importar max_attempts [33m600[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: complete[2m > [22mcomplete limpia el lock y marca succeeded [33m586[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: complete[2m > [22mcomplete con un lockedBy equivocado lanza StaleLeaseError y no persiste nada (protege contra confirmaciones cruzadas) [33m580[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent()[2m > [22mWORKER_ID reutilizado tras "reinicio" (mismo string, lease token distinto): complete() del zombie de la generación anterior es rechazado [33m583[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent()[2m > [22mfail() del zombie con lockedBy viejo también es rechazado (no aplica backoff/dead-letter equivocado) [33m581[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent()[2m > [22mdeadLetterPermanent() del zombie con lockedBy viejo también es rechazado [33m919[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent()[2m > [22mheartbeat() del zombie con lockedBy viejo retorna false (ya lo hacía por attempts en WK-02; ahora también por lease token) [33m1023[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m11 passed[39m[22m[90m (11)[39m
+[2m      Tests [22m [1m[32m298 passed[39m[22m[90m (298)[39m
+[2m   Start at [22m 04:27:40
+[2m   Duration [22m 21.23s[2m (transform 655ms, setup 0ms, collect 1.41s, tests 99.55s, environment 1ms, prepare 686ms)[22m
+
+
+=== Ancestria de commits citados (main repo) ===
+74c2358: ancestor OK (HEAD=2a02587)
+2ae7af8: ancestor OK (HEAD=2a02587)
+a1f70bb: ancestor OK (HEAD=2a02587)
+33869c2: ancestor OK (HEAD=2a02587)
+5cbb538: ancestor OK (HEAD=2a02587)
+f2fef8a: ancestor OK (HEAD=2a02587)
+6c43174: ancestor OK (HEAD=2a02587)
+3532308: ancestor OK (HEAD=2a02587)
+2170bf3: ancestor OK (HEAD=2a02587)
+622dbe2: ancestor OK (HEAD=2a02587)
+6534f5f: ancestor OK (HEAD=2a02587)
+d4788fe: ancestor OK (HEAD=2a02587)
+f8ffaa6: ancestor OK (HEAD=2a02587)
+e097c27: ancestor OK (HEAD=2a02587)
+668a082: ancestor OK (HEAD=2a02587)
+9064469: ancestor OK (HEAD=2a02587)
+e30e41c: ancestor OK (HEAD=2a02587)
+1b73639: ancestor OK (HEAD=2a02587)
+12189a3: ancestor OK (HEAD=2a02587)
+a47c287: ancestor OK (HEAD=2a02587)
+
+=== test:e2e:full corrida 1 (resumen) ===
+  [32m✓[39m  [2m98 [22m[chromium] › e2e/touch-targets.spec.ts:134:5 › Controles del header dentro del viewport (W-21) › header: hamburguesa, OrganizationSwitcher y UserMenu quedan dentro del viewport a 390×844[2m (1.4s)[22m
+
+[32m  98 passed[39m[2m (1.8m)[22m
+[test:e2e:full] apagando apps/api…
+[test:e2e:full] test:e2e:full OK.
+
+=== test:e2e:full corrida 2 (resumen) ===
+  [32m✓[39m  [2m98 [22m[chromium] › e2e/touch-targets.spec.ts:134:5 › Controles del header dentro del viewport (W-21) › header: hamburguesa, OrganizationSwitcher y UserMenu quedan dentro del viewport a 390×844[2m (1.3s)[22m
+
+[32m  98 passed[39m[2m (2.0m)[22m
+[test:e2e:full] apagando apps/api…
+[test:e2e:full] test:e2e:full OK.
+
+=== Sub-agente 1 (apps/api, ataques dinamicos) -- veredicto final ===
+1. CORS preflight (metodo+cabecera+origen no listado): CUMPLE
+2. Memberships de otra org (ambas direcciones): CUMPLE
+3. Audit-log de otra org y filtros: CUMPLE
+4. Superadmin cross-org approve/deny + doble aprobacion 409: CUMPLE (5 repeticiones concurrentes reales)
+5. RATE_LIMIT_PROFILE=e2e NO activo sin la variable: CUMPLE (429 real confirmado sin la env var)
+6. POST sin cuerpo en approve/deny/retry/resolve: PARCIAL -- hallazgo nuevo API-15
+   (POST /company/rates/:id/approve|reject rechazan cuerpo vacio con 400, no wireados a withOptionalEmptyJsonBody)
+7. AE-08 (firmante/capability tras aprobar -> draft): CUMPLE
+8. AE-11 (writer edita, luego intenta aprobar): CUMPLE
+9. AE-14 (package/latest y download no sirven ZIP viejo): CUMPLE
+10. API-14 (forjar actor_id de auth event): CUMPLE
+11. AE-15 (body ~23MB -> 413/422): CUMPLE
+12. WI-01 API (CSP/Permissions-Policy/Referrer-Policy en todas las rutas): CUMPLE
+13. WI-04 API (doble aprobacion concurrente de tarifa): CUMPLE (5 repeticiones: [200,409] x5, 1 audit_log row)
+
+=== Sub-agente 2 (apps/web, ataques dinamicos Playwright) -- veredicto final ===
+1. CSP bloquea script inline: CUMPLE
+2. eval()/new Function() bloqueados: CUMPLE (nota metodologica: eval() directo via page.evaluate() da
+   falso negativo por exencion de CDP Runtime.evaluate; confirmado real con script externo mismo origen)
+3. connect-src bloquea origen externo, permite mismo origen: CUMPLE
+4. Rechazo .key/.exe/>=50MB en cliente: CUMPLE
+5. Rechazo .key/.exe en servidor (defensa en profundidad): CUMPLE (422, nunca 201)
+6. Logout limpia cache sin fuga a otro usuario: CUMPLE
+7. switchOrg sin fuga entre organizaciones: CUMPLE
+8. Guard de doble clic en Aprobar: PARCIAL -- hallazgo nuevo WI-06
+   (doble clic fisico real dispara 2 POST /rates/:id/approve; servidor responde [200,409], sin duplicar audit)
+
+Playwright run v1 (5 fallas iniciales, log completo mas abajo) y v2 (diagnostico
+dirigido, 4/5 confirmadas como artefactos de tecnica de prueba, 1/5 confirmada
+como hallazgo real reproducible) -- ver detalle completo en
+/tmp/adversarial-sub2-playwright.log y /tmp/adversarial-sub2-playwright-v2.log
+(rutas locales del entorno de este agente, no committeadas).
+
+PLAYWRIGHT LOG v1:
+
+[2mRunning [22m11[2m tests using [22m1[2m worker[22m
+
+  [31m✘[39m  [2m 1 [22m[31m[chromium] › e2e/zz-adversarial-sub2-cache.spec.ts:20:1 › logout limpia el caché: el siguiente login (otro usuario/org) no pinta datos de la sesión anterior[39m[2m (45.0s)[22m
+  [32m✓[39m  [2m 2 [22m[chromium] › e2e/zz-adversarial-sub2-cache.spec.ts:93:1 › switchOrg no filtra datos de la organización anterior a la nueva[2m (8.0s)[22m
+  [31m✘[39m  [2m 3 [22m[31m[chromium] › e2e/zz-adversarial-sub2-doubleclick.spec.ts:20:1 › doble clic real en Aprobar dispara una sola petición de red y deshabilita el botón[39m[2m (554ms)[22m
+  [31m✘[39m  [2m 4 [22m[31m[chromium] › e2e/zz-adversarial-sub2-doubleclick.spec.ts:80:1 › el botón Aprobar queda deshabilitado visualmente mientras la decisión está en curso[39m[2m (5.6s)[22m
+  [32m✓[39m  [2m 5 [22m[chromium] › e2e/zz-adversarial-sub2-csp.spec.ts:5:3 › Adversarial sub2 - CSP › script inline inyectado dinámicamente no ejecuta y consola reporta violación CSP[2m (1.0s)[22m
+  [31m✘[39m  [2m 6 [22m[31m[chromium] › e2e/zz-adversarial-sub2-csp.spec.ts:29:3 › Adversarial sub2 - CSP › eval() y new Function() son bloqueados (sin unsafe-eval)[39m[2m (952ms)[22m
+  [32m✓[39m  [2m 7 [22m[chromium] › e2e/zz-adversarial-sub2-csp.spec.ts:62:3 › Adversarial sub2 - CSP › connect-src bloquea fetch a origen externo pero permite fetch al propio origen[2m (920ms)[22m
+  [32m✓[39m  [2m 8 [22m[chromium] › e2e/zz-adversarial-sub2-upload.spec.ts:17:3 › Adversarial sub2 - validación de archivos (cliente + servidor) › rechaza .key (marcador PEM) en cliente sin disparar POST /company/documents[2m (891ms)[22m
+  [32m✓[39m  [2m 9 [22m[chromium] › e2e/zz-adversarial-sub2-upload.spec.ts:36:3 › Adversarial sub2 - validación de archivos (cliente + servidor) › rechaza .exe (magic bytes MZ) en cliente sin disparar POST /company/documents[2m (647ms)[22m
+  [31m✘[39m  [2m10 [22m[31m[chromium] › e2e/zz-adversarial-sub2-upload.spec.ts:56:3 › Adversarial sub2 - validación de archivos (cliente + servidor) › rechaza archivo >= 50MB en cliente sin disparar POST /company/documents[39m[2m (633ms)[22m
+  [32m✓[39m  [2m11 [22m[chromium] › e2e/zz-adversarial-sub2-upload.spec.ts:76:3 › Adversarial sub2 - validación de archivos (cliente + servidor) › defensa en profundidad: servidor rechaza .key/.exe con 4xx (nunca 201) si el cliente se bypasea[2m (43ms)[22m
+
+
+[31m  1) [chromium] › e2e/zz-adversarial-sub2-cache.spec.ts:20:1 › logout limpia el caché: el siguiente login (otro usuario/org) no pinta datos de la sesión anterior [39m
+
+    [31mTest timeout of 45000ms exceeded.[39m
+
+    Error: page.waitForURL: Test ended.
+    =========================== logs ===========================
+    waiting for navigation to "**/panel" until "load"
+      navigated to "http://127.0.0.1:5071/empresa/perfil-capacidades"
+    ============================================================
+
+    [0m [90m 65 |[39m   [36mawait[39m page[33m.[39mgetByLabel([32m"Contraseña"[39m)[33m.[39mfill(outsider[33m.[39mpassword)[33m;[39m
+     [90m 66 |[39m   [36mawait[39m page[33m.[39mgetByRole([32m"button"[39m[33m,[39m { name[33m:[39m [32m"Iniciar sesión"[39m })[33m.[39mclick()[33m;[39m
+    [31m[1m>[22m[39m[90m 67 |[39m   [36mawait[39m page[33m.[39mwaitForURL([32m"**/panel"[39m)[33m;[39m
+     [90m    |[39m              [31m[1m^[22m[39m
+     [90m 68 |[39m
+     [90m 69 |[39m   [90m// Muestrea el DOM agresivamente durante ~1.5s tras el login del segundo[39m
+     [90m 70 |[39m   [90m// usuario para atrapar cualquier fogonazo del dato cacheado del admin.[39m[0m
+    [2m    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-final-sub2/apps/web/e2e/zz-adversarial-sub2-cache.spec.ts:67:14[22m
+
+[2m    Error Context: test-results/zz-adversarial-sub2-cache--aea06-datos-de-la-sesión-anterior-chromium/error-context.md[22m
+
+[2m    attachment #2: [1mtrace[2m (application/zip) [2m─────────────────────────────────────────────────────────[2m[22m
+[2m    test-results/zz-adversarial-sub2-cache--aea06-datos-de-la-sesión-anterior-chromium/trace.zip[22m
+[2m    Usage:[22m
+
+[2m        npx playwright show-trace test-results/zz-adversarial-sub2-cache--aea06-datos-de-la-sesión-anterior-chromium/trace.zip[22m
+
+[2m    [2m────────────────────────────────────────────────────────────────────────────────────────────────[2m[22m
+
+[31m  2) [chromium] › e2e/zz-adversarial-sub2-csp.spec.ts:29:3 › Adversarial sub2 - CSP › eval() y new Function() son bloqueados (sin unsafe-eval) [39m
+
+    Error: eval() debió lanzar (CSP sin unsafe-eval). Resultado: {"blocked":false,"error":null}
+
+    [2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+    Expected: [32mtrue[39m
+    Received: [31mfalse[39m
+
+    [0m [90m 39 |[39m       }
+     [90m 40 |[39m     })[33m;[39m
+    [31m[1m>[22m[39m[90m 41 |[39m     expect(evalResult[33m.[39mblocked[33m,[39m [32m`eval() debió lanzar (CSP sin unsafe-eval). Resultado: ${JSON.stringify(evalResult)}`[39m)[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m    |[39m                                                                                                                       [31m[1m^[22m[39m
+     [90m 42 |[39m
+     [90m 43 |[39m     [36mconst[39m fnResult [33m=[39m [36mawait[39m page[33m.[39mevaluate(() [33m=>[39m {
+     [90m 44 |[39m       [36mtry[39m {[0m
+    [2m    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-final-sub2/apps/web/e2e/zz-adversarial-sub2-csp.spec.ts:41:119[22m
+
+[2m    Error Context: test-results/zz-adversarial-sub2-csp-Ad-b4da0-bloqueados-sin-unsafe-eval--chromium/error-context.md[22m
+
+[2m    attachment #2: [1mtrace[2m (application/zip) [2m─────────────────────────────────────────────────────────[2m[22m
+[2m    test-results/zz-adversarial-sub2-csp-Ad-b4da0-bloqueados-sin-unsafe-eval--chromium/trace.zip[22m
+[2m    Usage:[22m
+
+[2m        npx playwright show-trace test-results/zz-adversarial-sub2-csp-Ad-b4da0-bloqueados-sin-unsafe-eval--chromium/trace.zip[22m
+
+[2m    [2m────────────────────────────────────────────────────────────────────────────────────────────────[2m[22m
+
+[31m  3) [chromium] › e2e/zz-adversarial-sub2-doubleclick.spec.ts:20:1 › doble clic real en Aprobar dispara una sola petición de red y deshabilita el botón [39m
+
+    Error: debió dispararse EXACTAMENTE una petición POST .../rates/:id/approve, se vieron 2
+
+    [2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+    Expected: [32m1[39m
+    Received: [31m2[39m
+
+    [0m [90m 73 |[39m   [36mawait[39m expect(row[33m.[39mgetByText([32m"Aprobada"[39m))[33m.[39mtoBeVisible({ timeout[33m:[39m [35m15[39m_000 })[33m;[39m
+     [90m 74 |[39m
+    [31m[1m>[22m[39m[90m 75 |[39m   expect(approveRequestCount[33m,[39m [32m`debió dispararse EXACTAMENTE una petición POST .../rates/:id/approve, se vieron ${approveRequestCount}`[39m)[33m.[39mtoBe([35m1[39m)[33m;[39m
+     [90m    |[39m                                                                                                                                         [31m[1m^[22m[39m
+     [90m 76 |[39m
+     [90m 77 |[39m   [36mawait[39m context[33m.[39mclose()[33m;[39m
+     [90m 78 |[39m })[33m;[39m[0m
+    [2m    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-final-sub2/apps/web/e2e/zz-adversarial-sub2-doubleclick.spec.ts:75:137[22m
+
+[2m    Error Context: test-results/zz-adversarial-sub2-double-09dbd--red-y-deshabilita-el-botón-chromium/error-context.md[22m
+
+[2m    attachment #2: [1mtrace[2m (application/zip) [2m─────────────────────────────────────────────────────────[2m[22m
+[2m    test-results/zz-adversarial-sub2-double-09dbd--red-y-deshabilita-el-botón-chromium/trace.zip[22m
+[2m    Usage:[22m
+
+[2m        npx playwright show-trace test-results/zz-adversarial-sub2-double-09dbd--red-y-deshabilita-el-botón-chromium/trace.zip[22m
+
+[2m    [2m────────────────────────────────────────────────────────────────────────────────────────────────[2m[22m
+
+[31m  4) [chromium] › e2e/zz-adversarial-sub2-doubleclick.spec.ts:80:1 › el botón Aprobar queda deshabilitado visualmente mientras la decisión está en curso [39m
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeDisabled[2m([22m[2m)[22m failed
+
+    Locator: getByRole('row', { name: /ADV-DISABLEDVIS-mtporxhp/ }).getByRole('button', { name: /^Aprobar/ })
+    Expected: disabled
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeDisabled" getByRole('row', { name: /ADV-DISABLEDVIS-mtporxhp/ }).getByRole('button', { name: /^Aprobar/ }) with timeout 5000ms[22m
+    [2m  - waiting for getByRole('row', { name: /ADV-DISABLEDVIS-mtporxhp/ }).getByRole('button', { name: /^Aprobar/ })[22m
+    [2m    - locator resolved to <button type="button" class="inline-flex items-center justify-center whitespace-nowrap rounded-full text-sm font-semibold tracking-[0.005em] ring-offset-background transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border border-border bg-card text-foreground hover:bg-muted motion-safe:hover:-translate-y-px h-…>…</button>[22m
+    [2m    - unexpected value "enabled"[22m
+
+
+    [0m [90m 118 |[39m   [36mawait[39m approveButton[33m.[39mclick()[33m;[39m
+     [90m 119 |[39m
+    [31m[1m>[22m[39m[90m 120 |[39m   [36mawait[39m expect(approveButton)[33m.[39mtoBeDisabled()[33m;[39m
+     [90m     |[39m                               [31m[1m^[22m[39m
+     [90m 121 |[39m   [36mawait[39m expect(row[33m.[39mgetByRole([32m"button"[39m[33m,[39m { name[33m:[39m [35m/^Rechazar/[39m }))[33m.[39mtoBeDisabled()[33m;[39m
+     [90m 122 |[39m
+     [90m 123 |[39m   [36mawait[39m expect(row[33m.[39mgetByText([32m"Aprobada"[39m))[33m.[39mtoBeVisible({ timeout[33m:[39m [35m15[39m_000 })[33m;[39m[0m
+    [2m    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-final-sub2/apps/web/e2e/zz-adversarial-sub2-doubleclick.spec.ts:120:31[22m
+
+[2m    Error Context: test-results/zz-adversarial-sub2-double-b8660-s-la-decisión-está-en-curso-chromium/error-context.md[22m
+
+[2m    attachment #2: [1mtrace[2m (application/zip) [2m─────────────────────────────────────────────────────────[2m[22m
+[2m    test-results/zz-adversarial-sub2-double-b8660-s-la-decisión-está-en-curso-chromium/trace.zip[22m
+[2m    Usage:[22m
+
+[2m        npx playwright show-trace test-results/zz-adversarial-sub2-double-b8660-s-la-decisión-está-en-curso-chromium/trace.zip[22m
+
+[2m    [2m────────────────────────────────────────────────────────────────────────────────────────────────[2m[22m
+
+[31m  5) [chromium] › e2e/zz-adversarial-sub2-upload.spec.ts:56:3 › Adversarial sub2 - validación de archivos (cliente + servidor) › rechaza archivo >= 50MB en cliente sin disparar POST /company/documents [39m
+
+    Error: Cannot set buffer larger than 50Mb, please write it to a file and pass its path instead.
+
+    [0m [90m 64 |[39m
+     [90m 65 |[39m     [36mconst[39m bigBuffer [33m=[39m [33mBuffer[39m[33m.[39malloc([35m50[39m [33m*[39m [35m1024[39m [33m*[39m [35m1024[39m[33m,[39m [35m0x41[39m)[33m;[39m [90m// 50MB exacto[39m
+    [31m[1m>[22m[39m[90m 66 |[39m     [36mawait[39m page[33m.[39mlocator([32m"#document-file"[39m)[33m.[39msetInputFiles({
+     [90m    |[39m                                          [31m[1m^[22m[39m
+     [90m 67 |[39m       name[33m:[39m [32m"archivo-enorme.pdf"[39m[33m,[39m
+     [90m 68 |[39m       mimeType[33m:[39m [32m"application/pdf"[39m[33m,[39m
+     [90m 69 |[39m       buffer[33m:[39m bigBuffer[33m,[39m[0m
+    [2m    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-final-sub2/apps/web/e2e/zz-adversarial-sub2-upload.spec.ts:66:42[22m
+
+[2m    Error Context: test-results/zz-adversarial-sub2-upload-e77c5-arar-POST-company-documents-chromium/error-context.md[22m
+
+[2m    attachment #2: [1mtrace[2m (application/zip) [2m─────────────────────────────────────────────────────────[2m[22m
+[2m    test-results/zz-adversarial-sub2-upload-e77c5-arar-POST-company-documents-chromium/trace.zip[22m
+[2m    Usage:[22m
+
+[2m        npx playwright show-trace test-results/zz-adversarial-sub2-upload-e77c5-arar-POST-company-documents-chromium/trace.zip[22m
+
+[2m    [2m────────────────────────────────────────────────────────────────────────────────────────────────[2m[22m
+
+[31m  5 failed[39m
+[31m    [chromium] › e2e/zz-adversarial-sub2-cache.spec.ts:20:1 › logout limpia el caché: el siguiente login (otro usuario/org) no pinta datos de la sesión anterior [39m
+[31m    [chromium] › e2e/zz-adversarial-sub2-csp.spec.ts:29:3 › Adversarial sub2 - CSP › eval() y new Function() son bloqueados (sin unsafe-eval) [39m
+[31m    [chromium] › e2e/zz-adversarial-sub2-doubleclick.spec.ts:20:1 › doble clic real en Aprobar dispara una sola petición de red y deshabilita el botón [39m
+[31m    [chromium] › e2e/zz-adversarial-sub2-doubleclick.spec.ts:80:1 › el botón Aprobar queda deshabilitado visualmente mientras la decisión está en curso [39m
+[31m    [chromium] › e2e/zz-adversarial-sub2-upload.spec.ts:56:3 › Adversarial sub2 - validación de archivos (cliente + servidor) › rechaza archivo >= 50MB en cliente sin disparar POST /company/documents [39m
+[32m  6 passed[39m[2m (1.1m)[22m
+
+PLAYWRIGHT LOG v2 (diagnostico):
+
+[2mRunning [22m11[2m tests using [22m1[2m worker[22m
+
+  [32m✓[39m  [2m 1 [22m[chromium] › e2e/zz-adversarial-sub2-cache.spec.ts:20:1 › logout limpia el caché: el siguiente login (otro usuario/org) no pinta datos de la sesión anterior[2m (3.7s)[22m
+  [32m✓[39m  [2m 2 [22m[chromium] › e2e/zz-adversarial-sub2-cache.spec.ts:102:1 › switchOrg no filtra datos de la organización anterior a la nueva[2m (7.9s)[22m
+  [31m✘[39m  [2m 3 [22m[31m[chromium] › e2e/zz-adversarial-sub2-doubleclick.spec.ts:20:1 › doble clic real en Aprobar dispara una sola petición de red y deshabilita el botón[39m[2m (568ms)[22m
+  [32m✓[39m  [2m 4 [22m[chromium] › e2e/zz-adversarial-sub2-doubleclick.spec.ts:86:1 › el botón Aprobar queda deshabilitado visualmente mientras la decisión está en curso[2m (1.5s)[22m
+  [32m✓[39m  [2m 5 [22m[chromium] › e2e/zz-adversarial-sub2-csp.spec.ts:5:3 › Adversarial sub2 - CSP › script inline inyectado dinámicamente no ejecuta y consola reporta violación CSP[2m (1.0s)[22m
+  [32m✓[39m  [2m 6 [22m[chromium] › e2e/zz-adversarial-sub2-csp.spec.ts:45:3 › Adversarial sub2 - CSP › eval()/new Function() en un script externo del mismo origen son bloqueados (sin unsafe-eval)[2m (916ms)[22m
+  [32m✓[39m  [2m 7 [22m[chromium] › e2e/zz-adversarial-sub2-csp.spec.ts:72:3 › Adversarial sub2 - CSP › connect-src bloquea fetch a origen externo pero permite fetch al propio origen[2m (884ms)[22m
+  [32m✓[39m  [2m 8 [22m[chromium] › e2e/zz-adversarial-sub2-upload.spec.ts:22:3 › Adversarial sub2 - validación de archivos (cliente + servidor) › rechaza .key (marcador PEM) en cliente sin disparar POST /company/documents[2m (944ms)[22m
+  [32m✓[39m  [2m 9 [22m[chromium] › e2e/zz-adversarial-sub2-upload.spec.ts:41:3 › Adversarial sub2 - validación de archivos (cliente + servidor) › rechaza .exe (magic bytes MZ) en cliente sin disparar POST /company/documents[2m (694ms)[22m
+  [32m✓[39m  [2m10 [22m[chromium] › e2e/zz-adversarial-sub2-upload.spec.ts:61:3 › Adversarial sub2 - validación de archivos (cliente + servidor) › rechaza archivo >= 50MB en cliente sin disparar POST /company/documents[2m (670ms)[22m
+  [32m✓[39m  [2m11 [22m[chromium] › e2e/zz-adversarial-sub2-upload.spec.ts:80:3 › Adversarial sub2 - validación de archivos (cliente + servidor) › defensa en profundidad: servidor rechaza .key/.exe con 4xx (nunca 201) si el cliente se bypasea[2m (93ms)[22m
+
+
+[31m  1) [chromium] › e2e/zz-adversarial-sub2-doubleclick.spec.ts:20:1 › doble clic real en Aprobar dispara una sola petición de red y deshabilita el botón [39m
+
+    Error: debió dispararse EXACTAMENTE una petición POST .../rates/:id/approve, se vieron 2
+
+    [2mexpect([22m[31mreceived[39m[2m).[22mtoBe[2m([22m[32mexpected[39m[2m) // Object.is equality[22m
+
+    Expected: [32m1[39m
+    Received: [31m2[39m
+
+    [0m [90m 79 |[39m   [36mawait[39m expect(row[33m.[39mgetByText([32m"Aprobada"[39m))[33m.[39mtoBeVisible({ timeout[33m:[39m [35m15[39m_000 })[33m;[39m
+     [90m 80 |[39m
+    [31m[1m>[22m[39m[90m 81 |[39m   expect(approveRequestCount[33m,[39m [32m`debió dispararse EXACTAMENTE una petición POST .../rates/:id/approve, se vieron ${approveRequestCount}`[39m)[33m.[39mtoBe([35m1[39m)[33m;[39m
+     [90m    |[39m                                                                                                                                         [31m[1m^[22m[39m
+     [90m 82 |[39m
+     [90m 83 |[39m   [36mawait[39m context[33m.[39mclose()[33m;[39m
+     [90m 84 |[39m })[33m;[39m[0m
+    [2m    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-final-sub2/apps/web/e2e/zz-adversarial-sub2-doubleclick.spec.ts:81:137[22m
+
+[2m    Error Context: test-results/zz-adversarial-sub2-double-09dbd--red-y-deshabilita-el-botón-chromium/error-context.md[22m
+
+[2m    attachment #2: [1mtrace[2m (application/zip) [2m─────────────────────────────────────────────────────────[2m[22m
+[2m    test-results/zz-adversarial-sub2-double-09dbd--red-y-deshabilita-el-botón-chromium/trace.zip[22m
+[2m    Usage:[22m
+
+[2m        npx playwright show-trace test-results/zz-adversarial-sub2-double-09dbd--red-y-deshabilita-el-botón-chromium/trace.zip[22m
+
+[2m    [2m────────────────────────────────────────────────────────────────────────────────────────────────[2m[22m
+
+[31m  1 failed[39m
+[31m    [chromium] › e2e/zz-adversarial-sub2-doubleclick.spec.ts:20:1 › doble clic real en Aprobar dispara una sola petición de red y deshabilita el botón [39m
+[32m  10 passed[39m[2m (22.0s)[22m
