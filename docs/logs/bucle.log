@@ -67,3 +67,4 @@
 2026-09-06 01:24  DESPERTAR  cierre sources (#58): SR-24 ALTA/SR-23; micro-fix #59 despachado; en curso #42,#57.
 2026-09-06 01:33  DESPERTAR  auditoría 2 api (#57): AE-01/02 ALTA, 0 críticos, 46/46 aislamiento; corrector #60 despachado; en curso #42,#59.
 2026-09-06 01:51  INCIDENTE  429 del servidor (no de uso) cortó #59 (sources micro); clasificador limitado bloqueó herramientas de Fable brevemente; #59 reanudado; en curso #42,#60.
+2026-09-06 01:52  INCIDENTE  429 del servidor cortó #60 (corrector api) al ir a commitear DB-13; reanudado por SendMessage; en curso #42,#59,#60.
