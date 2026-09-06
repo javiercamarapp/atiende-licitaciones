@@ -12,6 +12,7 @@
     "lint": "eslint src test"
   },
   "dependencies": {
+    "@atiende/agents": "*",
     "@atiende/db": "*",
     "@atiende/sources": "*",
     "@fastify/cors": "^11.3.0",
