@@ -157,6 +157,59 @@ extremo). Se conecta todo desde `apps/web` en la misma ronda:
   — nunca se reutiliza un código ya usado, así que ni el rechazo de replay
   de `apps/api` ni un reintento de Playwright rompen el flujo.
 
+### Ronda 5, cierre — R5-09 (orgId/purpose obligatorios en el step-up) y endurecimiento del E2E
+
+`apps/api` cerró R5-09 (docs/auditoria-2/api-ronda5-reverificacion.md):
+`org_id`/`purpose` pasan a **obligatorios** en `step_up_sessions`
+(migraciones 0062/0063) — antes ningún cliente los declaraba, así que
+toda sesión de step-up quedaba "genérica" (servía para aprobar cualquier
+tarifa/expediente de cualquier organización dentro de su vigencia). Se
+conecta desde `apps/web`:
+
+- `verifyStepUp(code, orgId, purpose)` (`lib/api/twofa.ts`) manda
+  `X-Org-Id` y `{ code, purpose }`; `StepUpDialog` exige un `purpose` por
+  prop, EXACTO al que la ruta consumidora exige:
+  `"company.rate_approval"` en `TarifasAprobadasPage`,
+  `"expediente.approval"` en `RevisionPage`. Tests unitarios nuevos (MSW
+  verifica el header/body reales) en ambas páginas.
+- **Corrección real encontrada, la misma migración**: `POST
+  /auth/2fa/verify-enrollment` también emite una sesión de step-up (para
+  no exigir un segundo código al confirmar el enrolamiento) e inserta en
+  la MISMA tabla ahora NOT NULL — pero esa ruta no fue actualizada para
+  EXIGIR `orgId`/`purpose` a nivel de aplicación (a diferencia de
+  `/2fa/step-up`), así que sin declararlos igual responde 500 real. Se
+  declaran también ahí (`purpose: "admin.action"`, el más genérico de la
+  lista cerrada de apps/api) desde `useVerifyTwoFactorEnrollment` y desde
+  el seed E2E (que además tuvo que reordenarse: crear la organización
+  ANTES de enrolar 2FA, ya que antes no había ninguna que declarar).
+- **Límite de tasa fijo del step-up (R5-02, 5 peticiones/5min por IP,
+  nunca relajado ni por `RATE_LIMIT_PROFILE=e2e`)**: la suite E2E
+  necesitaba más verificaciones TOTP reales de las que el cupo permite
+  (enrolamiento + 4 aprobaciones = 6 > 5) — se fusionó el test WI-06
+  (doble clic físico) con la aprobación real de `ronda3-flujo-real.spec.ts`
+  (un solo step-up cubre ambas aserciones) y se desactivaron los
+  reintentos de Playwright (`retries: 0`) en los dos archivos con step-up
+  real: reintentar un test que falló por un límite de tasa real no lo
+  arregla, solo gasta más cupo.
+- **Falsos positivos de axe por animaciones CSS sin esperar**: dos
+  hallazgos "serious" de contraste (toast de Sonner recién aparecido,
+  popover de Radix Select recién cerrado) resultaron ser mediciones a
+  mitad de una transición `opacity`/`transform` (400ms) — `toBeVisible()`
+  de Playwright no espera a que termine una animación CSS. Cubierto con
+  una espera corta antes de escanear en `expediente-flujo-completo.spec.ts`
+  (y un endurecimiento adicional real en `components/ui/sonner.tsx`: el
+  color de texto del toast ahora fuerza `!text-foreground` porque ni una
+  clase `group-[...]` ni redeclarar `--normal-*` de Sonner vía `style`
+  ganaba de forma confiable a su cascada interna).
+- **`RuleBasedExtractor` sin evidencia mapeable**: la frase de bases de
+  `expediente-flujo-completo.spec.ts` no contenía ninguna de las frases
+  reconocidas por `extractRequiredEvidence` (packages/expediente) — un
+  requisito con `requiredEvidence` vacío nunca llega a la rama de mapeo
+  explícito de `TechnicalProposalBuilder` y queda "PENDIENTE" siempre,
+  sin importar el mapeo declarado en la UI. Se ajustó la frase para
+  incluir "poder notarial" (evidencia reconocida para un representante
+  legal).
+
 ## Ronda 4 — correcciones de la auditoría adversarial (WI-01..05)
 
 `docs/auditoria-2/web-integrado.md` (auditor independiente, solo hallazgo)
