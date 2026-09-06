@@ -75,10 +75,14 @@ export function useAdminApprovals() {
 
 // Ronda 5: aprobación cross-org real de tool_calls (antes esta pantalla era
 // de solo lectura -- ver docstring de AprobacionesBackofficePage.tsx).
+//
+// RF-01 (docs/auditoria-2/ronda5-final.md): exige `stepUpToken`
+// (`purpose="admin.action"`, atado a la organización DUEÑA de la
+// tool_call, ver `lib/api/admin.ts`).
 export function useApproveAdminToolCall() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => api.approveAdminToolCall(id),
+    mutationFn: ({ id, stepUpToken }: { id: string; stepUpToken: string }) => api.approveAdminToolCall(id, stepUpToken),
     onSettled: async () => {
       await queryClient.invalidateQueries({ queryKey: ["admin", "approvals"] });
     },
@@ -88,7 +92,7 @@ export function useApproveAdminToolCall() {
 export function useDenyAdminToolCall() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => api.denyAdminToolCall(id),
+    mutationFn: ({ id, stepUpToken }: { id: string; stepUpToken: string }) => api.denyAdminToolCall(id, stepUpToken),
     onSettled: async () => {
       await queryClient.invalidateQueries({ queryKey: ["admin", "approvals"] });
     },

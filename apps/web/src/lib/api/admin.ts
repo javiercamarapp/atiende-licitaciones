@@ -82,13 +82,21 @@ export async function listAdminApprovals(): Promise<PendingApproval[]> {
 // --- ronda 4: aprobación cross-org de tool_calls (sin X-Org-Id: la
 // organización afectada se resuelve de la propia fila `tool_calls.org_id`
 // en apps/api, nunca de un header) ------------------------------------------
-export async function approveAdminToolCall(id: string): Promise<ToolCall> {
-  const raw = await apiRequest<unknown>(`/admin/tool-calls/${id}/approve`, { method: "POST" });
+//
+// RF-01 (docs/auditoria-2/ronda5-final.md): R5-11 (apps/api) exige además
+// `X-Step-Up` (`purpose: "admin.action"`) en estas dos rutas -- la sesión
+// de step-up debe estar atada a la organización DUEÑA de la tool_call
+// concreta (ver `lib/step-up.ts` `requireStepUp` en apps/api), NO a la
+// organización activa del superadmin (que puede ser distinta o inexistente)
+// -- ver `StepUpDialog`'s `orgId` prop, usado por AprobacionesBackofficePage
+// con el `orgId` de la propia fila.
+export async function approveAdminToolCall(id: string, stepUpToken: string): Promise<ToolCall> {
+  const raw = await apiRequest<unknown>(`/admin/tool-calls/${id}/approve`, { method: "POST", stepUpToken });
   return toolCallSchema.parse(raw);
 }
 
-export async function denyAdminToolCall(id: string): Promise<ToolCall> {
-  const raw = await apiRequest<unknown>(`/admin/tool-calls/${id}/deny`, { method: "POST" });
+export async function denyAdminToolCall(id: string, stepUpToken: string): Promise<ToolCall> {
+  const raw = await apiRequest<unknown>(`/admin/tool-calls/${id}/deny`, { method: "POST", stepUpToken });
   return toolCallSchema.parse(raw);
 }
 

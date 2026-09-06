@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { Bot, Check, X } from "lucide-react";
 
+import { StepUpDialog } from "@/components/StepUpDialog";
 import { SectionHeader } from "@/components/layout/SectionHeader";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -36,6 +38,36 @@ export default function AgentesHerramientasPage() {
   const denyToolCall = useDenyToolCall();
 
   const canApprove = Boolean(currentMembership && MEMBERSHIP_ADMIN_ROLES.includes(currentMembership.role));
+
+  // RF-01 (docs/auditoria-2/ronda5-final.md): R5-11 (apps/api) exige
+  // `X-Step-Up` (purpose="tool_call.approval") tanto para aprobar como para
+  // denegar -- se guarda la tool_call objetivo Y la acción concreta
+  // mientras el modal de step-up está abierto; la mutación real solo se
+  // dispara tras verificar el código (mismo patrón que
+  // TarifasAprobadasPage/RevisionPage).
+  const [stepUpTarget, setStepUpTarget] = useState<{ id: string; action: "approve" | "deny" } | null>(null);
+
+  const onVerifiedStepUp = (stepUpToken: string) => {
+    if (!stepUpTarget) return;
+    const { id, action } = stepUpTarget;
+    if (action === "approve") {
+      approveToolCall.mutate(
+        { id, stepUpToken },
+        {
+          onSuccess: () => toast.success("tool_call aprobada."),
+          onError: (err) => toast.error(describeApiError(err)),
+        },
+      );
+    } else {
+      denyToolCall.mutate(
+        { id, stepUpToken },
+        {
+          onSuccess: () => toast.success("tool_call denegada."),
+          onError: (err) => toast.error(describeApiError(err)),
+        },
+      );
+    }
+  };
 
   return (
     <div>
@@ -83,12 +115,7 @@ export default function AgentesHerramientasPage() {
                                     size="sm"
                                     variant="outline"
                                     className="gap-1"
-                                    onClick={() =>
-                                      approveToolCall.mutate(tc.id, {
-                                        onSuccess: () => toast.success("tool_call aprobada."),
-                                        onError: (err) => toast.error(describeApiError(err)),
-                                      })
-                                    }
+                                    onClick={() => setStepUpTarget({ id: tc.id, action: "approve" })}
                                   >
                                     <Check className="h-3.5 w-3.5" aria-hidden="true" />
                                     Aprobar
@@ -98,12 +125,7 @@ export default function AgentesHerramientasPage() {
                                     size="sm"
                                     variant="ghost"
                                     className="gap-1"
-                                    onClick={() =>
-                                      denyToolCall.mutate(tc.id, {
-                                        onSuccess: () => toast.success("tool_call denegada."),
-                                        onError: (err) => toast.error(describeApiError(err)),
-                                      })
-                                    }
+                                    onClick={() => setStepUpTarget({ id: tc.id, action: "deny" })}
                                   >
                                     <X className="h-3.5 w-3.5" aria-hidden="true" />
                                     Denegar
@@ -167,6 +189,23 @@ export default function AgentesHerramientasPage() {
           </Card>
         </div>
       )}
+      <StepUpDialog
+        open={stepUpTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setStepUpTarget(null);
+        }}
+        title={
+          stepUpTarget?.action === "deny"
+            ? "Verificación en dos pasos para denegar la tool_call"
+            : "Verificación en dos pasos para aprobar la tool_call"
+        }
+        description="Aprobar o denegar una tool_call exige confirmar tu identidad con un segundo factor (R5-11)."
+        // R5-11: debe coincidir EXACTO con el `purpose` que
+        // `POST /agents/tool-calls/:id/approve|deny` exige en su
+        // `requireStepUp` (ver apps/api/src/modules/agents/routes.ts).
+        purpose="tool_call.approval"
+        onVerified={onVerifiedStepUp}
+      />
     </div>
   );
 }

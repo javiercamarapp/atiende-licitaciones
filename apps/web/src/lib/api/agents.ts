@@ -13,12 +13,16 @@ export async function listToolCalls(orgId: string, status?: ToolCall["authorizat
   return z.array(toolCallSchema).parse(raw);
 }
 
-export async function approveToolCall(orgId: string, id: string): Promise<ToolCall> {
-  const raw = await apiRequest<unknown>(`/agents/tool-calls/${id}/approve`, { method: "POST", orgId });
+// RF-01 (docs/auditoria-2/ronda5-final.md): R5-11 (apps/api, commit 428797f)
+// exige `X-Step-Up` (`purpose: "tool_call.approval"`) en estas dos rutas --
+// `stepUpToken` es OBLIGATORIO aquí (nunca opcional): sin él, apps/api
+// responde 403 siempre que exista una tool_call pendiente real.
+export async function approveToolCall(orgId: string, id: string, stepUpToken: string): Promise<ToolCall> {
+  const raw = await apiRequest<unknown>(`/agents/tool-calls/${id}/approve`, { method: "POST", orgId, stepUpToken });
   return toolCallSchema.parse(raw);
 }
 
-export async function denyToolCall(orgId: string, id: string): Promise<ToolCall> {
-  const raw = await apiRequest<unknown>(`/agents/tool-calls/${id}/deny`, { method: "POST", orgId });
+export async function denyToolCall(orgId: string, id: string, stepUpToken: string): Promise<ToolCall> {
+  const raw = await apiRequest<unknown>(`/agents/tool-calls/${id}/deny`, { method: "POST", orgId, stepUpToken });
   return toolCallSchema.parse(raw);
 }

@@ -45,19 +45,28 @@ export function useVerifyTwoFactorEnrollment() {
 }
 
 /**
- * R5-09: la organización activa (`currentOrgId`, para `X-Org-Id`) y el
- * `purpose` de la acción concreta (declarado por el llamador, ver
- * `StepUpDialog`) viajan SIEMPRE -- sin ellos, la sesión de step-up
- * resultante queda "genérica" del lado del servidor y sirve para aprobar
- * cualquier tarifa/expediente de cualquier organización dentro de su
- * vigencia (ver docstring de `verifyStepUp` en lib/api/twofa.ts).
+ * R5-09: la organización (para `X-Org-Id`) y el `purpose` de la acción
+ * concreta (declarado por el llamador, ver `StepUpDialog`) viajan SIEMPRE --
+ * sin ellos, la sesión de step-up resultante queda "genérica" del lado del
+ * servidor y sirve para aprobar cualquier tarifa/expediente de cualquier
+ * organización dentro de su vigencia (ver docstring de `verifyStepUp` en
+ * lib/api/twofa.ts).
+ *
+ * RF-01 (docs/auditoria-2/ronda5-final.md): por defecto usa la
+ * organización activa (`currentOrgId`, mismo comportamiento que antes de
+ * esta ronda), pero acepta un `orgId` explícito que la sobreescribe --
+ * necesario para la aprobación CROSS-ORG de tool_calls
+ * (AprobacionesBackofficePage): `requireStepUp` exige que la sesión esté
+ * atada EXACTO a la organización dueña de la tool_call, no a la
+ * organización activa del superadmin (que puede ser otra o no existir).
  */
 export function useVerifyStepUp() {
   const { currentOrgId } = useAuth();
   return useMutation({
-    mutationFn: ({ code, purpose }: { code: string; purpose: string }) => {
-      if (!currentOrgId) throw new Error("No hay una organización activa para pedir el step-up.");
-      return verifyStepUp(code, currentOrgId, purpose);
+    mutationFn: ({ code, purpose, orgId }: { code: string; purpose: string; orgId?: string }) => {
+      const targetOrgId = orgId ?? currentOrgId;
+      if (!targetOrgId) throw new Error("No hay una organización activa para pedir el step-up.");
+      return verifyStepUp(code, targetOrgId, purpose);
     },
   });
 }

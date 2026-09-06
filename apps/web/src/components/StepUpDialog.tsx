@@ -25,6 +25,16 @@ export interface StepUpDialogProps {
    * `useVerifyStepUp`.
    */
   purpose: string;
+  /**
+   * RF-01 (docs/auditoria-2/ronda5-final.md): organización a la que debe
+   * atarse la sesión de step-up (`X-Org-Id`). Por defecto usa la
+   * organización activa (`useAuth().currentOrgId`, mismo comportamiento
+   * que antes de esta ronda) -- se declara explícito solo cuando la acción
+   * es CROSS-ORG (aprobación de tool_calls del back office) y la
+   * organización relevante es la DUEÑA del recurso, no la activa del
+   * superadmin.
+   */
+  orgId?: string;
   title?: string;
   description?: string;
 }
@@ -37,7 +47,7 @@ export interface StepUpDialogProps {
  * RevisionPage. Si el usuario no tiene 2FA enrolado, lo dirige a
  * Configuración en vez de pedir un código que la API rechazaría igual.
  */
-export function StepUpDialog({ open, onOpenChange, onVerified, purpose, title, description }: StepUpDialogProps) {
+export function StepUpDialog({ open, onOpenChange, onVerified, purpose, orgId, title, description }: StepUpDialogProps) {
   const { data: status, isLoading, isError, error: statusError, refetch } = useTwoFactorStatus();
   const verifyStepUp = useVerifyStepUp();
   const [code, setCode] = useState("");
@@ -47,7 +57,7 @@ export function StepUpDialog({ open, onOpenChange, onVerified, purpose, title, d
     e.preventDefault();
     setError(null);
     try {
-      const result = await verifyStepUp.mutateAsync({ code: code.trim(), purpose });
+      const result = await verifyStepUp.mutateAsync({ code: code.trim(), purpose, orgId });
       setCode("");
       onOpenChange(false);
       onVerified(result.stepUpToken);

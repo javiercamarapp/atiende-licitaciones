@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { ShieldCheck, Check, X } from "lucide-react";
 
+import { StepUpDialog } from "@/components/StepUpDialog";
 import { SectionHeader } from "@/components/layout/SectionHeader";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -24,6 +26,35 @@ export default function AprobacionesBackofficePage() {
   const { data: approvals, isLoading, isError, error, refetch } = useAdminApprovals();
   const approve = useApproveAdminToolCall();
   const deny = useDenyAdminToolCall();
+
+  // RF-01 (docs/auditoria-2/ronda5-final.md): R5-11 (apps/api) exige
+  // `X-Step-Up` (purpose="admin.action") tanto para aprobar como para
+  // denegar cross-org -- se guarda la tool_call objetivo, SU organización
+  // dueña (`orgId` de la propia fila, no la organización activa del
+  // superadmin) y la acción concreta mientras el modal está abierto.
+  const [stepUpTarget, setStepUpTarget] = useState<{ id: string; orgId: string; action: "approve" | "deny" } | null>(null);
+
+  const onVerifiedStepUp = (stepUpToken: string) => {
+    if (!stepUpTarget) return;
+    const { id, action } = stepUpTarget;
+    if (action === "approve") {
+      approve.mutate(
+        { id, stepUpToken },
+        {
+          onSuccess: () => toast.success("Tool_call aprobada."),
+          onError: (err) => toast.error(describeApiError(err)),
+        },
+      );
+    } else {
+      deny.mutate(
+        { id, stepUpToken },
+        {
+          onSuccess: () => toast.success("Tool_call denegada."),
+          onError: (err) => toast.error(describeApiError(err)),
+        },
+      );
+    }
+  };
 
   return (
     <div>
@@ -66,12 +97,7 @@ export default function AprobacionesBackofficePage() {
                         size="sm"
                         className="gap-1.5"
                         disabled={approve.isPending || deny.isPending}
-                        onClick={() => {
-                          approve.mutate(a.id, {
-                            onSuccess: () => toast.success("Tool_call aprobada."),
-                            onError: (err) => toast.error(describeApiError(err)),
-                          });
-                        }}
+                        onClick={() => setStepUpTarget({ id: a.id, orgId: a.orgId, action: "approve" })}
                       >
                         <Check className="h-4 w-4" aria-hidden="true" />
                         Aprobar
@@ -82,12 +108,7 @@ export default function AprobacionesBackofficePage() {
                         variant="destructive"
                         className="gap-1.5"
                         disabled={approve.isPending || deny.isPending}
-                        onClick={() => {
-                          deny.mutate(a.id, {
-                            onSuccess: () => toast.success("Tool_call denegada."),
-                            onError: (err) => toast.error(describeApiError(err)),
-                          });
-                        }}
+                        onClick={() => setStepUpTarget({ id: a.id, orgId: a.orgId, action: "deny" })}
                       >
                         <X className="h-4 w-4" aria-hidden="true" />
                         Denegar
@@ -100,6 +121,26 @@ export default function AprobacionesBackofficePage() {
           </CardContent>
         </Card>
       )}
+      <StepUpDialog
+        open={stepUpTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setStepUpTarget(null);
+        }}
+        title={
+          stepUpTarget?.action === "deny"
+            ? "Verificación en dos pasos para denegar la tool_call"
+            : "Verificación en dos pasos para aprobar la tool_call"
+        }
+        description="Aprobar o denegar una tool_call (cross-org) exige confirmar tu identidad con un segundo factor (R5-11)."
+        // R5-11: debe coincidir EXACTO con el `purpose` que
+        // `POST /admin/tool-calls/:id/approve|deny` exige en su
+        // `requireStepUp` (ver apps/api/src/modules/admin/routes.ts) --
+        // atado a la organización DUEÑA de la tool_call (`a.orgId`), no a
+        // la organización activa del superadmin.
+        purpose="admin.action"
+        orgId={stepUpTarget?.orgId}
+        onVerified={onVerifiedStepUp}
+      />
     </div>
   );
 }
