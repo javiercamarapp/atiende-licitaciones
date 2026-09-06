@@ -210,6 +210,50 @@ conecta desde `apps/web`:
   incluir "poder notarial" (evidencia reconocida para un representante
   legal).
 
+### Ronda 5, corrección post-auditoría — RF-01/02/03 (`docs/auditoria-2/ronda5-final.md`)
+
+Un agente auditor adversarial independiente (`docs/auditoria-2/ronda5-final.md`)
+encontró tres defectos reales tras el cierre de arriba, corregidos en esta
+ronda (uno por commit; ver la columna "Estado reparación" de ese documento
+para el detalle completo con hashes):
+
+- **RF-01 (MEDIA-ALTA)**: `apps/web` nunca se actualizó tras R5-11 de
+  `apps/api` (aprobar/denegar una `tool_call` exige `X-Step-Up`) —
+  "Agentes y herramientas" (org-scoped, `purpose="tool_call.approval"`) y
+  "Aprobaciones" del back office (cross-org, `purpose="admin.action"`)
+  mutaban directo, sin pedir ningún código, así que siempre fallarían con
+  403 en cuanto existiera una `tool_call` pendiente real. Se agrega
+  `StepUpDialog` a ambas pantallas (mismo patrón que
+  `TarifasAprobadasPage`/`RevisionPage`); el caso cross-org necesitó un
+  `orgId` explícito en `StepUpDialog`/`useVerifyStepUp` (por defecto usa
+  la organización activa) porque la sesión de step-up debe atarse a la
+  organización DUEÑA de la `tool_call`, no a la del superadmin. Sin test
+  E2E con una `tool_call` real sembrada vía API: `apps/api` no expone
+  ninguna ruta HTTP para crear una (solo `INSERT` directo, usado por sus
+  propios tests) y esta corrección tenía prohibido tocar `apps/api`.
+- **RF-02 (MEDIA)**: `AuthProvider.bootstrap()` llamaba a la función de
+  refresh directo, sin pasar por el mismo mutex (`refreshInFlight`) que
+  ya protegía el reintento automático tras un 401 de `apiRequest` — dos
+  llamadas casi simultáneas con el MISMO refresh token (de un solo uso)
+  podían hacer que `apps/api` respondiera 200 a una y 401 a la otra, y el
+  `catch` de la perdedora borraba el token recién rotado por la ganadora,
+  deslogueando a un usuario con sesión válida (reproducido en vivo por la
+  auditoría, en `vite dev` Y en el build de producción real con `vite
+  preview`). `client.ts` agrega `refreshSessionOnce()` como único punto de
+  entrada externo; `bootstrap()` lo usa ahora. El lock cross-tab
+  (multi-pestaña, cada una con su propio mutex en memoria de módulo)
+  queda fuera de esta corrección puntual.
+- **RF-03 (BAJA)**: el enrolamiento de 2FA prometía "escanea el código
+  QR" pero no renderizaba ningún QR real. Se agrega la dependencia
+  `qrcode` (generación 100% en cliente, sin red) y un `<canvas
+  role="img">` con el QR real del `otpauthUrl`; el secreto/URL en texto
+  plano se conservan sin cambios como alternativa accesible.
+- **RF-04** (contraste del toast de "Propuesta económica generada" en
+  `test:e2e:full`) ya estaba cerrado antes de esta corrección (commit
+  `40b3dfe`, en `main` pero fuera del HEAD que congeló la auditoría) — se
+  reprodujo `test:e2e:full` 2/2 veces en esta ronda como verificación:
+  **116 passed, 0 failed** ambas corridas, sin código nuevo.
+
 ## Ronda 4 — correcciones de la auditoría adversarial (WI-01..05)
 
 `docs/auditoria-2/web-integrado.md` (auditor independiente, solo hallazgo)
