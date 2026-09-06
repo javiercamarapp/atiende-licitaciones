@@ -1,9 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "vite",
-  "installCommand": "cd ../.. && npm ci",
-  "buildCommand": "cd ../.. && npm run build --workspace apps/web",
-  "outputDirectory": "dist",
+  "installCommand": "npm ci",
+  "buildCommand": "npm run build --workspace apps/web",
+  "outputDirectory": "apps/web/dist",
+  "framework": null,
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
   "headers": [
     { "source": "/(.*)", "headers": [

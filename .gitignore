@@ -9,3 +9,6 @@ coverage/
 .pglite/
 playwright-report/
 test-results/
+.vercel/
+.vercel
+.env*
