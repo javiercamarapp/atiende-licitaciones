@@ -1,0 +1,62 @@
+=== npm install (raíz) ===
+2026-09-06T01:01:56Z
+
+up to date, audited 637 packages in 988ms
+
+199 packages are looking for funding
+  run `npm fund` for details
+
+5 vulnerabilities (3 moderate, 1 high, 1 critical)
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+
+=== npm run -w packages/agents typecheck ===
+
+> @atiende/agents@0.1.0 typecheck
+> tsc --noEmit
+
+
+=== npm run -w packages/agents lint ===
+
+> @atiende/agents@0.1.0 lint
+> eslint src test
+
+
+=== npm run -w packages/agents test ===
+
+> @atiende/agents@0.1.0 test
+> vitest run
+
+
+ RUN  v2.1.9 /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/packages/agents
+
+ ✓ test/no-fabrication.test.ts (6 tests) 6ms
+ ✓ test/llm/openai-responses-provider.test.ts (9 tests) 7ms
+ ✓ test/guardrails.test.ts (13 tests) 7ms
+ ✓ test/idempotency.test.ts (6 tests) 7ms
+ ✓ test/authorization.test.ts (11 tests) 8ms
+ ✓ test/retry.test.ts (13 tests) 11ms
+ ✓ test/tool-registry.test.ts (7 tests) 5ms
+ ✓ test/llm/router.test.ts (16 tests) 8ms
+ ✓ test/agent-runner.test.ts (22 tests) 46ms
+ ✓ test/rate-limiter.test.ts (6 tests) 2ms
+ ✓ test/llm/fake-provider.test.ts (6 tests) 4ms
+ ✓ test/budget-ledger.test.ts (7 tests) 5ms
+ ✓ test/dependency-invalidation.test.ts (5 tests) 3ms
+
+ Test Files  13 passed (13)
+      Tests  127 passed (127)
+   Start at  19:01:59
+   Duration  983ms (transform 488ms, setup 0ms, collect 910ms, tests 118ms, environment 2ms, prepare 1.09s)
+
+
+=== npm run -w packages/agents build ===
+
+> @atiende/agents@0.1.0 build
+> tsc -p tsconfig.build.json
+
+
+=== fin 2026-09-06T01:02:01Z ===
