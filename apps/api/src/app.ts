@@ -6,6 +6,7 @@ import cors from '@fastify/cors';
 import { serializerCompiler, validatorCompiler, jsonSchemaTransform } from 'fastify-type-provider-zod';
 import type { DbClient } from '@atiende/db';
 import { applyMigrations } from '@atiende/db';
+import type { MailProvider } from '@atiende/mail';
 import type { AppConfig } from './config.js';
 import { authPlugin } from './plugins/auth.plugin.js';
 import { superadminPlugin } from './plugins/superadmin.plugin.js';
@@ -52,6 +53,8 @@ export interface BuildAppOptions {
   db: DbClient;
   config: AppConfig;
   logger?: boolean;
+  /** REQ-181..195: `MailProvider` explícito en vez del que resuelve `MAIL_PROVIDER` -- ver `lib/mail/env.ts`. */
+  mailProvider?: MailProvider;
 }
 
 // AE-15 (docs/auditoria-2/api-expediente-reverificacion.md, BAJA): el
@@ -77,7 +80,11 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   app.decorate('config', options.config);
   app.decorate('rateLimitSettings', getRateLimitSettings(options.config.rateLimitProfile));
   // REQ-181..195: MailService único del proceso -- ver lib/mail/env.ts.
-  const builtMail = buildMailServiceFromEnv({ db: options.db, mailLinkSecret: options.config.mailLinkSecret });
+  const builtMail = buildMailServiceFromEnv({
+    db: options.db,
+    mailLinkSecret: options.config.mailLinkSecret,
+    provider: options.mailProvider,
+  });
   app.decorate('mail', builtMail.mail);
   app.decorate('mailProvider', builtMail.provider);
   const pendingMail = new PendingMailTracker();

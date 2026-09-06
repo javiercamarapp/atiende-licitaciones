@@ -8,6 +8,16 @@ export interface BuildMailServiceOptions {
   db: DbClient;
   mailLinkSecret: string;
   env?: NodeJS.ProcessEnv;
+  /**
+   * `MailProvider` explícito, en vez del que resolvería `MAIL_PROVIDER`. Es
+   * una costura de inyección de dependencia real, no un atajo de pruebas: el
+   * mismo `MailService` lo necesita `apps/worker` (que construye el suyo con
+   * las mismas piezas) y lo necesitan las pruebas que ejercen el camino de
+   * FALLO del proveedor -- reintentos agotados, job `mail_retry`,
+   * `not_configured` -- que por definición no se puede provocar con un
+   * proveedor real sin salir a la red.
+   */
+  provider?: MailProvider;
 }
 
 export interface BuiltMailService {
@@ -53,7 +63,7 @@ export interface BuiltMailService {
  */
 export function buildMailServiceFromEnv(options: BuildMailServiceOptions): BuiltMailService {
   const env = options.env ?? process.env;
-  const provider = createMailProviderFromEnv(env);
+  const provider = options.provider ?? createMailProviderFromEnv(env);
   const store = new PgSendRecordStore(options.db);
   const suppressionStore = new PgSuppressionStore(options.db);
   const linkSigner = createLinkSigner(options.mailLinkSecret);

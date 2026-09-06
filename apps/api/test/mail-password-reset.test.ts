@@ -5,11 +5,12 @@ import { createTestApp, registerAndLogin } from './helpers.js';
 import { allMail, lastMailTo, signedParamsFrom, urlFrom } from './helpers/mail.js';
 
 /**
- * S5 / REQ-181 (plantilla `password-reset`) + paridad Ronda G: recuperación
- * de contraseña con token de un solo uso, hasheado en base, y revocación de
- * TODAS las sesiones al completarla.
+ * REQ-186 (enlaces firmados con expiración, rechazados en servidor si están
+ * vencidos o alterados) + paridad Ronda G: recuperación de contraseña con
+ * token de un solo uso, hasheado en base, y revocación de TODAS las sesiones
+ * al completarla.
  */
-describe('S5/REQ-181: recuperación de contraseña', () => {
+describe('REQ-186: recuperación de contraseña', () => {
   let app: FastifyInstance;
   let db: DbClient;
   const EMAIL = 'reset@example.com';

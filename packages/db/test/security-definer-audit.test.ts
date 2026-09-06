@@ -122,6 +122,8 @@ const SECURITY_DEFINER_WHITELIST: Record<string, string> = {
     'Idéntico a app.create_email_verification_token, para password_reset_tokens.',
   'app.reset_password_with_token(text,text)':
     'Consumo ATÓMICO de un solo uso por posesión de p_token_hash (mismo criterio que consume_email_verification_token); el UPDATE de users.password_hash y la revocación de refresh tokens (revoke_all_refresh_tokens) operan SIEMPRE sobre el user_id resuelto de la propia fila de token consumida, nunca de un parámetro externo.',
+  'app.enqueue_mail_retry(uuid,uuid,jsonb,integer,integer,text)':
+    'REQ-188 (0086): encola el reintento diferido de un correo cuyo envío agotó los reintentos de MailService. Es SECURITY DEFINER porque un correo de verificación o de restablecimiento de contraseña no tiene organización NI sesión (org_id NULL, app.current_org_id() NULL) y la política ins_jobs (0028) rechazaría ese INSERT -- relajar esa política habría abierto la cola de trabajo entera a cualquier usuario autenticado. Está ACOTADA en SQL a kind = "mail_retry" (nunca un kind/status arbitrario) y exige un payload con messageKey; p_org_id solo etiqueta el job para el worker y no concede acceso a nada (jobs.org_id no es una credencial: quien lea la cola sigue pasando por ins_jobs/sel_jobs).',
 };
 
 async function fetchSecurityDefinerFunctions(db: DbClient): Promise<SecdefRow[]> {

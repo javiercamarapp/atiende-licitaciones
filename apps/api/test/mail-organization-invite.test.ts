@@ -5,16 +5,20 @@ import { createTestApp, registerAndLogin, createOrgFor } from './helpers.js';
 import { allMail, lastMailTo, urlFrom } from './helpers/mail.js';
 
 /**
- * S6 / REQ-181 (plantilla `organization-invite`): la invitación a una
+ * S5 / REQ-186 (docs/ACEPTACION.md): "correo de invitación con enlace
+ * firmado expira y es rechazado tras vencer". La invitación a una
  * organización ahora LLEGA POR CORREO, con el mismo token que la respuesta
- * de la API ya devolvía, envuelto en un enlace firmado con expiración.
+ * de la API ya devolvía, envuelto en un enlace firmado con expiración; y
+ * `POST /organizations/invitations/accept` acepta ese enlace (`d`/`s`)
+ * verificando firma y vencimiento EN EL SERVIDOR.
  *
  * Lo que se prueba aquí y no en `auth-and-orgs-flow.test.ts` (que cubre el
  * flujo de membresías en sí): que el correo sale, que el enlace es firmado y
- * apunta a `apps/web`, que el token del enlace es el que ACEPTA la
- * invitación de verdad, y que un reintento idempotente no manda dos correos.
+ * apunta a `apps/web`, que el enlace ACEPTA la invitación de verdad, que un
+ * enlace vencido o alterado se rechaza, y que un reintento idempotente no
+ * manda dos correos.
  */
-describe('S6/REQ-181: invitación a organización por correo', () => {
+describe('S5/REQ-186: invitación a organización por correo', () => {
   let app: FastifyInstance;
   let db: DbClient;
 
@@ -76,6 +80,73 @@ describe('S6/REQ-181: invitación a organización por correo', () => {
     });
     expect(accept.statusCode).toBe(200);
     expect(accept.json()).toMatchObject({ orgId: org.id, role: 'analyst' });
+  });
+
+  it('S5: el enlace del correo acepta la invitación tal cual (d/s), y VENCIDO o ALTERADO se rechaza en el servidor', async () => {
+    const { owner, org } = await ownerConOrg();
+    const res = await invitar(owner, org.id, 'enlace@example.com');
+    const url = urlFrom(await lastMailTo(app, 'enlace@example.com'), '/invitaciones/aceptar');
+    const d = url.searchParams.get('d')!;
+    const s = url.searchParams.get('s')!;
+    const { token } = JSON.parse(Buffer.from(d, 'base64url').toString('utf8')) as { token: string };
+
+    const invitada = await registerAndLogin(app, 'enlace@example.com');
+    const headers = { authorization: `Bearer ${invitada.accessToken}` };
+
+    // Firma alterada: rechazada ANTES de tocar `app.accept_invitation`.
+    const alterado = await app.inject({
+      method: 'POST',
+      url: '/organizations/invitations/accept',
+      headers,
+      payload: { d, s: `${s.slice(0, -2)}AA` },
+    });
+    expect(alterado.statusCode).toBe(400);
+
+    // Enlace VENCIDO: mismo token real, firmado por el mismo servicio, con
+    // TTL negativo -- aísla la expiración como única variable.
+    const vencidoUrl = new URL(
+      app.mail.signedLink(app.config.publicUrl, '/invitaciones/aceptar', { invitationId: res.json().id, token }, -60)
+    );
+    const vencido = await app.inject({
+      method: 'POST',
+      url: '/organizations/invitations/accept',
+      headers,
+      payload: { d: vencidoUrl.searchParams.get('d')!, s: vencidoUrl.searchParams.get('s')! },
+    });
+    expect(vencido.statusCode).toBe(400);
+    expect(vencido.json().title).toBe(alterado.json().title); // mismo mensaje, sin distinguir el motivo
+
+    // Ninguno de los dos intentos concedió membresía.
+    const sinMembresia = await db.query<{ id: string }>('select id from memberships where user_id = $1', [invitada.id]);
+    expect(sinMembresia.rows.length).toBe(0);
+
+    // El enlace ÍNTEGRO y vigente sí funciona.
+    const ok = await app.inject({ method: 'POST', url: '/organizations/invitations/accept', headers, payload: { d, s } });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json()).toMatchObject({ orgId: org.id, role: 'analyst' });
+  });
+
+  it('S5: una invitación VENCIDA en base se rechaza aunque el enlace firmado siga vigente', async () => {
+    const { owner, org } = await ownerConOrg();
+    const res = await invitar(owner, org.id, 'caducada@example.com');
+    const url = urlFrom(await lastMailTo(app, 'caducada@example.com'), '/invitaciones/aceptar');
+
+    // La invitación caduca en base (7 días) con independencia del TTL del
+    // enlace: se fuerza el vencimiento para comprobar que la segunda barrera
+    // también existe.
+    await db.query("update invitations set expires_at = now() - interval '1 day' where id = $1", [res.json().id]);
+
+    const invitada = await registerAndLogin(app, 'caducada@example.com');
+    const intento = await app.inject({
+      method: 'POST',
+      url: '/organizations/invitations/accept',
+      headers: { authorization: `Bearer ${invitada.accessToken}` },
+      payload: { d: url.searchParams.get('d')!, s: url.searchParams.get('s')! },
+    });
+    expect(intento.statusCode).toBeGreaterThanOrEqual(400);
+
+    const sinMembresia = await db.query<{ id: string }>('select id from memberships where user_id = $1', [invitada.id]);
+    expect(sinMembresia.rows.length).toBe(0);
   });
 
   it('el token en claro NO se persiste: en `invitations` solo vive su hash', async () => {

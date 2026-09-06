@@ -4,6 +4,13 @@ import { getTemplate } from '@atiende/mail';
 import type { NotificationPreferences, RegisteredRecipient, SendOutcome } from '@atiende/mail';
 import { readNotificationPreferences } from './preferences.js';
 
+/** Espera antes del PRIMER reintento diferido: `MailService` ya agotó su
+ *  propio backoff (segundos) dentro de la misma llamada, así que este job
+ *  existe para una caída MÁS LARGA que eso -- reintentarlo de inmediato solo
+ *  gastaría un intento. */
+const MAIL_RETRY_DELAY_SECONDS = 300;
+const MAIL_RETRY_MAX_ATTEMPTS = 5;
+
 export interface SendTransactionalMailInput<V = unknown> {
   to: RegisteredRecipient | RegisteredRecipient[];
   templateId: string;
@@ -75,22 +82,28 @@ export async function sendTransactionalMail<V>(app: FastifyInstance, input: Send
   if (outcome.status === 'dead') {
     await app.db.transaction(async (tx) => {
       await tx.query('set local role app_role');
-      await tx.query(
-        `insert into jobs (id, org_id, kind, payload, status, next_run_at, max_attempts)
-         values ($1, $2, 'mail_retry', $3::jsonb, 'queued', now() + interval '5 minutes', 5)`,
-        [
-          randomUUID(),
-          input.orgId ?? null,
-          JSON.stringify({
-            templateId: input.templateId,
-            to: input.to,
-            variables: input.variables,
-            messageKey: input.messageKey,
-            preferences: input.preferences ?? null,
-            fromLocalPart: input.fromLocalPart ?? null,
-          }),
-        ],
-      );
+      // `app.enqueue_mail_retry` (SECURITY DEFINER, migración 0086) y no un
+      // INSERT directo: la política `ins_jobs` (0028) exige `worker_role`,
+      // superadmin, o un miembro de la organización DUEÑA del job -- y un
+      // correo de verificación o de restablecimiento de contraseña no tiene
+      // ni organización ni sesión, así que el INSERT directo se rechazaba
+      // por RLS justo para los correos más críticos. La función está acotada
+      // a `kind = 'mail_retry'`: nunca permite crear un job arbitrario.
+      await tx.query('select app.enqueue_mail_retry($1, $2, $3::jsonb, $4, $5, $6)', [
+        randomUUID(),
+        input.orgId ?? null,
+        JSON.stringify({
+          templateId: input.templateId,
+          to: input.to,
+          variables: input.variables,
+          messageKey: input.messageKey,
+          preferences: input.preferences ?? null,
+          fromLocalPart: input.fromLocalPart ?? null,
+        }),
+        MAIL_RETRY_DELAY_SECONDS,
+        MAIL_RETRY_MAX_ATTEMPTS,
+        null,
+      ]);
     });
   }
 

@@ -49,9 +49,26 @@ export const changeRoleBodySchema = z.object({
 
 export const memberParamsSchema = z.object({ userId: z.string().uuid() });
 
-export const acceptInvitationBodySchema = z.object({
-  token: z.string().min(1),
-});
+/**
+ * REQ-186 (S5): aceptar una invitación admite DOS formas de presentar la
+ * misma credencial, nunca dos credenciales distintas:
+ *
+ *  - `token`: el token en claro que devuelve `POST /organizations/invitations`
+ *    (back office, o un despliegue sin proveedor de correo configurado).
+ *  - `d`/`s`: los dos parámetros del ENLACE FIRMADO que llegó por correo.
+ *    La API verifica la firma HMAC y su expiración y saca de ahí el mismo
+ *    `token` -- un enlace alterado o vencido se rechaza en el SERVIDOR,
+ *    antes de tocar `app.accept_invitation`.
+ */
+export const acceptInvitationBodySchema = z
+  .object({
+    token: z.string().min(1).optional(),
+    d: z.string().min(1).max(4096).optional(),
+    s: z.string().min(1).max(512).optional(),
+  })
+  .refine((v) => Boolean(v.token) || (Boolean(v.d) && Boolean(v.s)), {
+    message: 'Envía `token`, o los parámetros `d`/`s` del enlace del correo de invitación',
+  });
 
 export const acceptedInvitationSchema = z.object({
   orgId: z.string().uuid(),

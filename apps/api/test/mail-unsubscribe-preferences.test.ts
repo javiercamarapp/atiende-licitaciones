@@ -8,14 +8,16 @@ import { sendTransactionalMail } from '../src/lib/mail/send-transactional.js';
 import { registeredUserRecipient } from '../src/lib/mail/recipients.js';
 
 /**
- * S12 / REQ-181..195: baja de un clic (RFC 8058) y centro de preferencias.
+ * S6 / REQ-187 (docs/ACEPTACION.md): "baja de notificaciones respetada
+ * (salvo transaccionales de seguridad)" -- baja de un clic (RFC 8058) y
+ * centro de preferencias.
  *
  * La prueba que de verdad importa no es que la fila cambie, sino que
  * DEJE DE LLEGAR el correo: por eso varios casos mandan una plantilla
  * OPCIONAL real (`deadline-reminder`) por el mismo camino de producción
  * (`sendTransactionalMail`) antes y después de la baja.
  */
-describe('S12/REQ-181: baja de un clic (RFC 8058) y preferencias', () => {
+describe('S6/REQ-187: baja de un clic (RFC 8058) y preferencias', () => {
   let app: FastifyInstance;
   let db: DbClient;
   let usuario: RegisteredUser;

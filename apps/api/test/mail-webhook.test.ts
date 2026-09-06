@@ -8,16 +8,16 @@ import { sendTransactionalMail } from '../src/lib/mail/send-transactional.js';
 import { registeredUserRecipient } from '../src/lib/mail/recipients.js';
 
 /**
- * S12 / REQ-181..195: webhook de entrega/rebote del proveedor
- * (`POST /webhooks/mail/resend`), con verificación de firma Svix y guardia
- * de replay (ML-05) -> lista de supresión.
+ * REQ-181..195 (docs/AMPLIACION-2-SALIDA.md §2): webhook de entrega/rebote
+ * del proveedor (`POST /webhooks/mail/resend`), con verificación de firma
+ * Svix y guardia de replay (ML-05) -> lista de supresión.
  *
  * Todo lo de aquí entra sin autenticar desde Internet: cada caso adversarial
  * comprueba no solo el status, sino que NO haya efecto de negocio.
  */
 const WEBHOOK_SECRET = `whsec_${Buffer.from('secreto-de-webhook-de-prueba-0123456789').toString('base64')}`;
 
-describe('S12/REQ-181: webhook de correo (firma Svix + anti-replay -> supresión)', () => {
+describe('REQ-181..195: webhook de correo (firma Svix + anti-replay -> supresión)', () => {
   let app: FastifyInstance;
   let db: DbClient;
 

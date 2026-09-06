@@ -5,16 +5,17 @@ import { createTestApp } from './helpers.js';
 import { allMail, lastMailTo, signedParamsFrom, urlFrom } from './helpers/mail.js';
 
 /**
- * REQ-181..195 / S4 (docs/ACEPTACION.md): verificación de correo al
+ * REQ-186/REQ-189 (docs/ACEPTACION.md): verificación de correo al
  * registrarse -- envío, confirmación de un solo uso, reenvío acotado y la
- * compuerta de `POST /auth/login`.
+ * compuerta de `POST /auth/login`. (La fila S4 de `ACEPTACION.md` es otra
+ * cosa: el render de cada plantilla, que vive en `packages/mail`.)
  *
  * Todas las pruebas usan el `CaptureProvider` (ningún `MAIL_PROVIDER`
  * definido, ver `test/helpers/mail.ts`): el correo NUNCA sale a la red, y
  * aun así se verifica su contenido real -- asunto, enlace firmado y el hecho
  * de que el token en claro solo existe dentro del mensaje.
  */
-describe('S4/REQ-181: verificación de correo', () => {
+describe('REQ-186/REQ-189: verificación de correo', () => {
   let app: FastifyInstance;
   let db: DbClient;
   const EMAIL = 'verificacion@example.com';

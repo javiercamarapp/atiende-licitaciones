@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { createPgliteClient } from '@atiende/db';
 import type { DbClient } from '@atiende/db';
 import type { FastifyInstance } from 'fastify';
+import type { MailProvider } from '@atiende/mail';
 import { buildApp } from '../src/app.js';
 import { loadConfig, type AppConfig } from '../src/config.js';
 import { generateTotpCodeForTesting } from '../src/lib/step-up.js';
@@ -18,7 +19,21 @@ export const TEST_TOTP_ENCRYPTION_KEY = 'test-totp-encryption-key-do-not-use-012
 // createMailProviderFromEnv).
 export const TEST_MAIL_LINK_SECRET = 'test-mail-link-secret-do-not-use-01234567890';
 
-export async function createTestApp(overrides: Partial<AppConfig> = {}): Promise<{ app: FastifyInstance; db: DbClient }> {
+export interface CreateTestAppOptions {
+  /**
+   * REQ-181..195: `MailProvider` explícito. Sin él se usa el que resuelve
+   * `MAIL_PROVIDER` -- que ninguna suite define, así que es siempre el
+   * `CaptureProvider` (nada sale a la red). Solo las pruebas que ejercen el
+   * camino de FALLO del proveedor (reintentos agotados -> job `mail_retry`)
+   * necesitan uno propio.
+   */
+  mailProvider?: MailProvider;
+}
+
+export async function createTestApp(
+  overrides: Partial<AppConfig> = {},
+  options: CreateTestAppOptions = {}
+): Promise<{ app: FastifyInstance; db: DbClient }> {
   const db = await createPgliteClient();
   const config: AppConfig = {
     ...loadConfig({
@@ -34,7 +49,7 @@ export async function createTestApp(overrides: Partial<AppConfig> = {}): Promise
     autoMigrate: true,
     ...overrides,
   };
-  const app = await buildApp({ db, config, logger: false });
+  const app = await buildApp({ db, config, logger: false, mailProvider: options.mailProvider });
   await app.ready();
   return { app, db };
 }

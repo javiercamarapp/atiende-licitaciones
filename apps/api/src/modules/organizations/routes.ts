@@ -3,10 +3,11 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { MEMBERSHIP_ADMIN_ROLES, type DbExecutor } from '@atiende/db';
-import { ConflictError, ForbiddenError, UnauthorizedError } from '../../lib/errors.js';
+import { BadRequestError, ConflictError, ForbiddenError, UnauthorizedError } from '../../lib/errors.js';
 import { recordAudit } from '../../lib/audit.js';
 import { runIdempotent, hashRequestBody } from '../../lib/idempotency.js';
 import { fireAndForgetMail } from '../../lib/mail/pending.js';
+import { verifySignedMailParams } from '../../lib/mail/links.js';
 import { sendOrganizationInviteEmail } from '../../lib/mail/triggers.js';
 import { encodeCursor, decodeCursor, parsePageSize, toIsoString } from '../../lib/cursor.js';
 import {
@@ -402,7 +403,25 @@ export async function organizationRoutes(app: FastifyInstance): Promise<void> {
     },
     async (request) => {
       const userId = request.userId!;
-      const tokenHash = createHash('sha256').update(request.body.token).digest('hex');
+      // REQ-186 (S5): si vienen los parámetros del enlace firmado, la firma y
+      // su expiración se verifican AQUÍ -- un enlace alterado o vencido nunca
+      // llega a `app.accept_invitation`. El `token` que sale del payload
+      // firmado es el MISMO que devuelve la creación de la invitación: no hay
+      // dos credenciales, hay dos formas de presentar la misma.
+      let rawToken: string;
+      if (request.body.d && request.body.s) {
+        const payload = verifySignedMailParams<{ token?: string }>(app, '/invitaciones/aceptar', {
+          d: request.body.d,
+          s: request.body.s,
+        });
+        if (!payload || typeof payload.token !== 'string') {
+          throw new BadRequestError('El enlace de invitación no es válido o ya venció.');
+        }
+        rawToken = payload.token;
+      } else {
+        rawToken = request.body.token!;
+      }
+      const tokenHash = createHash('sha256').update(rawToken).digest('hex');
 
       let result: { org_id: string; role: string };
       try {

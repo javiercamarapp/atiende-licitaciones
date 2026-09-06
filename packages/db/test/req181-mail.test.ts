@@ -240,4 +240,40 @@ describe('REQ-181..195: esquema y funciones SECURITY DEFINER de correo', () => {
       ).rejects.toThrow(/record_auth_event_accion_no_permitida/);
     });
   });
+
+  describe('enqueue_mail_retry (0086, REQ-188/S7)', () => {
+    it('un INSERT directo en `jobs` SIN organización ni sesión lo rechaza la RLS (el motivo de esta función)', async () => {
+      // Reproduce el fallo real que encontró
+      // apps/api/test/mail-provider-and-retry.test.ts: un correo de
+      // verificación o de restablecimiento no tiene org NI sesión, así que
+      // `ins_jobs` (0028) no lo deja pasar.
+      await expect(
+        asActor(db, {}, (tx) =>
+          tx.query("insert into jobs (org_id, kind, payload, status) values (null, 'mail_retry', '{}'::jsonb, 'queued')")
+        )
+      ).rejects.toThrow(/row-level security/i);
+    });
+
+    it('encola el reintento sin organización ni sesión, siempre con kind = mail_retry', async () => {
+      const id = randomUUID();
+      await asActor(db, {}, (tx) =>
+        tx.query('select app.enqueue_mail_retry($1, null, $2::jsonb, 300, 5, null)', [
+          id,
+          JSON.stringify({ messageKey: 'email-verification:abc', templateId: 'email-verification' }),
+        ])
+      );
+
+      const { rows } = await db.query<{ kind: string; status: string; org_id: string | null; max_attempts: number }>(
+        'select kind, status, org_id, max_attempts from jobs where id = $1',
+        [id]
+      );
+      expect(rows).toEqual([{ kind: 'mail_retry', status: 'queued', org_id: null, max_attempts: 5 }]);
+    });
+
+    it('rechaza un payload sin `messageKey` (sin él, el reintento no sería idempotente)', async () => {
+      await expect(
+        asActor(db, {}, (tx) => tx.query('select app.enqueue_mail_retry($1, null, $2::jsonb, 300, 5, null)', [randomUUID(), '{}']))
+      ).rejects.toThrow(/enqueue_mail_retry_payload_sin_messageKey/);
+    });
+  });
 });

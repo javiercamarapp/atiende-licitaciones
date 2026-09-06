@@ -5,14 +5,14 @@ import { createTestApp } from './helpers.js';
 import { allMail, lastMailTo } from './helpers/mail.js';
 
 /**
- * S7 / Ampliación 2 §2: formulario de contacto público (`POST
- * /public/contact`) -- anónimo, deja registro en `contact_requests` (0083) y
- * avisa por correo INTERNO al buzón del equipo.
+ * S10 / REQ-196 (docs/ACEPTACION.md): "formulario de contacto crea registro
+ * y dispara correo interno". Anónimo, deja registro en `contact_requests`
+ * (0083) y avisa por correo INTERNO al buzón del equipo.
  *
  * El foco de estas pruebas es el anti-abuso: un endpoint anónimo que manda
  * correo es exactamente lo que busca un spammer.
  */
-describe('S7: contacto público con anti-abuso', () => {
+describe('S10/REQ-196: contacto público con anti-abuso', () => {
   let app: FastifyInstance;
   let db: DbClient;
 
