@@ -1,6 +1,22 @@
 {
   "url": "http://localhost:4173/panel",
-  "violations": [],
+  "violations": [
+    {
+      "id": "color-contrast",
+      "impact": "serious",
+      "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+      "help": "Elements must meet minimum color contrast ratio thresholds",
+      "nodes": [
+        {
+          "target": [
+            ".pb-4 > .inline-flex > .text-2xl.font-bold.tracking-tight"
+          ],
+          "html": "<span class=\"font-display text-2xl font-bold tracking-tight\" style=\"color: rgb(29, 78, 216);\">atiende</span>",
+          "failureSummary": "Fix any of the following:\n  Element has insufficient color contrast of 2.49 (foreground color: #1d4ed8, background color: #141e2e, font size: 18.0pt (24px), font weight: bold). Expected contrast ratio of 3:1"
+        }
+      ]
+    }
+  ],
   "passes": 36,
   "incomplete": []
 }

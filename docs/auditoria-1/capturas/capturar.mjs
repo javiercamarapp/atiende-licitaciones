@@ -103,13 +103,20 @@ async function main() {
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "dark" });
     const page = await ctx.newPage();
     await page.goto(`${BASE}/panel`, { waitUntil: "networkidle" });
-    // Forzar tema oscuro explícito vía el selector si "sistema" no basta
-    await page.evaluate(() => {
-      window.localStorage.setItem("atiende-tema", "oscuro");
-    });
-    await page.reload({ waitUntil: "networkidle" });
+    // Interactuar con el ThemeSelector real (clic en "Tema oscuro"), no simular
+    // vía localStorage con una clave adivinada — la clave real es
+    // "atiende-licitaciones-tema" (src/components/ThemeSelector.tsx).
+    await page.getByRole("radio", { name: "Tema oscuro" }).click();
+    await page.waitForTimeout(150);
+    const htmlHasDark = await page.evaluate(() => document.documentElement.classList.contains("dark"));
+    console.log(`theme: <html> tiene clase .dark tras clic en "Tema oscuro" = ${htmlHasDark}`);
     await page.screenshot({ path: path.join(__dirname, "07-panel-dark.png") });
     await runAxe(page, "panel-dark");
+
+    // Persistencia: recargar y confirmar que el tema oscuro se mantiene (localStorage)
+    await page.reload({ waitUntil: "networkidle" });
+    const htmlHasDarkAfterReload = await page.evaluate(() => document.documentElement.classList.contains("dark"));
+    console.log(`theme: <html> tiene clase .dark tras recargar = ${htmlHasDarkAfterReload}`);
     await ctx.close();
   }
 
@@ -125,16 +132,33 @@ async function main() {
     const hasHScroll = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
     console.log(`mobile[panel]: scrollWidth>clientWidth (scroll horizontal) = ${hasHScroll}`);
 
-    // Abrir drawer móvil
+    // Tamaño de targets ANTES de abrir el drawer: una vez abierto, Radix Dialog
+    // marca el resto de la página aria-hidden (comportamiento correcto de foco
+    // atrapado), y el propio botón que abrió el drawer deja de ser localizable
+    // por rol/nombre accesible mientras el diálogo está abierto.
     const menuButton = page.getByRole("button", { name: "Abrir menú de navegación" });
+    const btnBox = await menuButton.boundingBox();
+    console.log(`mobile[panel]: boton hamburguesa boundingBox (antes de abrir) = ${JSON.stringify(btnBox)}`);
+
+    // Abrir drawer móvil
     await menuButton.click();
     await page.waitForTimeout(350); // animación del Sheet
     await page.screenshot({ path: path.join(__dirname, "09-mobile-drawer-open.png") });
     await runAxe(page, "mobile-drawer-open");
 
-    // Tamaño de targets: medir el botón hamburguesa y el primer link de nav
-    const btnBox = await menuButton.boundingBox();
-    console.log(`mobile[panel]: boton hamburguesa boundingBox = ${JSON.stringify(btnBox)}`);
+    // Confirma que Radix deja el fondo inerte (aria-hidden) mientras el drawer está abierto
+    const backgroundInert = await page.evaluate(() => {
+      const aside = document.querySelector("aside");
+      return aside ? aside.closest("[aria-hidden='true']") !== null || aside.getAttribute("aria-hidden") === "true" : null;
+    });
+    console.log(`mobile[panel]: fondo marcado aria-hidden mientras el drawer está abierto = ${backgroundInert}`);
+
+    // Tamaño de targets dentro del drawer abierto (primer link de navegación).
+    // Ojo: hay dos <nav aria-label="Navegación principal"> en el DOM (sidebar
+    // desktop oculta + drawer móvil abierto) — acotar al diálogo abierto.
+    const firstNavLink = page.locator('[role="dialog"] nav[aria-label="Navegación principal"] a').first();
+    const linkBox = await firstNavLink.boundingBox();
+    console.log(`mobile[panel]: primer link de nav dentro del drawer boundingBox = ${JSON.stringify(linkBox)}`);
 
     // Cerrar con Escape
     await page.keyboard.press("Escape");
