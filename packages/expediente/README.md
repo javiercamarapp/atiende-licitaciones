@@ -15,17 +15,17 @@ Postgres.
 
 | Módulo | Responsabilidad | REQ |
 |---|---|---|
-| `requirement-matrix.ts` | `RequirementMatrixBuilder`: extrae `RequirementItem[]` de `TenderDocumentText` (bases/anexos/aclaraciones) vía `RuleBasedExtractor` (determinista, regex/léxico) y detecta `Conflict` entre documentos (plazos u obligatoriedad contradictorios) — nunca elige uno en silencio. | REQ-156, REQ-166 |
+| `requirement-matrix.ts` | `RequirementMatrixBuilder`: extrae `RequirementItem[]` de `TenderDocumentText` (bases/anexos/aclaraciones) vía `RuleBasedExtractor` (determinista, regex/léxico) y detecta `Conflict` entre documentos (plazos u obligatoriedad contradictorios) — nunca elige uno en silencio. `extractDeadline` reconoce "DD de mes de/del AAAA", "DD/MM/AAAA" y "DD-MM-AAAA". | REQ-156, REQ-166 |
 | `llm/extractor.ts` | Hook de extractor LLM (`LlmExtractorClient` + `LlmRequirementExtractor`) que se combina con el extractor de reglas en el mismo `RequirementMatrixBuilder`. `FakeLlmExtractorClient` para pruebas deterministas sin red. | REQ-156 |
-| `company-data.ts` | `CompanyDataResolver` (interfaz) + `CompanyDataService`: resuelve documentos/capacidades/experiencia/tarifas/firmantes con reglas duras — ausente → `missing`, vencido/no aprobado → `blocked`, nunca un valor inventado. | REQ-157, REQ-158, REQ-164, REQ-166 |
-| `technical-proposal.ts` | `TechnicalProposalBuilder`: mapea requisitos → dato de empresa aprobado, produce `ProposalStatement` con `source_ref` trazable; dato faltante/bloqueado = bloqueo de sección, nunca texto inventado. | REQ-157, REQ-164 |
-| `economic-proposal.ts` | `EconomicProposalBuilder`: cálculo económico 100% determinista (centavos en `bigint`, half-up), rechaza tarifas no aprobadas/vencidas de punta a punta (sin total parcial), genera carta + anexo desde el mismo objeto de totales (consistencia estructural). | REQ-029, REQ-030, REQ-157, REQ-160, REQ-164 |
-| `money.ts` | Aritmética monetaria en centavos (`bigint`), redondeo half-up explícito. | REQ-029 |
-| `number-to-words.ts` | Motor propio de "cantidad con letra" en español (apócope de "uno", "cien" vs "ciento", etc.), sin dependencias externas. | REQ-031 |
-| `proposal-version.ts` | `ProposalVersionRegistry`: versiona con hash sha256 de cada insumo usado (documento, dato, tarifa) y del conjunto. | REQ-161 |
+| `company-data.ts` | `CompanyDataResolver` (interfaz) + `CompanyDataService`: resuelve documentos/capacidades/experiencia/tarifas/firmantes con reglas duras — ausente → `missing`, vencido/no aprobado → `blocked`, nunca un valor inventado. Todas las fechas (`asOfIso`, `validFrom`, `expiresAt`) deben traer offset horario explícito (`assertExplicitOffset`); `resolveApprovedRate` lanza si `rate.currency !== "MXN"`. | REQ-157, REQ-158, REQ-164, REQ-166 |
+| `technical-proposal.ts` | `TechnicalProposalBuilder`: mapea requisitos → dato de empresa aprobado, produce `ProposalStatement` con `source_ref` trazable; dato faltante/bloqueado = bloqueo de sección, nunca texto inventado. Un requisito `obligatorio` sin evidencia mapeable NUNCA se omite: queda como sección "PENDIENTE" con `SectionBlocker`. | REQ-157, REQ-158, REQ-164 |
+| `economic-proposal.ts` | `EconomicProposalBuilder`: cálculo económico 100% determinista (centavos en `bigint`, half-up), rechaza tarifas no aprobadas/vencidas de punta a punta (sin total parcial), genera carta + anexo desde el mismo objeto de totales (consistencia estructural). El constructor valida `ivaRate` en `[0, maxIvaRate]` (default 0.3) vía `assertValidIvaRate`. | REQ-029, REQ-030, REQ-157, REQ-160, REQ-164 |
+| `money.ts` | Aritmética monetaria en centavos (`bigint`), redondeo half-up explícito. `multiplyQuantityHalfUp` rechaza `quantity > MAX_QUANTITY` (1e7). | REQ-029 |
+| `number-to-words.ts` | Motor propio de "cantidad con letra" en español (apócope de "uno"/"veintiuno" → "un"/"veintiún" también en `centsToPesosWords`, "cien" vs "ciento", "PESO" singular para $1.00, etc.), sin dependencias externas. | REQ-031 |
+| `proposal-version.ts` | `ProposalVersionRegistry`: versiona con hash sha256 de cada insumo usado (documento, dato, tarifa) y del conjunto; `inputChanged()` permite detectar si un insumo cambió desde una versión dada. | REQ-161 |
 | `integrity-checklist.ts` | `IntegrityChecklist`: 7 dimensiones independientes con resultado y evidencia propios — formatos, límites, firmas (solo "requiere firma del usuario", nunca firma), anexos obligatorios, vigencias, cálculos económicos, consistencia cruzada. | REQ-160 |
-| `approval-workflow.ts` | `ApprovalWorkflow`: borrador → en_revisión → aprobado; solo roles `reviewer`/`admin`/`owner` aprueban (nunca `writer`/`viewer`), autoaprobación prohibida; `recordChange` invalida aprobaciones según jerarquía de alcance (sección ⊂ documento ⊂ expediente). | REQ-159, REQ-161, REQ-162 |
-| `package-assembler.ts` | `PackageAssembler`: arma `PackageManifest` + ZIP real (`jszip`); `ready` solo si checklist verde + aprobación vigente de alcance expediente + sin faltantes; si no, `draft` con prefijo/marca "BORRADOR" en manifiesto y nombres de archivo. Incluye siempre el aviso de responsabilidad del usuario. | REQ-048, REQ-159, REQ-163 |
+| `approval-workflow.ts` | `ApprovalWorkflow`: borrador → en_revisión → aprobado; solo roles `reviewer`/`admin`/`owner` aprueban (nunca `writer`/`viewer`), autoaprobación prohibida; `recordChange` invalida aprobaciones según jerarquía de alcance (sección ⊂ documento ⊂ expediente). `revalidateAgainstCurrentHash`/`isFullyApprovedForCurrentHash` invalidan AUTOMÁTICAMENTE una aprobación vigente cuyo `inputsHash` ya no coincide con el hash actual de los insumos (REQ-162) — de llamada obligatoria en cada evaluación de "¿está aprobado?" antes de `assemble()`. | REQ-159, REQ-161, REQ-162 |
+| `package-assembler.ts` | `PackageAssembler`: arma `PackageManifest` + ZIP real (`jszip`); `ready` solo si checklist verde + existe una aprobación `vigente` de `scope === "expediente"` cuyo `inputsHash` coincide con `currentInputsHash` (recalculado por el llamador en cada ensamblaje) + sin faltantes; si no, `draft` con prefijo/marca "BORRADOR" y `draftReasons` explícitos. No existe ningún booleano `isFullyApproved` declarable desde afuera: "¿aprobado?" se deriva siempre de `approvals` dentro del assembler. Incluye siempre el aviso de responsabilidad del usuario. | REQ-048, REQ-159, REQ-161, REQ-162, REQ-163 |
 
 Todos los módulos se re-exportan desde `src/index.ts`.
 
@@ -38,6 +38,17 @@ Todos los módulos se re-exportan desde `src/index.ts`.
 - **Nunca "listo" por defecto**: `PackageAssembler.buildManifest` calcula
   `status` a partir de checklist + aprobaciones + faltantes; nunca hay una
   ruta que devuelva `"ready"` sin las tres condiciones.
+- **La invalidación de aprobaciones por cambio de insumo es AUTOMÁTICA**:
+  `ApprovalWorkflow.revalidateAgainstCurrentHash`/`isFullyApprovedForCurrentHash`
+  recalculan el hash actual y, si difiere del aprobado, invalidan la
+  aprobación y registran el evento — no depende de que alguien recuerde
+  llamar `recordChange` a mano. `PackageAssembler` además exige
+  `currentInputsHash === inputsHash` de la aprobación vigente de alcance
+  `"expediente"` como defensa independiente: `"ready"` es imposible con
+  hash divergente incluso si el llamador olvida revalidar.
+- **Fechas siempre con offset explícito**: `isPast`/`CompanyDataService`
+  rechazan (lanzan excepción) cualquier fecha ISO sin `"Z"`/`"±HH:MM"` — el
+  veredicto de vencimiento nunca depende del `TZ` del proceso Node.
 - **Nunca firma el sistema**: `IntegrityChecklist` solo lee
   `userConfirmedSigned` (provisto por el llamador); no existe método que lo
   ponga en `true` desde dentro del paquete.
@@ -62,7 +73,14 @@ Todos los módulos se re-exportan desde `src/index.ts`.
    `TechnicalProposalBuilder`/`EconomicProposalBuilder`, `IntegrityChecklist`,
    `ApprovalWorkflow` y `PackageAssembler` en ese orden; la descarga del ZIP
    final debe requerir sesión autenticada (fuera del alcance de este
-   paquete puro).
+   paquete puro). En cada evaluación (antes de cada `assemble()`), debe
+   recalcular el hash actual de los insumos de alcance "expediente" (p. ej.
+   con `ProposalVersionRegistry`) y llamar
+   `ApprovalWorkflow.isFullyApprovedForCurrentHash(currentHash)` — nunca
+   confiar en el estado de aprobación calculado en un momento anterior.
+   Todas las fechas persistidas deben incluir offset horario explícito (o
+   normalizarse a UTC con `"Z"`); `isPast`/`CompanyDataService` rechazan
+   cualquier fecha "naive".
 5. **Ningún endpoint de `apps/api` debe agregar una función de
    envío/firma/actuación en portal** — ese es exactamente el límite que
    este paquete fija y que `test/api-surface.test.ts` protege.

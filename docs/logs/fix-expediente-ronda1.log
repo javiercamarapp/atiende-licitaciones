@@ -1,0 +1,147 @@
+=== npm run -w packages/expediente typecheck ===
+
+> @atiende/expediente@0.1.0 typecheck
+> tsc --noEmit
+
+
+=== npm run -w packages/expediente lint ===
+
+> @atiende/expediente@0.1.0 lint
+> eslint src test
+
+
+=== npm run -w packages/expediente test ===
+
+> @atiende/expediente@0.1.0 test
+> vitest run
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/packages/expediente[39m
+
+ [32m✓[39m test/approval-workflow.test.ts [2m([22m[2m13 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/integrity-checklist.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/company-data.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/requirement-matrix.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m test/technical-proposal.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+ [32m✓[39m test/economic-proposal.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 9[2mms[22m[39m
+ [32m✓[39m test/proposal-invalidation.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 18[2mms[22m[39m
+ [32m✓[39m test/package-assembler.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 40[2mms[22m[39m
+ [32m✓[39m test/expediente-flow.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 35[2mms[22m[39m
+ [32m✓[39m test/number-to-words.test.ts [2m([22m[2m33 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/llm-extractor.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/money.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/api-surface.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/timezone-determinism.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 927[2mms[22m[39m
+   [33m[2m✓[22m[39m isPast — determinismo ante el TZ del proceso (EX-EXP-04, REQ-160 vigencias)[2m > [22muna fecha CON offset explícito produce EXACTAMENTE el mismo veredicto bajo TZ=UTC, America/Mexico_City y Asia/Tokyo [33m347[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m14 passed[39m[22m[90m (14)[39m
+[2m      Tests [22m [1m[32m118 passed[39m[22m[90m (118)[39m
+[2m   Start at [22m 19:56:06
+[2m   Duration [22m 1.55s[2m (transform 365ms, setup 0ms, collect 935ms, tests 1.06s, environment 1ms, prepare 730ms)[22m
+
+
+=== npm run -w packages/expediente build ===
+
+> @atiende/expediente@0.1.0 build
+> tsc -p tsconfig.build.json
+
+
+=== npx vitest run --coverage (informativo, no es parte del gate oficial) ===
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/packages/expediente[39m
+      [2mCoverage enabled with [22m[33mv8[39m
+
+ [32m✓[39m test/approval-workflow.test.ts [2m([22m[2m13 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/company-data.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/requirement-matrix.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 10[2mms[22m[39m
+ [32m✓[39m test/integrity-checklist.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/technical-proposal.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/economic-proposal.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 9[2mms[22m[39m
+ [32m✓[39m test/package-assembler.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 61[2mms[22m[39m
+ [32m✓[39m test/expediente-flow.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 39[2mms[22m[39m
+ [32m✓[39m test/proposal-invalidation.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 29[2mms[22m[39m
+ [32m✓[39m test/llm-extractor.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m test/money.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/number-to-words.test.ts [2m([22m[2m33 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/api-surface.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/timezone-determinism.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 939[2mms[22m[39m
+   [33m[2m✓[22m[39m isPast — determinismo ante el TZ del proceso (EX-EXP-04, REQ-160 vigencias)[2m > [22muna fecha CON offset explícito produce EXACTAMENTE el mismo veredicto bajo TZ=UTC, America/Mexico_City y Asia/Tokyo [33m350[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m14 passed[39m[22m[90m (14)[39m
+[2m      Tests [22m [1m[32m118 passed[39m[22m[90m (118)[39m
+[2m   Start at [22m 19:56:37
+[2m   Duration [22m 1.73s[2m (transform 551ms, setup 0ms, collect 1.14s, tests 1.12s, environment 2ms, prepare 1.05s)[22m
+
+[34m % [39m[2mCoverage report from [22m[33mv8[39m
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-------------------|---------|----------|---------|---------|-------------------
+[32;1mAll files         [0m | [32;1m  91.03[0m | [32;1m    88.4[0m | [32;1m   89.1[0m | [32;1m  91.03[0m | [31;1m                 [0m 
+[32;1m src              [0m | [32;1m   90.8[0m | [32;1m   88.47[0m | [32;1m  88.65[0m | [32;1m   90.8[0m | [31;1m                 [0m 
+[32;1m  ...l-workflow.ts[0m | [32;1m    100[0m | [32;1m    97.5[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m112              [0m 
+[33;1m  company-data.ts [0m | [33;1m  71.11[0m | [32;1m   84.61[0m | [33;1m  64.28[0m | [33;1m  71.11[0m | [31;1m...15-222,225-232[0m 
+[32;1m  ...c-proposal.ts[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  index.ts        [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  ...-checklist.ts[0m | [32;1m  89.92[0m | [32;1m   87.09[0m | [32;1m    100[0m | [32;1m  89.92[0m | [31;1m...73-179,181-182[0m 
+[32;1m  money.ts        [0m | [32;1m   93.1[0m | [33;1m      64[0m | [32;1m   87.5[0m | [32;1m   93.1[0m | [31;1m86-89            [0m 
+[32;1m  ...r-to-words.ts[0m | [32;1m  95.36[0m | [32;1m   85.96[0m | [32;1m    100[0m | [32;1m  95.36[0m | [31;1m...65,181-182,196[0m 
+[32;1m  ...-assembler.ts[0m | [32;1m    100[0m | [32;1m   94.73[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m101,172          [0m 
+[33;1m  ...al-version.ts[0m | [33;1m  68.75[0m | [32;1m     100[0m | [31;1m  33.33[0m | [33;1m  68.75[0m | [31;1m...48,51-52,56-59[0m 
+[32;1m  ...ent-matrix.ts[0m | [32;1m  93.14[0m | [32;1m   90.99[0m | [32;1m    100[0m | [32;1m  93.14[0m | [31;1m...13-315,412-420[0m 
+[32;1m  ...l-proposal.ts[0m | [32;1m  83.13[0m | [32;1m      80[0m | [32;1m    100[0m | [32;1m  83.13[0m | [31;1m...28,150,154,156[0m 
+[33;1m  types.ts        [0m | [33;1m  68.88[0m | [32;1m   93.33[0m | [32;1m  85.71[0m | [33;1m  68.88[0m | [31;1m26-35,51-54      [0m 
+[32;1m src/llm          [0m | [32;1m    100[0m | [32;1m   83.33[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  extractor.ts    [0m | [32;1m    100[0m | [32;1m   83.33[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m67               [0m 
+-------------------|---------|----------|---------|---------|-------------------
+
+=== npx --prefix packages/expediente vitest run --coverage (informativo, no es parte del gate oficial) ===
+
+> @atiende/expediente@0.1.0 test
+> vitest run --coverage
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/packages/expediente[39m
+      [2mCoverage enabled with [22m[33mv8[39m
+
+ [32m✓[39m test/company-data.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/approval-workflow.test.ts [2m([22m[2m13 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/requirement-matrix.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/technical-proposal.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/economic-proposal.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+ [32m✓[39m test/integrity-checklist.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/expediente-flow.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 36[2mms[22m[39m
+ [32m✓[39m test/package-assembler.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 51[2mms[22m[39m
+ [32m✓[39m test/proposal-invalidation.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 49[2mms[22m[39m
+ [32m✓[39m test/number-to-words.test.ts [2m([22m[2m33 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/money.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/llm-extractor.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/api-surface.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/timezone-determinism.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 866[2mms[22m[39m
+   [33m[2m✓[22m[39m isPast — determinismo ante el TZ del proceso (EX-EXP-04, REQ-160 vigencias)[2m > [22muna fecha CON offset explícito produce EXACTAMENTE el mismo veredicto bajo TZ=UTC, America/Mexico_City y Asia/Tokyo [33m307[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m14 passed[39m[22m[90m (14)[39m
+[2m      Tests [22m [1m[32m118 passed[39m[22m[90m (118)[39m
+[2m   Start at [22m 19:56:46
+[2m   Duration [22m 1.50s[2m (transform 305ms, setup 0ms, collect 721ms, tests 1.04s, environment 2ms, prepare 793ms)[22m
+
+[34m % [39m[2mCoverage report from [22m[33mv8[39m
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-------------------|---------|----------|---------|---------|-------------------
+[32;1mAll files         [0m | [32;1m  91.03[0m | [32;1m   88.38[0m | [32;1m   89.1[0m | [32;1m  91.03[0m | [31;1m                 [0m 
+[32;1m src              [0m | [32;1m   90.8[0m | [32;1m   88.45[0m | [32;1m  88.65[0m | [32;1m   90.8[0m | [31;1m                 [0m 
+[32;1m  ...l-workflow.ts[0m | [32;1m    100[0m | [32;1m    97.5[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m112              [0m 
+[33;1m  company-data.ts [0m | [33;1m  71.11[0m | [32;1m   84.61[0m | [33;1m  64.28[0m | [33;1m  71.11[0m | [31;1m...15-222,225-232[0m 
+[32;1m  ...c-proposal.ts[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  index.ts        [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  ...-checklist.ts[0m | [32;1m  89.92[0m | [32;1m   87.09[0m | [32;1m    100[0m | [32;1m  89.92[0m | [31;1m...73-179,181-182[0m 
+[32;1m  money.ts        [0m | [32;1m   93.1[0m | [33;1m      64[0m | [32;1m   87.5[0m | [32;1m   93.1[0m | [31;1m86-89            [0m 
+[32;1m  ...r-to-words.ts[0m | [32;1m  95.36[0m | [32;1m   85.71[0m | [32;1m    100[0m | [32;1m  95.36[0m | [31;1m...65,181-182,196[0m 
+[32;1m  ...-assembler.ts[0m | [32;1m    100[0m | [32;1m   94.73[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m101,172          [0m 
+[33;1m  ...al-version.ts[0m | [33;1m  68.75[0m | [32;1m     100[0m | [31;1m  33.33[0m | [33;1m  68.75[0m | [31;1m...48,51-52,56-59[0m 
+[32;1m  ...ent-matrix.ts[0m | [32;1m  93.14[0m | [32;1m   90.99[0m | [32;1m    100[0m | [32;1m  93.14[0m | [31;1m...13-315,412-420[0m 
+[32;1m  ...l-proposal.ts[0m | [32;1m  83.13[0m | [32;1m      80[0m | [32;1m    100[0m | [32;1m  83.13[0m | [31;1m...28,150,154,156[0m 
+[33;1m  types.ts        [0m | [33;1m  68.88[0m | [32;1m   93.33[0m | [32;1m  85.71[0m | [33;1m  68.88[0m | [31;1m26-35,51-54      [0m 
+[32;1m src/llm          [0m | [32;1m    100[0m | [32;1m   83.33[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  extractor.ts    [0m | [32;1m    100[0m | [32;1m   83.33[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m67               [0m 
+-------------------|---------|----------|---------|---------|-------------------
