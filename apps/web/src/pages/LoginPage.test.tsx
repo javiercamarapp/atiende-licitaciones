@@ -13,6 +13,12 @@ describe("LoginPage", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Accede a tu panel de licitaciones" })).toBeInTheDocument();
   });
 
+  it("REQ-172: ambos métodos de acceso (contraseña y Google) están visibles y funcionales en la misma pantalla", async () => {
+    renderWithProviders(<LoginPage />);
+    expect(await screen.findByRole("button", { name: "Iniciar sesión" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Continuar con Google" })).toBeEnabled();
+  });
+
   it("valida el formulario de contraseña con zod antes de enviar", async () => {
     const user = userEvent.setup();
     renderWithProviders(<LoginPage />);

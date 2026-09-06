@@ -39,7 +39,14 @@ test.describe("Onboarding: primer login sin organizaciones", () => {
 
     // RequireOrganization (components/auth/RequireAuth.tsx) manda directo
     // aquí: una cuenta sin ninguna organización no tiene nada real que ver
-    // en /panel.
+    // en /panel. Ronda 8 (D-09): la compuerta pasa PRIMERO por /sin-acceso
+    // (mismo patrón SIN_ROL/`/sin-acceso` de Likida, ahora también para
+    // cuentas de email+contraseña, no solo Google) -- "Crear mi
+    // organización" entra al wizard existente, que arranca igual que antes.
+    await page.waitForURL("**/sin-acceso");
+    await expect(page.getByRole("heading", { level: 1, name: "Tu cuenta no está vinculada a ninguna organización" })).toBeVisible();
+    await page.getByRole("link", { name: "Crear mi organización" }).click();
+
     await page.waitForURL("**/onboarding");
     await expect(page.getByRole("heading", { level: 1, name: "Bienvenido a Atiende Licitaciones" })).toBeVisible();
     await expect(page.getByRole("heading", { level: 2, name: "Crea tu organización" })).toBeVisible();
