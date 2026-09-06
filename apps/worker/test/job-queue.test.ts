@@ -252,13 +252,20 @@ describe('JobQueue: lease expirado se recupera', () => {
 });
 
 describe('JobQueue: cancelación', () => {
-  it('cancelar un job queued lo deja fuera de circulación (dead) y no se reclama', async () => {
+  /**
+   * WK-22 (docs/auditoria-1/worker-cierre.md, ALTA): antes de esta ronda
+   * `cancel()` escribía `status='dead'`, indistinguible de un dead-letter
+   * por reintentos agotados sin leer `last_error`. El enum real ya tiene
+   * `'cancelled'` desde `packages/db/migrations/0027_jobs_dedupe_and_cancelled.sql`
+   * (aplicado); ahora `cancel()` lo usa directamente.
+   */
+  it('cancelar un job queued lo deja fuera de circulación (cancelled, no dead) y no se reclama', async () => {
     const db = await createMigratedDb();
     const queue = new JobQueue({ db });
     const { job } = await queue.enqueue('test_kind', {});
 
     const cancelled = await queue.cancel(job.id, 'ya no se necesita');
-    expect(cancelled?.status).toBe('dead');
+    expect(cancelled?.status).toBe('cancelled');
     expect(cancelled?.lastError).toContain('ya no se necesita');
 
     const claimed = await queue.claim('w1');
@@ -266,14 +273,14 @@ describe('JobQueue: cancelación', () => {
     await db.close();
   });
 
-  it('cancelar un job running también lo detiene', async () => {
+  it('cancelar un job running también lo detiene, con estado cancelled (WK-22)', async () => {
     const db = await createMigratedDb();
     const queue = new JobQueue({ db });
     const { job } = await queue.enqueue('test_kind', {});
     await queue.claim('w1');
 
     const cancelled = await queue.cancel(job.id, 'motivo');
-    expect(cancelled?.status).toBe('dead');
+    expect(cancelled?.status).toBe('cancelled');
     await db.close();
   });
 });

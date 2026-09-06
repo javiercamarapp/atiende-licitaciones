@@ -15,8 +15,15 @@
  * real de la base de datos (para que `JobRow.status`/`mapJobRow` tipen
  * correctamente cualquier fila que pudiera traerlo, p. ej. escrita por otro
  * proceso fuera de este worker), no porque este worker vaya a producirlo.
+ *
+ * WK-22 (docs/auditoria-1/worker-cierre.md, ALTA): `'cancelled'` existe en
+ * el enum real desde `packages/db/migrations/0027_jobs_dedupe_and_cancelled.sql`
+ * (ya aplicado); `JobQueue.cancel()` seguía escribiendo `'dead'` pese a
+ * eso — "reparación declarada, código no actualizado". Ahora `cancel()`
+ * usa `'cancelled'`, distinguible de un dead-letter por reintentos
+ * agotados sin necesidad de leer `last_error`.
  */
-export type JobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'dead';
+export type JobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'dead' | 'cancelled';
 
 export interface Job<Payload = Record<string, unknown>> {
   id: string;

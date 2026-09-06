@@ -5,17 +5,17 @@
  * rate-limited y "no configurada" (fuente sin credenciales/URL real, o sin
  * verificación puntual documentada — REQ-150).
  *
- * `packages/db/migrations/0013_source_runs.sql` define un enum
- * `source_run_status` MÁS ANGOSTO (`ok|failed|captcha|interface_changed|
- * permission_missing|down`, sin `rate_limited` ni `not_configured`) — no se
- * tocó esa migración en esta ronda (fuera de alcance: packages/db). Este
- * módulo guarda el estado fino real siempre en `evidence.fineState`/
- * `evidence.message` (columna `jsonb`, sin restricción de esquema) y solo
- * proyecta el valor más cercano hacia la columna `status` para que las
- * consultas existentes (`status = 'ok'`, etc.) seguirán funcionando. Ver
- * README §Pendientes: recomendación de migración futura para
- * `packages/db` que amplíe el enum con `rate_limited`/`not_configured` y
- * elimine la necesidad de esta proyección.
+ * WK-22 (docs/auditoria-1/worker-cierre.md, ALTA): `packages/db/migrations/
+ * 0026_widen_source_run_status.sql` YA amplió el enum real `source_run_status`
+ * con `rate_limited`/`not_configured`/`ingest_failed` (aplicado, confirmado
+ * por `pg_enum`), pero esta función seguía proyectando esos 3 estados a
+ * `'failed'` — "reparación declarada, código no actualizado". Ahora los 3
+ * se persisten con su propio valor 1:1 en la columna real `status`. El
+ * estado fino sigue guardándose TAMBIÉN en `evidence.fineState`/
+ * `evidence.message` (columna `jsonb`) por compatibilidad de lectura hacia
+ * atrás (cualquier consumidor que ya lea `evidence.fineState` en vez de
+ * `status` sigue funcionando igual), no porque la columna `status` ya no
+ * sea la fuente de verdad — ahora SÍ lo es para los 8 estados finos.
  */
 export type SourceRunFineState =
   | 'ok'
@@ -36,8 +36,22 @@ export type SourceRunFineState =
    */
   | 'ingest_failed';
 
-/** Estado de la columna real `source_runs.status` (packages/db, sin tocar en esta ronda). */
-export type SourceRunDbStatus = 'ok' | 'failed' | 'captcha' | 'interface_changed' | 'permission_missing' | 'down';
+/**
+ * Estado de la columna real `source_runs.status` (packages/db). WK-22:
+ * ampliado 1:1 con los 3 valores agregados por
+ * `packages/db/migrations/0026_widen_source_run_status.sql` — ya no hay
+ * ningún `SourceRunFineState` sin equivalente exacto en la columna real.
+ */
+export type SourceRunDbStatus =
+  | 'ok'
+  | 'failed'
+  | 'captcha'
+  | 'interface_changed'
+  | 'permission_missing'
+  | 'down'
+  | 'rate_limited'
+  | 'not_configured'
+  | 'ingest_failed';
 
 const FINE_TO_DB: Record<SourceRunFineState, SourceRunDbStatus> = {
   ok: 'ok',
@@ -45,11 +59,11 @@ const FINE_TO_DB: Record<SourceRunFineState, SourceRunDbStatus> = {
   captcha_detected: 'captcha',
   interface_changed: 'interface_changed',
   permission_missing: 'permission_missing',
-  // Sin equivalente exacto en el enum actual: se proyectan como 'failed'
-  // (nunca como 'ok') y el detalle real vive en evidence.fineState/message.
-  rate_limited: 'failed',
-  not_configured: 'failed',
-  ingest_failed: 'failed',
+  // WK-22: mapeo 1:1 ahora que el enum real de la base los soporta
+  // (antes se proyectaban a 'failed', perdiendo la distinción).
+  rate_limited: 'rate_limited',
+  not_configured: 'not_configured',
+  ingest_failed: 'ingest_failed',
 };
 
 export function toDbStatus(fineState: SourceRunFineState): SourceRunDbStatus {

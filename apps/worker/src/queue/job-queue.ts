@@ -315,11 +315,20 @@ export class JobQueue {
     return mapJobRow(rows[0]);
   }
 
-  /** Cancela un job que aún no ha terminado. No hay estado `cancelled` en el enum (ver README §Pendientes): se usa `dead`. */
+  /**
+   * Cancela un job que aún no ha terminado.
+   *
+   * WK-22 (docs/auditoria-1/worker-cierre.md, ALTA): el enum real
+   * `job_status` tiene `'cancelled'` desde `packages/db/migrations/
+   * 0027_jobs_dedupe_and_cancelled.sql` (ya aplicado), pero esta función
+   * seguía escribiendo `'dead'` — indistinguible de un dead-letter por
+   * reintentos agotados sin leer `last_error` — "reparación declarada,
+   * código no actualizado". Ahora usa `'cancelled'` directamente.
+   */
   async cancel(jobId: string, reason: string): Promise<Job | undefined> {
     const { rows } = await this.db.query<JobRow>(
       `update jobs
-       set status = 'dead', last_error = $2, locked_at = null, locked_by = null
+       set status = 'cancelled', last_error = $2, locked_at = null, locked_by = null
        where id = $1 and status in ('queued', 'running')
        returning *`,
       [jobId, `cancelado: ${reason}`],
