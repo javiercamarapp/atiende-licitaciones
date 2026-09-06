@@ -143,29 +143,42 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         throw new UnauthorizedError('Refresh token inválido o expirado');
       }
 
-      // Rotación + revocación real: el token JWT puede ser criptográficamente
-      // válido y no estar expirado, pero si ya fue revocado (logout, o esta
-      // misma rotación ejecutada dos veces) se rechaza igualmente. Esto es lo
-      // que hace posible el logout real con JWT stateless (ver
-      // apps/api/README.md, pendiente cerrado de ronda 1).
+      // API-01/API-09 (docs/auditoria-1/db-api-reverificacion.md): la
+      // rotación anterior hacía SELECT (find_refresh_token) y UPDATE
+      // (revoke_refresh_token) en transacciones SEPARADAS, sin comprobar el
+      // resultado del UPDATE antes de emitir tokens nuevos -- una ventana
+      // TOCTOU real bajo el pool de conexiones de producción: dos
+      // `/auth/refresh` concurrentes con el MISMO token podían leer "no
+      // revocado" ambos y ambos terminar emitiendo tokens hijos válidos.
+      // `app.rotate_refresh_token` hace check-y-mutación ATÓMICOS en una
+      // sola sentencia (`UPDATE ... WHERE revoked_at IS NULL RETURNING`,
+      // ver 0043_fix_api01_atomic_refresh_rotation.sql): el bloqueo de fila
+      // de Postgres garantiza que como mucho UNA petición concurrente gane
+      // la rotación; la otra ve la fila ya revocada y cae en la rama de
+      // "reuso detectado", que además revoca preventivamente el resto de
+      // sesiones activas del usuario (protección de familia completa, no
+      // solo del token reusado).
+      const newAccessToken = await signAccessToken(app.config.jwtSecret, userId);
+      const { token: newRefreshToken, jti: newJti } = await signRefreshToken(app.config.jwtSecret, userId);
+
+      // `app.rotate_refresh_token` NUNCA lanza excepción en el camino de
+      // fallo (ver 0043_fix_api01_atomic_refresh_rotation.sql): si lo
+      // hiciera, un `raise exception` revertiría TODA la transacción,
+      // incluida la revocación de familia por reuso hecha dentro de la
+      // misma sentencia -- por eso el resultado se distingue por número de
+      // filas devueltas (0 = inválido/expirado/reusado), no por catch.
       const { rows } = await app.db.transaction(async (tx) => {
         await tx.query('set local role app_role');
-        return tx.query<{ id: string; user_id: string; expires_at: string; revoked_at: string | null }>(
-          'select * from app.find_refresh_token($1)',
-          [hashToken(jti)]
+        return tx.query<{ user_id: string }>(
+          `select * from app.rotate_refresh_token($1, $2, $3, now() + interval '${REFRESH_TTL_DAYS} days')`,
+          [hashToken(jti), randomUUID(), hashToken(newJti)]
         );
       });
-      const stored = rows[0];
-      if (!stored || stored.revoked_at || new Date(stored.expires_at).getTime() < Date.now()) {
+      if (rows.length === 0) {
         throw new UnauthorizedError('Refresh token inválido, expirado o revocado');
       }
 
-      await app.db.transaction(async (tx) => {
-        await tx.query('set local role app_role');
-        await tx.query('select app.revoke_refresh_token($1)', [hashToken(jti)]);
-      });
-
-      return issueTokenPair(app, userId);
+      return { accessToken: newAccessToken, refreshToken: newRefreshToken };
     }
   );
 
