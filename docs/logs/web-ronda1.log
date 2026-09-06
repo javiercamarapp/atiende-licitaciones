@@ -894,3 +894,41 @@ npm error location /Users/javiercamaraportepetit/Documents/Codex/atiende-licitac
 npm error command failed
 npm error command sh -c vitest run
 EXIT CODE: 1
+
+=== $ npm run -w apps/web test (re-run) ===
+
+> @atiende/web@0.1.0 test
+> NODE_OPTIONS=--no-experimental-webstorage vitest run
+
+
+ RUN  v4.1.11 /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web
+
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17087:41)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17087:41)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+
+ Test Files  4 passed (4)
+      Tests  15 passed (15)
+   Start at  18:50:52
+   Duration  1.58s (transform 399ms, setup 831ms, import 1.11s, tests 670ms, environment 2.05s)
+
+EXIT CODE: 0
