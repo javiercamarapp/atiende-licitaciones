@@ -236,7 +236,7 @@ describe('discover_tenders handler — A1/A2: publicación nueva e idempotencia 
     const handler = createDiscoverTendersHandler({ db, registry, ingestClient, httpClient: new HttpClient({ userAgent: 'test' }) });
 
     const jobWithExpected = makeJob({ sourceId: 'dof' });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test necesita un campo extra (expectedTotal) que `makeJob` no modela.
+    // `makeJob` no modela `expectedTotal`: se asigna directamente al payload para esta prueba.
     (jobWithExpected as any).payload = { sourceId: 'dof', expectedTotal: 5 };
     await handler(jobWithExpected, makeCtx());
 

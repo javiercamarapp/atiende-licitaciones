@@ -60,6 +60,74 @@ describe('JobQueue: reclamo atómico sin doble procesamiento', () => {
   });
 });
 
+describe('JobQueue: WK-01 — claim() respeta max_attempts también en recuperación de lease (crash real)', () => {
+  let db: DbClient;
+  let queue: JobQueue;
+
+  beforeEach(async () => {
+    db = await createMigratedDb();
+    queue = new JobQueue({ db });
+  });
+
+  afterEach(async () => {
+    await db.close();
+  });
+
+  /**
+   * Reproduce el hallazgo WK-01 (docs/auditoria-1/worker.md): un proceso
+   * worker que muere de verdad (crash/OOM/SIGKILL) NUNCA ejecuta el `catch`
+   * de `Worker.process()` ni por tanto `fail()` — la única forma de que ese
+   * job vuelva a estar disponible es la recuperación de lease expirado
+   * dentro de `claim()` mismo. Antes de esta ronda, esa recuperación
+   * incrementaba `attempts` sin comparar jamás contra `max_attempts`: un job
+   * cuyo handler crashea repetidamente se re-reclamaba PARA SIEMPRE, sin
+   * límite real, nunca `dead`. Este test simula 4 "crashes" consecutivos
+   * (reclamo -> nunca `complete()`/`fail()` -> lease expira) sobre un job
+   * con `maxAttempts=3` y confirma que, en cuanto el siguiente reclamo
+   * excedería `max_attempts`, el job pasa a `dead` con un error explícito,
+   * en vez de seguir `running` para siempre.
+   */
+  it('un job que crashea repetidamente (nunca completa/falla) termina en "dead", nunca "running" eterno', async () => {
+    const { job } = await queue.enqueue('test_kind', {}, { maxAttempts: 3 });
+
+    // "Crash" 1: se reclama (attempts=1, running) y nunca se completa/falla.
+    const claim1 = await queue.claim('worker-crash', { leaseSeconds: 60 });
+    expect(claim1?.id).toBe(job.id);
+    expect(claim1?.attempts).toBe(1);
+    expect(claim1?.status).toBe('running');
+    await db.query(`update jobs set locked_at = now() - interval '120 seconds' where id = $1`, [job.id]);
+
+    // "Crash" 2: recuperación de lease expirado (attempts=2, todavía <= maxAttempts=3).
+    const claim2 = await queue.claim('worker-crash', { leaseSeconds: 60 });
+    expect(claim2?.id).toBe(job.id);
+    expect(claim2?.attempts).toBe(2);
+    expect(claim2?.status).toBe('running');
+    await db.query(`update jobs set locked_at = now() - interval '120 seconds' where id = $1`, [job.id]);
+
+    // "Crash" 3: attempts=3 (== maxAttempts), sigue siendo un intento legítimo en curso (running).
+    const claim3 = await queue.claim('worker-crash', { leaseSeconds: 60 });
+    expect(claim3?.id).toBe(job.id);
+    expect(claim3?.attempts).toBe(3);
+    expect(claim3?.status).toBe('running');
+    await db.query(`update jobs set locked_at = now() - interval '120 seconds' where id = $1`, [job.id]);
+
+    // "Crash" 4: un cuarto reclamo excedería max_attempts (3+1=4 > 3) -> dead-letter
+    // INMEDIATO dentro de claim(), sin entregarse jamás como "reclamado".
+    const claim4 = await queue.claim('worker-crash', { leaseSeconds: 60 });
+    expect(claim4).toBeUndefined();
+
+    const finalRow = await queue.getById(job.id);
+    expect(finalRow?.status).toBe('dead');
+    expect(finalRow?.lastError).toMatch(/lease expirado tras 4 intentos/);
+    expect(finalRow?.lockedBy).toBeNull();
+    expect(finalRow?.lockedAt).toBeNull();
+
+    // Un job "dead" nunca vuelve a ser reclamado, ni siquiera si el lease "expira" de nuevo.
+    const claim5 = await queue.claim('worker-crash', { leaseSeconds: 60 });
+    expect(claim5).toBeUndefined();
+  });
+});
+
 describe('JobQueue: reintentos con backoff exponencial + jitter', () => {
   let db: DbClient;
   let queue: JobQueue;
@@ -237,6 +305,26 @@ describe('JobQueue: idempotencia por jobKey', () => {
     const second = await queue.enqueue('discover_tenders', { sourceId: 'dof' }, { jobKey: 'dof:window-2' });
     expect(second.deduped).toBe(false);
     expect(second.job.id).not.toBe(first.job.id);
+    await db.close();
+  });
+});
+
+describe('JobQueue: WK-10 — deadLetterPermanent (errores permanentes, sin ciclo de backoff)', () => {
+  it('dead-letra inmediatamente en el primer intento, sin importar max_attempts', async () => {
+    const db = await createMigratedDb();
+    const queue = new JobQueue({ db });
+    await queue.enqueue('test_kind', {}, { maxAttempts: 5 });
+    const claimed = await queue.claim('w1');
+    expect(claimed?.attempts).toBe(1); // muy lejos de max_attempts=5
+
+    const dead = await queue.deadLetterPermanent(claimed!, 'w1', 'fuente_no_verificada:dof');
+    expect(dead?.status).toBe('dead');
+    expect(dead?.lastError).toBe('fuente_no_verificada:dof');
+    expect(dead?.lockedBy).toBeNull();
+
+    // Nunca vuelve a estar disponible (a diferencia de fail() con attempts < maxAttempts).
+    const reclaim = await queue.claim('w2');
+    expect(reclaim).toBeUndefined();
     await db.close();
   });
 });
