@@ -156,9 +156,17 @@ export async function companyRoutes(app: FastifyInstance): Promise<void> {
       return tx.query('select id from company_profiles where org_id = $1', [orgId]);
     });
     if (rows.length === 0) return [];
-    return app.db.transaction((tx) =>
-      getFieldProvenance(tx, { orgId, entity: 'company_profiles', entityId: (rows[0] as any).id })
-    );
+    // DB-07 (docs/auditoria-1/db-api.md): esta transacción olvidaba `set
+    // local role app_role` (y el contexto de tenant), lo que la dejaba
+    // corriendo con la conexión cruda (sin RLS) -- exactamente el riesgo
+    // real que advertía el hallazgo. Corregido: mismo patrón que el resto
+    // de la ruta.
+    return app.db.transaction(async (tx) => {
+      await tx.query('set local role app_role');
+      await tx.query("select set_config('app.current_org_id', $1, true)", [orgId]);
+      await tx.query("select set_config('app.current_user_id', $1, true)", [request.userId]);
+      return getFieldProvenance(tx, { orgId, entity: 'company_profiles', entityId: (rows[0] as any).id });
+    });
   });
 
   // -------------------------------------------------------------------------
