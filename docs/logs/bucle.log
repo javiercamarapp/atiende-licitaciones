@@ -115,3 +115,4 @@
 2026-09-06 09:35  DESPERTAR  auditoría final ronda 5 (#79): RF-01..04; corrector web #80 despachado.
 2026-09-06 10:01  LATIDO  corrector web RF-01..04 (#80) en curso.
 2026-09-06 10:09  DESPERTAR  RF-01..04 (#80) corregidos, E2E 116/116 ×2; reverificador #81 despachado.
+2026-09-06 10:10  RONDA5  ci-local cuarta corrida lanzada en segundo plano (árbol limpio) → docs/logs/ci-local-4.log; en curso #81.
