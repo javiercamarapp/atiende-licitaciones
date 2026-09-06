@@ -64,10 +64,16 @@ export function multiplyRateHalfUp(cents: bigint, rate: number): bigint {
   return remainder * 2n >= divisor ? quotient + 1n : quotient;
 }
 
+/** Cota superior de `quantity` para `multiplyQuantityHalfUp` (EX-EXP-09): cantidades realistas de licitación (unidades/horas/servicios) están muy por debajo de esto; por encima, la conversión a micro-unidades vía `Math.round(quantity * 1_000_000)` puede perder precisión silenciosamente al acercarse a `Number.MAX_SAFE_INTEGER`. */
+export const MAX_QUANTITY = 1e7;
+
 /** Multiplica una cantidad (unidades, puede tener decimales) por un precio unitario en centavos, con half-up. */
 export function multiplyQuantityHalfUp(unitPriceCents: bigint, quantity: number): bigint {
   if (unitPriceCents < 0n) throw new Error("multiplyQuantityHalfUp solo admite precios no negativos");
   if (quantity < 0) throw new Error("multiplyQuantityHalfUp solo admite cantidades no negativas");
+  if (quantity > MAX_QUANTITY) {
+    throw new Error(`multiplyQuantityHalfUp: quantity (${quantity}) excede la cota máxima admitida (${MAX_QUANTITY}); revise si es un error de captura.`);
+  }
   const qtyMicros = BigInt(Math.round(quantity * 1_000_000));
   const product = unitPriceCents * qtyMicros;
   const divisor = 1_000_000n;

@@ -46,4 +46,16 @@ describe("money (REQ-029 aritmética determinista half-up)", () => {
   it("addCents es asociativo con enteros bigint simples", () => {
     expect(addCents(100n, 200n)).toBe(300n);
   });
+
+  describe("EX-EXP-09: cota superior de quantity en multiplyQuantityHalfUp", () => {
+    it("rechaza una cantidad absurda (1e10) que podría perder precisión silenciosamente", () => {
+      const unitPrice = toCents("10.00");
+      expect(() => multiplyQuantityHalfUp(unitPrice, 1e10)).toThrow(/quantity/);
+    });
+
+    it("acepta cantidades realistas de licitación (unidades/horas/servicios, típicamente < 10^6)", () => {
+      const unitPrice = toCents("100.00");
+      expect(() => multiplyQuantityHalfUp(unitPrice, 500_000)).not.toThrow();
+    });
+  });
 });
