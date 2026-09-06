@@ -104,6 +104,16 @@ npm run -w packages/expediente build
   tenga más de una cuenta/rol activo sobre el mismo expediente) antes de
   confiar en la prohibición de autoaprobación de este paquete como control
   único.
+- **No fabricar "consistencia_cruzada" duplicando cifras (EX-EXP-10,
+  auditoría ronda 1)**: `IntegrityChecklist` marca la dimensión
+  `consistencia_cruzada` en `"ambar"` (no `"rojo"`) cuando hay menos de 2
+  documentos que comparar — sigue bloqueando `"ready"` (`"ambar" !==
+  "verde"`), pero un implementador de `apps/api` NO debe "resolver" ese
+  ámbar duplicando artificialmente la misma cifra en una segunda entrada de
+  `crossDocumentTotals` solo para pasar a verde: eso sería fabricar una
+  consistencia que no existe realmente (violación de REQ-164). El ámbar
+  solo debe cerrarse agregando una segunda fuente REAL e independiente del
+  mismo total.
 
 ## Pendientes (fuera del alcance de este paquete puro)
 

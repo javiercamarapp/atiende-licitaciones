@@ -188,6 +188,18 @@ export class IntegrityChecklist {
     };
   }
 
+  /**
+   * NOTA (EX-EXP-10, auditoría ronda 1): con menos de 2 entradas reales en
+   * `crossDocumentTotals`, esta dimensión queda en "ambar" (nunca "verde",
+   * y "ambar" !== "verde" sigue bloqueando "ready" — correcto). NUNCA se
+   * debe "resolver" ese ámbar duplicando artificialmente la misma cifra en
+   * una segunda entrada solo para forzar "verde": eso sería fabricar una
+   * consistencia que no existe realmente (violación de REQ-164). El ámbar
+   * solo debe desaparecer agregando una segunda fuente REAL e
+   * independiente del mismo total (p. ej. la carta y el anexo económico,
+   * calculados de forma separada) — nunca una copia artificial de la
+   * primera.
+   */
   private checkConsistenciaCruzada(input: IntegrityChecklistInput): ChecklistItemResult {
     if (input.crossDocumentTotals.length < 2) {
       return { dimension: "consistencia_cruzada", status: "ambar", detail: "No hay suficientes documentos para verificar consistencia cruzada.", evidence: [] };
