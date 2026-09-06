@@ -225,6 +225,14 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
           [hashToken(jti), randomUUID(), hashToken(newJti)]
         );
         if (rotated.rows.length > 0) {
+          // API-14 (docs/auditoria-2/api-expediente-reverificacion.md):
+          // `app.record_auth_event` (0054) ahora exige que
+          // `app.current_user_id()` ya esté fijado y coincida con el
+          // `actor_id` declarado para cualquier acción que no sea
+          // `auth.login_failed` -- se fija aquí al `user_id` YA verificado
+          // por `app.rotate_refresh_token` (nunca a partir de un valor de
+          // entrada del cliente sin verificar).
+          await tx.query("select set_config('app.current_user_id', $1, true)", [rotated.rows[0].user_id]);
           // API-13: rotación/refresh exitosos quedan en audit_log.
           await recordAuthAudit(tx, { actorId: rotated.rows[0].user_id, action: 'auth.refresh_succeeded', after: audit, requestId: request.id });
           return true;
@@ -241,6 +249,10 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         // familia.
         return tx.query<{ user_id: string; revoked_at: string | null }>('select * from app.find_refresh_token($1)', [hashToken(jti)]).then(async (found) => {
           if (found.rows.length > 0 && found.rows[0].revoked_at !== null) {
+            // API-14: mismo cierre que `refresh_succeeded` arriba -- fija
+            // el actor con el `user_id` YA verificado por
+            // `app.find_refresh_token` antes de auditar.
+            await tx.query("select set_config('app.current_user_id', $1, true)", [found.rows[0].user_id]);
             await recordAuthAudit(tx, { actorId: found.rows[0].user_id, action: 'auth.refresh_reuse_detected', after: audit, requestId: request.id });
           }
           return false;
@@ -263,6 +275,10 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         await app.db.transaction(async (tx) => {
           await tx.query('set local role app_role');
           await tx.query('select app.revoke_refresh_token($1)', [hashToken(payload.jti)]);
+          // API-14: fija el actor con el `sub` de un JWT ya verificado
+          // (`verifyRefreshToken`, firmado por el propio servidor) antes de
+          // auditar -- nunca a partir de un valor de entrada sin verificar.
+          await tx.query("select set_config('app.current_user_id', $1, true)", [payload.sub]);
           // API-13: logout deja rastro en audit_log (solo cuando el token
           // era válido -- un token ya inválido/ajeno no revoca nada, así
           // que tampoco genera un evento de "logout" real).
