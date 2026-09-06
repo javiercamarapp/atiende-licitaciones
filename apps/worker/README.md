@@ -37,8 +37,24 @@ src/
     schedule-config.ts     SourceScheduleConfig, DEFAULT_SCHEDULES, loadScheduleConfig
     scheduler.ts            Scheduler: tick() encola discover_tenders sin duplicar por ventana
   handlers/
-    discover-tenders.ts     DiscoveryJobHandler: corre un SourceConnector, escribe source_runs, ingiere
-    run-agent.ts             Handler esqueleto: AgentRunner + FakeProvider/OpenAI
+    discover-tenders.ts     DiscoveryJobHandler: corre un SourceConnector, escribe source_runs, ingiere;
+                             Ronda 6: encola run_agent por evento de ingesta (agentEventsQueue)
+    run-agent.ts             Ejecuta AgentRunner con las 8 herramientas de negocio + 5 agentes nombrados
+                             (Ronda 6, ver sección dedicada abajo); FakeProvider/OpenAI
+    send-agent-alert.ts      Ronda 6: handler del job `send_agent_alert` (log estructurado, sin canal real)
+  agents/                    Ronda 6: agentes de negocio reales (ver sección dedicada abajo)
+    business-tools.ts         Las 8 ToolDefinition reales (ToolRegistry pública de @atiende/agents)
+    named-agents.ts            Los 5 planes fijos de tool_calls (analista_convocatorias, analista_bases,
+                                redactor_borrador, vigilante_cambios, recordatorios)
+    db-context.ts               withWorkerBusinessReadContext/withWorkerPlatformReadContext/
+                                 withWorkerAgentRunsInsertContext + SchemaGrantPendingError
+    enqueue-agent-run.ts         Encola run_agent por evento, deduplicado, con fallback fail-open
+    kill-switch.ts               WORKER_DISABLED_AGENTS: kill-switch por agente
+    system-actor.ts              SYSTEM_ACTOR_ID/ROLE para corridas autónomas disparadas por evento
+  scheduler/
+    schedule-config.ts     SourceScheduleConfig, DEFAULT_SCHEDULES, loadScheduleConfig
+    scheduler.ts            Scheduler: tick() encola discover_tenders sin duplicar por ventana
+    deadline-reminders.ts   Ronda 6: enqueueUpcomingDeadlineReminders — recordatorios por vencimiento próximo
   ingest/
     ingest-client.ts        TenderIngestClient: POST /internal/tenders/ingest (alineado al contrato real de apps/api)
     ingest-mapper.ts        mapTenderRecordToIngestRecord: TenderRecord (@atiende/sources) -> shape de apps/api
@@ -47,17 +63,28 @@ src/
     source-runs-repository.ts  INSERT en `source_runs`
 test/
   helpers.ts                createMigratedDb (PGlite + migraciones reales), seedOrgAndUser, seedMember
+  proposal-06-helper.ts      Ronda 6: aplica PROPOSAL-06 sobre una base ya migrada, solo para pruebas
   job-queue.test.ts          Reclamo atómico, backoff+jitter, dead letter, lease, idempotencia, cancelación (WK-01/WK-10/WK-14/WK-22)
   scheduler.test.ts          Unicidad por (tipo, fuente, ventana), WK-04 (lógica secuencial en PGlite) + WK-15 (SQL emitido; concurrencia real de motor PENDIENTE, ref. B-03)
   ingest-client.test.ts      Contra un servidor HTTP real (node:http), no un mock de fetch; WK-09/WK-17/WK-20 (tabla de verdad exhaustiva 400-599)/WK-21 (407 vía undici)
   discover-tenders-handler.test.ts  A1/A2/A4 (ver docs/ACEPTACION.md); WK-03/WK-05/WK-06
-  run-agent-handler.test.ts  Esqueleto de run_agent con FakeProvider; WK-08/WK-16/WK-19/WK-23
+  discover-tenders-agent-events.test.ts  Ronda 6: run_agent encolado por ingesta (created/updated/unchanged)
+  run-agent-handler.test.ts  run_agent (demo original) con FakeProvider; WK-08/WK-16/WK-19/WK-23
+  run-agent-kill-switch.test.ts  Ronda 6: WORKER_DISABLED_AGENTS bloquea la ejecución
+  business-tools.test.ts    Ronda 6: las 8 herramientas contra Postgres real (PGlite + PROPOSAL-06)
+  named-agents.test.ts      Ronda 6: los 5 planes fijos + validación de contexto
+  kill-switch.test.ts       Ronda 6: parseDisabledAgents/assertAgentNotDisabled
+  enqueue-agent-run.test.ts Ronda 6: dedupe + fail-open sin PROPOSAL-06
+  deadline-reminders.test.ts Ronda 6: escaneo de vencimientos, dedupe por día
+  agent-evals.test.ts       Ronda 6, tarea 3: evals deterministas por agente (≥5 casos c/u, FakeProvider)
+  send-agent-alert.test.ts  Ronda 6: log estructurado del job de alerta
   worker-shutdown.test.ts    Cierre ordenado (SIGTERM), métricas, WK-02/WK-10/WK-14
   config.test.ts             loadConfig() con env vacío/completo/inválido
   schedule-config.test.ts    loadScheduleConfig() con WORKER_SCHEDULE_JSON válido/inválido/vacío
 db-proposals/                Las 3 migraciones propuestas (0026-0028) ya están aplicadas en
                               packages/db; sus tests acompañantes ya NO son .pending/describe.skip
-                              (activados en la ronda 4, WK-22) — ver docs/auditoria-1/worker-cierre.md
+                              (activados en la ronda 4, WK-22) — ver docs/auditoria-1/worker-cierre.md.
+                              PROPOSAL-06 (Ronda 6) sigue PENDIENTE esquema — ver sección dedicada abajo.
 ```
 
 ## Correcciones de la ronda 2 (auditoría adversarial)
@@ -289,24 +316,27 @@ consumidor que ya lea de ahí — no porque `status` deje de ser la fuente de
 verdad. Ver `db-proposals/PROPOSAL-01-widen-source-run-status.test.ts`
 (activado, ya no `.pending`/`describe.skip`).
 
-### `run_agent` (`src/handlers/run-agent.ts`) — ESQUELETO
+### `run_agent` (`src/handlers/run-agent.ts`)
 
-Ejecuta un `AgentRunner` de `packages/agents` (librería pura, sin
-persistencia propia) con almacenes en memoria (`InMemoryRunStore`,
-`InMemoryToolCallStore`, etc.): la corrida vive solo mientras dura el job.
-Si el job trae `agentRunId`, el resultado FINAL se refleja en la fila
+**Ronda 6 (docs/investigacion/paridad-producto.md "Ronda K"): ya NO es un
+esqueleto de demostración.** Ejecuta un `AgentRunner` de `packages/agents`
+con almacenes en memoria (`InMemoryRunStore`, `InMemoryToolCallStore` —
+la corrida en sí vive solo mientras dura el job), pero ahora con **8
+herramientas de negocio reales** y **5 agentes nombrados con plan fijo** —
+ver la sección dedicada "Ronda 6: agentes de negocio reales" más abajo para
+el detalle completo. Si el job trae `agentRunId`, el resultado FINAL
+(incluido un resumen redactado de cada `tool_call`) se refleja en la fila
 `agent_runs` ya existente (`packages/db/migrations/0004_agents.sql`) vía
 una conexión directa a la base (ver "Seguridad" abajo).
 
 Usa `FakeProvider` (determinista, sin red) salvo que `OPENAI_API_KEY` esté
 definida, en cuyo caso usa `OpenAIResponsesProvider` real de
-`packages/agents`. **Registra una sola herramienta de demostración**
-(`llm_complete`: pasa un prompt al proveedor y regresa el texto,
-`declaredEffects: ['read_only']` — obligatorio desde `packages/agents`
-commit `480d183`/AG-05, ver WK-13 en `docs/auditoria-1/worker.md`) — no hay
-herramientas de negocio reales (extraer bases, redactar sección de
-propuesta, etc.); esas son responsabilidad de `apps/api` (dueño de la
-persistencia real), siguiendo el mismo patrón de `ToolRegistry.register()`.
+`packages/agents`. Sigue registrando también la herramienta de demostración
+original del esqueleto (`llm_complete`) por compatibilidad: si
+`job.payload.agentName` NO es uno de los 5 agentes nombrados, el
+comportamiento es exactamente el de antes (un solo paso `llm_complete` con
+`prompt`/`tier`) — esto es lo que siguen ejercitando
+`test/run-agent-handler.test.ts` (WK-08/WK-16/WK-19/WK-23, sin tocar).
 
 **Corrección ronda 2 (WK-08, `docs/auditoria-1/worker.md`)**: `updateAgentRunRow`
 hacía `UPDATE agent_runs SET ... WHERE id = $1` SIN verificar que
@@ -431,6 +461,165 @@ detalle completo en cada sección referenciada y en `docs/logs/fix-worker-ronda4
   sección `run_agent`/"Seguridad" arriba, `test/run-agent-handler.test.ts`
   y `db-proposals/PROPOSAL-03-worker-role.test.ts`.
 
+## Ronda 6: agentes de negocio reales (docs/investigacion/paridad-producto.md "Ronda K")
+
+`run_agent` deja de ser un esqueleto de demostración: ahora ejecuta agentes
+de negocio con herramientas reales sobre datos reales de Postgres,
+manteniendo TODAS las garantías de `packages/agents` (autorización,
+guardrail anticorrupción, no-fabricación, idempotencia, presupuesto,
+prohibiciones duras) intactas — ninguna de ellas se modificó, extendió ni
+se bypaseó desde `apps/worker`. Alcance estricto de esta ronda:
+`apps/worker/**` y este README; no se tocó `apps/api`, `apps/web` ni
+ningún `packages/*`.
+
+### Qué es REAL en esta ronda
+
+- **Las 8 herramientas** (`src/agents/business-tools.ts`) leen/escriben
+  Postgres de verdad (PGlite en dev/tests, Postgres real en producción vía
+  `DATABASE_URL`), no datos simulados:
+  - `listar_convocatorias`, `leer_bases`, `leer_perfil_empresa`,
+    `resumir_cambios_convocatoria`: `SELECT` reales sobre
+    `tenders`/`tender_documents`/`requirement_items`/`company_profiles`/
+    `capabilities`/`experience_records`/`tender_change_events`/
+    `compliance_items`/`proposals`, siempre filtrados explícitamente por
+    `ctx.organizationId` (nunca por un valor del modelo — `ToolRegistry.
+    register()` de `packages/agents` rechazaría cualquier esquema que
+    declarara `organizationId`/`orgId`/`tenantId`, y
+    `test/business-tools.test.ts` prueba además que un intento de
+    inyectarlos en tiempo de ejecución se descarta en la validación zod).
+  - `proponer_matching`: score determinista (no aleatorio, no del LLM) por
+    coincidencia real de palabras entre el título/dependencia de la
+    convocatoria y las `capabilities` declaradas de la empresa.
+  - `proponer_requisitos_matriz`: extracción determinista basada en reglas
+    (palabras clave: "deberá", "obligatorio", "certificación", "garantía",
+    etc.) sobre el texto YA extraído (`tender_documents.extracted_text`),
+    citando el extracto real (`sourceExcerpt`) — nunca un número de página
+    inventado (el esquema actual no guarda desglose por página a nivel de
+    documento; se declara `sourcePageReason` explícito en su lugar).
+  - `proponer_seccion_propuesta`: bloquea explícitamente
+    (`blocked: true`, `missingData`) si no hay `experience_records.
+    evidence_ref` real — nunca redacta una afirmación de experiencia sin
+    evidencia. Declara `extractSensitiveValues` para que
+    `NoFabricationPolicy` (packages/agents) lo verifique de verdad.
+  - `programar_alerta`: encola un job REAL (`send_agent_alert`) en la
+    tabla `jobs` que este worker ya posee por completo (mismo mecanismo de
+    dedupe por `jobKey` que el resto del worker) — nunca envía nada a un
+    tercero.
+- **Los 5 agentes nombrados** (`src/agents/named-agents.ts`):
+  `analista_convocatorias`, `analista_bases`, `redactor_borrador`,
+  `vigilante_cambios`, `recordatorios`. El plan de `tool_calls` de cada uno
+  es FIJO y se construye en código puro (`buildNamedAgentPlan`) a partir de
+  `job.payload.context` — el LLM nunca decide qué herramienta ejecutar ni
+  en qué orden; solo redacta texto DENTRO de una herramienta ya decidida
+  (`proponer_matching`/`proponer_seccion_propuesta`).
+- **Persistencia real de la "propuesta para revisión"**: cada corrida con
+  `agentRunId` refleja en `agent_runs.output` (columna `jsonb` YA
+  existente, sin migración nueva) un resumen redactado de cada `tool_call`
+  (`toolName`, `status`, `authorizationDecision`, `missingSourcedFields`,
+  `error`, `inputHash`/`outputHash`) — nunca el contenido crudo. El
+  resultado de un agente **nunca** es una aprobación: `needs_approval`/
+  `needs_data`/`denied`/`blocked` son estados terminales que exigen
+  revisión humana, y `HUMAN_REVIEW_RUN_STATUSES`
+  (`src/handlers/run-agent.ts`) los marca `permanent` (WK-10: reintentar no
+  los resuelve).
+- **Presupuesto por organización real (REQ-128)**: `BudgetLedger`/
+  `IdempotencyStore`/`TokenBucketRateLimiter`/`DependencyInvalidationRegistry`
+  ahora se crean UNA VEZ por instancia de `createRunAgentHandler` (antes de
+  esta ronda se recreaban en cada job, vaciando en silencio cualquier
+  límite "por organización" — corregido). Cada paso de cada agente nombrado
+  declara un `estimatedCostUsd` nominal (`ESTIMATED_COST_USD`,
+  `named-agents.ts`) — sin esto, `BudgetLedger.reserve()` nunca se habría
+  llamado (costo 0 no reserva nada) y el presupuesto configurado
+  (`WORKER_AGENT_BUDGET_USD_PER_ORG`, por defecto 5 USD) no habría tenido
+  ningún efecto observable.
+- **Kill-switch por agente**: `WORKER_DISABLED_AGENTS` (lista separada por
+  comas) bloquea la ejecución de un agente ANTES de construir el registro
+  de herramientas — ningún tool_call corre, ningún presupuesto se reserva.
+- **`run_agent` se encola por evento, deduplicado**:
+  - Ingesta (`discover_tenders`, `agentEventsQueue`): convocatoria nueva →
+    `analista_convocatorias`; convocatoria actualizada → `vigilante_cambios`
+    (`enqueueAgentEventsForIngestResults`, `src/handlers/discover-tenders.ts`).
+  - Vencimiento próximo (`src/scheduler/deadline-reminders.ts`,
+    `enqueueUpcomingDeadlineReminders`): escanea `tenders` de TODAS las
+    organizaciones cada `WORKER_POLL_INTERVAL_MS * 10` (mismo período que
+    el `Scheduler` de descubrimiento) y encola `recordatorios`, deduplicado
+    por `(tenderId, fecha calendario del vencimiento)`.
+  - Ambos casos usan `enqueueAgentRun` (`src/agents/enqueue-agent-run.ts`),
+    que intenta abrir su PROPIA fila `agent_runs` (identidad
+    `SYSTEM_ACTOR_ID`/`SYSTEM_ACTOR_ROLE`, `src/agents/system-actor.ts` —
+    UUID nil, nunca un usuario real) y encola el job `run_agent`
+    deduplicado por `(agentName, eventKey)` — ver "PENDIENTE esquema" abajo
+    para el caso sin `PROPOSAL-06` aplicada.
+- **Evals deterministas con `FakeProvider`** (`test/agent-evals.test.ts`,
+  26 casos: ≥5 por cada uno de los 5 agentes): no-fabricación
+  (`redactor_borrador` sin evidencia → `needs_data`), guardrail
+  anticorrupción (`redactor_borrador`/`recordatorios` con lenguaje de
+  soborno en el único campo de texto libre de su contexto → `blocked`),
+  techo de riesgo por rol (`consultor_externo` denegado en el primer paso
+  "write" de 4 de los 5 agentes; permitido en `vigilante_cambios`, que es
+  100% lectura), aislamiento por organización (un `tenderId` de otra
+  organización nunca devuelve sus datos), idempotencia por
+  `idempotencyKey` (el `LLMProvider` NO se vuelve a invocar en una segunda
+  corrida idéntica), y presupuesto excedido (`budgetUsdPerOrg` mínimo →
+  la corrida se detiene `failed`, nunca fabrica un resultado). Más un caso
+  de sistema compartido (`AgentRunner`/`AuthorizationPolicy`) que prueba
+  que un `actionKind` prohibido se deniega SIEMPRE, incluso para
+  `superadmin` — ninguna de las 8 herramientas reales tiene hoy un
+  `actionKind` prohibido, por diseño.
+
+### PENDIENTE esquema: `PROPOSAL-06-agent-business-tools-grants.sql`
+
+Las lecturas de negocio adoptan `worker_role` (mismo patrón que
+`updateAgentRunRow`, WK-23) y verifican EXPLÍCITAMENTE contra el catálogo
+real `pg_policies` que la política RLS de `PROPOSAL-06` ya exista antes de
+correr cualquier `SELECT` de negocio (`src/agents/db-context.ts`,
+`SchemaGrantPendingError`). Esto se descubrió probando contra PGlite real,
+no por diseño a priori: `worker_role` YA hereda (`grant app_role to
+worker_role ... inherit`, 0028) los privilegios de TABLA por defecto de
+`app_role` (0001), así que un `SELECT` crudo sin política RLS que lo
+reconozca NO lanza ningún error — simplemente devuelve **cero filas en
+silencio** (RLS filtra, no bloquea la sentencia). Devolver esa lista vacía
+como un resultado real habría sido exactamente el tipo de fabricación de
+éxito que este proyecto prohíbe (REQ-150); por eso la verificación previa
+contra `pg_policies` es obligatoria, no un adorno.
+
+Mientras `PROPOSAL-06` no se incorpore a `packages/db/migrations/` (fuera
+de mi ámbito esta ronda, igual que WK-04/WK-07/WK-08 en su momento):
+
+- Las 4 herramientas de lectura y `enqueueUpcomingDeadlineReminders`
+  fallan explícito con `SchemaGrantPendingError` (`permanent: true`) contra
+  un Postgres real — nunca "0 convocatorias" fabricado.
+- `enqueueAgentRun` (disparado por eventos de ingesta/vencimiento) es
+  **fail-open** solo para la apertura de su propia fila `agent_runs`: si
+  falla, el job `run_agent` se encola IGUAL (el evento nunca se pierde),
+  simplemente sin `agentRunId` — su resultado queda solo en el log
+  estructurado del proceso, no en Postgres, hasta que la migración se
+  aplique.
+- `test/` de este paquete aplican `PROPOSAL-06` directamente sobre una base
+  ya migrada (`test/proposal-06-helper.ts`, mismo patrón que
+  `PROPOSAL-01/02/03-*.test.ts`) para probar que el código es correcto una
+  vez que la migración real se incorpore — eso NO significa que ya esté
+  aplicada en ningún entorno real.
+
+### Qué es FAKE (determinista, no certifica integración real)
+
+- **`FakeProvider`** es el proveedor por defecto para las 5 corridas
+  nombradas (igual que para `llm_complete`): determinista, sin red. Se usa
+  para el texto narrativo de `proponer_matching`/`proponer_seccion_propuesta`
+  (el score/las citas de experiencia SIEMPRE vienen de datos reales,
+  calculados en código; solo la REDACCIÓN de la frase que los envuelve usa
+  el proveedor). Con `FakeProvider`, esa redacción es un placeholder
+  determinista (`[fake:tier:hash]`), no prosa real.
+
+### Qué REQUIERE credenciales de OpenAI (no ejercitado esta ronda)
+
+- Definir `OPENAI_API_KEY` activa `OpenAIResponsesProvider` real
+  (`packages/agents`) para la redacción narrativa de
+  `proponer_matching`/`proponer_seccion_propuesta`. **No se ejercitó
+  contra la API real de OpenAI en esta ronda** (mismo límite ya documentado
+  en `packages/agents/README.md`: pasar la suite con `FakeProvider` NO
+  certifica esa integración).
+
 ## Pendientes / fuera de alcance de esta ronda
 
 - **Acoplamiento a un contrato "espejo", no importado directamente**:
@@ -493,19 +682,45 @@ detalle completo en cada sección referenciada y en `docs/logs/fix-worker-ronda4
   ambos escenarios contra un Postgres de pruebas real en CI (Docker/CI, no
   disponible en este entorno) con procesos de sistema operativo genuinamente
   concurrentes.
-- **`run_agent` no persiste `tool_calls` individuales en Postgres**: usa
-  `InMemoryToolCallStore`/`InMemoryRunStore` de `packages/agents` (librería
-  pura sin persistencia). Persistir contra `agent_runs`/`tool_calls` reales
-  paso a paso (no solo el resultado final) es responsabilidad de `apps/api`
-  (dueño de esa capa de persistencia), fuera de alcance de `packages/db` en
-  esta ronda.
+- **`run_agent` no persiste `tool_calls` individuales en su propia tabla
+  Postgres (`tool_calls`, `packages/db/migrations/0004`)** — Ronda 6 CIERRA
+  PARCIALMENTE esto: cada `tool_call` SÍ queda persistido, pero como un
+  resumen redactado dentro de `agent_runs.output` (esquema YA existente,
+  ver sección "Ronda 6" arriba), no como filas individuales en `tool_calls`
+  (ese `INSERT` requeriría un grant adicional para `worker_role` que esta
+  ronda decidió NO proponer todavía, para mantener `PROPOSAL-06` acotado a
+  lo estrictamente necesario). `InMemoryToolCallStore`/`InMemoryRunStore`
+  de `packages/agents` siguen usándose para el ciclo de vida DENTRO del
+  job, como antes.
 - **Integración real con OpenAI no ejercitada**: `OpenAIResponsesProvider`
   se usa tal cual la expone `packages/agents` (que documenta lo mismo en su
   propio README); esta ronda no tuvo credenciales de producción para
-  probarla contra la API real.
-- **`run_agent` solo registra una herramienta de demostración**
-  (`llm_complete`); no hay herramientas de negocio reales conectadas
-  (extraer bases, redactar propuesta, etc.) — esas viven en `apps/api`.
+  probarla contra la API real — tampoco para la redacción narrativa de los
+  5 agentes nombrados nuevos (Ronda 6).
+- ~~**`run_agent` solo registra una herramienta de demostración**~~
+  **CERRADO (Ronda 6)**: 8 herramientas de negocio reales
+  (`src/agents/business-tools.ts`) + 5 agentes nombrados con plan fijo
+  (`src/agents/named-agents.ts`) — ver sección "Ronda 6: agentes de negocio
+  reales" arriba. `llm_complete` se mantiene solo por compatibilidad hacia
+  atrás para `agentName` fuera de esos 5.
+- **Sin canal real de notificación para `programar_alerta`/
+  `recordatorios`** (Ronda 6): `send_agent_alert`
+  (`src/handlers/send-agent-alert.ts`) solo registra un `warn` estructurado
+  en el log del proceso — no hay correo/SMS/webhook real configurado (el
+  correo transaccional real ya está documentado como bloqueo externo
+  pendiente de credenciales en `docs/investigacion/paridad-producto.md
+  §6.2`). Añadir un canal real es una extensión de ese mismo handler, sin
+  cambiar el contrato del job ni de la herramienta que lo encola.
+- **`PROPOSAL-06-agent-business-tools-grants.sql` PENDIENTE esquema**
+  (Ronda 6): ver sección dedicada arriba — sin ella, las 4 herramientas de
+  lectura y el escáner de vencimientos fallan explícito
+  (`SchemaGrantPendingError`), y las corridas disparadas por evento de
+  plataforma no abren su propia fila `agent_runs` (fail-open documentado).
+- **Kill-switch por agente solo por variable de entorno** (Ronda 6,
+  `WORKER_DISABLED_AGENTS`): una tabla dedicada para control dinámico sin
+  reiniciar el proceso queda PROPUESTA, no implementada (ver
+  `src/agents/kill-switch.ts`) — requeriría además un endpoint de
+  administración en `apps/api`, fuera de mi ámbito esta ronda.
 - **Sin exportador Prometheus**: `JobMetrics` es un contador en memoria
   simple (`src/queue/metrics.ts`); `apps/api` ya usa `prom-client` para su
   propio `/metrics`. Exponer un endpoint equivalente en este proceso queda

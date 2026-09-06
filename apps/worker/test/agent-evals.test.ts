@@ -151,7 +151,7 @@ describe('Ronda 6: evals deterministas por agente nombrado', () => {
     it('idempotencia por clave: dos corridas del mismo tenderId+org reutilizan el resultado cacheado del paso "proponer_matching" (el LLM no se vuelve a invocar)', async () => {
       const { orgId, userId, tenderId } = await seedTenderWithFullData('eval-ac-idem');
       let completions = 0;
-      const provider = new FakeProvider((req) => {
+      const provider = new FakeProvider(() => {
         completions += 1;
         return { content: `[n=${completions}]`, toolCalls: [], usage: { inputTokens: 1, outputTokens: 1 } };
       });
