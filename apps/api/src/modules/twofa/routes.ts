@@ -1,8 +1,16 @@
 /**
  * REQ-044/064: enrolamiento y verificación TOTP (2FA/step-up) para
- * aprobaciones económicas sensibles. Endpoints de USUARIO (no requieren
- * organización activa -- el enrolamiento es de la cuenta, válido para
- * cualquier organización de la que el usuario sea miembro).
+ * aprobaciones económicas sensibles. Endpoints de USUARIO (el enrolamiento
+ * TOTP en sí es de la cuenta, válido para cualquier organización de la que
+ * el usuario sea miembro) -- no llevan `app.requireOrg` como preHandler
+ * (no exigen que el usuario sea MIEMBRO de esa organización, a diferencia
+ * de una ruta normal de `apps/api`), pero R5-09
+ * (docs/auditoria-2/api-ronda5-reverificacion.md) exige de todos modos un
+ * `X-Org-Id` (UUID válido) y un `purpose` (enum cerrado,
+ * `lib/step-up.ts#STEP_UP_PURPOSES`) para CREAR una sesión de step-up: la
+ * sesión resultante queda atada a esa organización/acción concretas
+ * (`requireStepUp` exige coincidencia exacta al consumirla desde la acción
+ * real, que sí valida membresía vía su propio `app.requireOrg`).
  */
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
@@ -19,25 +27,14 @@ import {
   hashBackupCode,
   verifyTotpCode,
   assertSixDigitCode,
+  assertStepUpOrgId,
+  assertStepUpPurpose,
 } from '../../lib/step-up.js';
 import { enrollResponseSchema, totpCodeSchema, verifyEnrollmentResponseSchema, stepUpResponseSchema, stepUpStatusResponseSchema } from './schemas.js';
 
 /** Un código de respaldo tiene forma "XXXX-XXXX"; cualquier otra cosa se intenta como TOTP de 6 dígitos. */
 function looksLikeBackupCode(code: string): boolean {
   return /^[A-Z0-9]{4}-[A-Z0-9]{4}$/i.test(code.trim());
-}
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/**
- * R5-05: organización opcional a la que atar el `stepUpToken` resultante
- * (ver `lib/step-up.ts`, `requireStepUp`). Un valor ausente/no-UUID nunca
- * rechaza la request (2FA es de cuenta, no de organización) -- simplemente
- * la sesión queda "genérica" (org_id = null), igual que antes de esta ronda.
- */
-function resolveOptionalOrgId(headerValue: string | string[] | undefined): string | null {
-  const raw = Array.isArray(headerValue) ? headerValue[0] : headerValue;
-  return raw && UUID_RE.test(raw) ? raw : null;
 }
 
 /** R5-02: mensaje explícito de bloqueo progresivo, con los minutos restantes redondeados hacia arriba para no subestimar la espera real. */
@@ -199,8 +196,6 @@ export async function twofaRoutes(app: FastifyInstance): Promise<void> {
     async (request) => {
       const userId = request.userId!;
       const code = assertSixDigitCode(request.body.code);
-      const orgId = resolveOptionalOrgId(request.headers['x-org-id']);
-      const purpose = request.body.purpose ?? null;
       const { ip, userAgent } = auditContext(request);
 
       // R5-02: contador de fallos POR USUARIO persistido en DB -- rotar de
@@ -237,6 +232,15 @@ export async function twofaRoutes(app: FastifyInstance): Promise<void> {
         throw new ForbiddenError('Código TOTP inválido o ya utilizado (replay rechazado).');
       }
 
+      // R5-09: orgId/purpose OBLIGATORIOS para crear la sesión de step-up
+      // que esta confirmación emite de una vez (ver docstring del schema y
+      // `lib/step-up.ts`) -- se valida DESPUÉS de confirmar que el código
+      // es válido (nunca antes de eso: un cliente con código correcto pero
+      // request mal formado sigue gastando el mismo "presupuesto" de
+      // intento que cualquier otro fallo real, ni más ni menos).
+      const orgId = assertStepUpOrgId(request.headers['x-org-id']);
+      const purpose = assertStepUpPurpose(request.body.purpose);
+
       // Éxito: se persiste todo en UNA transacción final (si algo aquí
       // fallara, sí queremos que se revierta como conjunto atómico).
       return withUserTx(app, userId, async (tx) => {
@@ -244,10 +248,8 @@ export async function twofaRoutes(app: FastifyInstance): Promise<void> {
         await resetTwofaFailures(tx, userId);
 
         // Confirmar el enrolamiento ya prueba posesión del TOTP -- se
-        // emite de una vez una sesión de step-up (ver docstring del schema).
-        // R5-05: `org_id`/`purpose` quedan NULL (sesión "genérica",
-        // comportamiento previo a esta ronda) salvo que el cliente los
-        // declare explícitamente (X-Org-Id / body.purpose).
+        // emite de una vez una sesión de step-up (ver docstring del schema),
+        // SIEMPRE atada a `orgId`/`purpose` (R5-09, ya no "genérica").
         const stepUpId = randomUUID();
         const expiresAt = new Date(Date.now() + app.config.stepUpWindowMinutes * 60_000).toISOString();
         await tx.query(
@@ -280,8 +282,6 @@ export async function twofaRoutes(app: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const userId = request.userId!;
       const rawCode = request.body.code.trim();
-      const orgId = resolveOptionalOrgId(request.headers['x-org-id']);
-      const purpose = request.body.purpose ?? null;
       const { ip, userAgent } = auditContext(request);
 
       // R5-02: ver docstring equivalente en /2fa/verify-enrollment arriba.
@@ -313,6 +313,12 @@ export async function twofaRoutes(app: FastifyInstance): Promise<void> {
           throw new ForbiddenError('Código de respaldo inválido o ya utilizado.');
         }
 
+        // R5-09: orgId/purpose OBLIGATORIOS -- validados solo tras confirmar
+        // que el código de respaldo es válido (ver docstring equivalente en
+        // /2fa/verify-enrollment arriba).
+        const orgId = assertStepUpOrgId(request.headers['x-org-id']);
+        const purpose = assertStepUpPurpose(request.body.purpose);
+
         return withUserTx(app, userId, async (tx) => {
           await tx.query('update user_backup_codes set used_at = now() where id = $1', [backupRow.rows[0].id]);
           const payload = await finalizeStepUp(app, tx, { userId, orgId, purpose, requestId: request.id, correlationId: request.correlationId });
@@ -332,6 +338,11 @@ export async function twofaRoutes(app: FastifyInstance): Promise<void> {
         throw new ForbiddenError('Código TOTP inválido, o ya fue utilizado (replay rechazado).');
       }
 
+      // R5-09: orgId/purpose OBLIGATORIOS -- validados solo tras confirmar
+      // que el código TOTP es válido.
+      const orgId = assertStepUpOrgId(request.headers['x-org-id']);
+      const purpose = assertStepUpPurpose(request.body.purpose);
+
       const result = await withUserTx(app, userId, async (tx) => {
         await tx.query('update user_totp_secrets set last_used_time_step = $1 where user_id = $2', [verification.timeStep, userId]);
         return finalizeStepUp(app, tx, { userId, orgId, purpose, requestId: request.id, correlationId: request.correlationId });
@@ -342,11 +353,11 @@ export async function twofaRoutes(app: FastifyInstance): Promise<void> {
   );
 }
 
-/** Común a ambas ramas (TOTP/backup code) de `/2fa/step-up` tras una verificación exitosa: reinicia el contador de fallos, emite la sesión de step-up (R5-05: opcionalmente atada a org/purpose) y audita el éxito. */
+/** Común a ambas ramas (TOTP/backup code) de `/2fa/step-up` tras una verificación exitosa: reinicia el contador de fallos, emite la sesión de step-up (R5-09: SIEMPRE atada a org/purpose) y audita el éxito. */
 async function finalizeStepUp(
   app: FastifyInstance,
   tx: DbExecutor,
-  params: { userId: string; orgId: string | null; purpose: string | null; requestId: string; correlationId?: string | null }
+  params: { userId: string; orgId: string; purpose: string; requestId: string; correlationId?: string | null }
 ): Promise<{ stepUpToken: string; expiresAt: string }> {
   await resetTwofaFailures(tx, params.userId);
 

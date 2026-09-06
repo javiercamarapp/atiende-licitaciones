@@ -60,20 +60,43 @@ export async function registerAndLogin(
 }
 
 /**
+ * R5-09 (docs/auditoria-2/api-ronda5-reverificacion.md): `orgId`/`purpose`
+ * son OBLIGATORIOS para crear cualquier sesión de step-up (`X-Org-Id` +
+ * `purpose`, enum cerrado -- ver `lib/step-up.ts#STEP_UP_PURPOSES`); ya no
+ * existe una sesión "genérica". Mismos valores usados en todo el resto de
+ * `apps/api` (`company/routes.ts`, `expediente/approval.routes.ts`).
+ */
+export type TestStepUpPurpose = 'company.rate_approval' | 'expediente.approval' | 'tool_call.approval' | 'admin.action';
+
+export interface StepUpScope {
+  orgId: string;
+  purpose: TestStepUpPurpose;
+}
+
+/**
  * REQ-044/064: enrola 2FA (TOTP) para `accessToken` y devuelve un
  * `stepUpToken` VIGENTE (emitido por `verify-enrollment`, ver
- * `modules/twofa/routes.ts`) listo para usarse como encabezado
- * `X-Step-Up` en `POST .../approval/approve` o `POST .../rates/:id/approve`.
+ * `modules/twofa/routes.ts`), atado a `scope.orgId`/`scope.purpose`
+ * (R5-09, ambos obligatorios), listo para usarse como encabezado
+ * `X-Step-Up` en la acción correspondiente. R5-09: la sesión es de UN SOLO
+ * USO -- solo sirve para UNA acción; pida una sesión nueva por cada
+ * acción que deba autorizar (ver {@link enrollTwoFactorFull}/
+ * {@link stepUpWithBackupCode} para pedir sesiones adicionales del mismo
+ * usuario sin volver a enrolar).
  */
-export async function enrollTwoFactor(app: FastifyInstance, accessToken: string): Promise<{ secretBase32: string; stepUpToken: string }> {
-  const headers = { authorization: `Bearer ${accessToken}` };
+export async function enrollTwoFactor(
+  app: FastifyInstance,
+  accessToken: string,
+  scope: StepUpScope
+): Promise<{ secretBase32: string; stepUpToken: string }> {
+  const headers = { authorization: `Bearer ${accessToken}`, 'x-org-id': scope.orgId };
   const enroll = await app.inject({ method: 'POST', url: '/auth/2fa/enroll', headers });
   if (enroll.statusCode !== 201) {
     throw new Error(`2fa enroll failed: ${enroll.statusCode} ${enroll.body}`);
   }
   const { secretBase32 } = enroll.json();
   const code = await generateTotpCodeForTesting(secretBase32);
-  const verify = await app.inject({ method: 'POST', url: '/auth/2fa/verify-enrollment', headers, payload: { code } });
+  const verify = await app.inject({ method: 'POST', url: '/auth/2fa/verify-enrollment', headers, payload: { code, purpose: scope.purpose } });
   if (verify.statusCode !== 200) {
     throw new Error(`2fa verify-enrollment failed: ${verify.statusCode} ${verify.body}`);
   }
@@ -81,22 +104,27 @@ export async function enrollTwoFactor(app: FastifyInstance, accessToken: string)
 }
 
 /**
- * R5-05: variante de {@link enrollTwoFactor} que además devuelve los
+ * Variante de {@link enrollTwoFactor} que además devuelve los
  * `backupCodes` emitidos -- útiles para pedir MÁS de un `stepUpToken`
  * independiente para el mismo usuario dentro de un mismo test sin chocar
  * con el rechazo de replay de TOTP (un código de respaldo es de un solo
- * uso real, así que cada llamada a `stepUpWithCode` con un código distinto
- * produce una sesión nueva).
+ * uso real, así que cada llamada a {@link stepUpWithBackupCode} con un
+ * código distinto produce una sesión nueva) -- necesario porque, desde
+ * R5-09, cada sesión de step-up es de un solo uso.
  */
-export async function enrollTwoFactorFull(app: FastifyInstance, accessToken: string): Promise<{ secretBase32: string; backupCodes: string[]; stepUpToken: string }> {
-  const headers = { authorization: `Bearer ${accessToken}` };
+export async function enrollTwoFactorFull(
+  app: FastifyInstance,
+  accessToken: string,
+  scope: StepUpScope
+): Promise<{ secretBase32: string; backupCodes: string[]; stepUpToken: string }> {
+  const headers = { authorization: `Bearer ${accessToken}`, 'x-org-id': scope.orgId };
   const enroll = await app.inject({ method: 'POST', url: '/auth/2fa/enroll', headers });
   if (enroll.statusCode !== 201) {
     throw new Error(`2fa enroll failed: ${enroll.statusCode} ${enroll.body}`);
   }
   const { secretBase32, backupCodes } = enroll.json();
   const code = await generateTotpCodeForTesting(secretBase32);
-  const verify = await app.inject({ method: 'POST', url: '/auth/2fa/verify-enrollment', headers, payload: { code } });
+  const verify = await app.inject({ method: 'POST', url: '/auth/2fa/verify-enrollment', headers, payload: { code, purpose: scope.purpose } });
   if (verify.statusCode !== 200) {
     throw new Error(`2fa verify-enrollment failed: ${verify.statusCode} ${verify.body}`);
   }
@@ -104,24 +132,17 @@ export async function enrollTwoFactorFull(app: FastifyInstance, accessToken: str
 }
 
 /**
- * R5-05: pide un `stepUpToken` nuevo vía `POST /auth/2fa/step-up` usando un
+ * Pide un `stepUpToken` nuevo vía `POST /auth/2fa/step-up` usando un
  * código de RESPALDO (evita el rechazo de replay de un TOTP recién usado),
- * con `purpose`/`X-Org-Id` opcionales para atar la sesión resultante a una
- * acción/organización concreta (ver `lib/step-up.ts`).
+ * atado a `scope.orgId`/`scope.purpose` (R5-09, ambos obligatorios).
  */
-export async function stepUpWithBackupCode(
-  app: FastifyInstance,
-  accessToken: string,
-  backupCode: string,
-  opts: { purpose?: string; orgId?: string } = {}
-): Promise<string> {
-  const headers: Record<string, string> = { authorization: `Bearer ${accessToken}` };
-  if (opts.orgId) headers['x-org-id'] = opts.orgId;
+export async function stepUpWithBackupCode(app: FastifyInstance, accessToken: string, backupCode: string, scope: StepUpScope): Promise<string> {
+  const headers: Record<string, string> = { authorization: `Bearer ${accessToken}`, 'x-org-id': scope.orgId };
   const res = await app.inject({
     method: 'POST',
     url: '/auth/2fa/step-up',
     headers,
-    payload: { code: backupCode, ...(opts.purpose ? { purpose: opts.purpose } : {}) },
+    payload: { code: backupCode, purpose: scope.purpose },
   });
   if (res.statusCode !== 201) {
     throw new Error(`2fa step-up failed: ${res.statusCode} ${res.body}`);

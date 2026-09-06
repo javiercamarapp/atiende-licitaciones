@@ -62,7 +62,7 @@ describe('AE-02: editar el contenido de una sección tras una aprobación vigent
     const owner = await registerAndLogin(app, 'ae02-owner-1@example.com');
     const org = await createOrgFor(app, owner, 'AE02 Org 1', 'ae02-org-1');
     const tenderId = await createTender(app, org.id);
-    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken);
+    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken, { orgId: org.id, purpose: 'expediente.approval' });
     const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': stepUpToken };
 
     const reqId = await insertRequirement(db, org.id, tenderId);
@@ -109,7 +109,7 @@ describe('AE-02: editar el contenido de una sección tras una aprobación vigent
     const owner = await registerAndLogin(app, 'ae02-owner-2@example.com');
     const org = await createOrgFor(app, owner, 'AE02 Org 2', 'ae02-org-2');
     const tenderId = await createTender(app, org.id, 'ae02-002');
-    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken);
+    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken, { orgId: org.id, purpose: 'expediente.approval' });
     const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': stepUpToken };
 
     const reqId = await insertRequirement(db, org.id, tenderId);

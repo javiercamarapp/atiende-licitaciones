@@ -184,7 +184,7 @@ describe('perfil de empresa (E2)', () => {
       )
     ).rejects.toThrow(/no está aprobada/);
 
-    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken);
+    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken, { orgId: org.id, purpose: 'company.rate_approval' });
     const approved = await app.inject({
       method: 'POST',
       url: `/company/rates/${rateId}/approve`,

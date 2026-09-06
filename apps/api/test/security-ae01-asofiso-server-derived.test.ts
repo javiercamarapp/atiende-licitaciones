@@ -86,7 +86,7 @@ describe('AE-01: asOfIso NUNCA lo decide el cliente -- se deriva de tenders.subm
     // Presentación en 60 días.
     const submissionDeadline = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString();
     const tenderId = await createTender(app, org.id, 'ae01-002', submissionDeadline);
-    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken);
+    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken, { orgId: org.id, purpose: 'company.rate_approval' });
     const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': stepUpToken };
 
     // Tarifa vigente HOY (venció en 5 días desde ahora), pero para la fecha
@@ -122,7 +122,7 @@ describe('AE-01: asOfIso NUNCA lo decide el cliente -- se deriva de tenders.subm
     const org = await createOrgFor(app, owner, 'AE01 Org 3', 'ae01-org-3');
     const submissionDeadline = new Date(Date.now() + 20 * 24 * 60 * 60 * 1000).toISOString();
     const tenderId = await createTender(app, org.id, 'ae01-003', submissionDeadline);
-    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken);
+    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken, { orgId: org.id, purpose: 'company.rate_approval' });
     const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': stepUpToken };
 
     const validFrom = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);

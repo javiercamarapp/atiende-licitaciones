@@ -38,7 +38,7 @@ describe('AE-14: GET /package/latest y /package/download re-derivan el estado re
     const owner = await registerAndLogin(app, 'ae14-owner-1@example.com');
     const org = await createOrgFor(app, owner, 'AE14 Org 1', 'ae14-org-1');
     const tenderId = await createTender(app, org.id, 'ae14-001');
-    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken);
+    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken, { orgId: org.id, purpose: 'expediente.approval' });
     const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': stepUpToken };
 
     const proposalRes = await app.inject({ method: 'GET', url: `/expediente/tenders/${tenderId}/proposal`, headers });

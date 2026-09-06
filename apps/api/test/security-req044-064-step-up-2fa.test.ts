@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { DbClient } from '@atiende/db';
-import { createTestApp, registerAndLogin, createOrgFor, enrollTwoFactor } from './helpers.js';
+import { createTestApp, registerAndLogin, createOrgFor, enrollTwoFactor, enrollTwoFactorFull, stepUpWithBackupCode } from './helpers.js';
 import { generateTotpCodeForTesting } from '../src/lib/step-up.js';
 
 /**
@@ -10,6 +10,11 @@ import { generateTotpCodeForTesting } from '../src/lib/step-up.js';
  * de expediente, distinta del rol que aprueba. Cobertura: sin 2FA enrolado
  * -> 403 con instrucción; replay de TOTP rechazado; ventana de step-up
  * expirada rechazada; con step-up vigente, la aprobación procede.
+ *
+ * R5-09 (docs/auditoria-2/api-ronda5-reverificacion.md): `orgId`/`purpose`
+ * son ahora OBLIGATORIOS para crear un step-up (ver `helpers.ts`) y cada
+ * sesión es de UN SOLO USO -- las pruebas de este archivo piden un token
+ * por cada acción que autorizan, nunca reutilizan uno ya consumido.
  */
 describe('REQ-044/064 — 2FA/step-up en aprobaciones económicas', () => {
   let app: FastifyInstance;
@@ -39,7 +44,7 @@ describe('REQ-044/064 — 2FA/step-up en aprobaciones económicas', () => {
     const owner = await registerAndLogin(app, 'step-owner-2@example.com');
     const org = await createOrgFor(app, owner, 'Step Org 2', 'step-org-2');
     const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
-    await enrollTwoFactor(app, owner.accessToken);
+    await enrollTwoFactor(app, owner.accessToken, { orgId: org.id, purpose: 'company.rate_approval' });
 
     const rate = await app.inject({ method: 'POST', url: '/company/rates', headers, payload: { itemCode: 'x', description: 'x', unitPrice: 10, validFrom: '2020-01-01' } });
     const approve = await app.inject({ method: 'POST', url: `/company/rates/${rate.json().id}/approve`, headers });
@@ -51,10 +56,14 @@ describe('REQ-044/064 — 2FA/step-up en aprobaciones económicas', () => {
     const owner = await registerAndLogin(app, 'step-owner-3@example.com');
     const org = await createOrgFor(app, owner, 'Step Org 3', 'step-org-3');
     const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
-    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken);
+    // R5-09: dos acciones con purposes DISTINTOS -- dos sesiones de step-up
+    // independientes, cada una atada a su propio purpose.
+    const { backupCodes } = await enrollTwoFactorFull(app, owner.accessToken, { orgId: org.id, purpose: 'company.rate_approval' });
+    const rateStepUp = await stepUpWithBackupCode(app, owner.accessToken, backupCodes[0], { orgId: org.id, purpose: 'company.rate_approval' });
+    const expedienteStepUp = await stepUpWithBackupCode(app, owner.accessToken, backupCodes[1], { orgId: org.id, purpose: 'expediente.approval' });
 
     const rate = await app.inject({ method: 'POST', url: '/company/rates', headers, payload: { itemCode: 'x', description: 'x', unitPrice: 10, validFrom: '2020-01-01' } });
-    const approve = await app.inject({ method: 'POST', url: `/company/rates/${rate.json().id}/approve`, headers: { ...headers, 'x-step-up': stepUpToken } });
+    const approve = await app.inject({ method: 'POST', url: `/company/rates/${rate.json().id}/approve`, headers: { ...headers, 'x-step-up': rateStepUp } });
     expect(approve.statusCode).toBe(200);
     expect(approve.json().status).toBe('approved');
 
@@ -69,7 +78,7 @@ describe('REQ-044/064 — 2FA/step-up en aprobaciones económicas', () => {
     const approveExpediente = await app.inject({
       method: 'POST',
       url: `/expediente/tenders/${tenderId}/approval/approve`,
-      headers: { ...headers, 'x-step-up': stepUpToken },
+      headers: { ...headers, 'x-step-up': expedienteStepUp },
       payload: { scope: 'documento', scopeRef: 'documento:tecnica' },
     });
     expect(approveExpediente.statusCode).toBe(200);
@@ -77,19 +86,20 @@ describe('REQ-044/064 — 2FA/step-up en aprobaciones económicas', () => {
 
   it('replay: el MISMO código TOTP usado dos veces en verify-enrollment es rechazado la segunda vez', async () => {
     const owner = await registerAndLogin(app, 'step-owner-4@example.com');
-    await createOrgFor(app, owner, 'Step Org 4', 'step-org-4');
-    const headers = { authorization: `Bearer ${owner.accessToken}` };
+    const org = await createOrgFor(app, owner, 'Step Org 4', 'step-org-4');
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
 
     const enroll = await app.inject({ method: 'POST', url: '/auth/2fa/enroll', headers });
     const { secretBase32 } = enroll.json();
     const code = await generateTotpCodeForTesting(secretBase32);
 
-    const first = await app.inject({ method: 'POST', url: '/auth/2fa/verify-enrollment', headers, payload: { code } });
+    const first = await app.inject({ method: 'POST', url: '/auth/2fa/verify-enrollment', headers, payload: { code, purpose: 'company.rate_approval' } });
     expect(first.statusCode).toBe(200);
 
     // Mismo código otra vez (aunque siga siendo válido dentro de su propia
-    // ventana de 30s de otplib): debe rechazarse por replay.
-    const replay = await app.inject({ method: 'POST', url: '/auth/2fa/step-up', headers, payload: { code } });
+    // ventana de 30s de otplib): debe rechazarse por replay -- antes de
+    // siquiera llegar a validar orgId/purpose (ver `modules/twofa/routes.ts`).
+    const replay = await app.inject({ method: 'POST', url: '/auth/2fa/step-up', headers, payload: { code, purpose: 'company.rate_approval' } });
     expect(replay.statusCode).toBe(403);
     expect(replay.json().title).toContain('replay');
   });
@@ -98,7 +108,7 @@ describe('REQ-044/064 — 2FA/step-up en aprobaciones económicas', () => {
     const owner = await registerAndLogin(app, 'step-owner-5@example.com');
     const org = await createOrgFor(app, owner, 'Step Org 5', 'step-org-5');
     const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
-    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken);
+    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken, { orgId: org.id, purpose: 'company.rate_approval' });
 
     // Se fuerza la expiración directamente en la tabla (equivalente a que
     // haya pasado STEP_UP_WINDOW_MINUTES desde la verificación real).
@@ -116,7 +126,7 @@ describe('REQ-044/064 — 2FA/step-up en aprobaciones económicas', () => {
     const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
 
     const otherUser = await registerAndLogin(app, 'step-other-6@example.com');
-    const { stepUpToken: otherToken } = await enrollTwoFactor(app, otherUser.accessToken);
+    const { stepUpToken: otherToken } = await enrollTwoFactor(app, otherUser.accessToken, { orgId: org.id, purpose: 'company.rate_approval' });
 
     const rate = await app.inject({ method: 'POST', url: '/company/rates', headers, payload: { itemCode: 'x', description: 'x', unitPrice: 10, validFrom: '2020-01-01' } });
     const approve = await app.inject({ method: 'POST', url: `/company/rates/${rate.json().id}/approve`, headers: { ...headers, 'x-step-up': otherToken } });
@@ -125,19 +135,19 @@ describe('REQ-044/064 — 2FA/step-up en aprobaciones económicas', () => {
 
   it('backup code: un código de respaldo sin usar habilita un step-up; el mismo código ya no sirve una segunda vez', async () => {
     const owner = await registerAndLogin(app, 'step-owner-7@example.com');
-    await createOrgFor(app, owner, 'Step Org 7', 'step-org-7');
-    const headers = { authorization: `Bearer ${owner.accessToken}` };
+    const org = await createOrgFor(app, owner, 'Step Org 7', 'step-org-7');
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
 
     const enroll = await app.inject({ method: 'POST', url: '/auth/2fa/enroll', headers });
     const { secretBase32, backupCodes } = enroll.json();
     const code = await generateTotpCodeForTesting(secretBase32);
-    await app.inject({ method: 'POST', url: '/auth/2fa/verify-enrollment', headers, payload: { code } });
+    await app.inject({ method: 'POST', url: '/auth/2fa/verify-enrollment', headers, payload: { code, purpose: 'company.rate_approval' } });
 
     const backupCode = backupCodes[0] as string;
-    const stepUp1 = await app.inject({ method: 'POST', url: '/auth/2fa/step-up', headers, payload: { code: backupCode } });
+    const stepUp1 = await app.inject({ method: 'POST', url: '/auth/2fa/step-up', headers, payload: { code: backupCode, purpose: 'company.rate_approval' } });
     expect(stepUp1.statusCode).toBe(201);
 
-    const stepUp2 = await app.inject({ method: 'POST', url: '/auth/2fa/step-up', headers, payload: { code: backupCode } });
+    const stepUp2 = await app.inject({ method: 'POST', url: '/auth/2fa/step-up', headers, payload: { code: backupCode, purpose: 'company.rate_approval' } });
     expect(stepUp2.statusCode).toBe(403);
   });
 });

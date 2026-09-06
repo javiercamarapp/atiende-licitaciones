@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { DbClient } from '@atiende/db';
-import { createTestApp, registerAndLogin } from './helpers.js';
+import { createTestApp, registerAndLogin, createOrgFor } from './helpers.js';
 import { getRateLimitSettings } from '../src/lib/rate-limit-settings.js';
 
 /**
@@ -95,17 +95,20 @@ describe('R5-02/R5-03: límite de tasa + bloqueo progresivo + auditoría de fall
 
   it('replay del TOTP en step-up es rechazado (no genera una nueva sesión de step-up)', async () => {
     const user = await registerAndLogin(app, 'r502-user-3@example.com');
-    const headers = { authorization: `Bearer ${user.accessToken}` };
+    const org = await createOrgFor(app, user, 'R502 Org 3', 'r502-org-3');
+    const headers = { authorization: `Bearer ${user.accessToken}`, 'x-org-id': org.id };
     const enroll = await app.inject({ method: 'POST', url: '/auth/2fa/enroll', headers });
     const { secretBase32 } = enroll.json();
     const { generateTotpCodeForTesting } = await import('../src/lib/step-up.js');
     const code = await generateTotpCodeForTesting(secretBase32);
 
-    const first = await app.inject({ method: 'POST', url: '/auth/2fa/verify-enrollment', headers, payload: { code } });
+    // R5-09: orgId/purpose obligatorios para crear la sesión de step-up.
+    const first = await app.inject({ method: 'POST', url: '/auth/2fa/verify-enrollment', headers, payload: { code, purpose: 'company.rate_approval' } });
     expect(first.statusCode).toBe(200);
 
-    // El mismo código otra vez (mismo time_step ya aceptado) -- replay rechazado.
-    const replay = await app.inject({ method: 'POST', url: '/auth/2fa/step-up', headers, payload: { code } });
+    // El mismo código otra vez (mismo time_step ya aceptado) -- replay
+    // rechazado ANTES de siquiera llegar a validar orgId/purpose de nuevo.
+    const replay = await app.inject({ method: 'POST', url: '/auth/2fa/step-up', headers, payload: { code, purpose: 'company.rate_approval' } });
     expect(replay.statusCode).toBe(403);
   });
 
@@ -185,7 +188,8 @@ describe('R5-02/R5-03: límite de tasa + bloqueo progresivo + auditoría de fall
 
   it('una verificación EXITOSA reinicia el contador de fallos (no se arrastra un bloqueo indefinido)', async () => {
     const user = await registerAndLogin(app, 'r502-user-6@example.com');
-    const headers = { authorization: `Bearer ${user.accessToken}` };
+    const org = await createOrgFor(app, user, 'R502 Org 6', 'r502-org-6');
+    const headers = { authorization: `Bearer ${user.accessToken}`, 'x-org-id': org.id };
     const enroll = await app.inject({ method: 'POST', url: '/auth/2fa/enroll', headers });
     const { secretBase32 } = enroll.json();
 
@@ -193,9 +197,11 @@ describe('R5-02/R5-03: límite de tasa + bloqueo progresivo + auditoría de fall
     await app.inject({ method: 'POST', url: '/auth/2fa/verify-enrollment', headers, payload: { code: '000000' } });
     await app.inject({ method: 'POST', url: '/auth/2fa/verify-enrollment', headers, payload: { code: '111111' } });
 
+    // R5-09: orgId/purpose obligatorios para crear la sesión de step-up
+    // (solo se validan tras confirmar que el código es correcto).
     const { generateTotpCodeForTesting } = await import('../src/lib/step-up.js');
     const code = await generateTotpCodeForTesting(secretBase32);
-    const ok = await app.inject({ method: 'POST', url: '/auth/2fa/verify-enrollment', headers, payload: { code } });
+    const ok = await app.inject({ method: 'POST', url: '/auth/2fa/verify-enrollment', headers, payload: { code, purpose: 'company.rate_approval' } });
     expect(ok.statusCode).toBe(200);
 
     const row = await db.query<{ failed_count: number }>('select failed_count from twofa_lockouts where user_id = $1', [user.id]);

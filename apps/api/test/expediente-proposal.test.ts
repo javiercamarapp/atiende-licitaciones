@@ -103,7 +103,7 @@ describe('expediente — propuesta técnica/económica (E7)', () => {
     const owner = await registerAndLogin(app, 'prop-owner-2@example.com');
     const org = await createOrgFor(app, owner, 'Prop Org 2', 'prop-org-2');
     const tenderId = await createTender(app, org.id, 'prop-002');
-    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken);
+    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken, { orgId: org.id, purpose: 'company.rate_approval' });
     const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': stepUpToken };
 
     const rateRes = await app.inject({
@@ -190,7 +190,7 @@ describe('expediente — propuesta técnica/económica (E7)', () => {
     const owner = await registerAndLogin(app, 'prop-owner-4@example.com');
     const org = await createOrgFor(app, owner, 'Prop Org 4', 'prop-org-4');
     const tenderId = await createTender(app, org.id, 'prop-004');
-    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken);
+    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken, { orgId: org.id, purpose: 'expediente.approval' });
     const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': stepUpToken };
 
     const reqId = await insertRequirement(db, org.id, tenderId, {

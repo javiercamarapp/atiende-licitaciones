@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { DbClient } from '@atiende/db';
-import { createTestApp, registerAndLogin, createOrgFor, enrollTwoFactor, TEST_PLATFORM_API_KEY } from './helpers.js';
+import { createTestApp, registerAndLogin, createOrgFor, enrollTwoFactorFull, stepUpWithBackupCode, TEST_PLATFORM_API_KEY } from './helpers.js';
 
 /**
  * R5-04 (docs/auditoria-2/api-ronda5.md, MEDIA): la migración 0056 propagó
@@ -116,12 +116,15 @@ describe('R5-04: correlation_id nace en POST /internal/tenders/ingest y se hered
     const correlationId = '33333333-4444-4555-8666-777777777704';
     const { tenderId } = await createTenderWithCorrelation(app, org.id, 'r504-004', correlationId);
 
-    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken);
-    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-correlation-id': correlationId, 'x-step-up': stepUpToken };
+    // R5-09: dos acciones con purposes distintos -- dos sesiones de step-up.
+    const { backupCodes } = await enrollTwoFactorFull(app, owner.accessToken, { orgId: org.id, purpose: 'company.rate_approval' });
+    const rateStepUp = await stepUpWithBackupCode(app, owner.accessToken, backupCodes[0], { orgId: org.id, purpose: 'company.rate_approval' });
+    const expedienteStepUp = await stepUpWithBackupCode(app, owner.accessToken, backupCodes[1], { orgId: org.id, purpose: 'expediente.approval' });
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-correlation-id': correlationId };
 
     await app.inject({ method: 'PUT', url: '/company/profile', headers, payload: { legalName: 'Mensajería R5-04 SA de CV', taxId: 'MRB010101AAA' } });
     const rate = await app.inject({ method: 'POST', url: '/company/rates', headers, payload: { itemCode: 'envio-r504', description: 'Envío R5-04', unitPrice: 120, validFrom: '2020-01-01' } });
-    await app.inject({ method: 'POST', url: `/company/rates/${rate.json().id}/approve`, headers });
+    await app.inject({ method: 'POST', url: `/company/rates/${rate.json().id}/approve`, headers: { ...headers, 'x-step-up': rateStepUp } });
 
     await app.inject({ method: 'GET', url: `/expediente/tenders/${tenderId}/proposal`, headers });
     const economic = await app.inject({
@@ -140,7 +143,7 @@ describe('R5-04: correlation_id nace en POST /internal/tenders/ingest y se hered
     });
     expect(checklist.json().overallStatus).toBe('verde');
 
-    const approve = await app.inject({ method: 'POST', url: `/expediente/tenders/${tenderId}/approval/approve`, headers, payload: { scope: 'expediente', scopeRef: 'expediente' } });
+    const approve = await app.inject({ method: 'POST', url: `/expediente/tenders/${tenderId}/approval/approve`, headers: { ...headers, 'x-step-up': expedienteStepUp }, payload: { scope: 'expediente', scopeRef: 'expediente' } });
     expect(approve.json().fullyApproved).toBe(true);
 
     const assemble = await app.inject({ method: 'POST', url: `/expediente/tenders/${tenderId}/package/assemble`, headers });

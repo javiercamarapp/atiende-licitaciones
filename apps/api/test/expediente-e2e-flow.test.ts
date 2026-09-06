@@ -35,8 +35,8 @@ describe('expediente — flujo E2E completo (E6-E11)', () => {
     const org = await createOrgFor(app, owner, 'E2E Org', 'e2e-org');
     const reviewer = await registerAndLogin(app, 'e2e-reviewer@example.com');
     await db.query("insert into memberships (org_id, user_id, role) values ($1, $2, 'reviewer')", [org.id, reviewer.id]);
-    const { stepUpToken: ownerStepUp } = await enrollTwoFactor(app, owner.accessToken);
-    const { stepUpToken: reviewerStepUp } = await enrollTwoFactor(app, reviewer.accessToken);
+    const { stepUpToken: ownerStepUp } = await enrollTwoFactor(app, owner.accessToken, { orgId: org.id, purpose: 'company.rate_approval' });
+    const { stepUpToken: reviewerStepUp } = await enrollTwoFactor(app, reviewer.accessToken, { orgId: org.id, purpose: 'expediente.approval' });
     const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': ownerStepUp };
     const reviewerHeaders = { authorization: `Bearer ${reviewer.accessToken}`, 'x-org-id': org.id, 'x-step-up': reviewerStepUp };
 

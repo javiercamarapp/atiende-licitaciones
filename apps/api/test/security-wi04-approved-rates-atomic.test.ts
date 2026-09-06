@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { DbClient } from '@atiende/db';
-import { createTestApp, registerAndLogin, createOrgFor, enrollTwoFactor } from './helpers.js';
+import { createTestApp, registerAndLogin, createOrgFor, enrollTwoFactorFull, stepUpWithBackupCode } from './helpers.js';
 
 /**
  * WI-04 (docs/auditoria-2/web-integrado.md): `POST /company/rates/:id/approve|reject`
@@ -39,12 +39,20 @@ describe('WI-04: POST /company/rates/:id/approve|reject son transiciones de esta
     const owner = await registerAndLogin(app, 'wi04-owner-1@example.com');
     const org = await createOrgFor(app, owner, 'WI04 Org 1', 'wi04-org-1');
     const rateId = await seedDraftRate(db, org.id, 'wi04-item-1');
-    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken);
-    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': stepUpToken };
+    // R5-09: cada sesión de step-up es de un solo uso -- las dos llamadas
+    // concurrentes necesitan dos tokens INDEPENDIENTES (mismo purpose/org),
+    // para que la exclusión mutua observada aquí siga probando la
+    // atomicidad de `approved_rates` (WI-04), no la de `step_up_sessions`.
+    const scope = { orgId: org.id, purpose: 'company.rate_approval' as const };
+    const { backupCodes } = await enrollTwoFactorFull(app, owner.accessToken, scope);
+    const stepUpTokenA = await stepUpWithBackupCode(app, owner.accessToken, backupCodes[0], scope);
+    const stepUpTokenB = await stepUpWithBackupCode(app, owner.accessToken, backupCodes[1], scope);
+    const headersA = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': stepUpTokenA };
+    const headersB = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': stepUpTokenB };
 
     const [first, second] = await Promise.all([
-      app.inject({ method: 'POST', url: `/company/rates/${rateId}/approve`, headers }),
-      app.inject({ method: 'POST', url: `/company/rates/${rateId}/approve`, headers }),
+      app.inject({ method: 'POST', url: `/company/rates/${rateId}/approve`, headers: headersA }),
+      app.inject({ method: 'POST', url: `/company/rates/${rateId}/approve`, headers: headersB }),
     ]);
     const codes = [first.statusCode, second.statusCode].sort();
     expect(codes).toEqual([200, 409]);
@@ -64,13 +72,19 @@ describe('WI-04: POST /company/rates/:id/approve|reject son transiciones de esta
     const owner = await registerAndLogin(app, 'wi04-owner-2@example.com');
     const org = await createOrgFor(app, owner, 'WI04 Org 2', 'wi04-org-2');
     const rateId = await seedDraftRate(db, org.id, 'wi04-item-2');
-    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken);
-    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': stepUpToken };
+    // R5-09: single-use -- el segundo intento necesita su PROPIO token
+    // vigente para poder llegar a la comprobación de negocio (409, "ya fue
+    // decidida"), en vez de fallar antes por reutilizar un step-up ya
+    // consumido (403, un error DISTINTO al que este test verifica).
+    const scope = { orgId: org.id, purpose: 'company.rate_approval' as const };
+    const { backupCodes } = await enrollTwoFactorFull(app, owner.accessToken, scope);
+    const stepUpTokenA = await stepUpWithBackupCode(app, owner.accessToken, backupCodes[0], scope);
+    const stepUpTokenB = await stepUpWithBackupCode(app, owner.accessToken, backupCodes[1], scope);
 
-    const first = await app.inject({ method: 'POST', url: `/company/rates/${rateId}/approve`, headers });
+    const first = await app.inject({ method: 'POST', url: `/company/rates/${rateId}/approve`, headers: { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': stepUpTokenA } });
     expect(first.statusCode).toBe(200);
 
-    const second = await app.inject({ method: 'POST', url: `/company/rates/${rateId}/approve`, headers });
+    const second = await app.inject({ method: 'POST', url: `/company/rates/${rateId}/approve`, headers: { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': stepUpTokenB } });
     expect(second.statusCode).toBe(409);
   });
 
@@ -78,12 +92,14 @@ describe('WI-04: POST /company/rates/:id/approve|reject son transiciones de esta
     const owner = await registerAndLogin(app, 'wi04-owner-3@example.com');
     const org = await createOrgFor(app, owner, 'WI04 Org 3', 'wi04-org-3');
     const rateId = await seedDraftRate(db, org.id, 'wi04-item-3');
-    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken);
+    const { stepUpToken } = await enrollTwoFactorFull(app, owner.accessToken, { orgId: org.id, purpose: 'company.rate_approval' });
     const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': stepUpToken };
 
     const approve = await app.inject({ method: 'POST', url: `/company/rates/${rateId}/approve`, headers });
     expect(approve.statusCode).toBe(200);
 
+    // reject no exige step-up -- headers (con un x-step-up ya CONSUMIDO por
+    // el approve de arriba) se reutilizan sin problema.
     const reject = await app.inject({ method: 'POST', url: `/company/rates/${rateId}/reject`, headers });
     expect(reject.statusCode).toBe(409);
   });
@@ -92,7 +108,7 @@ describe('WI-04: POST /company/rates/:id/approve|reject son transiciones de esta
     const owner = await registerAndLogin(app, 'wi04-owner-4@example.com');
     const org = await createOrgFor(app, owner, 'WI04 Org 4', 'wi04-org-4');
     const rateId = await seedDraftRate(db, org.id, 'wi04-item-4');
-    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken);
+    const { stepUpToken } = await enrollTwoFactorFull(app, owner.accessToken, { orgId: org.id, purpose: 'company.rate_approval' });
     const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': stepUpToken };
 
     const [approve, reject] = await Promise.all([

@@ -41,7 +41,7 @@ describe('AE-08: companyProfileHash cubre capabilities/experience/signatories/..
     const owner = await registerAndLogin(app, 'ae08-owner-1@example.com');
     const org = await createOrgFor(app, owner, 'AE08 Org 1', 'ae08-org-1');
     const tenderId = await createTender(app, org.id, 'ae08-001');
-    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken);
+    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken, { orgId: org.id, purpose: 'expediente.approval' });
     const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': stepUpToken };
 
     const signatory = await app.inject({
@@ -82,7 +82,7 @@ describe('AE-08: companyProfileHash cubre capabilities/experience/signatories/..
     const owner = await registerAndLogin(app, 'ae08-owner-2@example.com');
     const org = await createOrgFor(app, owner, 'AE08 Org 2', 'ae08-org-2');
     const tenderId = await createTender(app, org.id, 'ae08-002');
-    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken);
+    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken, { orgId: org.id, purpose: 'expediente.approval' });
     const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': stepUpToken };
 
     const capability = await app.inject({ method: 'POST', url: '/company/capabilities', headers, payload: { name: 'Limpieza industrial' } });

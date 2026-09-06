@@ -44,7 +44,7 @@ describe('AE-11: quien editó el contenido de una sección no puede aprobar ese 
 
     const editor = await registerAndLogin(app, 'ae11-editor-1@example.com');
     await db.query("insert into memberships (org_id, user_id, role) values ($1, $2, 'writer')", [org.id, editor.id]);
-    const { stepUpToken: editorStepUp } = await enrollTwoFactor(app, editor.accessToken);
+    const { stepUpToken: editorStepUp } = await enrollTwoFactor(app, editor.accessToken, { orgId: org.id, purpose: 'expediente.approval' });
     const editorHeaders = { authorization: `Bearer ${editor.accessToken}`, 'x-org-id': org.id, 'x-step-up': editorStepUp };
 
     // Asegura que exista el expediente, y siembra una sección directamente
@@ -96,7 +96,7 @@ describe('AE-11: quien editó el contenido de una sección no puede aprobar ese 
     // específica de autoría de contenido, no bloquea a cualquiera.
     const thirdReviewer = await registerAndLogin(app, 'ae11-reviewer-1@example.com');
     await db.query("insert into memberships (org_id, user_id, role) values ($1, $2, 'reviewer')", [org.id, thirdReviewer.id]);
-    const { stepUpToken: thirdReviewerStepUp } = await enrollTwoFactor(app, thirdReviewer.accessToken);
+    const { stepUpToken: thirdReviewerStepUp } = await enrollTwoFactor(app, thirdReviewer.accessToken, { orgId: org.id, purpose: 'expediente.approval' });
     const otherApprove = await app.inject({
       method: 'POST',
       url: `/expediente/tenders/${tenderId}/approval/approve`,

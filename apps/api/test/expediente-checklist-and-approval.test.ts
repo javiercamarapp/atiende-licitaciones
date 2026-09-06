@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { DbClient } from '@atiende/db';
-import { createTestApp, registerAndLogin, createOrgFor, enrollTwoFactor, TEST_PLATFORM_API_KEY } from './helpers.js';
+import { createTestApp, registerAndLogin, createOrgFor, enrollTwoFactor, enrollTwoFactorFull, stepUpWithBackupCode, TEST_PLATFORM_API_KEY } from './helpers.js';
 
 /**
  * E8 — `IntegrityChecklist` persistida y `ApprovalWorkflow` real (roles
@@ -69,7 +69,7 @@ describe('expediente — checklist de integridad y flujo de aprobación (E8)', (
     const owner = await registerAndLogin(app, 'chk-owner-2@example.com');
     const org = await createOrgFor(app, owner, 'Chk Org 2', 'chk-org-2');
     const tenderId = await createTender(app, org.id, 'chk-002');
-    const { stepUpToken: ownerStepUp } = await enrollTwoFactor(app, owner.accessToken);
+    const { stepUpToken: ownerStepUp } = await enrollTwoFactor(app, owner.accessToken, { orgId: org.id, purpose: 'expediente.approval' });
     const ownerHeaders = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': ownerStepUp };
 
     const writer = await registerAndLogin(app, 'chk-writer-2@example.com');
@@ -78,7 +78,12 @@ describe('expediente — checklist de integridad y flujo de aprobación (E8)', (
 
     const reviewer = await registerAndLogin(app, 'chk-reviewer-2@example.com');
     await db.query("insert into memberships (org_id, user_id, role) values ($1, $2, 'reviewer')", [org.id, reviewer.id]);
-    const { stepUpToken: reviewerStepUp } = await enrollTwoFactor(app, reviewer.accessToken);
+    // R5-09: single-use -- el reviewer aprueba DOS veces en este test (dos
+    // alcances distintos), así que necesita DOS tokens independientes.
+    const reviewerScope = { orgId: org.id, purpose: 'expediente.approval' as const };
+    const { backupCodes: reviewerBackupCodes } = await enrollTwoFactorFull(app, reviewer.accessToken, reviewerScope);
+    const reviewerStepUp = await stepUpWithBackupCode(app, reviewer.accessToken, reviewerBackupCodes[0], reviewerScope);
+    const reviewerStepUp2 = await stepUpWithBackupCode(app, reviewer.accessToken, reviewerBackupCodes[1], reviewerScope);
     const reviewerHeaders = { authorization: `Bearer ${reviewer.accessToken}`, 'x-org-id': org.id, 'x-step-up': reviewerStepUp };
 
     await app.inject({ method: 'GET', url: `/expediente/tenders/${tenderId}/proposal`, headers: ownerHeaders });
@@ -127,11 +132,12 @@ describe('expediente — checklist de integridad y flujo de aprobación (E8)', (
     });
     expect(selfApprove.statusCode).toBe(403);
 
-    // Un actor DISTINTO (reviewer) sí puede aprobar ese mismo alcance.
+    // Un actor DISTINTO (reviewer) sí puede aprobar ese mismo alcance --
+    // con su SEGUNDO token (R5-09: el primero ya se consumió arriba).
     const otherApproves = await app.inject({
       method: 'POST',
       url: `/expediente/tenders/${tenderId}/approval/approve`,
-      headers: reviewerHeaders,
+      headers: { ...reviewerHeaders, 'x-step-up': reviewerStepUp2 },
       payload: { scope: 'documento', scopeRef: 'documento:tecnica' },
     });
     expect(otherApproves.statusCode).toBe(200);
@@ -141,7 +147,7 @@ describe('expediente — checklist de integridad y flujo de aprobación (E8)', (
     const owner = await registerAndLogin(app, 'chk-owner-3@example.com');
     const org = await createOrgFor(app, owner, 'Chk Org 3', 'chk-org-3');
     const tenderId = await createTender(app, org.id, 'chk-003');
-    const { stepUpToken: ownerStepUp } = await enrollTwoFactor(app, owner.accessToken);
+    const { stepUpToken: ownerStepUp } = await enrollTwoFactor(app, owner.accessToken, { orgId: org.id, purpose: 'expediente.approval' });
     const ownerHeaders = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': ownerStepUp };
 
     await app.inject({ method: 'PUT', url: '/company/profile', headers: ownerHeaders, payload: { legalName: 'Original SA de CV' } });

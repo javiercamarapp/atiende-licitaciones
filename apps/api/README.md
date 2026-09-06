@@ -69,10 +69,12 @@ Dos encabezados adicionales, transversales a toda la API:
   `audit_log`/`jobs`/`proposals`/`package_manifests` (ver `GET
   /audit-log?correlationId=`).
 - `X-Step-Up` (REQ-044/064): exigido por `POST .../rates/:id/approve` y
-  `POST .../approval/approve` -- debe ser un `stepUpToken` vigente emitido
-  por `POST /auth/2fa/step-up` (o por `POST /auth/2fa/verify-enrollment`,
+  `POST .../approval/approve` -- debe ser un `stepUpToken` vigente, NO
+  CONSUMIDO (R5-09: de un solo uso) y atado a esta MISMA organización/acción,
+  emitido por `POST /auth/2fa/step-up` (o por `POST /auth/2fa/verify-enrollment`,
   ver módulo `2fa` abajo). Sin 2FA enrolado, o sin el encabezado, o con un
-  token vencido/ajeno, la API responde 403 con una instrucción explícita.
+  token vencido/ajeno/ya usado/atado a otra organización o acción, la API
+  responde 403 con una instrucción explícita.
 
 ### health
 - `GET /healthz` — liveness, no toca DB.
@@ -110,18 +112,23 @@ cuenta, válido para cualquier organización de la que sea miembro.
   los códigos de respaldo se devuelven **una única vez**, en esta
   respuesta. 409 si ya hay un enrolamiento verificado (desenrolar está
   fuera de alcance de esta ronda).
-- `POST /auth/2fa/verify-enrollment` — body `{code}` (TOTP de 6 dígitos):
+- `POST /auth/2fa/verify-enrollment` — body `{code, purpose}` + encabezado
+  `X-Org-Id` (ambos OBLIGATORIOS, ver "step-up atado a org/acción" abajo):
   confirma el enrolamiento (`verified_at`) y devuelve de una vez un
   `stepUpToken` vigente (confirmar el enrolamiento ya prueba posesión del
-  TOTP).
-- `POST /auth/2fa/step-up` — body `{code, purpose?}` (TOTP de 6 dígitos, o
-  un código de respaldo `XXXX-XXXX`; `purpose` opcional, ver "step-up
-  atado a org/acción" abajo): emite un `stepUpToken` (id de una fila de
-  `step_up_sessions`, vigente `STEP_UP_WINDOW_MINUTES`), a usar como
-  `X-Step-Up` en una aprobación económica sensible. Replay rechazado: un
-  código de un "time step" TOTP igual o anterior al último aceptado para
-  ese usuario se rechaza siempre, aunque siga siendo válido dentro de su
-  ventana de tolerancia; un código de respaldo ya usado también se rechaza.
+  TOTP), atado a esa organización/acción.
+- `POST /auth/2fa/step-up` — body `{code, purpose}` (TOTP de 6 dígitos, o
+  un código de respaldo `XXXX-XXXX`) + encabezado `X-Org-Id` (ambos
+  OBLIGATORIOS): emite un `stepUpToken` (id de una fila de
+  `step_up_sessions`, vigente `STEP_UP_WINDOW_MINUTES`, de UN SOLO USO), a
+  usar como `X-Step-Up` en una aprobación económica sensible. Replay
+  rechazado: un código de un "time step" TOTP igual o anterior al último
+  aceptado para ese usuario se rechaza siempre, aunque siga siendo válido
+  dentro de su ventana de tolerancia; un código de respaldo ya usado
+  también se rechaza. 400 explícito si falta `X-Org-Id` o `purpose`, o si
+  `purpose` no es uno de los valores del enum cerrado (validado DESPUÉS de
+  confirmar que el código en sí es válido -- un intento con código
+  incorrecto nunca revela nada sobre org/purpose).
 
 **Anti-fuerza-bruta (ronda 5, R5-02/R5-03)**: `enroll`/`verify-enrollment`/
 `step-up` aplican un límite de tasa por IP de **5 intentos / 5 minutos**
@@ -133,21 +140,33 @@ cuenta, válido para cualquier organización de la que sea miembro.
 el atacante rote de IP; el bloqueo activo responde `429` con `Retry-After`.
 Cada rechazo (código inválido, replay, backup code inválido/usado, cuenta
 bloqueada) queda en `audit_log` (`twofa.verification_failed`/
-`twofa.step_up_denied`), igual que `auth.login_failed` (API-13).
+`twofa.step_up_denied`), igual que `auth.login_failed` (API-13) — **R5-10**
+(ronda 5, reverificación): el `after` de ese evento incluye además
+`ip`/`userAgent` del cliente (misma paridad exacta con `auth.login_failed`,
+que ya los incluía).
 
-**step-up atado a org/acción (ronda 5, R5-05, opcional)**: por defecto un
-`stepUpToken` es "genérico" (sirve para cualquier acción, dentro de la
-ventana de vigencia — comportamiento histórico, coherente con que 2FA es
-de cuenta y no de organización). Un cliente que quiera un alcance más
-estricto puede declarar `X-Org-Id` y/o `purpose` (string libre, p. ej.
-`"company.rate_approval"`) al pedir el step-up (`verify-enrollment` o
-`step-up`) — `requireStepUp` (`lib/step-up.ts`) exige entonces que la
-acción que lo consuma declare el MISMO org/purpose, o lo rechaza (403,
-"OTRA organización"/"OTRA acción"). `POST /company/rates/:id/approve` y
-`POST .../approval/approve` ya declaran sus propios `purpose` internos
-(`company.rate_approval`/`expediente.approval`) al llamar a
-`requireStepUp` — solo se aplican si el `stepUpToken` presentado también
-los declaró al crearse.
+**step-up atado a org/acción, obligatorio y de un solo uso (ronda 5,
+R5-05→R5-09)**: R5-05 hizo `X-Org-Id`/`purpose` OPCIONALES al pedir un
+step-up — pero la reverificación adversarial de ronda 5 confirmó que
+ningún cliente real (`apps/web`) los declaraba nunca, así que toda sesión
+quedaba "genérica" (servía para aprobar cualquier tarifa/expediente de
+cualquier organización del usuario, dentro de la ventana de vigencia) y el
+alcance nunca se aplicaba en la práctica. **R5-09** los hace OBLIGATORIOS:
+`POST /auth/2fa/step-up` y `POST /auth/2fa/verify-enrollment` responden
+400 si falta `X-Org-Id` o `purpose`, o si `purpose` no es uno de los
+valores del enum cerrado (`company.rate_approval`, `expediente.approval`,
+`tool_call.approval`, `admin.action` — ver `lib/step-up.ts#STEP_UP_PURPOSES`,
+reforzado además con un CHECK a nivel de esquema, migración 0063).
+`requireStepUp` exige que la acción que consuma el `stepUpToken` declare
+el MISMO org/purpose exacto (403, "OTRA organización"/"OTRA acción") y
+además CONSUME la sesión atómicamente la primera vez que autoriza una
+acción (columna `consumed_at`, migración 0062): un `stepUpToken` reutilizado
+responde 403 ("un solo uso"), aunque siga vigente y el org/purpose
+coincidan. La migración 0062 también invalidó (borró) cualquier sesión
+"genérica" preexistente y volvió `org_id`/`purpose` NOT NULL.
+`POST /company/rates/:id/approve` y `POST .../approval/approve` declaran
+sus propios `purpose` internos (`company.rate_approval`/
+`expediente.approval`) al llamar a `requireStepUp`.
 
 ### organizations
 - `POST /organizations`, `GET /organizations`.
@@ -722,7 +741,10 @@ solo, pasa establemente en <2s por caso).
   agregan `org_id`/`purpose` OPCIONALES (migración 0061): si el cliente
   los declara al pedir el step-up, `requireStepUp` exige que coincidan
   exactamente o rechaza. Sin declararlos (comportamiento previo), la
-  sesión sigue siendo "genérica" -- no rompe clientes existentes.
+  sesión sigue siendo "genérica" -- no rompe clientes existentes. **Nota:**
+  la reverificación adversarial confirmó que este alcance opcional nunca
+  se ejercía en la práctica (ningún cliente real lo declaraba) -- ver
+  R5-09 abajo, que lo vuelve obligatorio.
 - **R5-06 (BAJA)**: `sourceUrl` de `calendar_holidays` restringido a
   esquema `http`/`https` (antes aceptaba `javascript:`/`data:`/`ftp:`).
 - **R5-07 (BAJA)**: `date`/`sourceConsultedOn` de `calendar_holidays`
@@ -734,3 +756,36 @@ solo, pasa establemente en <2s por caso).
   del ámbito de este corrector (ver "Nota de alcance" de
   `docs/auditoria-2/api-ronda5.md`) -- ninguno de esos dos archivos está
   dentro de `apps/api/**`/`packages/db/**`.
+
+## Reparaciones — reverificación adversarial ronda 5 (`docs/auditoria-2/api-ronda5-reverificacion.md`)
+
+- **R5-09 (BAJA-MEDIA)**: la reverificación adversarial confirmó que el
+  alcance opcional de R5-05 (`org_id`/`purpose` nullable, migración 0061)
+  NUNCA se activaba en el flujo real de `apps/web` -- toda sesión de
+  step-up en producción quedaba "genérica", así que el riesgo original de
+  R5-05 (un mismo `stepUpToken` aprueba cualquier tarifa/expediente en
+  cualquier organización del usuario) seguía completamente vigente.
+  Fijado: `X-Org-Id`/`purpose` OBLIGATORIOS al pedir un step-up (400
+  explícito si faltan, o si `purpose` no es uno de los cuatro valores del
+  enum cerrado, ver `lib/step-up.ts#STEP_UP_PURPOSES`, reforzado con un
+  CHECK de esquema, migración 0063); migración 0062 invalidó (borró) las
+  sesiones "genéricas" preexistentes e hizo `org_id`/`purpose` NOT NULL.
+  Además, cada sesión de step-up es ahora de UN SOLO USO (columna
+  `consumed_at`, consumo atómico tipo `UPDATE ... WHERE consumed_at IS
+  NULL RETURNING`, mismo patrón que `app.rotate_refresh_token`) -- un
+  `stepUpToken` reutilizado responde 403, aunque siga vigente y el
+  org/purpose coincidan. Tests: `apps/api/test/security-r505-stepup-scope.test.ts`
+  (400 sin org/purpose, 400 con `purpose` fuera del enum, reutilización
+  cruzada de org/purpose rechazada, reuso de un mismo token rechazado) y
+  `packages/db/test/security-r509-step-up-mandatory-scope.test.ts`
+  (invalidación de sesiones genéricas preexistentes al migrar, NOT NULL,
+  CHECK del enum).
+- **R5-10 (MEDIA-BAJA)**: los fallos/bloqueos/replay de 2FA
+  (`twofa.verification_failed`/`twofa.step_up_denied`) se auditaban sin la
+  IP del cliente, rompiendo la paridad que la propia justificación de
+  R5-03 invoca con `auth.login_failed` (API-13), que sí la incluye. Fijado:
+  `ip`/`userAgent` agregados al `after` de `recordFailure`
+  (`modules/twofa/routes.ts`), mismo patrón `auditContext` que
+  `modules/auth/routes.ts` -- sin migración nueva (`after` ya es `jsonb`
+  sin esquema fijo). Test en el mismo archivo que R5-02/R5-03
+  (`security-r502-r503-twofa-brute-force.test.ts`).

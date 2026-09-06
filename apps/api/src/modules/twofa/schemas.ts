@@ -11,16 +11,19 @@ export const enrollResponseSchema = z.object({
 export const totpCodeSchema = z.object({
   code: z.string().min(4).max(16),
   /**
-   * R5-05 (docs/auditoria-2/api-ronda5.md, BAJA-MEDIA): opcional, para
-   * atar explícitamente el `stepUpToken` resultante a una ACCIÓN concreta
-   * (p.ej. "company.rate_approval", "expediente.approval"). Si se omite
-   * (comportamiento previo, preservado para no romper clientes existentes),
-   * la sesión queda "genérica" -- utilizable para cualquier acción, dentro
-   * de la ventana de vigencia, tal como funcionaba antes de esta ronda. Si
-   * se declara, `requireStepUp` (lib/step-up.ts) EXIGE que la acción que
-   * consuma el token declare el MISMO `purpose`, o lo rechaza -- cierra el
-   * hueco de "un token emitido una vez sirve para aprobar cualquier número
-   * de tarifas/expedientes distintos" para el cliente que decida usarlo.
+   * R5-09 (docs/auditoria-2/api-ronda5-reverificacion.md, BAJA-MEDIA):
+   * OBLIGATORIO en la práctica (junto con el encabezado `X-Org-Id`) para
+   * atar el `stepUpToken` resultante a una organización/acción concreta
+   * (p.ej. "company.rate_approval", "expediente.approval", ver
+   * `lib/step-up.ts#STEP_UP_PURPOSES`). Se mantiene `.optional()` aquí a
+   * propósito -- la validación real de "obligatorio + enum cerrado"
+   * ocurre en el handler vía `assertStepUpPurpose` (lib/step-up.ts), que
+   * responde 400 explícito (no el 422 genérico de un `schema.body`
+   * fallido) cuando falta o no es uno de los valores permitidos. Antes de
+   * esta ronda (R5-05, 0061) era verdaderamente opcional y una sesión sin
+   * `purpose` quedaba "genérica" -- ningún cliente real lo declaraba
+   * nunca, así que ese alcance nunca se aplicaba en la práctica (ver
+   * R5-09); ahora toda sesión nueva exige `purpose`, sin excepción.
    */
   purpose: z.string().min(1).max(64).optional(),
 });
