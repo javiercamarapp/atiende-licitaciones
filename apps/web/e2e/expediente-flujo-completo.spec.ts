@@ -136,9 +136,18 @@ test.describe.serial("Expediente — flujo completo real (ronda 5)", () => {
     // `requireProposal`). Visitar Redacción primero dispara `GET /proposal`
     // (que SÍ autocrea el expediente en estado "draft", sin secciones
     // todavía) sin generar nada -- exactamente el caso "incompleto" que A14
-    // debe cubrir.
+    // debe cubrir. Espera la respuesta REAL (no solo el `goto`): sin esto,
+    // una navegación demasiado rápida a Entrega podía dejar la página
+    // anterior antes de que `GET .../proposal` terminara de autocrear el
+    // expediente, y `POST .../package/assemble` seguía viendo un 404 real
+    // de "expediente inexistente" en vez del "incompleto" que A14 cubre.
     await page.goto("/preparacion/redaccion");
+    const proposalAutoCreated = page.waitForResponse(
+      (res) => /\/expediente\/tenders\/.+\/proposal$/.test(res.url()) && res.request().method() === "GET",
+      { timeout: 15_000 },
+    );
     await selectTender(page, seed.tender!.title);
+    await proposalAutoCreated;
 
     await page.goto("/entrega/paquete-descargable");
     await selectTender(page, seed.tender!.title);
