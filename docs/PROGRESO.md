@@ -332,3 +332,6 @@ Formato por entrada: requisito · acción · archivos/commit · prueba · result
 
 ## Corrección — GO-10 (2026-09-06 16:2x)
 - **Acción:** corrector #110 (Sonnet), commit `0e130ae`. Confirmado en rojo (login repetido devolvía `sin_acceso` en vez de `ok`/`requires_2fa`); arreglo mínimo: fijar `app.current_user_id` en la rama de identidad ya vinculada; las otras dos ramas ya lo hacían. Google 16/16 y auth 9/9 en dos corridas. **Siguiente:** reverificación independiente de Google (GO-07/03/10) tras cerrar #109 para evitar interferencia con la compuerta de verificación de correo.
+
+## Corrección — api ronda 6 cerrada (2026-09-06 16:3x)
+- **Acción:** #98 (Sonnet) commiteó R6-01..08 (pdfjs-dist sustituye a pdf-parse para xref-stream; radar por lotes; transiciones condicionadas; anidamiento por contrato); #108 (Opus) verificó cada commit y detectó R6-09: el test de rendimiento del radar medía reloj de pared y fallaba en suite completa (2.9 s > 2 s; un techo de 10 s también falló bajo carga); reemplazado por criterio estructural (conteo de sentencias SQL: 22 frente a ~60.000 del N+1). Gate 288/288 ×2 aislado y 326/326 ×2 en el árbol compartido. **Siguiente:** reverificación independiente de api ronda 6 (R6-01..09).

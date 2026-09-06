@@ -165,3 +165,4 @@
 2026-09-06 15:58  NOTIF  #107 Google GO-07/03 cerrado; GO-10 ALTA nuevo → #110; en curso #105 #108 #109 #110.
 2026-09-06 15:59  NOTIF  #105 web r7 cerrada (E2E 133/133); despacho #111 web r8a; en curso #108 #109 #110 #111.
 2026-09-06 16:03  NOTIF  #110 GO-10 cerrado (0e130ae); en curso #108 #109 #111.
+2026-09-06 16:07  NOTIF  #108 api r6 cerrada (R6-09 13ee279/cef42a8, docs 248855f); despacho reverificación r6; en curso #109 #111.
