@@ -167,3 +167,4 @@
 2026-09-06 16:03  NOTIF  #110 GO-10 cerrado (0e130ae); en curso #108 #109 #111.
 2026-09-06 16:07  NOTIF  #108 api r6 cerrada (R6-09 13ee279/cef42a8, docs 248855f); despacho reverificación r6; en curso #109 #111.
 2026-09-06 16:29  NOTIF  #111 web r8a cortado por 429 servidor → #113 Opus; en curso #109 #112 #113.
+2026-09-06 16:31  NOTIF  #112 reverificación cortada por 429 → #114 Opus; en curso #109 #113 #114.
