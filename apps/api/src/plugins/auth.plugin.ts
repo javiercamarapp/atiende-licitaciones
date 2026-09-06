@@ -1,7 +1,9 @@
 import fp from 'fastify-plugin';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { verifyAccessToken } from '../lib/jwt.js';
-import { UnauthorizedError, ForbiddenError } from '../lib/errors.js';
+import { UnauthorizedError, ForbiddenError, BadRequestError } from '../lib/errors.js';
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Decora `app.authenticate`: exige `Authorization: Bearer <access token>`. */
 async function authPluginImpl(app: FastifyInstance): Promise<void> {
@@ -26,6 +28,14 @@ async function authPluginImpl(app: FastifyInstance): Promise<void> {
     const orgId = request.headers['x-org-id'];
     if (!orgId || typeof orgId !== 'string') {
       throw new ForbiddenError('Falta encabezado X-Org-Id');
+    }
+    // API-04 (docs/auditoria-1/db-api.md): un X-Org-Id que no es un UUID
+    // válido llegaba sin validar hasta la consulta SQL, donde Postgres
+    // lanzaba "invalid input syntax for type uuid" -- un 500 evitable
+    // (enmascarado en producción, pero seguía siendo un 500). Se valida el
+    // formato aquí y se responde 400 explícito antes de tocar la base.
+    if (!UUID_PATTERN.test(orgId)) {
+      throw new BadRequestError('X-Org-Id no es un UUID válido');
     }
     const { rows } = await app.db.transaction(async (tx) => {
       await tx.query('set local role app_role');

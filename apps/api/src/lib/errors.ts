@@ -20,6 +20,12 @@ export class ValidationAppError extends AppError {
   }
 }
 
+export class BadRequestError extends AppError {
+  constructor(message = 'Solicitud inválida', detail?: unknown) {
+    super(400, 'https://atiende.example/errors/bad-request-input', message, detail);
+  }
+}
+
 export class UnauthorizedError extends AppError {
   constructor(message = 'No autenticado') {
     super(401, 'https://atiende.example/errors/unauthorized', message);
