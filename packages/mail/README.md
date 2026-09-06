@@ -325,6 +325,46 @@ contraste básico de la paleta (WCAG AA/AA-mínimo), enlaces firmados
 con mocks de red (429/5xx → retryable, 4xx → permanent), `CaptureProvider`
 (memoria + JSONL en disco), preferencias de notificación, lista de supresión
 (incluyendo fail-closed), verificación de firma de webhook (Svix) y
-`MailService` de punta a punta (idempotencia, reintentos con backoff,
-permanente sin reintento, supresión, preferencias, destinatario no
-registrado).
+`MailService` de punta a punta (idempotencia bajo concurrencia real y
+secuencial, reintentos con backoff, permanente sin reintento, supresión,
+preferencias, destinatario no registrado, cabeceras List-Unsubscribe).
+
+## `npm audit` de devDependencies (ML-06)
+
+`npm audit` reporta 7 vulnerabilidades (3 críticas, 1 alta, 3 moderadas), TODAS
+en la cadena `vitest`(2.1.x)/`vite-node`/`vite`/`esbuild`/`html-validate`(8.24.x)
+— exclusivamente **devDependencies** usadas para correr pruebas/cobertura/lint
+de este paquete, nunca en el código que se despliega:
+
+```
+$ npm audit                    → 7 vulnerabilidades (3 críticas, 1 alta, 3 moderadas)
+$ npm audit --omit=dev         → 0 vulnerabilidades
+$ npm audit fix --dry-run      → sin cambios: el único camino es
+                                  `npm audit fix --force`, que instalaría
+                                  vitest@4.1.11 ("breaking change" según el
+                                  propio npm)
+```
+
+**Se intentó y se decidió NO aplicarlo en esta ronda** (ML-06, severidad
+BAJA): `vitest` (2.1.x → 4.1.11) es un salto de DOS versiones mayores con
+cambios documentados de configuración/API (formato de `coverage`, `workspace`,
+plugins de Vite) que muy probablemente rompería `vitest.config.ts` y la suite
+de 250+ pruebas de este paquete; y, al ser una `devDependency` **compartida**
+en el `node_modules` hoisted de los workspaces de npm (un solo
+`package-lock.json` en la raíz del monorepo), forzar el upgrade también
+reinstalaría `vitest`/`vite`/`esbuild` para `apps/api`/`apps/worker`/`apps/web`
+— fuera del ámbito exclusivo de este agente corrector (`packages/mail/**`) y
+con riesgo real de romper sus propias suites de prueba, que no se pueden
+verificar ni corregir desde aquí. La vulnerabilidad más severa
+(GHSA-67mh-4wv8-2f99 → cadena hasta vitest, CVSS crítico en algún eslabón) es
+ejecución/acceso arbitrario cuando el **servidor de UI de Vitest** está
+escuchando (`vitest --ui`) — ese modo no se usa en ningún script de este
+repo, y `html-validate` en sí (la herramienta, no su propia suite de pruebas
+interna) no expone ese servidor.
+
+**Recomendación para una ronda futura con ámbito de monorepo completo**:
+actualizar `vitest`/`@vitest/coverage-v8` a la major 4 y `html-validate` a
+una versión >9.1.3 (fuera del rango vulnerable) EN LA RAÍZ del workspace,
+correr la suite completa de las cuatro áreas (`packages/mail`, `apps/api`,
+`apps/worker`, `apps/web`) y migrar la configuración de cobertura donde el
+mayor de versión lo exija — no es urgente (0 vulnerabilidades en runtime).
