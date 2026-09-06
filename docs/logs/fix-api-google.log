@@ -1,0 +1,329 @@
+===================================================================
+docs/logs/fix-api-google.log -- reparacion de docs/auditoria-2/api-google.md
+Agente: corrector (Opus, respaldo autorizado por el usuario).
+Ambito EXCLUSIVO: apps/api/src/modules/auth/google/** y sus tests.
+Hallazgos reparados: GO-07 (MODERADA), GO-03 (BAJA/hardening).
+Fecha: 2026-09-06 15:50:09 CST
+HEAD: c4a0cf9
+Commits de esta ronda:
+  c4a0cf9 fix(api): GO-03 exigir https en OIDC_ISSUER_URL y fallar en arranque si no lo es
+  da18559 fix(api): GO-07 el login con Google tolera la carrera 23505 en vez de devolver 500
+===================================================================
+
+NOTA DE HONESTIDAD: el repositorio se esta modificando EN PARALELO
+por otros agentes (modules/auth/routes.ts, app.ts, config.ts,
+lib/mail, expediente/post-award). Todo lo que sigue se ejecuto sobre
+el arbol de trabajo compartido; cualquier fallo ajeno a
+modules/auth/google/** se marca explicitamente al final.
+
+### 1) npm run -w apps/api typecheck
+
+> @atiende/api@0.1.0 typecheck
+> tsc --noEmit
+
+exit=0
+
+### 2) npm run -w apps/api lint
+
+> @atiende/api@0.1.0 lint
+> eslint src test
+
+exit=0
+
+### 3.1) SUITE GOOGLE -- pasada 1 de 2
+     npx vitest run test/google-oidc-login.test.ts test/security-go03-oidc-issuer-https.test.ts
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/api[39m
+
+ [32m✓[39m test/google-oidc-login.test.ts [2m([22m[2m14 tests[22m[2m)[22m[33m 2111[2mms[22m[39m
+ [32m✓[39m test/security-go03-oidc-issuer-https.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 2405[2mms[22m[39m
+   [33m[2m✓[22m[39m GO-03: OIDC_ISSUER_URL debe usar https (excepto el proveedor falso en loopback)[2m > [22mla API NO ARRANCA con un OIDC_ISSUER_URL inseguro (falla al construir la app, no en la primera petición) [33m1472[2mms[22m[39m
+   [33m[2m✓[22m[39m GO-03: OIDC_ISSUER_URL debe usar https (excepto el proveedor falso en loopback)[2m > [22mla API sí arranca con el proveedor OIDC falso en loopback, y un issuer que se vuelve inseguro DESPUÉS responde 503 (nunca 500) [33m930[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m2 passed[39m[22m[90m (2)[39m
+[2m      Tests [22m [1m[32m22 passed[39m[22m[90m (22)[39m
+[2m   Start at [22m 15:50:13
+[2m   Duration [22m 3.36s[2m (transform 341ms, setup 0ms, collect 1.58s, tests 4.52s, environment 0ms, prepare 68ms)[22m
+
+exit=0
+
+### 3.2) SUITE GOOGLE -- pasada 2 de 2
+     npx vitest run test/google-oidc-login.test.ts test/security-go03-oidc-issuer-https.test.ts
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/api[39m
+
+ [32m✓[39m test/google-oidc-login.test.ts [2m([22m[2m14 tests[22m[2m)[22m[33m 1915[2mms[22m[39m
+ [32m✓[39m test/security-go03-oidc-issuer-https.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 2153[2mms[22m[39m
+   [33m[2m✓[22m[39m GO-03: OIDC_ISSUER_URL debe usar https (excepto el proveedor falso en loopback)[2m > [22mla API NO ARRANCA con un OIDC_ISSUER_URL inseguro (falla al construir la app, no en la primera petición) [33m1295[2mms[22m[39m
+   [33m[2m✓[22m[39m GO-03: OIDC_ISSUER_URL debe usar https (excepto el proveedor falso en loopback)[2m > [22mla API sí arranca con el proveedor OIDC falso en loopback, y un issuer que se vuelve inseguro DESPUÉS responde 503 (nunca 500) [33m855[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m2 passed[39m[22m[90m (2)[39m
+[2m      Tests [22m [1m[32m22 passed[39m[22m[90m (22)[39m
+[2m   Start at [22m 15:50:17
+[2m   Duration [22m 3.56s[2m (transform 660ms, setup 0ms, collect 2.38s, tests 4.07s, environment 0ms, prepare 84ms)[22m
+
+exit=0
+
+### 4.1) SUITE AUTH -- pasada 1 de 2
+     npx vitest run test/auth-and-orgs-flow.test.ts test/audit-api01-refresh-rotation.test.ts test/audit-api03-register-enumeration.test.ts test/security-api03-login-timing.test.ts test/security-api13-auth-audit-log.test.ts test/security-req044-064-step-up-2fa.test.ts test/security-r502-r503-twofa-brute-force.test.ts test/security-r505-stepup-scope.test.ts
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/api[39m
+
+ [31m❯[39m test/security-api13-auth-audit-log.test.ts [2m([22m[2m5 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 68671[2mms[22m[39m
+[31m   [31m×[31m API-13: eventos de autenticación quedan en audit_log[2m > [22mlogin exitoso registra auth.login_succeeded con actor, ip, user-agent y request_id (sin contraseña)[33m 15868[2mms[22m[31m[39m
+[31m     → expected 403 to be 200 // Object.is equality[39m
+   [33m[2m✓[22m[39m API-13: eventos de autenticación quedan en audit_log[2m > [22mlogin fallido (contraseña incorrecta y email inexistente) registra auth.login_failed sin la contraseña [33m12969[2mms[22m[39m
+   [33m[2m✓[22m[39m API-13: eventos de autenticación quedan en audit_log[2m > [22mreutilizar un refresh token ya rotado registra auth.refresh_reuse_detected (revocación de familia visible en audit_log) [33m16025[2mms[22m[39m
+   [33m[2m✓[22m[39m API-13: eventos de autenticación quedan en audit_log[2m > [22mun refresh simplemente inválido/inexistente NO genera un evento de reuso (solo el reuso real tiene valor de auditoría) [33m12555[2mms[22m[39m
+   [33m[2m✓[22m[39m API-13: eventos de autenticación quedan en audit_log[2m > [22mlogout con token válido registra auth.logout; logout con token inválido no registra nada (no filtra información) [33m11248[2mms[22m[39m
+ [32m✓[39m test/security-r505-stepup-scope.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 82785[2mms[22m[39m
+   [33m[2m✓[22m[39m R5-05/R5-09: step_up_sessions exige (usuario, org, propósito) SIEMPRE, de un solo uso[2m > [22mR5-09: pedir un step-up SIN X-Org-Id responde 400 explícito (nunca crea una sesión "genérica") [33m17187[2mms[22m[39m
+   [33m[2m✓[22m[39m R5-05/R5-09: step_up_sessions exige (usuario, org, propósito) SIEMPRE, de un solo uso[2m > [22mR5-09: pedir un step-up SIN purpose (o con uno fuera del enum cerrado) responde 400 explícito [33m13831[2mms[22m[39m
+   [33m[2m✓[22m[39m R5-05/R5-09: step_up_sessions exige (usuario, org, propósito) SIEMPRE, de un solo uso[2m > [22mun stepUpToken atado a un purpose específico es rechazado para OTRA acción (reutilización cruzada) [33m14139[2mms[22m[39m
+   [33m[2m✓[22m[39m R5-05/R5-09: step_up_sessions exige (usuario, org, propósito) SIEMPRE, de un solo uso[2m > [22mun stepUpToken atado a un purpose específico SÍ funciona para la acción declarada [33m13378[2mms[22m[39m
+   [33m[2m✓[22m[39m R5-05/R5-09: step_up_sessions exige (usuario, org, propósito) SIEMPRE, de un solo uso[2m > [22mun stepUpToken atado a una ORGANIZACIÓN es rechazado al intentarse usar en OTRA organización [33m12207[2mms[22m[39m
+   [33m[2m✓[22m[39m R5-05/R5-09: step_up_sessions exige (usuario, org, propósito) SIEMPRE, de un solo uso[2m > [22mR5-09: un stepUpToken ya usado (single-use) es rechazado en un segundo intento, aunque siga vigente y el org/purpose coincidan [33m12020[2mms[22m[39m
+ [31m❯[39m test/auth-and-orgs-flow.test.ts [2m([22m[2m4 tests[22m[2m | [22m[31m2 failed[39m[2m)[22m[33m 15814[2mms[22m[39m
+   [33m[2m✓[22m[39m flujo: registro -> login -> crear org -> invitar -> cambiar rol[2m > [22mregistra un usuario nuevo (201) y responde el mismo 201 genérico para un email duplicado (anti-enumeración, API-03) [33m942[2mms[22m[39m
+[31m   [31m×[31m flujo: registro -> login -> crear org -> invitar -> cambiar rol[2m > [22mlogin con credenciales correctas devuelve tokens; con incorrectas da 401[33m 479[2mms[22m[31m[39m
+[31m     → expected 403 to be 200 // Object.is equality[39m
+[31m   [31m×[31m flujo: registro -> login -> crear org -> invitar -> cambiar rol[2m > [22mrefresh token emite un nuevo access token[90m 296[2mms[22m[31m[39m
+[31m     → expected 422 to be 200 // Object.is equality[39m
+   [33m[2m✓[22m[39m flujo: registro -> login -> crear org -> invitar -> cambiar rol[2m > [22mflujo completo: crear org, /me, invitar, cambiar rol [33m1018[2mms[22m[39m
+ [32m✓[39m test/security-req044-064-step-up-2fa.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 98583[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-044/064 — 2FA/step-up en aprobaciones económicas[2m > [22msin 2FA enrolado, aprobar una tarifa responde 403 con instrucción explícita de enrolar [33m18157[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-044/064 — 2FA/step-up en aprobaciones económicas[2m > [22menrolado pero SIN X-Step-Up, aprobar una tarifa responde 403 pidiendo el encabezado [33m15341[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-044/064 — 2FA/step-up en aprobaciones económicas[2m > [22mcon X-Step-Up vigente, aprobar una tarifa y un expediente proceden [33m14924[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-044/064 — 2FA/step-up en aprobaciones económicas[2m > [22mreplay: el MISMO código TOTP usado dos veces en verify-enrollment es rechazado la segunda vez [33m12192[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-044/064 — 2FA/step-up en aprobaciones económicas[2m > [22mventana expirada: un stepUpToken vencido es rechazado explícitamente [33m13374[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-044/064 — 2FA/step-up en aprobaciones económicas[2m > [22mun stepUpToken de OTRO usuario es rechazado (no se puede usar la sesión de step-up de alguien más) [33m14602[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-044/064 — 2FA/step-up en aprobaciones económicas[2m > [22mbackup code: un código de respaldo sin usar habilita un step-up; el mismo código ya no sirve una segunda vez [33m9986[2mms[22m[39m
+ [32m✓[39m test/audit-api01-refresh-rotation.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 12412[2mms[22m[39m
+   [33m[2m✓[22m[39m API-01: rotación y detección de reuso de refresh tokens[2m > [22mel mismo refreshToken usado una segunda vez es rechazado (401), no reemitido [33m473[2mms[22m[39m
+   [33m[2m✓[22m[39m API-01: rotación y detección de reuso de refresh tokens[2m > [22mdetección de reuso revoca la familia de sesiones, pero NO afecta a otro usuario [33m724[2mms[22m[39m
+ [32m✓[39m test/security-r502-r503-twofa-brute-force.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 112719[2mms[22m[39m
+   [33m[2m✓[22m[39m R5-02/R5-03: límite de tasa + bloqueo progresivo + auditoría de fallos de 2FA[2m > [22m6º intento consecutivo de verify-enrollment con código incorrecto responde 429 (no 300/min genérico) [33m17085[2mms[22m[39m
+   [33m[2m✓[22m[39m R5-02/R5-03: límite de tasa + bloqueo progresivo + auditoría de fallos de 2FA[2m > [22mel límite de tasa de 2FA es MENOR que el global (5/5min, no 300/min) y no depende del perfil e2e (mínimo garantizado) [33m12631[2mms[22m[39m
+   [33m[2m✓[22m[39m R5-02/R5-03: límite de tasa + bloqueo progresivo + auditoría de fallos de 2FA[2m > [22mperfil e2e NO anula el límite de 2FA: 6 intentos seguidos también disparan 429 (mínimo garantizado) [33m26091[2mms[22m[39m
+   [33m[2m✓[22m[39m R5-02/R5-03: límite de tasa + bloqueo progresivo + auditoría de fallos de 2FA[2m > [22mcontador de fallos por usuario en DB: falla 5 veces seguidas y confirma bloqueo progresivo persistido (twofa_lockouts) [33m12324[2mms[22m[39m
+   [33m[2m✓[22m[39m R5-02/R5-03: límite de tasa + bloqueo progresivo + auditoría de fallos de 2FA[2m > [22mreplay del TOTP en step-up es rechazado (no genera una nueva sesión de step-up) [33m11596[2mms[22m[39m
+   [33m[2m✓[22m[39m R5-02/R5-03: límite de tasa + bloqueo progresivo + auditoría de fallos de 2FA[2m > [22mcada fallo de verify-enrollment/step-up queda en audit_log (antes solo se auditaban los éxitos) [33m10367[2mms[22m[39m
+   [33m[2m✓[22m[39m R5-02/R5-03: límite de tasa + bloqueo progresivo + auditoría de fallos de 2FA[2m > [22mR5-10: un fallo de 2FA audita ip/userAgent en el after, con la misma paridad que auth.login_failed [33m9908[2mms[22m[39m
+   [33m[2m✓[22m[39m R5-02/R5-03: límite de tasa + bloqueo progresivo + auditoría de fallos de 2FA[2m > [22mestando bloqueado (locked_until en el futuro), un intento adicional responde 429 y también queda auditado [33m8045[2mms[22m[39m
+   [33m[2m✓[22m[39m R5-02/R5-03: límite de tasa + bloqueo progresivo + auditoría de fallos de 2FA[2m > [22muna verificación EXITOSA reinicia el contador de fallos (no se arrastra un bloqueo indefinido) [33m4659[2mms[22m[39m
+[90mstdout[2m | test/security-api03-login-timing.test.ts[2m > [22m[2mAPI-03: /auth/login no es un oráculo de timing de existencia de cuenta[2m > [22m[2mla mediana de latencia de login con email existente (password incorrecta) y con email inexistente difiere menos de 1.5x en 50 muestras por lado
+[22m[39mAPI-03 login timing: mediana existente=52.57ms, mediana inexistente=66.56ms, ratio=1.27x
+
+ [32m✓[39m test/security-api03-login-timing.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 82487[2mms[22m[39m
+   [33m[2m✓[22m[39m API-03: /auth/login no es un oráculo de timing de existencia de cuenta[2m > [22mla mediana de latencia de login con email existente (password incorrecta) y con email inexistente difiere menos de 1.5x en 50 muestras por lado [33m82485[2mms[22m[39m
+ [32m✓[39m test/audit-api03-register-enumeration.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 12584[2mms[22m[39m
+   [33m[2m✓[22m[39m API-03: /auth/register no permite enumerar cuentas existentes[2m > [22mregistrar un email ya existente responde 201 genérico (no 409), sin crear una cuenta duplicada [33m766[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[1m[7m Failed Tests 3 [27m[22m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[31m[1m[7m FAIL [27m[22m[39m test/auth-and-orgs-flow.test.ts[2m > [22mflujo: registro -> login -> crear org -> invitar -> cambiar rol[2m > [22mlogin con credenciales correctas devuelve tokens; con incorrectas da 401
+[31m[1mAssertionError[22m: expected 403 to be 200 // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 200[39m
+[31m+ 403[39m
+
+[36m [2m❯[22m test/auth-and-orgs-flow.test.ts:[2m50:27[22m[39m
+    [90m 48| [39m    [90m// El registro DUPLICADO de arriba no manda ningún correo (corta a[39m…
+    [90m 49| [39m    [90m// ver la rama anti-enumeración de `modules/auth/routes.ts`), así [39m…
+    [90m 50| [39m    [90m// solo hay un enlace de verificación en juego.[39m
+    [90m   | [39m                          [31m^[39m
+    [90m 51| [39m    [35mconst[39m verificacion [33m=[39m [35mawait[39m [34mlastMailTo[39m(app[33m,[39m [32m'flow@example.com'[39m)[33m;[39m
+    [90m 52| [39m    [35mconst[39m verify [33m=[39m [35mawait[39m app[33m.[39m[34minject[39m({
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m test/auth-and-orgs-flow.test.ts[2m > [22mflujo: registro -> login -> crear org -> invitar -> cambiar rol[2m > [22mrefresh token emite un nuevo access token
+[31m[1mAssertionError[22m: expected 422 to be 200 // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 200[39m
+[31m+ 422[39m
+
+[36m [2m❯[22m test/auth-and-orgs-flow.test.ts:[2m72:34[22m[39m
+    [90m 70| [39m
+    [90m 71| [39m    [35mconst[39m bad [33m=[39m [35mawait[39m app[33m.[39m[34minject[39m({
+    [90m 72| [39m      method[33m:[39m [32m'POST'[39m[33m,[39m
+    [90m   | [39m                                 [31m^[39m
+    [90m 73| [39m      url[33m:[39m [32m'/auth/login'[39m[33m,[39m
+    [90m 74| [39m      payload[33m:[39m { email[33m:[39m [32m'flow@example.com'[39m[33m,[39m password[33m:[39m [32m'incorrecta'[39m }[33m,[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m test/security-api13-auth-audit-log.test.ts[2m > [22mAPI-13: eventos de autenticación quedan en audit_log[2m > [22mlogin exitoso registra auth.login_succeeded con actor, ip, user-agent y request_id (sin contraseña)
+[31m[1mAssertionError[22m: expected 403 to be 200 // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 200[39m
+[31m+ 403[39m
+
+[36m [2m❯[22m test/security-api13-auth-audit-log.test.ts:[2m58:30[22m[39m
+    [90m 56| [39m
+    [90m 57| [39m    [35mconst[39m login [33m=[39m [35mawait[39m app[33m.[39m[34minject[39m({
+    [90m 58| [39m      method[33m:[39m [32m'POST'[39m[33m,[39m
+    [90m   | [39m                             [31m^[39m
+    [90m 59| [39m      url[33m:[39m [32m'/auth/login'[39m[33m,[39m
+    [90m 60| [39m      headers[33m:[39m { [32m'user-agent'[39m[33m:[39m [32m'vitest-agent/1.0'[39m }[33m,[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯[22m[39m
+
+[2m Test Files [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m6 passed[39m[22m[90m (8)[39m
+[2m      Tests [22m [1m[31m3 failed[39m[22m[2m | [22m[1m[32m35 passed[39m[22m[90m (38)[39m
+[2m   Start at [22m 15:50:21
+[2m   Duration [22m 214.69s[2m (transform 1.95s, setup 0ms, collect 28.75s, tests 486.05s, environment 1ms, prepare 1.41s)[22m
+
+exit=1
+
+### 4.2) SUITE AUTH -- pasada 2 de 2
+     npx vitest run test/auth-and-orgs-flow.test.ts test/audit-api01-refresh-rotation.test.ts test/audit-api03-register-enumeration.test.ts test/security-api03-login-timing.test.ts test/security-api13-auth-audit-log.test.ts test/security-req044-064-step-up-2fa.test.ts test/security-r502-r503-twofa-brute-force.test.ts test/security-r505-stepup-scope.test.ts
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/api[39m
+
+ [32m✓[39m test/auth-and-orgs-flow.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 26425[2mms[22m[39m
+   [33m[2m✓[22m[39m flujo: registro -> login -> crear org -> invitar -> cambiar rol[2m > [22mregistra un usuario nuevo (201) y responde el mismo 201 genérico para un email duplicado (anti-enumeración, API-03) [33m1617[2mms[22m[39m
+   [33m[2m✓[22m[39m flujo: registro -> login -> crear org -> invitar -> cambiar rol[2m > [22mlogin con credenciales correctas devuelve tokens; con incorrectas da 401 [33m792[2mms[22m[39m
+   [33m[2m✓[22m[39m flujo: registro -> login -> crear org -> invitar -> cambiar rol[2m > [22mflujo completo: crear org, /me, invitar, cambiar rol [33m2308[2mms[22m[39m
+ [32m✓[39m test/security-r505-stepup-scope.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 84116[2mms[22m[39m
+   [33m[2m✓[22m[39m R5-05/R5-09: step_up_sessions exige (usuario, org, propósito) SIEMPRE, de un solo uso[2m > [22mR5-09: pedir un step-up SIN X-Org-Id responde 400 explícito (nunca crea una sesión "genérica") [33m21717[2mms[22m[39m
+   [33m[2m✓[22m[39m R5-05/R5-09: step_up_sessions exige (usuario, org, propósito) SIEMPRE, de un solo uso[2m > [22mR5-09: pedir un step-up SIN purpose (o con uno fuera del enum cerrado) responde 400 explícito [33m14704[2mms[22m[39m
+   [33m[2m✓[22m[39m R5-05/R5-09: step_up_sessions exige (usuario, org, propósito) SIEMPRE, de un solo uso[2m > [22mun stepUpToken atado a un purpose específico es rechazado para OTRA acción (reutilización cruzada) [33m14498[2mms[22m[39m
+   [33m[2m✓[22m[39m R5-05/R5-09: step_up_sessions exige (usuario, org, propósito) SIEMPRE, de un solo uso[2m > [22mun stepUpToken atado a un purpose específico SÍ funciona para la acción declarada [33m14360[2mms[22m[39m
+   [33m[2m✓[22m[39m R5-05/R5-09: step_up_sessions exige (usuario, org, propósito) SIEMPRE, de un solo uso[2m > [22mun stepUpToken atado a una ORGANIZACIÓN es rechazado al intentarse usar en OTRA organización [33m11665[2mms[22m[39m
+   [33m[2m✓[22m[39m R5-05/R5-09: step_up_sessions exige (usuario, org, propósito) SIEMPRE, de un solo uso[2m > [22mR5-09: un stepUpToken ya usado (single-use) es rechazado en un segundo intento, aunque siga vigente y el org/purpose coincidan [33m7163[2mms[22m[39m
+ [32m✓[39m test/security-api13-auth-audit-log.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 56337[2mms[22m[39m
+   [33m[2m✓[22m[39m API-13: eventos de autenticación quedan en audit_log[2m > [22mlogin exitoso registra auth.login_succeeded con actor, ip, user-agent y request_id (sin contraseña) [33m17817[2mms[22m[39m
+   [33m[2m✓[22m[39m API-13: eventos de autenticación quedan en audit_log[2m > [22mlogin fallido (contraseña incorrecta y email inexistente) registra auth.login_failed sin la contraseña [33m13718[2mms[22m[39m
+   [33m[2m✓[22m[39m API-13: eventos de autenticación quedan en audit_log[2m > [22mreutilizar un refresh token ya rotado registra auth.refresh_reuse_detected (revocación de familia visible en audit_log) [33m10307[2mms[22m[39m
+   [33m[2m✓[22m[39m API-13: eventos de autenticación quedan en audit_log[2m > [22mun refresh simplemente inválido/inexistente NO genera un evento de reuso (solo el reuso real tiene valor de auditoría) [33m7470[2mms[22m[39m
+   [33m[2m✓[22m[39m API-13: eventos de autenticación quedan en audit_log[2m > [22mlogout con token válido registra auth.logout; logout con token inválido no registra nada (no filtra información) [33m7014[2mms[22m[39m
+ [32m✓[39m test/security-req044-064-step-up-2fa.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 90431[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-044/064 — 2FA/step-up en aprobaciones económicas[2m > [22msin 2FA enrolado, aprobar una tarifa responde 403 con instrucción explícita de enrolar [33m21211[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-044/064 — 2FA/step-up en aprobaciones económicas[2m > [22menrolado pero SIN X-Step-Up, aprobar una tarifa responde 403 pidiendo el encabezado [33m15080[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-044/064 — 2FA/step-up en aprobaciones económicas[2m > [22mcon X-Step-Up vigente, aprobar una tarifa y un expediente proceden [33m15304[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-044/064 — 2FA/step-up en aprobaciones económicas[2m > [22mreplay: el MISMO código TOTP usado dos veces en verify-enrollment es rechazado la segunda vez [33m14378[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-044/064 — 2FA/step-up en aprobaciones económicas[2m > [22mventana expirada: un stepUpToken vencido es rechazado explícitamente [33m10517[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-044/064 — 2FA/step-up en aprobaciones económicas[2m > [22mun stepUpToken de OTRO usuario es rechazado (no se puede usar la sesión de step-up de alguien más) [33m7692[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-044/064 — 2FA/step-up en aprobaciones económicas[2m > [22mbackup code: un código de respaldo sin usar habilita un step-up; el mismo código ya no sirve una segunda vez [33m6239[2mms[22m[39m
+ [32m✓[39m test/audit-api01-refresh-rotation.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 6951[2mms[22m[39m
+   [33m[2m✓[22m[39m API-01: rotación y detección de reuso de refresh tokens[2m > [22mel mismo refreshToken usado una segunda vez es rechazado (401), no reemitido [33m366[2mms[22m[39m
+   [33m[2m✓[22m[39m API-01: rotación y detección de reuso de refresh tokens[2m > [22mdetección de reuso revoca la familia de sesiones, pero NO afecta a otro usuario [33m503[2mms[22m[39m
+ [32m✓[39m test/security-r502-r503-twofa-brute-force.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 100049[2mms[22m[39m
+   [33m[2m✓[22m[39m R5-02/R5-03: límite de tasa + bloqueo progresivo + auditoría de fallos de 2FA[2m > [22m6º intento consecutivo de verify-enrollment con código incorrecto responde 429 (no 300/min genérico) [33m19593[2mms[22m[39m
+   [33m[2m✓[22m[39m R5-02/R5-03: límite de tasa + bloqueo progresivo + auditoría de fallos de 2FA[2m > [22mel límite de tasa de 2FA es MENOR que el global (5/5min, no 300/min) y no depende del perfil e2e (mínimo garantizado) [33m13516[2mms[22m[39m
+   [33m[2m✓[22m[39m R5-02/R5-03: límite de tasa + bloqueo progresivo + auditoría de fallos de 2FA[2m > [22mperfil e2e NO anula el límite de 2FA: 6 intentos seguidos también disparan 429 (mínimo garantizado) [33m24969[2mms[22m[39m
+   [33m[2m✓[22m[39m R5-02/R5-03: límite de tasa + bloqueo progresivo + auditoría de fallos de 2FA[2m > [22mcontador de fallos por usuario en DB: falla 5 veces seguidas y confirma bloqueo progresivo persistido (twofa_lockouts) [33m11948[2mms[22m[39m
+   [33m[2m✓[22m[39m R5-02/R5-03: límite de tasa + bloqueo progresivo + auditoría de fallos de 2FA[2m > [22mreplay del TOTP en step-up es rechazado (no genera una nueva sesión de step-up) [33m9391[2mms[22m[39m
+   [33m[2m✓[22m[39m R5-02/R5-03: límite de tasa + bloqueo progresivo + auditoría de fallos de 2FA[2m > [22mcada fallo de verify-enrollment/step-up queda en audit_log (antes solo se auditaban los éxitos) [33m6845[2mms[22m[39m
+   [33m[2m✓[22m[39m R5-02/R5-03: límite de tasa + bloqueo progresivo + auditoría de fallos de 2FA[2m > [22mR5-10: un fallo de 2FA audita ip/userAgent en el after, con la misma paridad que auth.login_failed [33m5704[2mms[22m[39m
+   [33m[2m✓[22m[39m R5-02/R5-03: límite de tasa + bloqueo progresivo + auditoría de fallos de 2FA[2m > [22mestando bloqueado (locked_until en el futuro), un intento adicional responde 429 y también queda auditado [33m4391[2mms[22m[39m
+   [33m[2m✓[22m[39m R5-02/R5-03: límite de tasa + bloqueo progresivo + auditoría de fallos de 2FA[2m > [22muna verificación EXITOSA reinicia el contador de fallos (no se arrastra un bloqueo indefinido) [33m3686[2mms[22m[39m
+[90mstdout[2m | test/security-api03-login-timing.test.ts[2m > [22m[2mAPI-03: /auth/login no es un oráculo de timing de existencia de cuenta[2m > [22m[2mla mediana de latencia de login con email existente (password incorrecta) y con email inexistente difiere menos de 1.5x en 50 muestras por lado
+[22m[39mAPI-03 login timing: mediana existente=48.36ms, mediana inexistente=46.46ms, ratio=1.04x
+
+ [32m✓[39m test/security-api03-login-timing.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 51565[2mms[22m[39m
+   [33m[2m✓[22m[39m API-03: /auth/login no es un oráculo de timing de existencia de cuenta[2m > [22mla mediana de latencia de login con email existente (password incorrecta) y con email inexistente difiere menos de 1.5x en 50 muestras por lado [33m51565[2mms[22m[39m
+ [32m✓[39m test/audit-api03-register-enumeration.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 2858[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m8 passed[39m[22m[90m (8)[39m
+[2m      Tests [22m [1m[32m38 passed[39m[22m[90m (38)[39m
+[2m   Start at [22m 15:53:59
+[2m   Duration [22m 164.49s[2m (transform 3.48s, setup 0ms, collect 37.74s, tests 418.73s, environment 2ms, prepare 1.63s)[22m
+
+exit=0
+
+===================================================================
+LECTURA DE RESULTADOS
+===================================================================
+
+1) typecheck  -> exit=0 (limpio)
+2) lint       -> exit=0 (limpio)
+
+3) SUITE GOOGLE (test/google-oidc-login.test.ts +
+   test/security-go03-oidc-issuer-https.test.ts), DOS pasadas:
+     pasada 1 -> 22/22 verdes, exit=0
+     pasada 2 -> 22/22 verdes, exit=0
+   (14 en google-oidc-login, de las cuales 3 son NUEVAS de GO-07;
+    8 en security-go03-oidc-issuer-https, todas NUEVAS de GO-03).
+
+4) SUITE AUTH (auth-and-orgs-flow, audit-api01-refresh-rotation,
+   audit-api03-register-enumeration, security-api03-login-timing,
+   security-api13-auth-audit-log, security-req044-064-step-up-2fa,
+   security-r502-r503-twofa-brute-force, security-r505-stepup-scope),
+   DOS pasadas:
+     pasada 1 -> 35/38, exit=1  ** FALLOS AJENOS A ESTE AGENTE **
+     pasada 2 -> 38/38, exit=0
+
+   Los 3 fallos de la pasada 1 fueron todos "expected 403 to be 200" en
+   POST /auth/login (auth-and-orgs-flow x2, security-api13 x1). NO tocan
+   modules/auth/google/**: son la compuerta de correo verificado de
+   REQ-181..195 (`EmailNotVerifiedError`, 403) que OTRO agente estaba
+   introduciendo en modules/auth/routes.ts + test/helpers.ts EN CALIENTE
+   mientras corria esta pasada. La pasada 2, ya con su cambio completo en
+   el arbol, da 38/38 verdes sin que este agente tocara nada. Se deja
+   constancia explicita en vez de repetir la pasada hasta que salga
+   verde.
+
+===================================================================
+VERIFICACION DE QUE LAS PRUEBAS NUEVAS DE GO-07 NO SON UN FALSO VERDE
+===================================================================
+
+Antes de commitear se sustituyo temporalmente el reintento de
+`resolveGoogleIdentity` por una llamada directa a
+`resolveGoogleIdentityOnce` (estado "pre-fix") y se ejecuto:
+
+  $ npx vitest run test/google-oidc-login.test.ts -t 'GO-07'
+
+  FAIL  GO-07: carrera al crear un usuario nuevo ...
+        AssertionError: expected 500 to be 200
+  FAIL  GO-07: carrera al insertar la identidad ...
+        AssertionError: expected 500 to be 200
+  FAIL  GO-07: si la carrera persiste tras el reintento, responde 409 ...
+        AssertionError: expected 500 to be 409
+
+  Tests  3 failed | 11 skipped (14)
+
+Es decir: las tres pruebas reproducen el 500 REAL descrito por GO-07
+(23505 de Postgres sin capturar), no un escenario inventado. El estado
+con el arreglo se restauro inmediatamente despues y es el commiteado.
+
+===================================================================
+HALLAZGO NUEVO OBSERVADO (NO REPARADO -- fuera del encargo)
+===================================================================
+
+En la rama de LOGIN REPETIDO de `resolveGoogleIdentityOnce` (rama
+`bySubject`: la identidad de Google ya estaba vinculada) NUNCA se fija
+`app.current_user_id`, a diferencia de las otras dos ramas. Como
+`app.my_organizations()` filtra por `app.current_user_id()` (migracion
+0041) y la politica `sel_user_totp_secrets` exige lo mismo (0057), un
+usuario que vuelve a entrar con Google (a) recibe `sin_acceso` aunque SI
+pertenezca a una organizacion, y (b) su 2FA NO se exige en ese segundo
+login.
+
+Comprobado EN VIVO (no por lectura): sonda temporal en el test de la
+carrera de identidad, que pasa por esa rama con un usuario que SI tiene
+organizacion:
+
+  PROBE_REPEAT_LOGIN_STATUS= sin_acceso
+
+La sonda no se commiteo (arbol verificado limpio despues). No se reparo
+porque excede el encargo (GO-03/GO-07) y su arreglo cambiaria respuestas
+`sin_acceso` -> `ok`, justo el comportamiento congelado por D-09
+(docs/DECISIONES.md). Registrado como GO-10 (candidato) en
+docs/auditoria-2/api-google.md.
+
+=== FIN ===

@@ -338,6 +338,57 @@ hallazgos informativos/bajos, no de comportamiento erróneo.
 
 ## Hallazgos (GO-nn)
 
+### Estado de reparación
+
+Columna añadida por el **agente corrector** (posterior e independiente del
+auditor, que no modificó ningún código). Ámbito del corrector: EXCLUSIVAMENTE
+`apps/api/src/modules/auth/google/**` y sus pruebas — por eso los hallazgos
+que viven en `docs/REQUISITOS.md`, `docs/ACEPTACION.md` o `apps/web` siguen
+abiertos aquí y corresponden a otro responsable. Evidencia de comandos y
+salidas: `docs/logs/fix-api-google.log`.
+
+| Hallazgo | Severidad | Estado reparación |
+|---|---|---|
+| GO-01 — REQ-174 vs. `sin_acceso` | MODERADA (gobernanza) | **NO REPARADO — fuera de ámbito de este corrector.** Reconciliado en parte por la decisión **D-09** de `docs/DECISIONES.md` ("Google no crea organización automática"); falta alinear el TEXTO de `docs/REQUISITOS.md` (REQ-174) y `docs/ACEPTACION.md` (REQ-174/S1), que son de otro responsable. Ningún cambio de comportamiento: la compuerta `sin_acceso` se conservó intacta a propósito. |
+| GO-02 — REQ-172 (botón en `apps/web`) | INFORMATIVA | **NO REPARADO — fuera de ámbito** (`apps/web`). Pendiente honesta ya reconocida por `docs/ACEPTACION.md`. |
+| GO-03 — `OIDC_ISSUER_URL` sin validar esquema `https` | BAJA (hardening) | **REPARADO** (commit `fix(api): GO-03 …`). `assertSecureIssuerUrl` exige `https://`, con una única excepción explícita y estrecha para el proveedor OIDC falso en **loopback** (`127.0.0.1`/`localhost`/`[::1]`) y nunca bajo `NODE_ENV=production`. Se valida al REGISTRAR las rutas (la API **no arranca** con un issuer inseguro) y en cada `loadGoogleOidcEnv` como defensa en profundidad; cualquier error de configuración responde el 503 explícito ya existente, nunca un 500. Prueba: `apps/api/test/security-go03-oidc-issuer-https.test.ts` (8/8). |
+| GO-07 — `23505`/unique_violation sin capturar | MODERADA (robustez) | **REPARADO** (commit `fix(api): GO-07 …`). `resolveGoogleIdentity` reintenta una vez la resolución completa en una transacción nueva —espejo del manejo que `/auth/register` ya tenía para esta misma carrera—, de modo que el perdedor encuentra la fila del ganador y **se vincula/inicia sesión con normalidad** en vez de terminar en 500; si la carrera persistiera, responde un **409 controlado y auditado** (`reason: identity_race_unresolved`), sin filtrar el error de Postgres ni traza alguna. Pruebas: 3 nuevas en `apps/api/test/google-oidc-login.test.ts` (14/14), verificadas fallando con **500** sin el arreglo. **No** cambia la compuerta `sin_acceso` (D-09). |
+| GO-08 — conteo de tests 274 vs 278 | INFORMATIVA | **NO REPARADO — no es un hallazgo de Google**, nota de contexto. |
+| GO-09 — sin endpoint de desvinculación de Google | INFORMATIVA | **NO REPARADO — no lo exige ningún REQ vigente**; nota de diseño para cuando se construya. |
+
+### GO-10 (candidato) — hallazgo NUEVO observado al reparar GO-07, **no reparado**
+
+En la rama de **login repetido** de `resolveGoogleIdentityOnce`
+(`modules/auth/google/routes.ts`, rama `bySubject`: la identidad de Google ya
+estaba vinculada) **nunca se fija `app.current_user_id`**, a diferencia de las
+otras dos ramas (vinculación por email y usuario nuevo, que sí lo hacen
+inmediatamente). Todo lo que viene después de esa rama depende de ese
+contexto:
+
+- `app.my_organizations()` filtra por `where m.user_id = app.current_user_id()`
+  (0041) → con el contexto sin fijar devuelve **0 filas**.
+- La política `sel_user_totp_secrets` exige
+  `user_id = app.current_user_id()` (0057) → la consulta de 2FA devuelve
+  **0 filas**, así que `requiresTwoFactor` queda en `false`.
+
+**Consecuencias**: (a) un usuario que vuelve a entrar con Google recibe
+`sin_acceso` aunque SÍ pertenezca a una organización; (b) más grave, su
+**2FA no se exige** en ese segundo login y siguientes. El test oficial de 2FA
+no lo detecta porque ejercita el PRIMER login con Google (rama de
+vinculación, que sí fija el contexto).
+
+**Comprobado en vivo, no por lectura**: durante la reparación de GO-07 se
+instrumentó el caso "login repetido de un usuario CON organización" y la
+respuesta observada fue `status = sin_acceso` (sonda temporal, no
+commiteada).
+
+**No reparado aquí**: excede el encargo del corrector (GO-03/GO-07) y su
+arreglo cambiaría respuestas `sin_acceso` → `ok`, precisamente el
+comportamiento congelado por **D-09**. Requiere decisión explícita antes de
+tocarlo.
+
+---
+
 ### GO-01 — MODERADA (gobernanza/documentación) — REQ-174 no coincide con el texto de REQUISITOS.md/ACEPTACION.md
 
 **Rubro**: 3 (flujos) / gobernanza transversal (REQ-210).
