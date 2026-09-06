@@ -42,3 +42,4 @@
 2026-09-05 20:48  DESPERTAR  corrector web vuelta 2 (#35) 49 unit + 71 E2E; reverificador 2 (#39) despachado; en curso #14,#34,#36,#37,#38.
 2026-09-05 20:49  DESPERTAR  reverificación worker (#34): 7C/4P/1PE + 5 nuevos (2 ALTA); corrector vuelta 2 (#40) despachado; en curso #14,#36,#37,#38,#39.
 2026-09-05 20:57  DESPERTAR  #14 api ronda 2 completado (51+128 tests, 0017-0028); despachados #41 reverify db-api, #42 web↔api, #43 api ronda 3; en curso #36,#37,#38,#39,#40.
+2026-09-05 20:57  DESPERTAR  corrector agents vuelta 3 (#36) 241/241; reverificador final (#44) despachado; en curso #37,#38,#39,#40,#41,#42,#43.
