@@ -78,4 +78,44 @@ describe('Scheduler: unicidad por (tipo, fuente, ventana) — REQ-146/REQ-150', 
     const { rows } = await db.query<{ payload: { sourceId: string } }>(`select payload from jobs limit 1`);
     expect(rows[0].payload.sourceId).toBe('dof');
   });
+
+  /**
+   * WK-04 (docs/auditoria-1/worker.md): reproduce el escenario exacto que
+   * confirmó la auditoría 5/5 veces — dos procesos `apps/worker`, cada uno
+   * con su propio `Scheduler`/`JobQueue` (el modo de escalado horizontal que
+   * el propio README recomienda), llamando `tick()` CONCURRENTEMENTE sobre
+   * la MISMA ventana de la MISMA fuente. Antes de esta ronda, `enqueue()`
+   * hacía lectura-luego-inserción sin ningún lock, así que ambos veían "no
+   * existe todavía" y ambos insertaban -> 2 jobs duplicados. Ahora
+   * `enqueue()` serializa esa clave con `pg_advisory_xact_lock` dentro de
+   * una transacción (ver `JobQueue.enqueue`), así que el segundo scheduler
+   * en llegar espera a que el primero haga commit y entonces sí ve la fila
+   * ya insertada (deduped). Se repite 20 veces (una por ventana distinta)
+   * para no depender de una única corrida con suerte.
+   */
+  it('dos Scheduler concurrentes (dos procesos) nunca duplican el job de la misma fuente+ventana — 20 iteraciones', async () => {
+    const schedulesOneSource: SourceScheduleConfig[] = [{ sourceId: 'dof', intervalMs: 60_000 }];
+    const queueA = new JobQueue({ db, now: () => currentTime });
+    const queueB = new JobQueue({ db, now: () => currentTime });
+    const schedulerA = new Scheduler({ queue: queueA, schedules: schedulesOneSource, now: () => currentTime });
+    const schedulerB = new Scheduler({ queue: queueB, schedules: schedulesOneSource, now: () => currentTime });
+
+    for (let i = 0; i < 20; i++) {
+      // Cada iteración usa una ventana nueva (avanza más de intervalMs) para
+      // que cada ronda ejercite el mismo camino de "primera vez" bajo
+      // concurrencia real, no solo el camino ya-deduplicado.
+      currentTime = new Date(currentTime.getTime() + 61_000);
+      const [resultA, resultB] = await Promise.all([schedulerA.tick(), schedulerB.tick()]);
+
+      // Exactamente uno de los dos procesos debió encolar; el otro debió
+      // deduplicar contra la fila que el primero insertó.
+      expect(resultA.enqueued + resultB.enqueued).toBe(1);
+      expect(resultA.deduped + resultB.deduped).toBe(1);
+
+      const { rows } = await db.query<{ n: number }>(`select count(*)::int as n from jobs where kind = 'discover_tenders'`);
+      // Exactamente un job total por ventana transcurrida (1 por iteración):
+      // ninguna ventana quedó duplicada.
+      expect(rows[0].n).toBe(i + 1);
+    }
+  });
 });

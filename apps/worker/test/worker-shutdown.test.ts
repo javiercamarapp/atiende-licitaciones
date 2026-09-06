@@ -119,6 +119,118 @@ describe('Worker: cierre ordenado (SIGTERM)', () => {
     await expect(worker.stop()).resolves.toBeUndefined();
   });
 
+  /**
+   * WK-02 (docs/auditoria-1/worker.md): fencing token. Reproduce el
+   * escenario exacto que confirmó la auditoría — el lease de un job expira
+   * mientras el worker original (`worker-A`) SIGUE VIVO ejecutando el
+   * handler, y otro worker (`worker-B`) lo reclama (p. ej. porque el
+   * heartbeat de A se retrasó). Antes de esta ronda, `Worker.process()`
+   * descartaba el valor booleano de `heartbeat()` con un `.catch()`
+   * fire-and-forget: worker-A JAMÁS se enteraba de que perdió el lease y
+   * seguía ejecutando el handler hasta el final, con el riesgo real de
+   * producir un efecto secundario duplicado (p. ej. dos POST a apps/api) —
+   * confirmado con doble reclamo real por la auditoría. Ahora: el heartbeat
+   * periódico de `Worker` verifica el `fencingToken` (`job.attempts` en el
+   * momento del claim) y, si detecta que ya no es dueño, aborta el
+   * `AbortSignal` del handler y garantiza que el resultado NUNCA se
+   * persiste (ni `complete()` ni `fail()`), sin importar cómo termine el
+   * handler a partir de ahí.
+   */
+  it('WK-02: si el heartbeat detecta que se perdió el lease (fencing), aborta el handler y NO persiste ningún resultado', async () => {
+    let sawAbort = false;
+    let effectApplied = false;
+
+    const handler: JobHandler = async (_job, ctx) => {
+      const start = Date.now();
+      while (!ctx.signal.aborted && Date.now() - start < 3000) {
+        await sleep(5);
+      }
+      sawAbort = ctx.signal.aborted;
+      // Si el handler NUNCA vio el abort, habría seguido y producido un
+      // efecto secundario real (p. ej. un POST a apps/api) — justo lo que
+      // WK-02 dice que pasaba antes de esta ronda.
+      if (!ctx.signal.aborted) effectApplied = true;
+    };
+
+    const { job } = await queue.enqueue('fenced_kind', {});
+    const worker = new Worker({
+      queue,
+      handlers: { fenced_kind: handler },
+      workerId: 'worker-A',
+      logger: silentLogger(),
+      pollIntervalMs: 10,
+      heartbeatIntervalMs: 20, // heartbeat frecuente para que la prueba no dependa de tiempos largos
+    });
+
+    worker.start();
+    while ((await queue.getById(job.id))?.status !== 'running') await sleep(5);
+
+    // Simula: el lease de worker-A expiró y worker-B lo reclamó MIENTRAS
+    // worker-A sigue vivo ejecutando el handler (el escenario de WK-02).
+    await db.query(`update jobs set locked_at = now() - interval '120 seconds' where id = $1`, [job.id]);
+    const reclaimedByB = await queue.claim('worker-B', { leaseSeconds: 60 });
+    expect(reclaimedByB?.id).toBe(job.id);
+    expect(reclaimedByB?.lockedBy).toBe('worker-B');
+
+    // El próximo heartbeat automático de worker-A debe detectar `false` y abortar.
+    const deadline = Date.now() + 2000;
+    while (!sawAbort && Date.now() < deadline) await sleep(10);
+    expect(sawAbort).toBe(true);
+    expect(effectApplied).toBe(false);
+
+    await worker.stop();
+
+    // worker-A NUNCA debió persistir nada: el job sigue siendo de worker-B,
+    // sin tocar (ni completado, ni fallado, ni recontado como reintento).
+    const finalRow = await queue.getById(job.id);
+    expect(finalRow?.lockedBy).toBe('worker-B');
+    expect(finalRow?.status).toBe('running');
+    expect(finalRow?.attempts).toBe(2); // 1 (worker-A) + 1 (worker-B), nunca más
+    expect(worker.metrics.get('fenced', 'fenced_kind')).toBe(1);
+    expect(worker.metrics.get('succeeded', 'fenced_kind')).toBe(0);
+  });
+
+  /**
+   * WK-10 (docs/auditoria-1/worker.md): antes de esta ronda, un error
+   * PERMANENTE (fuente no configurada/no verificada, un 4xx de apps/api
+   * salvo 429, validación) se trataba igual que cualquier error transitorio
+   * — se reprogramaba con backoff exponencial hasta agotar `max_attempts`.
+   * Reintentar un error permanente nunca cambia el resultado, así que es
+   * puro desperdicio de capacidad de worker. Este test usa un handler que
+   * lanza un error marcado `permanent: true` (el mismo mecanismo que usan
+   * `NotConfiguredError`/`IngestApiError` 4xx) con `maxAttempts: 5`, y
+   * confirma que el job muere en el PRIMER intento, sin pasar por
+   * `queued`/backoff.
+   */
+  it('WK-10: un error permanente dead-letra en el primer intento, sin gastar el ciclo de backoff', async () => {
+    class PermanentDemoError extends Error {
+      readonly permanent = true as const;
+    }
+    const { job } = await queue.enqueue('permanent_kind', {}, { maxAttempts: 5 });
+    const worker = new Worker({
+      queue,
+      handlers: {
+        permanent_kind: async () => {
+          throw new PermanentDemoError('fuente_no_verificada:dof');
+        },
+      },
+      workerId: 'w-permanent',
+      logger: silentLogger(),
+      pollIntervalMs: 10,
+    });
+
+    worker.start();
+    while ((await queue.getById(job.id))?.status === 'running') await sleep(5);
+    await worker.stop();
+
+    const finalRow = await queue.getById(job.id);
+    expect(finalRow?.status).toBe('dead');
+    expect(finalRow?.attempts).toBe(1); // nunca se reprogramó ni consumió más intentos
+    expect(finalRow?.lastError).toContain('fuente_no_verificada:dof');
+    expect(worker.metrics.get('dead', 'permanent_kind')).toBe(1);
+    expect(worker.metrics.get('retried', 'permanent_kind')).toBe(0);
+  });
+
   it('métricas: cuenta succeeded/retried/dead por tipo de job', async () => {
     const { job: okJob } = await queue.enqueue('ok_kind', {});
     const { job: badJob } = await queue.enqueue('bad_kind', {}, { maxAttempts: 1 });
