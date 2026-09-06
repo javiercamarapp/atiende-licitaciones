@@ -23,3 +23,4 @@
 2026-09-05 19:40  INCIDENTE  REQUISITOS.md revertido en árbol por agente concurrente; restaurado a HEAD verificado (INC-01).
 2026-09-05 19:53  DESPERTAR  auditoría worker (#22) 12 hallazgos (4A/4M/4B); corrector #24 despachado; en curso #14,#17,#18,#20,#23.
 2026-09-05 19:54  DESPERTAR  corrector agents (#17) 14 commits, 182/182, cobertura 94%; reverificador #25 despachado; en curso #14,#18,#20,#23,#24.
+2026-09-05 19:58  DESPERTAR  corrector expediente (#20) 11 commits, 118/118; reverificador #26 despachado; en curso #14,#18,#23,#24,#25.
