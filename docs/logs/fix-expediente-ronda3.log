@@ -1,0 +1,322 @@
+# Corrección packages/expediente — ronda 3 (vs. docs/auditoria-1/expediente-reverificacion-2.md)
+
+Fecha: 2026-09-05
+Alcance: packages/expediente/**, docs/logs/fix-expediente-ronda3.log, columna
+"Estado reparación" de docs/auditoria-1/expediente-reverificacion-2.md.
+NO se tocó apps/api (otro agente lo está integrando en esta misma ronda) ni
+ningún otro paquete.
+
+Mandato: cerrar EX-EXP-17 (ALTA, mismo hilo que EX-EXP-01/EX-EXP-11),
+EX-EXP-18 (MEDIA), EX-EXP-19 (BAJA/MEDIA), EX-EXP-20 (BAJA), EX-EXP-21 (BAJA,
+CI); EX-EXP-22 solo se anota (lo actualiza el orquestador, no este agente).
+
+Este log contiene salida REAL de los comandos ejecutados (no resumida ni
+inventada): reproducción del defecto en un `git worktree` separado apuntado
+a HEAD (nunca revirtiendo el árbol principal), seguida de la corrida
+completa `typecheck`/`lint`/`test`/`build`/`test:coverage` tras el fix, y
+`npm run -w apps/api typecheck`.
+
+================================================================================
+## 0. Reproducción "antes" en git worktree separado (HEAD, sin tocar el árbol principal)
+================================================================================
+
+`git worktree add <scratchpad>/fix-expediente-ronda3-before HEAD` (HEAD en
+ese momento: 98190f4). node_modules simbólico al del árbol principal (mismo
+lockfile, sin reinstalar). Se agregaron 4 archivos de prueba temporales bajo
+`test/_repro3/` que expresan el comportamiento CORRECTO esperado tras el fix
+(igual que los tests reales que se agregaron después en el árbol principal),
+y se corrieron contra el código SIN corregir:
+
+```
+$ npx vitest run test/_repro3/
+
+ ❯ test/_repro3/ex-exp-17-repro.test.ts (1 test | 1 failed)
+   × approve() debe RECHAZAR un inputsHash de string plano calculado a mano (fix esperado)
+     → expected [Function] to throw an error
+ ❯ test/_repro3/ex-exp-18-repro.test.ts (1 test | 1 failed)
+   × dos Date logicamente distintos deben producir hashes distintos
+     → AssertionError: expected '44136fa355b3678a1146ad16f7e8649e94fb4…' not to be '44136fa355b3678a1146ad16f7e8649e94fb4…'
+       (ambos Date colapsan a stableStringify("{}") -> mismo sha256, EX-EXP-18 confirmado)
+ ❯ test/_repro3/ex-exp-19-repro.test.ts (1 test | 1 failed)
+   × un condicional marcado explicitamente no aplica debe dejar una seccion VISIBLE, no desaparecer
+     → AssertionError: expected undefined to be defined
+       (la sección desaparece con `continue`, EX-EXP-19 confirmado)
+ ❯ test/_repro3/ex-exp-20-repro.test.ts (1 test | 1 failed)
+   × rechaza la hora 24:00:00 (medianoche del dia siguiente)
+     → AssertionError: expected [Function] to throw an error
+       ("24:00:00Z" no lanza, EX-EXP-20 confirmado)
+
+ Test Files  4 failed (4)
+      Tests  4 failed (4)
+```
+
+Los 4 hallazgos reproducidos fallan exactamente como describe
+`docs/auditoria-1/expediente-reverificacion-2.md`. Worktree y archivos
+temporales eliminados al terminar (`git worktree remove --force`); ningún
+cambio quedó en el árbol principal por este paso.
+
+================================================================================
+## 1. EX-EXP-17 (ALTA) — InputsHash branded + HashedInputs sellado con símbolo privado
+================================================================================
+
+Cambios en `src/proposal-version.ts`:
+- `InputsHash`: tipo BRANDED (`string & { [brand]: true }`) — SOLO
+  `computeInputsHash(inputs: ExpedienteInputs): InputsHash` lo produce.
+  Rechazo en TIEMPO DE COMPILACIÓN de un `string` suelto.
+- `HashedInputs { inputs, hash }`: sellado con `SEALED_MARKER` (símbolo
+  PRIVADO, `const SEALED_MARKER: unique symbol = Symbol(...)`, NUNCA
+  exportado) vía `sealInputs(inputs)`. Ningún código externo al módulo puede
+  construir un objeto con ese símbolo — ni reensamblando `{inputs, hash}`
+  con un `InputsHash` LEGÍTIMO obtenido de otra parte (confirmado por test,
+  ver sección 3).
+- `InvalidInputsHashError`: lanzado por `requireValidHashedInputs(value,
+  label)`, usado internamente por `ApprovalWorkflow.approve()`/
+  `revalidateAgainstCurrentHash()`/`isFullyApprovedForCurrentHash()` y
+  `PackageAssembler.buildManifest()`. Verifica: (1) `string` plano ->
+  mensaje de migración explícito (DEPRECADO, no aceptado en silencio);
+  (2) objeto sin el símbolo privado -> rechazado; (3) recalcula
+  `computeInputsHash(value.inputs)` y compara contra `value.hash` -> si los
+  insumos referenciados se MUTARON después de sellarse, ya no coincide y se
+  rechaza igual.
+- `ProposalVersion.hash` cambia de `string` a `HashedInputs` (sellado por
+  `createVersion` internamente vía `sealInputs`).
+- `Approval.inputsHash` (approval-workflow.ts) y
+  `AssembleInput.currentInputsHash` (package-assembler.ts) cambian de
+  `string` a `HashedInputs` en la firma pública; internamente se extrae y
+  almacena solo el `InputsHash` (string branded) en `Approval` — nunca el
+  `ExpedienteInputs` completo, para no inflar/filtrar datos de negocio en
+  `PackageManifest.approvals` (que se serializa a JSON dentro del ZIP).
+
+Compatibilidad con `apps/api` (API pública): el tipo ya NO acepta `string`
+(rechazo en TS), y en runtime un `string` produce `InvalidInputsHashError`
+con mensaje de migración explícito en vez de aceptarse en silencio —
+documentado en README §"Hash de insumos". Confirmado que `apps/api` (que
+está integrando el paquete en esta misma ronda) ya usa exactamente
+`sealInputs`/`HashedInputs`/`requireValidHashedInputs` en
+`apps/api/src/lib/expediente/inputs.ts` y `approval-store.pg.ts` — ver
+sección 6 de este log.
+
+Tests nuevos (fallan contra el código sin corregir, ver sección 0):
+`test/approval-workflow.test.ts` describe "EX-EXP-17" (5 tests: hash
+artesanal rechazado, objeto reensamblado con InputsHash legítimo pero sin
+símbolo rechazado, HashedInputs con inputs mutados tras sellarse rechazado,
+revalidateAgainstCurrentHash rechaza string, HashedInputs legítimo sí se
+acepta); `test/package-assembler.test.ts` describe "EX-EXP-17" (2 tests
+análogos para `buildManifest`). Todos los tests preexistentes que pasaban
+`inputsHash`/`currentInputsHash` como `string` (~20 sitios en
+`approval-workflow.test.ts`, `package-assembler.test.ts`,
+`proposal-invalidation.test.ts`, `expediente-flow.test.ts`) se migraron a
+`sealInputs`/`fakeHashedInputs` (helper nuevo,
+`test/helpers/hashed-inputs.ts`).
+
+================================================================================
+## 2. EX-EXP-18 (MEDIA) — stableStringify: Date/Map/Set/BigInt
+================================================================================
+
+`src/types.ts` — `sortKeysDeep`: antes, `Date`/`Map`/`Set` (todos
+`typeof === "object"`, ninguno con propiedades PROPIAS enumerables) caían en
+la rama genérica `Object.entries()` -> `[]` -> ambos serializaban `"{}"`,
+colisión real (`sha256Hex(new Date(A)) === sha256Hex(new Date(B))` para A≠B).
+`bigint` ni siquiera llegaba ahí (`typeof 1n === "bigint"`) y
+`JSON.stringify(1n)` LANZA. Ahora, antes de la rama genérica:
+- `Date` -> `{ [TYPE_MARKER_KEY]: "Date", value: value.toISOString() }`
+  (lanza explícitamente si es `Invalid Date`, nunca produce `"{}"` silencioso).
+- `Map` -> entradas recursivamente normalizadas y ordenadas de forma
+  canónica (por `JSON.stringify` de cada entrada ya normalizada) para que el
+  orden de inserción no afecte el hash.
+- `Set` -> igual, elementos ordenados canónicamente.
+- `bigint` -> `{ [TYPE_MARKER_KEY]: "BigInt", value: value.toString() }`.
+`TYPE_MARKER_KEY` reutiliza el mismo patrón que `UNDEFINED_SENTINEL`
+(bytes NUL que datos de negocio normales no contienen literalmente).
+
+Tests nuevos: `test/types.test.ts` describe "EX-EXP-18" (10 tests: Date
+distintos no colisionan, mismo instante con 2 Date construidos distinto SÍ
+colisiona, Date anidado no colisiona con `{}`, Invalid Date lanza, Map con
+orden de inserción distinto SÍ colisiona (mismo contenido), Map con
+contenido distinto NO colisiona ni con `{}` ni con objeto plano equivalente,
+mismo patrón para Set, BigInt no lanza y distingue valores, BigInt no
+colisiona con Number/string equivalente, undefined/null/ausente sin
+regresión).
+
+================================================================================
+## 3. EX-EXP-19 (BAJA/MEDIA) — sección visible "NO APLICA" para condicionales no aplicables
+================================================================================
+
+`src/technical-proposal.ts`: cuando `evaluateObligatorioLike` devuelve
+"no_aplica" (requisito `opcional`, o `condicional` marcado explícitamente
+`false`), en vez de `continue` (desaparición muda), ahora se agrega una
+sección VISIBLE:
+`{ id: "sec-<id>", requirementId, title: "NO APLICA (<razón>)", statements: [], blockers: [] }`
+— razón = "requisito opcional" o `condición "<topicKey>" evaluada falsa`.
+Se agregan helpers exportados `NOT_APPLICABLE_TITLE_PREFIX`,
+`isNotApplicableSection`, `extractNotApplicableRequirements(proposal)`.
+
+`src/package-assembler.ts`: `PackageManifest.notApplicableRequirements`
+(nuevo campo, `{requirementId, reason}[]`, vacío por defecto) y
+`AssembleInput.notApplicableRequirements?` (opcional) — el llamador puede
+pasar `extractNotApplicableRequirements(technical)` para que la decisión de
+omitir sea visible también en el manifiesto, no solo en
+`TechnicalProposal.sections` — satisface "en la propuesta técnica y en el
+manifiesto" del mandato sin forzar un acoplamiento nuevo entre ambos módulos
+(cambio aditivo, no rompe ningún test existente).
+
+Invariante de conteo actualizado en `test/technical-proposal-property.test.ts`
+(200 casos aleatorios deterministas): antes,
+`sections.length + omitidosJustificados.length === relevantCount` (donde
+"omitidosJustificados" se recalculaba EXTERNAMENTE replicando la regla de
+negocio, precisamente porque no había señal en el objeto de salida). Ahora,
+más simple y más fuerte: `sections.length === relevantCount` para TODO
+caso — todo requisito relevante tiene sección, sin excepción; se verifica
+además que las omisiones procedimentales tengan título "NO APLICA" y CERO
+blockers/statements, y que el resto NUNCA tenga ese título.
+
+`test/technical-proposal.test.ts`: los 2 tests que antes verificaban
+`.toBeUndefined()` para la sección del condicional no aplicable ahora
+verifican que la sección EXISTE, con título "NO APLICA"/"evaluada falsa",
+sin bloqueos ni afirmaciones.
+
+================================================================================
+## 4. EX-EXP-20 (BAJA) — rechaza "24:00:00" y componentes de hora fuera de rango
+================================================================================
+
+`src/types.ts` — nueva `assertValidTimeComponents(iso, label)`, llamada
+desde `assertExplicitOffset` (después de `assertOffsetInRange`/
+`assertValidCalendarComponents`, antes de la defensa final `NaN`): aísla el
+segmento `HH:MM:SS[.fracción]` con `ISO_TIME_SEGMENT_PATTERN` y valida:
+- formato: exactamente 3 componentes `HH:MM:SS`, cada uno 2 dígitos: y una
+  fracción de segundo opcional que, si está presente, debe ser solo dígitos.
+- hora > 23 -> rechaza explícitamente (incluye "24:00:00", que V8
+  reinterpretaba en silencio como el día siguiente — EX-EXP-20).
+- minuto > 59 / segundo > 59 -> rechaza.
+
+Tests nuevos: `test/types.test.ts` describe "EX-EXP-20" (9 tests: "24:00:00"
+con "Z" y con offset numérico, límites válidos 00:00:00/23:59:59, minuto
+60, segundo 60, hora 25, fracciones válidas ".999"/".123456", fracción con
+letras (formato inválido), formato de hora incompleto "12:00").
+
+================================================================================
+## 5. EX-EXP-21 (BAJA, CI) — gate de cobertura (mismo patrón que packages/agents/AG-14)
+================================================================================
+
+- `package.json`: agregado `"test:coverage": "vitest run --coverage"` y
+  devDependency `"@vitest/coverage-v8": "^2.1.9"` (misma versión que
+  `packages/agents`, ya presente en el `node_modules` raíz del monorepo).
+- `vitest.config.ts` (nuevo): `coverage.thresholds` = lines 85 / branches 80
+  / functions 85 / statements 85 (idéntico a `packages/agents/vitest.config.ts`),
+  calibrado con margen contra la cobertura real medida en esta ronda
+  (92.99% stmts / 90.55% branches / 92.43% funcs / 92.99% lines — ver
+  sección 7).
+
+================================================================================
+## 6. EX-EXP-22 (BAJA, documental) — solo se anota
+================================================================================
+
+Por mandato explícito de esta ronda, este agente NO actualiza
+`docs/ACEPTACION.md`: esa actualización la realiza el orquestador. Se anota
+en la columna "Estado reparación" de
+`docs/auditoria-1/expediente-reverificacion-2.md` que EX-EXP-22 sigue
+pendiente de esa actualización (fuera del alcance de este mandato).
+
+Nota adicional (hallazgo positivo durante esta ronda, no un hallazgo nuevo):
+se confirmó que `apps/api` SÍ está integrando `@atiende/expediente` en esta
+misma ronda (`grep -rln "@atiende/expediente" apps/api/src` ya NO está
+vacío, a diferencia de rondas anteriores) — la premisa "ningún consumidor
+real existe todavía" de `docs/auditoria-1/expediente-reverificacion-2.md`
+ya no aplica al cierre de esta ronda. Eso es responsabilidad de reportarlo
+para quien actualice EX-EXP-22/ACEPTACION.md, no de este agente corregirlo.
+
+================================================================================
+## 7. Corrida final completa
+================================================================================
+
+$ npm run -w packages/expediente typecheck
+> @atiende/expediente@0.1.0 typecheck
+> tsc --noEmit
+EXIT:0
+
+$ npm run -w packages/expediente lint
+> @atiende/expediente@0.1.0 lint
+> eslint src test
+EXIT:0
+
+$ npm run -w packages/expediente test
+> @atiende/expediente@0.1.0 test
+> vitest run
+ ✓ test/requirement-matrix.test.ts (12 tests)
+ ✓ test/integrity-checklist.test.ts (11 tests)
+ ✓ test/types.test.ts (36 tests)
+ ✓ test/technical-proposal.test.ts (7 tests)
+ ✓ test/approval-workflow.test.ts (20 tests)
+ ✓ test/technical-proposal-property.test.ts (200 tests)
+ ✓ test/expediente-flow.test.ts (3 tests)
+ ✓ test/proposal-invalidation.test.ts (10 tests)
+ ✓ test/package-assembler.test.ts (12 tests)
+ ✓ test/company-data.test.ts (7 tests)
+ ✓ test/number-to-words.test.ts (42 tests)
+ ✓ test/economic-proposal.test.ts (10 tests)
+ ✓ test/llm-extractor.test.ts (2 tests)
+ ✓ test/money.test.ts (9 tests)
+ ✓ test/api-surface.test.ts (4 tests)
+ ✓ test/timezone-determinism.test.ts (6 tests)
+ Test Files  16 passed (16)
+      Tests  391 passed (391)
+EXIT:0
+
+$ npm run -w packages/expediente build
+> @atiende/expediente@0.1.0 build
+> tsc -p tsconfig.build.json
+EXIT:0
+
+$ npm run -w packages/expediente test:coverage
+> @atiende/expediente@0.1.0 test:coverage
+> vitest run --coverage
+ Test Files  16 passed (16)
+      Tests  391 passed (391)
+
+ % Coverage report from v8
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s
+-------------------|---------|----------|---------|---------|-------------------
+All files          |   92.99 |    90.55 |   92.43 |   92.99 |
+ src               |   92.85 |    90.63 |   92.17 |   92.85 |
+  approval-workflow.ts | 100  |    97.77 |    100  |    100  | 120
+  company-data.ts   |   71.11 |    84.61 |   64.28 |   71.11 | 215-222,225-232
+  economic-proposal.ts | 100 |     100  |    100  |    100  |
+  index.ts          |   100  |     100  |    100  |    100  |
+  integrity-checklist.ts | 89.92 | 87.09 |   100  |   89.92 | 173-179,181-182
+  money.ts          |   93.1  |      64  |   87.5  |   93.1  | 86-89
+  number-to-words.ts |  95.42 |    86.44 |    100  |   95.42 | ...85,201-202,216
+  package-assembler.ts | 100  |    95.23 |    100  |    100  | 128,206
+  proposal-version.ts |  97.03 |   95.34 |    100  |   97.03 | 230-231,258-259
+  requirement-matrix.ts | 93.16 |  91.22 |    100  |   93.16 | ...331-333,430-438
+  technical-proposal.ts |  90  |    90.9  |   66.66 |    90  | ...230,252,256,258
+  types.ts          |   89.18 |      96  |   91.66 |   89.18 | ...120-121,164-167
+ src/llm            |   100  |    83.33 |    100  |    100  |
+  extractor.ts      |   100  |    83.33 |    100  |    100  | 67
+-------------------|---------|----------|---------|---------|-------------------
+Thresholds (85/80/85/85) satisfechos. EXIT:0
+
+$ npm run -w apps/api typecheck
+EXIT:2 (FALLA)
+
+19 errores TS, TODOS ajenos a este cambio (verificado: ninguno referencia
+InputsHash/HashedInputs/proposal-version.ts). Categorías observadas:
+  (a) handlers de rutas Fastify en `src/modules/expediente/*.routes.ts`
+      (checklist, documents, package, post-award, proposal, submission)
+      donde el resultado de una consulta a `packages/db` tipado `unknown`
+      por campo no calza con el `response` schema Zod declarado de la ruta
+      (p. ej. `version: unknown` vs `version: number`) — un problema de
+      tipado de la capa de acceso a datos de `apps/api`, no de la API
+      pública de `@atiende/expediente`.
+  (b) `approval.routes.ts:123` — un `orgRole` propio de `apps/api`
+      (`"owner"|"admin"|"analyst"|"writer"|"reviewer"|"viewer"|undefined`)
+      no asignable al tipo esperado por `appendApprovalEvent` (sin el
+      `| undefined`) — tampoco relacionado con `WorkflowRole`/`InputsHash`.
+Confirmado por inspección directa de `apps/api/src/lib/expediente/inputs.ts`,
+`approval-store.pg.ts` y `approval.routes.ts:115-128`: YA usan exactamente
+`sealInputs`/`HashedInputs`/`requireValidHashedInputs` de la nueva API
+pública de este paquete, y esas líneas específicas TYPECHECKEAN limpio — el
+error de esa función está en una línea distinta, sobre su propio tipo de rol
+organizacional. No se tocó ningún archivo de `apps/api` (fuera de alcance
+de este mandato); se reporta la falla preexistente/concurrente al
+orquestador para que el agente de `apps/api` la resuelva.

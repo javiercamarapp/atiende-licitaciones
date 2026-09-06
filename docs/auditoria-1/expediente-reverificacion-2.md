@@ -389,17 +389,44 @@ existe y es correcto, pero no es obligatorio en el punto de uso — EX-EXP-17).
 
 **Abiertos tras esta ronda (7, todos de severidad ALTA o menor, ninguno CRÍTICO)**:
 
-| ID | Severidad | Resumen de una línea |
-|---|---|---|
-| EX-EXP-01/11 | ALTA (vía EX-EXP-17) | El hash de insumos "cerrado y obligatorio" no es obligatorio en runtime: `approve()`/`buildManifest()` aceptan cualquier `string`. |
-| EX-EXP-17 | ALTA | (mismo hallazgo, numerado para esta ronda) — falta un tipo opaco/verificación runtime que fuerce el uso de `computeInputsHash`. |
-| EX-EXP-18 | MEDIA | `stableStringify`/`sha256Hex` colapsan `Date` a `"{}"` (colisión real). |
-| EX-EXP-19 | BAJA/MEDIA | `condicional` marcado "no aplica" desaparece sin rastro visible en `TechnicalProposal`. |
-| EX-EXP-20 | BAJA | `"24:00:00"` se reinterpreta silenciosamente al día siguiente sin lanzar. |
-| EX-EXP-21 | BAJA (CI) | Sin gate de cobertura CI para `packages/expediente` (a diferencia de `packages/agents`, AG-14). |
-| EX-EXP-22 | BAJA (docs) | `docs/ACEPTACION.md` desactualizado respecto a los hallazgos ya cerrados en esta ronda. |
+| ID | Severidad | Resumen de una línea | Estado reparación (ronda 3, `docs/logs/fix-expediente-ronda3.log`) |
+|---|---|---|---|
+| EX-EXP-01/11 | ALTA (vía EX-EXP-17) | El hash de insumos "cerrado y obligatorio" no es obligatorio en runtime: `approve()`/`buildManifest()` aceptan cualquier `string`. | **CERRADO** vía EX-EXP-17 (ver esa fila) |
+| EX-EXP-17 | ALTA | (mismo hallazgo, numerado para esta ronda) — falta un tipo opaco/verificación runtime que fuerce el uso de `computeInputsHash`. | **CORREGIDO.** `computeInputsHash` devuelve un `InputsHash` BRANDED (rechazo en tiempo de compilación de un `string` suelto); `sealInputs(inputs)`/`ProposalVersionRegistry.createVersion(...).hash` devuelven un `HashedInputs` sellado con un símbolo PRIVADO no exportado (`SEALED_MARKER`). `ApprovalWorkflow.approve()`/`revalidateAgainstCurrentHash()`/`isFullyApprovedForCurrentHash()` y `PackageAssembler.buildManifest()` exigen ese `HashedInputs` y lo verifican con `requireValidHashedInputs()`: rechaza un `string` plano (con `InvalidInputsHashError` y mensaje de migración explícito, no aceptado en silencio), rechaza un objeto `{inputs, hash}` reensamblado a mano AUNQUE reuse un `InputsHash` legítimo (probado explícitamente: TypeScript por sí solo no lo detecta, solo el símbolo privado en runtime lo hace), y rechaza un `HashedInputs` cuyos `inputs` fueron MUTADOS después de sellarse (recomputa y compara). Reproducido el ataque original contra el código sin corregir en un `git worktree` separado (falla como se esperaba) antes de aplicar el fix. 7 tests nuevos (`describe "EX-EXP-17"` en `test/approval-workflow.test.ts` y `test/package-assembler.test.ts`); ~20 sitios de tests preexistentes migrados de `string` a `HashedInputs` sellado (helper `test/helpers/hashed-inputs.ts`). Confirmado que `apps/api` (integrando el paquete en esta misma ronda) ya consume exactamente esta API (`sealInputs`/`HashedInputs`/`requireValidHashedInputs` en `apps/api/src/lib/expediente/`). |
+| EX-EXP-18 | MEDIA | `stableStringify`/`sha256Hex` colapsan `Date` a `"{}"` (colisión real). | **CORREGIDO.** `sortKeysDeep` distingue ahora `Date` (serializa como ISO 8601 con marcador de tipo; lanza si es `Invalid Date`), `Map`/`Set` (entradas/elementos recursivamente normalizados y ordenados de forma canónica, insensible al orden de inserción) y `bigint` (antes `JSON.stringify` lanzaba; ahora se serializa como texto decimal con marcador de tipo). 10 tests nuevos en `test/types.test.ts` (describe "EX-EXP-18"). |
+| EX-EXP-19 | BAJA/MEDIA | `condicional` marcado "no aplica" desaparece sin rastro visible en `TechnicalProposal`. | **CORREGIDO.** Un requisito `opcional`, o `condicional` marcado explícitamente no aplicable, ya no hace `continue`: genera una sección VISIBLE (`title: "NO APLICA (razón)"`, sin bloqueos ni afirmaciones) en `TechnicalProposal.sections`. Nuevos helpers exportados `isNotApplicableSection`/`extractNotApplicableRequirements`; `PackageAssembler` gana el campo opcional `AssembleInput.notApplicableRequirements` que se refleja en `PackageManifest.notApplicableRequirements` (vacío por defecto, no rompe consumidores existentes) — visible también en el manifiesto, no solo en la propuesta técnica. Invariante de conteo de `test/technical-proposal-property.test.ts` (200 casos) simplificado y fortalecido: `sections.length === relevantCount` siempre (ya no hace falta recalcular "omisiones justificadas" fuera del objeto de salida). |
+| EX-EXP-20 | BAJA | `"24:00:00"` se reinterpreta silenciosamente al día siguiente sin lanzar. | **CORREGIDO.** Nueva `assertValidTimeComponents` (llamada desde `assertExplicitOffset`) valida el componente `HH:MM:SS[.fracción]`: rechaza hora > 23 (incluye `"24:00:00"` sin excepción, con o sin offset numérico), minuto/segundo > 59, y formato de hora/fracción mal formado. 9 tests nuevos en `test/types.test.ts` (describe "EX-EXP-20"), incluyendo que los límites válidos (`00:00:00`, `23:59:59`, fracciones `.999`/`.123456`) siguen aceptándose sin falsos positivos. |
+| EX-EXP-21 | BAJA (CI) | Sin gate de cobertura CI para `packages/expediente` (a diferencia de `packages/agents`, AG-14). | **CORREGIDO.** `package.json` gana `"test:coverage": "vitest run --coverage"` y devDependency `@vitest/coverage-v8@^2.1.9`; `vitest.config.ts` nuevo con `coverage.thresholds` (lines 85 / branches 80 / functions 85 / statements 85, mismo patrón que `packages/agents`), calibrado con margen contra la cobertura real medida en esta ronda (92.99% stmts / 90.55% branches / 92.43% funcs / 92.99% lines). `npm run -w packages/expediente test:coverage` verificado en verde, exit 0. |
+| EX-EXP-22 | BAJA (docs) | `docs/ACEPTACION.md` desactualizado respecto a los hallazgos ya cerrados en esta ronda. | **N/A — fuera del alcance de este agente corrector.** Por mandato explícito de esta ronda, `docs/ACEPTACION.md` lo actualiza el orquestador, no este agente; no se tocó ese archivo. Nota adicional para quien lo actualice: al cierre de esta ronda `apps/api` YA está integrando `@atiende/expediente` (`grep -rln "@atiende/expediente" apps/api/src` ya no está vacío) — la premisa "ningún consumidor real existe todavía" de este documento ya no aplica, y las notas de A6/A7/A9/A11 en `docs/ACEPTACION.md` (citadas como desactualizadas por este mismo hallazgo) deben revisarse junto con ese cambio de estado. |
 
 Ningún hallazgo abierto es de severidad CRÍTICA. El más importante (EX-EXP-01/11/17)
 es estructural pero acotado: el mecanismo correcto EXISTE y está bien probado, falta
 únicamente forzarlo en el punto de uso — una corrección de alcance pequeño y bien
 definido (tipo marcado o verificación runtime), no un rediseño.
+
+---
+
+## 7. Nota de cierre — ronda 3 de corrección (posterior a esta reverificación)
+
+Nota añadida por el agente corrector de la ronda 3, sin reescribir los veredictos
+originales de las secciones 1-6 (mismo criterio de honestidad que el resto de este
+documento): los 6 hallazgos de código abiertos al cierre de la sección 6
+(EX-EXP-01/11 vía EX-EXP-17, y EX-EXP-17..21) fueron corregidos en esa ronda
+posterior — ver la columna "Estado reparación (ronda 3, `docs/logs/fix-expediente-ronda3.log`)"
+añadida a la tabla de la sección 6 para el detalle exacto por hallazgo, y
+`packages/expediente/README.md` (sección nueva "Hash de insumos: `InputsHash`/
+`HashedInputs` (EX-EXP-17)") para la documentación de la reparación y la guía de
+migración. EX-EXP-22 (documental) queda explícitamente **fuera del alcance** de este
+agente corrector — su mandato indica que `docs/ACEPTACION.md` lo actualiza el
+orquestador — y se anota únicamente ese hecho en la tabla, sin modificar
+`docs/ACEPTACION.md`.
+
+Confirmado además (no un hallazgo, información de contexto para la siguiente
+reverificación): al cierre de esta ronda `apps/api` YA está integrando
+`@atiende/expediente` en producción — `grep -rln "@atiende/expediente" apps/api/src`
+ya no devuelve vacío, a diferencia de todas las rondas anteriores. La premisa
+"ningún consumidor real existe todavía" de la sección 1 de este documento y de
+`docs/logs/reverify2-expediente.log` deja de aplicar a partir de esta ronda; una
+futura reverificación de `packages/expediente` debería, por primera vez, evaluar
+también el uso real que `apps/api` hace de esta API (no solo la librería pura en
+aislamiento).
