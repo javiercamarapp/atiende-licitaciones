@@ -170,3 +170,4 @@
 2026-09-06 16:31  NOTIF  #112 reverificación cortada por 429 → #114 Opus; en curso #109 #113 #114.
 2026-09-06 16:43  CRON a1c165a2  respaldo disparó; último ScheduleWakeup no armado por clasificador limitado → rearmando; en curso #109 #113 #114 (Opus).
 2026-09-06 16:52  NOTIF  #109 correos API cerrada (8 commits, 0086); despacho #115 auditoría mail-api, #116 worker mail_retry+E20; en curso #113 #114.
+2026-09-06 17:01  NOTIF  #114 reverificación r6+wk6 (a9f91e9): R6-11 ALTA, R6-10/12/13 MEDIA, WK6-04 MEDIA → #117 API; WK6-04 en cola tras #116.
