@@ -180,7 +180,7 @@ async function resolveGoogleIdentityOnce(
     } else {
       // 2) REQ-173: vinculación automática por email verificado con una
       // cuenta existente (email+contraseña, u otra ya creada antes).
-      const byEmail = await tx.query<{ id: string; password_hash: string | null; is_active: boolean }>(
+      const byEmail = await tx.query<{ id: string; password_hash: string | null; is_active: boolean; email_verified_at: string | Date | null }>(
         'select * from app.find_user_by_email($1)',
         [claims.email]
       );
@@ -195,6 +195,49 @@ async function resolveGoogleIdentityOnce(
         // `app.find_user_by_email` -- todo lo que sigue en esta rama corre
         // ya como este usuario real.
         await tx.query("select set_config('app.current_user_id', $1, true)", [userId]);
+
+        // AM-01 (docs/auditoria-2/api-mail.md, ALTA -- roza CRÍTICA):
+        // "squatting" de correo -- un atacante que conoce el email de la
+        // víctima ejecuta POST /auth/register con ese email y una
+        // contraseña suya ANTES de que la víctima use Google. Esta rama
+        // vinculaba la identidad de Google a esa cuenta sin mirar
+        // `email_verified_at`/`password_hash`: si la verificación NATIVA se
+        // completaba después por cualquier vía (el correo original de
+        // registro sigue vivo 30 minutos, o /auth/email/resend-verification
+        // es anónimo), la contraseña del ATACANTE -- nunca invalidada --
+        // quedaba operativa para tomar la cuenta, incluidas las
+        // organizaciones a las que la víctima ya se hubiera unido vía
+        // Google. REQ-180 exige tratar esto como el "estado inconsistente"
+        // que debe detectarse y corregirse: Google ya probó la propiedad
+        // del correo con MÁS fuerza que un token de verificación nativo
+        // (OIDC completo, no un enlace que cualquiera con acceso al buzón
+        // puede consumir), así que se usa esa prueba para (a) invalidar
+        // cualquier contraseña preexistente que nunca se verificó (si el
+        // dueño real la puso, `/auth/password/forgot` se la deja rehacer;
+        // si la puso un atacante, queda inservible en el mismo acto) y
+        // revocar toda sesión de esa cuenta, y (b) marcar el correo como
+        // verificado por Google -- en el MISMO acto que la vinculación,
+        // nunca en un paso posterior que un atacante pudiera ganar de
+        // carrera.
+        //
+        // Alternativa MÁS conservadora considerada y descartada: rechazar
+        // la vinculación con 409 y exigir verificación nativa primero. Se
+        // descarta porque invertiría REQ-173 (vinculación automática) en el
+        // caso más común y benigno -- alguien que se registró con
+        // contraseña, nunca confirmó el correo, y simplemente prefiere
+        // entrar con Google -- y porque Google YA es una prueba de
+        // propiedad del correo al menos tan fuerte como la nativa; negar la
+        // vinculación no cierra ningún vector adicional, solo empeora la
+        // experiencia del caso legítimo.
+        const accountWasSquatted = row.password_hash !== null && row.email_verified_at === null;
+        if (accountWasSquatted) {
+          await tx.query('update users set password_hash = null, email_verified_at = now() where id = $1', [userId]);
+          // Mismo patrón que `app.reset_password_with_token` (0084) aplica
+          // al restablecer una contraseña: invalidar credenciales sin
+          // revocar sesiones vivas dejaría cualquier sesión YA ABIERTA con
+          // la contraseña del atacante intacta.
+          await tx.query('select app.revoke_all_refresh_tokens($1)', [userId]);
+        }
 
         // REQ-180: antes de vincular, verificar que no exista un conflicto
         // -- esta cuenta ya tiene una identidad de Google vinculada a un
@@ -221,10 +264,28 @@ async function resolveGoogleIdentityOnce(
         ]);
         linkedNow = true;
 
+        // AM-01, punto (d) del hallazgo (correo transaccional "se vinculó
+        // Google a tu cuenta"): NO implementado en esta ronda. El catálogo
+        // de plantillas (`packages/mail/src/templates/catalog`) no tiene
+        // una para este evento y añadirla queda fuera del alcance asignado
+        // a este corrector (packages/mail no está en su ámbito de cambio).
+        // Dado que (a)-(c) ya cierran la toma de cuenta en el mismo acto
+        // (la contraseña del atacante queda inservible de inmediato, sin
+        // depender de que la víctima llegue a leer ningún correo), (d)
+        // queda como mejora de notificación, no como parte del cierre de
+        // la vulnerabilidad -- pendiente para una ronda que sí toque
+        // packages/mail.
+
         await recordAuthAudit(tx, {
           actorId: userId,
           action: 'auth.google_linked',
-          after: { ip: audit.ip, userAgent: audit.userAgent },
+          // AM-01: `accountWasSquatted` distingue auditablemente esta rama
+          // de una vinculación "limpia" -- nunca un `action` nuevo:
+          // `app.record_auth_event` (0084) rechaza cualquier acción fuera
+          // de su lista fija en SQL, y ampliarla requeriría una migración
+          // de packages/db, fuera del alcance de esta ronda de
+          // correcciones (ver AM-04 en docs/auditoria-2/api-mail.md).
+          after: { ip: audit.ip, userAgent: audit.userAgent, accountWasSquatted },
           requestId: audit.requestId,
         });
       } else {
