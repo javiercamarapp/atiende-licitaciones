@@ -105,10 +105,13 @@ export function normalizeToolName(name: string): string {
   return name.normalize("NFKC").toLowerCase().replace(/[\s_.-]+/g, "");
 }
 
-function normalizedSet(values: Iterable<string>): Set<string> {
+function normalizedSet(values: Iterable<string>): ReadonlySet<string> {
   const result = new Set<string>();
   for (const value of values) result.add(normalizeToolName(value));
-  return result;
+  // AG-18: mismo tratamiento que unionWithDefaults — la versión normalizada
+  // por-instancia (la que `decide()` realmente consulta) tampoco puede ser
+  // un Set mutable plano.
+  return freezeSet(result);
 }
 
 /**
@@ -117,12 +120,17 @@ function normalizedSet(values: Iterable<string>): Set<string> {
  * reemplazo, sin importar qué iterable llegue en `additions` (incluida una
  * lista vacía).
  */
-function unionWithDefaults(defaults: ReadonlySet<string>, additions?: Iterable<string>): Set<string> {
+function unionWithDefaults(defaults: ReadonlySet<string>, additions?: Iterable<string>): ReadonlySet<string> {
   const result = new Set(defaults);
   if (additions) {
     for (const item of additions) result.add(item);
   }
-  return result;
+  // AG-18: el Set por-instancia resultante de la unión también debe ser
+  // realmente inmutable en runtime, no solo el default de módulo que
+  // AG-04 protegió — de lo contrario una referencia a la instancia puede
+  // `.delete()`/`.clear()` una prohibición vía reflexión sobre el campo
+  // `private` (protección solo de compilación en TypeScript).
+  return freezeSet(result);
 }
 
 /**
@@ -191,10 +199,10 @@ const HARD_PROHIBITED_ACTION_KINDS: ReadonlySet<ActionKind> = new Set<ActionKind
 ]);
 
 export class AuthorizationPolicy {
-  private readonly hardProhibitedActions: Set<string>;
-  private readonly normalizedHardProhibitedActions: Set<string>;
-  private readonly prohibitedActions: Set<string>;
-  private readonly normalizedProhibitedActions: Set<string>;
+  private readonly hardProhibitedActions: ReadonlySet<string>;
+  private readonly normalizedHardProhibitedActions: ReadonlySet<string>;
+  private readonly prohibitedActions: ReadonlySet<string>;
+  private readonly normalizedProhibitedActions: ReadonlySet<string>;
   private readonly roleCeiling: Readonly<Record<Role, RiskLevel>>;
 
   constructor(options?: {
@@ -228,6 +236,15 @@ export class AuthorizationPolicy {
     // 2/2") debe enterarse de inmediato, no obtener silenciosamente un
     // techo distinto al que pidió.
     this.roleCeiling = Object.freeze(clampRoleCeiling(options?.roleCeiling));
+    // AG-18: congela también la instancia completa — así, además de que los
+    // propios `Set`s son inmutables vía `freezeSet()`, ninguno de estos
+    // campos puede REASIGNARSE por reflexión (`(policy as any).campo = x`)
+    // saltándose el constructor. `readonly` de TypeScript es una
+    // protección solo de compilación; `Object.freeze(this)` es la que
+    // realmente falla en runtime (los módulos ES siempre corren en modo
+    // estricto, así que una asignación a una propiedad congelada lanza
+    // `TypeError`, no falla en silencio).
+    Object.freeze(this);
   }
 
   decide(request: AuthorizationRequest): AuthorizationResult {

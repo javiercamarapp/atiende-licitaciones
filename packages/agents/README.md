@@ -84,6 +84,20 @@ patrón #4).
 `validateInput`/`validateOutput` rechazan cualquier `tool_call` cuyos
 argumentos no validen contra el esquema.
 
+**AG-20 (MEDIA, cierre de PARCIAL AG-11)**: `findForbiddenFieldRecursive`
+descendía en `ZodObject`/`ZodArray`/wrappers de una capa
+(`optional`/`nullable`/`default`/`effects`), pero no en combinadores de Zod
+distintos: un `organizationId` escondido dentro de una rama de
+`z.union([...])`/`z.discriminatedUnion(...)`, un operando de
+`z.intersection(...)`, el tipo de valor de `z.record(...)`/`z.map(...)`, un
+item de `z.tuple([...])`, o detrás de un esquema auto-referenciado con
+`z.lazy(...)` se registraba **sin lanzar**. Ahora también desciende en las
+ramas de `ZodUnion`/`ZodDiscriminatedUnion` (`_def.options`), ambos
+operandos de `ZodIntersection` (`_def.left`/`_def.right`), el tipo de valor
+de `ZodRecord`/`ZodMap` (`_def.valueType`), los items (+ `rest` variádico)
+de `ZodTuple`, y resuelve `ZodLazy` vía `_def.getter()` (con protección de
+ciclos ya existente para esquemas auto-referenciados).
+
 ### AuthorizationPolicy (REQ-044/REQ-046/REQ-068 + ampliación back office)
 
 `decide()` resuelve `auto | pending | denied` en este orden:
@@ -127,6 +141,23 @@ argumentos no validen contra el esquema.
    precio final, emitir paquete final): siempre `pending`, pero sí
    ejecutables dentro del sistema una vez que un humano aprueba vía
    `AgentRunner.resume()`.
+
+**Inmutabilidad real de las colecciones por-instancia (AG-18, MEDIA)**: AG-04
+protegió `DEFAULT_HARD_PROHIBITED_ACTIONS`/`DEFAULT_PROHIBITED_ACTIONS` (las
+constantes de módulo) con el `Proxy` de `freezeSet()`, pero los 4 `Set`
+derivados **por instancia** (`hardProhibitedActions`,
+`normalizedHardProhibitedActions`, `prohibitedActions`,
+`normalizedProhibitedActions`) seguían siendo `Set` mutables planos — un
+campo `private` de TypeScript es solo una protección de compilación, así
+que cualquier código con una referencia a la instancia podía
+`(policy as any).normalizedHardProhibitedActions.delete(...)` y hacer
+desaparecer una prohibición para esa instancia sin pasar por ninguna opción
+pública del constructor. Ahora los 4 se construyen con el mismo
+`freezeSet()`/`Proxy`, y además `Object.freeze(this)` al final del
+constructor bloquea también la REASIGNACIÓN de cualquier campo por
+reflexión (`(policy as any).campo = otraCosa`) — `readonly` de TypeScript
+no impide eso en runtime, `Object.freeze` sí (los módulos ES corren en modo
+estricto: una asignación a una propiedad congelada lanza `TypeError`).
 4. `riskLevel === 'irreversible'` o `'external'`: `pending`.
 5. Política específica de la herramienta (`requiresAuthorization` por rol).
 6. Si nada de lo anterior aplica: `auto`.
@@ -202,6 +233,25 @@ corrida como `needs_data` (el `ToolCallTrace` correspondiente queda en
 `pending_no_fabrication` con `missingSourcedFields`). Complementa (no
 reemplaza) el guardrail `no_unsourced_claims` de REQ-027/REQ-085, que aplica
 a `Claim`s de texto libre, no a valores estructurados.
+
+**AG-19 (MEDIA, cierre de PARCIAL AG-10)**: el recorrido de
+`scanForUnsourcedSensitiveData` usaba `Array.isArray`/`Object.entries`, lo
+que no expone el contenido de un `Map`/`Set` (sus entradas no son
+propiedades propias enumerables) ni el de un `Buffer`/`TypedArray` (expone
+índices numéricos de bytes, no las claves originales de un payload
+serializado dentro). Ahora `walk()` también desciende en `Map` (entradas
+tratadas igual que propiedades de un objeto, mismo chequeo de
+sinónimos/`approvedSourceRef`), en `Set` (valores recorridos
+recursivamente), y en `Buffer`/`TypedArray` (decodificados como UTF-8 con
+un límite defensivo de bytes — nunca binarios completos sin límite —
+buscando JSON embebido o texto libre sospechoso). Además, cualquier string
+(crudo o decodificado de un binario) se analiza en busca de JSON
+serializado embebido: se intenta `JSON.parse` de substrings acotados por el
+primer `{`/`[` y el último `}`/`]`, y si el resultado es un objeto/array se
+recorre igual que el resto del `output` — así un
+`JSON.stringify({precio: 999999})` guardado como string no se escapa del
+escaneo solo por estar serializado. `Date` se trata como hoja inerte (una
+fecha por sí sola no es un contenedor de datos sensibles).
 
 ### DependencyInvalidationRegistry (ampliación back office §3/§7)
 

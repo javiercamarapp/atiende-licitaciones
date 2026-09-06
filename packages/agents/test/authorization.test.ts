@@ -257,4 +257,50 @@ describe("AuthorizationPolicy", () => {
     });
   });
 
+  describe("AG-18 (MEDIA): los Set por-instancia son realmente inmutables en runtime, no solo los defaults de módulo (AG-04)", () => {
+    it("(policy as any).normalizedHardProhibitedActions.delete()/.clear() lanzan, vía reflexión sobre el campo private", () => {
+      const policy = new AuthorizationPolicy();
+      const reflected = (policy as any).normalizedHardProhibitedActions as Set<string>;
+      expect(() => reflected.delete("signdocument")).toThrow();
+      expect(() => reflected.clear()).toThrow();
+      expect(() => reflected.add("cualquier_cosa")).toThrow();
+      // Tras los intentos fallidos, sign_document sigue prohibido de verdad en decide().
+      expect(policy.decide({ toolName: "sign_document", riskLevel: "read", actorRole: "superadmin" }).decision).toBe(
+        "denied",
+      );
+    });
+
+    it("lo mismo aplica a hardProhibitedActions/prohibitedActions/normalizedProhibitedActions (las 4 colecciones por-instancia)", () => {
+      const policy = new AuthorizationPolicy();
+      const anyPolicy = policy as any;
+      for (const field of [
+        "hardProhibitedActions",
+        "normalizedHardProhibitedActions",
+        "prohibitedActions",
+        "normalizedProhibitedActions",
+      ]) {
+        const reflected = anyPolicy[field] as Set<string>;
+        expect(() => reflected.delete([...reflected][0]), field).toThrow();
+        expect(() => reflected.clear(), field).toThrow();
+      }
+    });
+
+    it("reasignar el campo por reflexión también falla (Object.freeze(this) en el constructor, no solo el Set)", () => {
+      const policy = new AuthorizationPolicy();
+      const anyPolicy = policy as any;
+      expect(() => {
+        anyPolicy.normalizedHardProhibitedActions = new Set<string>();
+      }).toThrow();
+      expect(() => {
+        anyPolicy.roleCeiling = { consultor_externo: "irreversible" };
+      }).toThrow();
+      // El estado real de la instancia es inmune a ambos intentos.
+      expect(policy.decide({ toolName: "sign_document", riskLevel: "read", actorRole: "superadmin" }).decision).toBe(
+        "denied",
+      );
+      expect(policy.decide({ toolName: "x", riskLevel: "irreversible", actorRole: "consultor_externo" }).decision).toBe(
+        "denied",
+      );
+    });
+  });
 });
