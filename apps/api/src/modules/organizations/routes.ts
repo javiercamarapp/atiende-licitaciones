@@ -198,6 +198,15 @@ export async function organizationRoutes(app: FastifyInstance): Promise<void> {
         throw new ForbiddenError('Solo owner/admin pueden cambiar roles');
       }
 
+      // API-02 (docs/auditoria-1/db-api.md): solo un owner puede CONCEDER el
+      // rol owner (a sí mismo o a otro miembro). Un admin puede administrar
+      // el resto de roles, pero nunca escalar a owner -- si pudiera, un
+      // admin se autopromovería libremente a owner (verificado en la
+      // auditoría con 200 OK).
+      if (role === 'owner' && request.orgRole !== 'owner') {
+        throw new ForbiddenError('Solo un owner puede conceder el rol owner');
+      }
+
       const updated = await app.db.transaction(async (tx) => {
         await tx.query('set local role app_role');
         await tx.query("select set_config('app.current_org_id', $1, true)", [orgId]);
