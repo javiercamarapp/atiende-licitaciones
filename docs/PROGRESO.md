@@ -256,3 +256,6 @@ Formato por entrada: requisito · acción · archivos/commit · prueba · result
 
 ## Corrección RF-01..04 — apps/web (2026-09-06 10:2x)
 - **Acción:** corrector #80 (reanudado). **Commits:** RF-01 `0d4f5cf` (StepUpDialog en tool_calls org y cross-org con orgId del dueño; MSW verifica cabecera/body/403), RF-02 `6282988` (`refreshSessionOnce()` único mutex; en preview real 20 recargas → 0×401), RF-03 `9dc6000` (QR real en canvas accesible), RF-04 no reproduce (cerrado por `40b3dfe`; 2/2 corridas 116/116), docs `ec16003`, README `9be55d9`. **Prueba:** unit 114; build; `test:e2e:full` ×2 116/116 (docs/logs/fix-web-ronda5.log). **Siguiente:** reverificación #81; después tablero e informe finales y decisión del bucle.
+
+## ci-local cuarta corrida (2026-09-06 10:3x)
+- **Resultado real (docs/logs/ci-local-4.log):** 29 combinaciones OK; **`apps/web:test:coverage` FALLÓ**: 6 tests de páginas por timeout (~200–232 s, retry ×1) con errores `HTMLCanvasElement.prototype.getContext` no implementado en jsdom (canvas del QR de RF-03). La misma suite pasó en docs/logs/fix-web-ronda5.log (114) y la corrida coincidió con la reverificación #81 (Playwright + API en paralelo). **No se marca en verde:** corrector #82 despachado para demostrar la causa (canvas en jsdom vs contención) y corregir; se repetirá la corrida.
