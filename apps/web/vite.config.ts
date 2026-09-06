@@ -70,7 +70,29 @@ function securityHeadersPlugin(command: "build" | "serve"): Plugin {
 // vacío en ese modo (ver e2e-full.mjs) para que el cliente
 // (src/lib/api/http.ts) use rutas relativas.
 const e2eApiTarget = process.env.E2E_API_URL;
-const API_PROXY_PATHS = ["/auth", "/organizations", "/me", "/company", "/tenders", "/matching", "/agents", "/admin", "/healthz", "/readyz", "/docs"];
+// Ronda 5: agrega "/expediente" (26 rutas: documentos/matriz, propuesta,
+// checklist, aprobación, paquete, presentación, post-adjudicación) y
+// "/audit-log" (bitácora de la organización activa, distinta de
+// "/admin/audit-log" que ya cubre "/admin") -- sin esto, cualquier módulo
+// nuevo del expediente y "Auditoría" del back office quedaban sin proxear
+// en `test:e2e:full`, viéndose como cross-origin real ante el mismo bug de
+// CORS que este proxy ya mitiga para el resto de la API (ver comentario de
+// arriba).
+const API_PROXY_PATHS = [
+  "/auth",
+  "/organizations",
+  "/me",
+  "/company",
+  "/tenders",
+  "/matching",
+  "/agents",
+  "/admin",
+  "/expediente",
+  "/audit-log",
+  "/healthz",
+  "/readyz",
+  "/docs",
+];
 const apiProxy = e2eApiTarget
   ? Object.fromEntries(API_PROXY_PATHS.map((p) => [p, { target: e2eApiTarget, changeOrigin: true }]))
   : undefined;

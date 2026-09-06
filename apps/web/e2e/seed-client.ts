@@ -67,6 +67,43 @@ export function createSeedClient(apiUrl: string) {
         body: JSON.stringify({ token }),
       });
     },
+    /**
+     * Siembra UNA convocatoria real vía `POST /internal/tenders/ingest`
+     * (la única ruta que puede crear `tenders`, ver
+     * apps/api/README.md/apps/api/src/modules/tenders/internal-ingest.routes.ts)
+     * -- nunca se inserta directo en la base de datos. Requiere
+     * `PLATFORM_API_KEY` (ver e2e-full.mjs); usada por
+     * e2e/expediente-flujo-completo.spec.ts para tener una convocatoria
+     * real sobre la que ejercitar bases→matriz→propuesta→checklist→
+     * revisión→paquete. `submissionDeadline` es obligatorio en la práctica:
+     * sin él, `POST .../proposal/technical|economic/generate` responde 422
+     * (AE-01, ver apps/api/src/lib/expediente/dates.ts).
+     */
+    async ingestTender(
+      platformApiKey: string,
+      organizationId: string,
+      record: { title: string; submissionDeadline: string; publishedAt: string },
+    ): Promise<{ tenderId: string }> {
+      const response = await request<{ results: { tenderId: string }[] }>("/internal/tenders/ingest", {
+        method: "POST",
+        headers: { "X-Platform-Api-Key": platformApiKey },
+        body: JSON.stringify({
+          organizationIds: [organizationId],
+          records: [
+            {
+              source: "e2e-seed",
+              externalId: `e2e-tender-${Date.now()}`,
+              title: record.title,
+              sourceVersion: `v1-${Date.now()}`,
+              submissionDeadline: record.submissionDeadline,
+              publishedAt: record.publishedAt,
+              currency: "MXN",
+            },
+          ],
+        }),
+      });
+      return { tenderId: response.results[0].tenderId };
+    },
     async waitForHealthz(timeoutMs: number): Promise<void> {
       const deadline = Date.now() + timeoutMs;
       let lastError: unknown;

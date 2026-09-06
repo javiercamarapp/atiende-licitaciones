@@ -20,6 +20,12 @@ const API_PORT = Number(process.env.E2E_API_PORT) || 3400 + Math.floor(Math.rand
 const WEB_PORT = Number(process.env.PLAYWRIGHT_PORT) || 4200 + Math.floor(Math.random() * 300);
 const API_URL = `http://127.0.0.1:${API_PORT}`;
 const WEB_URL = `http://127.0.0.1:${WEB_PORT}`;
+// Ronda 5: e2e/global-setup.ts usa esta clave (vía X-Platform-Api-Key) para
+// sembrar UNA convocatoria real por POST /internal/tenders/ingest antes de
+// e2e/expediente-flujo-completo.spec.ts -- la única ruta que puede crear
+// `tenders` (ver apps/api/README.md). Literal fijo de esta suite, nunca
+// usado fuera de test:e2e:full.
+const PLATFORM_API_KEY = "e2e-seed-platform-key-not-production";
 
 function log(msg) {
   console.log(`[test:e2e:full] ${msg}`);
@@ -61,7 +67,13 @@ async function main() {
     SKIP_MIGRATIONS: "false",
     STORAGE_DIR: path.join(WEB_ROOT, "e2e", ".artifacts", "storage"),
     CORS_ORIGINS: WEB_URL,
-    PLATFORM_API_KEY: "",
+    PLATFORM_API_KEY,
+    // Ronda 5 (apps/api): 2FA/step-up TOTP en aprobaciones económicas
+    // (REQ-044/064) exige esta clave (mín. 16 caracteres) para arrancar --
+    // sin ella `apps/api` ni siquiera levanta (`loadConfig` revienta antes
+    // de `GET /healthz`). Literal fijo de esta suite, nunca usado fuera de
+    // test:e2e:full.
+    TOTP_ENCRYPTION_KEY: "e2e-totp-encryption-key-not-production",
     // WI-05 (docs/auditoria-2/web-integrado.md): `test:e2e:full` recorre
     // ~29 rutas seguidas en `e2e/skip-link.spec.ts` (ALL_NAV_ITEMS), cada
     // una disparando varias peticiones de arranque de sesión — con el
@@ -105,6 +117,9 @@ async function main() {
         VITE_API_URL: "",
         E2E_API_URL: API_URL,
         PLAYWRIGHT_PORT: String(WEB_PORT),
+        // Leída por e2e/global-setup.ts para sembrar la convocatoria real
+        // (mismo valor que `apiEnv.PLATFORM_API_KEY` arriba).
+        PLATFORM_API_KEY,
       },
     });
     exitCode = code ?? 1;

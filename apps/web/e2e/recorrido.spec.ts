@@ -82,11 +82,19 @@ test.describe("Recorrido esencial (W-14)", () => {
     await sinViolacionesSeriasOCriticas(page);
   });
 
-  test('Paquete descargable: arranca en "Borrador", nunca en "Listo", sin violaciones serious/critical', async ({
+  // Ronda 5: la pantalla ahora exige elegir una convocatoria antes de
+  // mostrar cualquier estado de paquete (26 rutas reales de
+  // /expediente/tenders/:tenderId/..., ver hooks/useExpediente.ts) — la
+  // organización por defecto de `admin` (orgA del seed) nunca tiene
+  // convocatorias (la única convocatoria real del seed vive en orgC,
+  // dedicada a e2e/expediente-flujo-completo.spec.ts), así que el estado
+  // honesto observable aquí es "Sin convocatorias", nunca "Listo para
+  // presentar" sin haber ensamblado nada.
+  test('Paquete descargable: sin convocatorias en la organización por defecto, nunca "Listo", sin violaciones serious/critical', async ({
     page,
   }) => {
     await page.goto("/entrega/paquete-descargable");
-    await expect(page.getByText("Borrador", { exact: true })).toBeVisible();
+    await expect(page.getByText("Sin convocatorias")).toBeVisible();
     await expect(page.getByText("Listo para presentar")).toHaveCount(0);
     await expect(page.getByText("La presentación y firma las realiza el usuario")).toBeVisible();
     await sinViolacionesSeriasOCriticas(page);
