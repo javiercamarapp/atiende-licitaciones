@@ -268,3 +268,6 @@ Formato por entrada: requisito · acción · archivos/commit · prueba · result
 
 ## ci-local quinta corrida (2026-09-06 11:1x)
 - **Resultado real (docs/logs/ci-local-5.log, sin agentes de código en paralelo, load ~7):** 29 OK, npm audit y check-secrets OK, **`apps/web:test:coverage` FALLÓ de nuevo** (10 tests de páginas por timeout 44–80 s; error de canvas persiste pese al mock de 0a29c10). Total de tests contados en la corrida: 1681. **Conclusión de Fable:** el diagnóstico "contención" de #82 no explica un fallo consistente en 3 corridas con coverage mientras `test` sin coverage pasa 115/115 → corrector #84 con obligación de demostrar la causa real y dejar 2 corridas de coverage en verde. No se marca en verde hasta entonces.
+
+## Tablero tras ronda 5 (2026-09-06 11:3x)
+- **Acción:** agente #83, commit `a644803`. **Conteos:** CUMPLIDO 47→54, EN_EVIDENCIA 53, PENDIENTE 77→69, LÍMITE_ACEPTADO 5, NO_APLICA 3, BLOQUEADO_EXTERNO 1→2 (REQ-056 calendario SABG sin fuente en línea). Cierres: REQ-044/064, 050, 142, 170, 171, A13. E11 corregida a EN CURSO real. Único defecto abierto: R5-12 (BAJA). Tests aislados: api 238, db 161, web 114 unit + 116 E2E ×2. **Pendiente de cierre en este ciclo:** `apps/web:test:coverage` (corrector #84 en curso) y ci-local 6.

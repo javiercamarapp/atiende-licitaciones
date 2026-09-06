@@ -126,3 +126,4 @@
 2026-09-06 10:55  DESPERTAR  ci-local-5: web test:coverage FALLÓ consistente (10 timeouts); #84 despachado; en curso #83.
 2026-09-06 10:56  OBSERVACION  carga de CPU por demonios iCloud (bird/fileproviderd/cloudd); INC-10 registrado (decisión del usuario).
 2026-09-06 10:56  OBSERVACION  iCloud CONFIRMADO sincronizando el repo (brctl); INC-10 actualizado; aviso al usuario.
+2026-09-06 11:15  DESPERTAR  tablero tras ronda 5 (#83) a644803: 54C/53E/69P; en curso #84 (web coverage).
