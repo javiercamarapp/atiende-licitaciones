@@ -56,7 +56,8 @@ export async function tenderRoutes(app: FastifyInstance): Promise<void> {
     async (request) => {
       const orgId = request.orgId!;
       const { status, source, cursor, limit } = request.query;
-      const pageSize = limit ?? 20;
+      const parsedLimit = limit ? Number.parseInt(limit, 10) : undefined;
+      const pageSize = parsedLimit && parsedLimit >= 1 && parsedLimit <= 100 ? parsedLimit : 20;
 
       const conditions: string[] = ['org_id = $1'];
       const params: unknown[] = [orgId];

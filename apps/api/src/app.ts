@@ -3,7 +3,7 @@ import rateLimit from '@fastify/rate-limit';
 import swagger from '@fastify/swagger';
 import helmet from '@fastify/helmet';
 import cors from '@fastify/cors';
-import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
+import { serializerCompiler, validatorCompiler, jsonSchemaTransform } from 'fastify-type-provider-zod';
 import type { DbClient } from '@atiende/db';
 import { applyMigrations } from '@atiende/db';
 import type { AppConfig } from './config.js';
@@ -76,8 +76,22 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
         version: '0.2.0',
       },
     },
+    // Imprescindible con fastify-type-provider-zod: sin este `transform`,
+    // @fastify/swagger no sabe convertir un esquema `params`/`querystring`
+    // definido con zod a JSON Schema válido y `GET /docs/json` lanza un 500
+    // ("Cannot read properties of null (reading 'examples')") en cuanto
+    // CUALQUIER ruta declara `params`/`querystring` con zod (verificado:
+    // afecta incluso al ejemplo más simple, `z.object({ foo: z.string() })`
+    // en una ruta de una sola palabra). `body`/`response` funcionaban sin
+    // esto por una vía de conversión distinta, lo que ocultó el problema
+    // hasta regenerar el OpenAPI con rutas que sí usan params/querystring.
+    transform: jsonSchemaTransform,
   });
-  app.get('/docs/json', { schema: { hide: true } }, async () => app.swagger());
+  // API-06 (docs/auditoria-1/db-api.md): el esquema OpenAPI completo era
+  // accesible sin autenticación. Se exige una sesión válida (cualquier
+  // usuario autenticado, no necesariamente superadmin: es documentación
+  // técnica de la propia API, no datos de tenant ni de back office).
+  app.get('/docs/json', { schema: { hide: true }, preHandler: [app.authenticate] }, async () => app.swagger());
 
   // Límite global por IP (protección base). Además, rutas sensibles como
   // /auth/login declaran su propio override más estricto por ruta (ver

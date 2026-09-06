@@ -35,7 +35,16 @@ export const tenderListQuerySchema = z.object({
   status: z.enum(TENDER_STATUSES).optional(),
   source: z.string().optional(),
   cursor: z.string().optional(),
-  limit: z.coerce.number().int().min(1).max(100).optional(),
+  // Nota (API-06/regeneración de OpenAPI): NO se usa `z.coerce.number()`
+  // aquí a propósito -- @fastify/swagger no sabe generar el esquema OpenAPI
+  // de un tipo zod "coerce" (ZodEffects) y falla con "Cannot read
+  // properties of null (reading 'examples')" al construir /docs/json. Se
+  // valida como string numérico y se convierte a entero en el handler
+  // (ver modules/tenders/routes.ts).
+  limit: z
+    .string()
+    .regex(/^\d+$/, 'limit debe ser un entero positivo')
+    .optional(),
 });
 
 export const tenderListResponseSchema = z.object({
