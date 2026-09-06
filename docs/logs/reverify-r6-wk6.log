@@ -1,0 +1,434 @@
+===================================================================
+REVERIFICACION ADVERSARIAL R6 + WK6 (agente Opus, respaldo D-10)
+Fecha: 2026-09-06T22:34:45Z
+Worktree: /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-r6-wk6
+===================================================================
+--- git log -1 (worktree) ---
+cd803a479c74fc582dd6657c9211841ef2c75261 docs: despacho reverificación r6 + worker K
+--- git status (worktree) ---
+?? apps/api/test/zz-audit-r604-debug.test.ts
+?? apps/api/zz-repro-pdf-lag.mjs
+?? apps/api/zz-repro-pdf.mjs
+--- node/npm ---
+v25.6.1
+11.12.1
+
+===================================================================
+0. METODOLOGIA
+===================================================================
+Worktree desechable reutilizado (creado por el agente Sonnet cortado a
+mitad, verificado byte a byte identico a HEAD para apps/api, apps/worker,
+packages/db, packages/agents y package-lock.json antes de usarlo). Restos
+huerfanos de ese agente (zz-audit-r604-debug.test.ts, zz-repro-pdf*.mjs)
+eliminados antes de empezar. El arbol principal NUNCA se toco con
+reset/checkout <commit>/stash/rebase/amend/add -A.
+Los archivos de prueba adversariales (zz-rv-*.test.ts) se escribieron,
+ejecutaron y BORRARON dentro del worktree; `git status` del worktree quedo
+limpio al terminar (verificado abajo).
+
+===================================================================
+1. SUITES COMPLETAS x2 — apps/api (baseline en el worktree, HEAD)
+===================================================================
+--- PASADA 1: npm run -w apps/api test ---
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ Test Files  1 failed | 72 passed (73)
+      Tests  1 failed | 342 passed (343)
+   Start at  16:35:00
+   Duration  285.00s (transform 1.98s, setup 0ms, collect 88.61s, tests 1019.89s, environment 12ms, prepare 3.85s)
+EXIT=1
+--- unico fallo de la pasada 1 (transcripcion literal) ---
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/expediente-inconformidad.test.ts > expediente — redactor de inconformidades (REQ-053) > marcar como revisado exige step-up y rol reviewer/admin/owner; ya revisado -> 409; sin step-up -> 403
+Error: 2fa verify-enrollment failed: 403 {"type":"https://atiende.example/errors/forbidden","title":"Código TOTP inválido o ya utilizado (replay rechazado).","status":403,"requestId":"20906752-72b8-456e-96a7-70ef2ee82bb6","correlationId":"2151e6ad-0f51-43c5-803f-1ec49ab2d45d"}
+ ❯ Module.enrollTwoFactorFull test/helpers.ts:152:11
+    150|   const verify = await app.inject({ method: 'POST', url: '/auth/2fa/ve…
+    151|   if (verify.statusCode !== 200) {
+    152|     throw new Error(`2fa verify-enrollment failed: ${verify.statusCode…
+       |           ^
+    153|   }
+    154|   return { secretBase32, backupCodes, stepUpToken: verify.json().stepU…
+ ❯ test/expediente-inconformidad.test.ts:158:42
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+--- PASADA 2: npm run -w apps/api test ---
+ Test Files  73 passed (73)
+      Tests  343 passed (343)
+   Start at  16:41:07
+   Duration  387.55s (transform 1.78s, setup 0ms, collect 115.31s, tests 1369.42s, environment 14ms, prepare 6.39s)
+EXIT=0
+
+===================================================================
+2. SUITES COMPLETAS x2 — apps/worker (baseline en el worktree, HEAD)
+===================================================================
+--- PASADA 1 ---
+ Test Files  22 passed (22)
+      Tests  383 passed (383)
+   Start at  16:41:46
+   Duration  160.31s (transform 2.65s, setup 0ms, collect 10.56s, tests 1008.76s, environment 3ms, prepare 4.88s)
+EXIT=0
+--- PASADA 2 ---
+ Test Files  22 passed (22)
+      Tests  383 passed (383)
+   Start at  16:44:28
+   Duration  151.32s (transform 2.23s, setup 0ms, collect 8.93s, tests 940.43s, environment 3ms, prepare 3.16s)
+EXIT=0
+
+===================================================================
+3. MUTACIONES INVERSAS DE apps/api (una por hallazgo R6-nn)
+   Criterio: aplicar la mutacion INVERSA de la correccion y confirmar
+   que los tests se ponen ROJOS. VERDE = la correccion no tiene red.
+===================================================================
+==================== MUTACION R6-01 ====================
+[R6-01] archivo: apps/api/src/lib/expediente/text-extraction.ts
+[R6-01] --- diff de la mutacion ---
++++ /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-r6-wk6/apps/api/src/lib/expediente/text-extraction.ts	2026-09-06 16:48:46
++  if (buffer.toString("latin1").includes("/Type /XRef")) throw new Error("Unknown compression method in flate stream");
+[R6-01] --- corriendo: test/expediente-text-extraction.test.ts test/expediente-documents-and-matrix.test.ts ---
+AssertionError: expected 'failed' to be 'extracted' // Object.is equality
+AssertionError: expected 'failed' to be 'requires_ocr' // Object.is equality
+ Test Files  2 failed (2)
+      Tests  5 failed | 8 passed (13)
+[R6-01] RESULTADO: ROJO (exit=1) => la correccion es REAL: revertirla rompe los tests.
+[R6-01] REVERTIDO (identico byte a byte)
+==================== MUTACION R6-02 ====================
+[R6-02] archivo: apps/api/src/lib/expediente/contract-extraction.ts
+[R6-02] --- diff de la mutacion ---
++++ /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-r6-wk6/apps/api/src/lib/expediente/contract-extraction.ts	2026-09-06 16:48:53
+-  for (const b of boundaries) {
+-    if (index >= b.start && index <= b.end) return b.page;
+-  }
++  const total = boundaries[boundaries.length - 1].end || 1;
++  return Math.min(boundaries.length, Math.floor((index / total) * boundaries.length) + 1);
+[R6-02] --- corriendo: test/expediente-contract-extraction.test.ts test/expediente-documents-and-matrix.test.ts ---
+     → expected 1 to be 2 // Object.is equality
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+AssertionError: expected 1 to be 2 // Object.is equality
+- Expected
++ Received
+- 2
++ 1
+ Test Files  1 failed | 1 passed (2)
+      Tests  1 failed | 11 passed (12)
+[R6-02] RESULTADO: ROJO (exit=1) => la correccion es REAL: revertirla rompe los tests.
+[R6-02] REVERTIDO (identico byte a byte)
+==================== MUTACION R6-03 ====================
+[R6-03] archivo: apps/api/src/modules/expediente/renewal-radar.routes.ts
+[R6-03] --- diff de la mutacion ---
++++ /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-r6-wk6/apps/api/src/modules/expediente/renewal-radar.routes.ts	2026-09-06 16:49:10
+-    const existingRes = await tx.query<{ contract_id: string; lead_days: number }>(
+-      'select contract_id, lead_days from renewal_alerts where org_id = $1 and contract_id = any($2::uuid[])',
+-      [orgId, contractIdsInPage]
+-    );
+-    const existingSet = new Set(existingRes.rows.map((r) => `${r.contract_id}:${r.lead_days}`));
++    const existingSet = new Set<string>();
++    for (const cand of alertCandidates) {
++      const one = await tx.query<{ contract_id: string; lead_days: number }>(
++        'select contract_id, lead_days from renewal_alerts where org_id = $1 and contract_id = $2 and lead_days = $3',
++        [orgId, cand.contractId, cand.leadDays]
++      );
++      for (const r of one.rows) existingSet.add(`${r.contract_id}:${r.lead_days}`);
++    }
++    void contractIdsInPage;
+[R6-03] --- corriendo: test/expediente-renewal-radar.test.ts ---
+R6-03 perf: 5000 contratos, primer escaneo=2953ms, consultas SQL=15019
+     → expected 15019 to be less than 100
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+AssertionError: expected 15019 to be less than 100
+ Test Files  1 failed (1)
+      Tests  1 failed | 7 passed (8)
+[R6-03] RESULTADO: ROJO (exit=1) => la correccion es REAL: revertirla rompe los tests.
+[R6-03] REVERTIDO (identico byte a byte)
+==================== MUTACION R6-04 ====================
+[R6-04] archivo: apps/api/src/modules/expediente/contract.routes.ts
+[R6-04] --- diff de la mutacion ---
++++ /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-r6-wk6/apps/api/src/modules/expediente/contract.routes.ts	2026-09-06 16:49:24
+-          'update contracts set status = $1 where id = $2 and org_id = $3 and status = $4 returning *',
+-          [toStatus, contract.id, orgId, fromStatus]
++          'update contracts set status = $1 where id = $2 and org_id = $3 returning *',
++          [toStatus, contract.id, orgId]
+[R6-04] --- corriendo: test/expediente-contract-lifecycle.test.ts ---
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+[R6-04] RESULTADO: VERDE (exit=0) => ALERTA: la mutacion inversa NO es detectada por estos tests.
+[R6-04] REVERTIDO (identico byte a byte)
+==================== MUTACION R6-05 ====================
+[R6-05] archivo: apps/api/src/modules/expediente/contract.routes.ts
+[R6-05] --- diff de la mutacion ---
++++ /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-r6-wk6/apps/api/src/modules/expediente/contract.routes.ts	2026-09-06 16:49:30
+-        const doc = await tx.query('select id from contract_documents where id = $1 and org_id = $2 and contract_id = $3', [request.params.documentId, orgId, contract.id]);
++        const doc = await tx.query('select id from contract_documents where id = $1 and org_id = $2', [request.params.documentId, orgId]);
+-           where f.id = $1 and f.org_id = $2 and d.contract_id = $3`,
+-          [request.params.fieldId, orgId, contract.id]
++           where f.id = $1 and f.org_id = $2`,
++          [request.params.fieldId, orgId]
+[R6-05] --- corriendo: test/expediente-contract-extraction.test.ts ---
+     → expected 200 to be 404 // Object.is equality
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+AssertionError: expected 200 to be 404 // Object.is equality
+- Expected
++ Received
+- 404
++ 200
+ Test Files  1 failed (1)
+      Tests  1 failed | 5 passed (6)
+[R6-05] RESULTADO: ROJO (exit=1) => la correccion es REAL: revertirla rompe los tests.
+[R6-05] REVERTIDO (identico byte a byte)
+==================== MUTACION R6-07 ====================
+[R6-07] archivo: apps/api/src/lib/expediente/calendar-holidays.ts
+[R6-07] --- diff de la mutacion ---
++++ /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-r6-wk6/apps/api/src/lib/expediente/calendar-holidays.ts	2026-09-06 16:49:36
++  return [];
+[R6-07] --- corriendo: test/expediente-inconformidad.test.ts ---
+     → expected '2026-01-13T00:00:00.000Z' to contain '2026-01-14'
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+AssertionError: expected '2026-01-13T00:00:00.000Z' to contain '2026-01-14'
+ Test Files  1 failed (1)
+      Tests  1 failed | 6 passed (7)
+[R6-07] RESULTADO: ROJO (exit=1) => la correccion es REAL: revertirla rompe los tests.
+[R6-07] REVERTIDO (identico byte a byte)
+==================== MUTACION R6-08 ====================
+[R6-08] archivo: apps/api/src/lib/expediente/inconformidad.ts
+[R6-08] --- diff de la mutacion ---
++++ /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-r6-wk6/apps/api/src/lib/expediente/inconformidad.ts	2026-09-06 16:49:43
+-      viability: 'media',
++      viability: 'alta',
+[R6-08] --- corriendo: test/expediente-inconformidad.test.ts ---
+     → expected 'alta' to be 'media' // Object.is equality
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+AssertionError: expected 'alta' to be 'media' // Object.is equality
+ Test Files  1 failed (1)
+      Tests  1 failed | 6 passed (7)
+
+===================================================================
+4. ATAQUES NUEVOS A LA EXTRACCION DE PDF (zz-rv-pdf.test.ts, temporal)
+===================================================================
+stdout | test/zz-rv-pdf.test.ts > RV — ataques nuevos al extractor de PDF (R6-01/R6-02) > RV-PDF-1: xref-stream real (fixture) se extrae; xref clasico tambien
+[RV] xref-stream=extracted xref-classic=extracted
+stdout | test/zz-rv-pdf.test.ts > RV — ataques nuevos al extractor de PDF (R6-01/R6-02) > RV-PDF-2: PDF con OBJECT STREAMS (ObjStm) generado por pdf-lib se extrae pagina por pagina real
+[RV] objstm status=extracted pageCount=3
+stdout | test/zz-rv-pdf.test.ts > RV — ataques nuevos al extractor de PDF (R6-01/R6-02) > RV-PDF-3: PDF CIFRADO (/Encrypt, contrasena desconocida) => failed explicito, jamas texto fabricado
+[RV] PDF cifrado: resuelto en 1ms
+[RV] cifrado status=failed detail=No se pudo procesar el PDF: No password given
+stdout | test/zz-rv-pdf.test.ts > RV — ataques nuevos al extractor de PDF (R6-01/R6-02) > RV-PDF-4: PDF de PAGINAS VACIAS => requires_ocr, nunca "extracted" con texto vacio
+[RV] paginas vacias status=requires_ocr pageCount=4 detail=PDF sin capa de texto extraíble (probablemente escaneado). Requiere OCR, no soportado en esta ronda.
+stdout | test/zz-rv-pdf.test.ts > RV — ataques nuevos al extractor de PDF (R6-01/R6-02) > RV-PDF-5: PDF de ~50 MB no cuelga (unidad) y la RUTA de subida lo rechaza por tamano
+[RV] tamano del PDF de 50MB: 52429508 bytes
+stdout | test/zz-rv-pdf.test.ts > RV — ataques nuevos al extractor de PDF (R6-01/R6-02) > RV-PDF-5: PDF de ~50 MB no cuelga (unidad) y la RUTA de subida lo rechaza por tamano
+[RV] PDF 50MB: resuelto en 2ms
+[RV] 50MB status=extracted elapsed=2ms
+[RV] transiciones concurrentes MISMO destino: codigos=[200,409]
+[RV]   respuesta A(200)={"id":"41e11536-aa00-416e-9d01-0dcecb9fb44a","tenderId":"7de25cc1-26af-4a78-9b09-683d5406fab1","status":"contrato_firmado_declarado","endDate":null,"contractNumber":null,"createdAt":"2026-09-06T22:50:35.001Z","updatedAt":"2026-09-06T22:50:35.021Z"}
+[RV]   respuesta B(409)={"type":"https://atiende.example/errors/conflict","title":"Transición inválida: \"contrato_firmado_declarado\" -> \"contrato_firmado_declarado\". Estados permitidos desde \"contrato_firmado_declarado\": en_ejecucion, modificado, rescindido, en_inconformidad.","status":409,"detail":{"fromStatus":"contrato_firmado_declar
+[RV] historial: [{"from_status":null,"to_status":"adjudicado"},{"from_status":"adjudicado","to_status":"contrato_firmado_declarado"}]
+[RV] orgA sembrada: tender=f1b8d11f-575b-40a7-8849-705bb88231d6 doc=25742615-f664-47b3-859b-76fb5435cdc7 field=3f385f9d-ecf9-4c0b-91a1-867a6f92c1e4 inconformidad=4348c8e1-e2a2-47c5-ad3f-d047c7d34ebc alertas=3
+[RV] GET /expediente/lessons-learned -> 200 []
+[RV] POST /expediente/renewals/scan -> 200 {"runId":"03b8ba7c-375f-438a-ab2a-a431afa723bb","alertsCreated":0,"evaluatedContracts":0,"truncated":false,"nextCursor":null}
+[RV] POST /expediente/renewals/scan/enqueue -> 202 {"jobId":"dda1a535-a5a7-4eee-b68c-3da506177f96","status":"queued"}
+[RV] GET /expediente/renewals/alerts -> 200 []
+[RV] contrato de orgA tras el barrido: [{"status":"contrato_firmado_declarado","contract_number":"SECRETO-ORGA-RV-0001"}]
+[RV] contratos creados en orgB durante el barrido: 0
+[RV] 5 transiciones concurrentes: codigos=[200,409,409,409,409]
+[RV] historial completo: [{"from_status":null,"to_status":"adjudicado"},{"from_status":"adjudicado","to_status":"contrato_firmado_declarado"},{"from_status":"contrato_firmado_declarado","to_status":"en_ejecucion"},{"from_status":"en_ejecucion","to_status":"entregado"}]
+[RV] UPDATE con fromStatus obsoleto afecto 0 filas (debe ser 0)
+stdout | test/zz-rv-pdf.test.ts > RV — ataques nuevos al extractor de PDF (R6-01/R6-02) > RV-PDF-5: PDF de ~50 MB no cuelga (unidad) y la RUTA de subida lo rechaza por tamano
+[RV] 50MB rechazado por la ruta de subida: true
+stdout | test/zz-rv-pdf.test.ts > RV — ataques nuevos al extractor de PDF (R6-01/R6-02) > RV-PDF-6: BOMBA DE PAGINAS (20.000 paginas, archivo pequeno) — mide si MAX_PDF_PAGES acota el TRABAJO o solo el resultado
+[RV] bomba de paginas: archivo=269069 bytes (263 KB) para 20.000 paginas
+stdout | test/zz-rv-pdf.test.ts > RV — ataques nuevos al extractor de PDF (R6-01/R6-02) > RV-PDF-6: BOMBA DE PAGINAS (20.000 paginas, archivo pequeno) — mide si MAX_PDF_PAGES acota el TRABAJO o solo el resultado
+[RV] bomba 20k paginas: resuelto en 42141ms
+[RV] bomba de paginas: status=requires_ocr pageCount=20000 elapsed=42141ms detail=PDF sin capa de texto extraíble (probablemente escaneado). Requiere OCR, no soportado en esta ronda.
+stdout | test/zz-rv-pdf.test.ts > RV — ataques nuevos al extractor de PDF (R6-01/R6-02) > RV-PDF-7: BOMBA DE DESCOMPRESION (stream flate que expande a ~40 MB desde ~40 KB) — no cuelga y no fabrica
+[RV] bomba flate: 41943060 bytes descomprimidos -> 122168 bytes comprimidos (ratio 343:1)
+[RV] bomba flate: PDF final=122688 bytes
+stdout | test/zz-rv-pdf.test.ts > RV — ataques nuevos al extractor de PDF (R6-01/R6-02) > RV-PDF-7: BOMBA DE DESCOMPRESION (stream flate que expande a ~40 MB desde ~40 KB) — no cuelga y no fabrica
+[RV] bomba flate 40MB: resuelto en 4351ms
+
+===================================================================
+5. TRANSICIONES CONCURRENTES DEL MISMO CONTRATO (zz-rv-concurrency)
+===================================================================
+[RV] transiciones concurrentes MISMO destino: codigos=[200,409]
+[RV]   respuesta A(200)={"id":"f20f1424-b74a-4a3e-ae10-c7408eed9c62","tenderId":"4735c070-0256-4842-adbd-a632bb37e070","status":"contrato_firmado_declarado","endDate":null,"contractNumber":null,"createdAt":"2026-09-06T22:52:05.641Z","updatedAt":"2026-09-06T22:52:05.647Z"}
+[RV]   respuesta B(409)={"type":"https://atiende.example/errors/conflict","title":"Transición inválida: \"contrato_firmado_declarado\" -> \"contrato_firmado_declarado\". Estados permitidos desde \"contrato_firmado_declarado\": en_ejecucion, modificado, rescindido, en_inconformidad.","status":409,"detail":{"fromStatus":"contrato_firmado_declar
+[RV] historial: [{"from_status":null,"to_status":"adjudicado"},{"from_status":"adjudicado","to_status":"contrato_firmado_declarado"}]
+[RV] ORIGEN REAL DEL 409: VALIDACION-DEL-GRAFO (checkTransition)
+[RV] audit_log contract.transition: [{"action":"contract.transition","before":{"status":"adjudicado"},"after":{"reason":"firma","status":"contrato_firmado_declarado"}}]
+[RV] 5 transiciones concurrentes: codigos=[200,409,409,409,409]
+[RV] historial completo: [{"from_status":null,"to_status":"adjudicado"},{"from_status":"adjudicado","to_status":"contrato_firmado_declarado"},{"from_status":"contrato_firmado_declarado","to_status":"en_ejecucion"},{"from_status":"en_ejecucion","to_status":"entregado"}]
+[RV] audit_log contract.transition total=3 (debe ser 3)
+[RV] UPDATE con fromStatus obsoleto afecto 0 filas (debe ser 0)
+
+===================================================================
+6. RADAR A ESCALA 0 / 1 / 20.000 CONTRATOS Y ALERTAS DUPLICADAS
+===================================================================
+[RV] radar 0 contratos: status=200 body={"runId":"6fe9334a-4457-4df3-9add-cb98f0363492","alertsCreated":0,"evaluatedContracts":0,"truncated":false,"nextCursor":null} consultas=8
+[RV] radar 1 contrato, escaneo 1: {"runId":"1754822a-ba36-45fb-935b-347ca055aa40","alertsCreated":3,"evaluatedContracts":1,"truncated":false,"nextCursor":null}
+[RV] radar 1 contrato, escaneo 2: {"runId":"2d692c75-c739-4875-8cb4-0b033dfc98d0","alertsCreated":0,"evaluatedContracts":1,"truncated":false,"nextCursor":null}
+[RV] radar 1 contrato, escaneo 3: {"runId":"83086054-d8e2-4594-a980-8389efbcfc2d","alertsCreated":0,"evaluatedContracts":1,"truncated":false,"nextCursor":null}
+[RV] radar 1 contrato, escaneo 4: {"runId":"42c8b677-8695-40a2-8795-f48ec19515ae","alertsCreated":0,"evaluatedContracts":1,"truncated":false,"nextCursor":null}
+[RV] alertas totales tras 4 escaneos: 3
+[RV] alerta duplicada forzada rechazada=true err=null value in column "confidence" of relation "renewal_alerts" violates not-null constraint
+[RV] 20k iter=1 evaluados=20000 alertas=60000 truncated=false
+[RV] 20k contratos: evaluados=20000 alertas=60000 peticiones=1 consultasSQL=58 elapsed=8999ms
+[RV] 20k re-escaneo: alertas nuevas=0 (debe ser 0)
+[RV] GET /expediente/renewals/alerts devolvio 60000 alertas en 1310ms, payload=33998725 bytes (32.4 MB)
+--- resumen del archivo ---
+ Test Files  2 passed (2)
+      Tests  6 passed (6)
+EXIT=0
+
+===================================================================
+7. BARRIDO CROSS-ORG DE LOS 18 ENDPOINTS DE RONDA 6 (org B vs org A)
+===================================================================
+[RV] orgA sembrada: tender=f1b8d11f-575b-40a7-8849-705bb88231d6 doc=25742615-f664-47b3-859b-76fb5435cdc7 field=3f385f9d-ecf9-4c0b-91a1-867a6f92c1e4 inconformidad=4348c8e1-e2a2-47c5-ad3f-d047c7d34ebc alertas=3
+[RV] POST /expediente/tenders/f1b8d11f-575b-40a7-8849-705bb88231d6/contract -> 404 {"type":"https://atiende.example/errors/not-found","title":"Convocatoria no encontrada","status":404,"requestId":"a9fa73f3-6d7e-4e77-8827-f5
+[RV] GET /expediente/tenders/f1b8d11f-575b-40a7-8849-705bb88231d6/contract -> 404 {"type":"https://atiende.example/errors/not-found","title":"Convocatoria no encontrada","status":404,"requestId":"5581ea45-30b1-423a-91a7-f4
+[RV] PATCH /expediente/tenders/f1b8d11f-575b-40a7-8849-705bb88231d6/contract -> 404 {"type":"https://atiende.example/errors/not-found","title":"Convocatoria no encontrada","status":404,"requestId":"1b022eeb-dc4d-4cea-b1a8-a3
+[RV] GET /expediente/tenders/f1b8d11f-575b-40a7-8849-705bb88231d6/contract/history -> 404 {"type":"https://atiende.example/errors/not-found","title":"Convocatoria no encontrada","status":404,"requestId":"ab1f824c-ee3a-4564-8ae0-90
+[RV] POST /expediente/tenders/f1b8d11f-575b-40a7-8849-705bb88231d6/contract/transition -> 404 {"type":"https://atiende.example/errors/not-found","title":"Convocatoria no encontrada","status":404,"requestId":"45974c7d-914b-4b57-9515-66
+[RV] POST /expediente/tenders/f1b8d11f-575b-40a7-8849-705bb88231d6/contract/documents -> 404 {"type":"https://atiende.example/errors/not-found","title":"Convocatoria no encontrada","status":404,"requestId":"458fa7e4-ca7a-401c-b775-73
+[RV] GET /expediente/tenders/f1b8d11f-575b-40a7-8849-705bb88231d6/contract/documents -> 404 {"type":"https://atiende.example/errors/not-found","title":"Convocatoria no encontrada","status":404,"requestId":"eaa8a29d-8d15-43d2-b6c6-e2
+[RV] GET /expediente/tenders/f1b8d11f-575b-40a7-8849-705bb88231d6/contract/documents/25742615-f664-47b3-859b-76fb5435cdc7/fields -> 404 {"type":"https://atiende.example/errors/not-found","title":"Convocatoria no encontrada","status":404,"requestId":"b95579c2-6b6d-4667-b9e7-e0
+[RV] POST /expediente/tenders/f1b8d11f-575b-40a7-8849-705bb88231d6/contract/fields/3f385f9d-ecf9-4c0b-91a1-867a6f92c1e4/confirm -> 404 {"type":"https://atiende.example/errors/not-found","title":"Convocatoria no encontrada","status":404,"requestId":"3c380605-e1eb-4543-b485-19
+[RV] POST /expediente/tenders/f1b8d11f-575b-40a7-8849-705bb88231d6/inconformidad -> 404 {"type":"https://atiende.example/errors/not-found","title":"Convocatoria no encontrada","status":404,"requestId":"d829736e-bed3-4816-9d0b-82
+[RV] GET /expediente/tenders/f1b8d11f-575b-40a7-8849-705bb88231d6/inconformidad -> 404 {"type":"https://atiende.example/errors/not-found","title":"Convocatoria no encontrada","status":404,"requestId":"ba5b5cfb-38b7-4dc2-98eb-db
+[RV] POST /expediente/tenders/f1b8d11f-575b-40a7-8849-705bb88231d6/inconformidad/4348c8e1-e2a2-47c5-ad3f-d047c7d34ebc/mark-reviewed -> 403 {"type":"https://atiende.example/errors/forbidden","title":"Esta acción exige verificación en dos pasos (2FA/TOTP) y este usuario no tiene u
+[RV] POST /expediente/tenders/f1b8d11f-575b-40a7-8849-705bb88231d6/fallo-autopsy -> 404 {"type":"https://atiende.example/errors/not-found","title":"Convocatoria no encontrada","status":404,"requestId":"e9637f5b-00f2-4711-8e54-8e
+[RV] GET /expediente/tenders/f1b8d11f-575b-40a7-8849-705bb88231d6/fallo-autopsy -> 404 {"type":"https://atiende.example/errors/not-found","title":"Convocatoria no encontrada","status":404,"requestId":"a37db636-0f71-43e6-9dc7-13
+[RV] GET /expediente/lessons-learned -> 200 []
+[RV] POST /expediente/renewals/scan -> 200 {"runId":"03b8ba7c-375f-438a-ab2a-a431afa723bb","alertsCreated":0,"evaluatedContracts":0,"truncated":false,"nextCursor":null}
+[RV] POST /expediente/renewals/scan/enqueue -> 202 {"jobId":"dda1a535-a5a7-4eee-b68c-3da506177f96","status":"queued"}
+[RV] GET /expediente/renewals/alerts -> 200 []
+[RV] contrato de orgA tras el barrido: [{"status":"contrato_firmado_declarado","contract_number":"SECRETO-ORGA-RV-0001"}]
+[RV] contratos creados en orgB durante el barrido: 0
+--- resumen del archivo ---
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ Test Files  1 failed | 2 passed (3)
+      Tests  2 failed | 10 passed (12)
+EXIT=1
+(los 2 fallos de este archivo son de MIS asserts, no del producto:
+ no habia filtrado la fila inicial de historial from_status=null;
+ corregidos y verdes en la corrida de la seccion 5/6)
+
+===================================================================
+8. apps/worker — script oficial de mutacion WK6-01 + MIS DOS MUTACIONES
+===================================================================
+--- apps/worker/scripts/wk6-01-mutation-test-org-isolation.sh ---
+[wk6-01] repo principal: /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-r6-wk6 (HEAD=cd803a479c74fc582dd6657c9211841ef2c75261, sin tocar)
+[wk6-01] creando worktree desechable en: /var/folders/7l/lhfhb62s0831p83p7d0v3s6h0000gn/T//wk6-01-mutation-nCKMFL
+[wk6-01] superponiendo el estado actual del árbol de trabajo de apps/worker sobre el worktree...
+[wk6-01] no hay cambios sin commitear en apps/worker (el worktree ya es idéntico a HEAD).
+[wk6-01] archivos nuevos sin rastrear copiados al worktree: 0
+[wk6-01] aplicando mutación: fetchTender() sin filtro org_id...
+[wk6-01] mutación aplicada.
+[wk6-01] --- diff de la mutación (solo dentro del worktree temporal) ---
+[wk6-01] ------------------------------------------------------------
+[wk6-01] corriendo test/business-tools.test.ts + test/agent-evals.test.ts bajo la mutación (usa --full para la suite completa)...
+     → expected 100 to be null
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+AssertionError: expected 100 to be null
+ Test Files  2 failed (2)
+      Tests  2 failed | 43 passed (45)
+[wk6-01] OK: la suite FALLÓ bajo la mutación (exit=1) -- la regresión de aislamiento por organización SÍ se detecta.
+[wk6-01] limpiando worktree temporal: /var/folders/7l/lhfhb62s0831p83p7d0v3s6h0000gn/T//wk6-01-mutation-nCKMFL
+EXIT=0
+
+--- MUTACION PROPIA 1: quitar org_id de leer_bases (NO fetchTender) ---
+==================== MUTACION MUT-W1-leer_bases ====================
+[MUT-W1-leer_bases] --- diff ---
+--- /var/folders/7l/lhfhb62s0831p83p7d0v3s6h0000gn/T/tmp.xpywyvlUwQ	2026-09-06 16:08:06
++++ /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-r6-wk6/apps/worker/src/agents/business-tools.ts	2026-09-06 16:53:50
+-          `select id, document_type, page_count, extracted_text from tender_documents where org_id = $1 and tender_id = $2`,
+-          [orgId, input.tenderId],
++          `select id, document_type, page_count, extracted_text from tender_documents where tender_id = $1`,
++          [input.tenderId],
+-           from requirement_items where org_id = $1 and tender_id = $2 and invalidated_at is null`,
+-          [orgId, input.tenderId],
++           from requirement_items where tender_id = $1 and invalidated_at is null`,
++          [input.tenderId],
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/business-tools.test.ts > business-tools.ts (Ronda 6): herramientas de negocio reales del worker > aislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok" > leer_bases: tenderId real de orgA desde el contexto de orgB -> documentos/requisitos vacíos, nunca los de orgA
+AssertionError: expected [ { …(4) } ] to have a length of +0 but got 1
+- Expected
++ Received
+- 0
++ 1
+ Test Files  1 failed | 1 passed (2)
+      Tests  1 failed | 44 passed (45)
+[MUT-W1-leer_bases] RESULTADO: ROJO (exit=1) => la mutacion SI se detecta.
+[MUT-W1-leer_bases] REVERTIDO (identico byte a byte)
+==================== MUTACION MUT-W2-no_evaluable-con-fuga ====================
+
+--- MUTACION PROPIA 2: fuga de otra org DISFRAZADA de 'no evaluable' ---
+==================== MUTACION MUT-W2-no_evaluable-con-fuga ====================
+[MUT-W2-no_evaluable-con-fuga] --- diff ---
+--- /var/folders/7l/lhfhb62s0831p83p7d0v3s6h0000gn/T/tmp.bl7qOALOiz	2026-09-06 16:08:06
++++ /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-r6-wk6/apps/worker/src/agents/business-tools.ts	2026-09-06 16:54:08
++        const leak = await withWorkerBusinessReadContext(deps.db, orgId, ['tenders'], async (tx) => {
++          const r = await tx.query<{ title: string; contracting_body: string | null }>(
++            `select title, contracting_body from tenders where id = $1`, [input.tenderId]);
++          return r.rows[0];
++        });
+-          explanation: 'No se encontró la convocatoria en la organización activa: no evaluable.',
++          explanation: `No se encontró la convocatoria en la organización activa: no evaluable (referencia: ${leak?.title ?? ''} / ${leak?.contracting_body ?? ''}).`,
+ FAIL  test/business-tools.test.ts > business-tools.ts (Ronda 6): herramientas de negocio reales del worker > aislamiento cross-org (WK6-01): el resultado de orgB nunca contiene contenido real de orgA, no solo "status: ok" > proponer_matching: tenderId real de orgA desde el contexto de orgB -> "no evaluable" explícito, sin score ni texto de orgA
+AssertionError: expected '{"tenderId":"5a833b50-c7ec-462b-b6ea-…' not to contain 'SECRETO-ORGA'
+ Test Files  2 failed (2)
+      Tests  2 failed | 43 passed (45)
+[MUT-W2-no_evaluable-con-fuga] RESULTADO: ROJO (exit=1) => la mutacion SI se detecta.
+[MUT-W2-no_evaluable-con-fuga] REVERTIDO (identico byte a byte)
+
+===================================================================
+9. correlationId DE NEGOCIO: propagacion y MALICIOSO (zz-rv-correlation)
+===================================================================
+[RV] lineas emitidas=2
+[RV] lineas FABRICADAS por inyeccion: 0 (debe ser 0)
+[RV] lineas no parseables: 0
+[RV] correlation_id crudo persistido en el log: "abc\"}\n{\"level\":50,\"msg\":\"ALERTA FALSA INYECTADA\",\"correlation_id\":\"pwned\"}\n{\"x\":\""
+[RV] job_id separado presente: true
+[RV] contiene salto de linea sin sanear: true
+[RV] contiene comillas/llaves de inyeccion sin sanear: true
+[RV] lineas con correlation_id=2, longitud maxima=10240 (entrada=10240)
+[RV] bytes totales de log emitidos=20886
+[RV] correlation_id truncado por el worker: false
+[RV] correlation_id resultante (escapado)="‮gro-orto‬ \u001b[31mROJO\u001b[0m💣"
+[RV] conserva RTL override U+202E: true
+[RV] conserva NUL: false
+[RV] conserva escape ANSI: true
+[RV] enqueue con NUL en correlationId -> error="unsupported Unicode escape sequence"
+[RV] el worker NO valida/sanea el valor antes de escribirlo: true
+[RV] payload.correlationId=null -> correlation_id=3f61dc91-66d4-498d-a336-74b74d62e389 (job.id=3f61dc91-66d4-498d-a336-74b74d62e389) ok=true
+[RV] payload.correlationId=42 -> correlation_id=a97138b0-aa17-4397-a172-c1cc3eb18c46 (job.id=a97138b0-aa17-4397-a172-c1cc3eb18c46) ok=true
+[RV] payload.correlationId="" -> correlation_id=32e4d69e-4121-4171-a5d6-22dfd23d67c8 (job.id=32e4d69e-4121-4171-a5d6-22dfd23d67c8) ok=true
+[RV] payload.correlationId={"a":1} -> correlation_id=a1d26d0c-0902-4eea-8d3d-1d71dfc5e130 (job.id=a1d26d0c-0902-4eea-8d3d-1d71dfc5e130) ok=true
+[RV] payload.correlationId=[] -> correlation_id=109febc3-5d14-45ad-8601-51548aca29d1 (job.id=109febc3-5d14-45ad-8601-51548aca29d1) ok=true
+[RV] agent_runs.output.correlationId longitud=10261 (entrada=10261)
+[RV] conserva salto de linea: true | RTL: true
+[RV] toolCalls con el mismo valor: 3/3
+[RV] truncado/saneado por el worker: false
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+
+===================================================================
+10. LIMPIEZA FINAL
+===================================================================
+--- git status del worktree (debe estar vacio: todos los zz-rv-*.test.ts borrados) ---
+(fin; vacio = limpio)
+--- worktrees registrados ---
+/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging                                             5428604 [main]
+/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify-r6-wk6  cd803a4 (detached HEAD)
+/Users/javiercamaraportepetit/Documents/Codex/audit-worktrees/api-mail-audit                                           a492c87 (detached HEAD)
+--- HEAD del repo principal al cerrar ---
+5428604 test(web): E2E de /login al dia con REQ-172 y /registro auditada igual
+--- diff apps/api + apps/worker entre el commit del worktree (cd803a4) y el HEAD final ---
+ apps/api/src/app.ts                           |  9 +++++-
+ apps/api/src/lib/mail/env.ts                  | 12 ++++++-
+ apps/api/src/lib/mail/send-transactional.ts   | 45 +++++++++++++++++----------
+ apps/api/src/modules/organizations/routes.ts  | 23 ++++++++++++--
+ apps/api/src/modules/organizations/schemas.ts | 23 ++++++++++++--
+ 5 files changed, 89 insertions(+), 23 deletions(-)
+(el unico archivo compartido que cambio en el arbol principal durante la sesion
+ fue apps/api/test/helpers.ts, por el agente de correo: anade un mailProvider
+ opcional a createTestApp y NO toca enrollTwoFactorFull/generateTotpCodeForTesting,
+ asi que el hallazgo R6-13 sigue vigente en el HEAD final.)
