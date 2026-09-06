@@ -261,7 +261,7 @@ export const followupSchema = z.object({
   tenderId: z.string().uuid(),
   kind: z.string(),
   label: z.string(),
-  dueDate: z.string().nullable(),
+  dueDate: nullableIsoTimestamp,
   status: z.string(),
   amount: z.number().nullable(),
   notes: z.string().nullable(),
