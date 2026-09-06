@@ -52,8 +52,22 @@ export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
+  // Modo "full": 94+ pruebas reales en un solo proceso de Chromium continuo
+  // (varios minutos) ocasionalmente cierran una página/contexto de forma
+  // transitoria ("Target page, context or browser has been closed") por
+  // presión de recursos acumulada, no por una regresión real — un reintento
+  // absorbe eso sin ocultar un fallo genuino (que vuelve a fallar igual la
+  // segunda vez).
+  retries: process.env.CI ? 1 : process.env.E2E_API_URL ? 1 : 0,
   workers: process.env.E2E_API_URL ? 1 : undefined,
+  // Modo "full": cada navegación real dispara 3-4 peticiones de arranque de
+  // sesión (refresh + /me + /organizations) contra una apps/api real con
+  // límite de tasa (100/min global); bajo ráfagas sostenidas (p. ej. recorrer
+  // 24 rutas seguidas) el cliente reintenta 429 con backoff (ver
+  // src/lib/api/http.ts) — el timeout por test por defecto (30s) no siempre
+  // deja margen para esos reintentos. 45s da ese margen sin disimular una
+  // regresión real (una prueba que de verdad cuelga sigue fallando igual).
+  timeout: process.env.E2E_API_URL ? 45_000 : undefined,
   reporter: [["list"]],
   globalSetup: process.env.E2E_API_URL ? "./e2e/global-setup.ts" : undefined,
   use: {

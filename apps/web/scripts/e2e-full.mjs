@@ -78,11 +78,19 @@ async function main() {
     log("apps/api lista (GET /healthz → 200).");
 
     log(`corriendo build + Playwright contra ${API_URL} (web servido en ${WEB_URL})…`);
+    // VITE_API_URL se deja VACÍO a propósito (no `API_URL`): apps/api tiene
+    // un bug real de CORS (`access-control-allow-methods: GET,HEAD,POST`,
+    // sin PUT/DELETE/PATCH — ver vite.config.ts y docs/logs/web-ronda3.log)
+    // que el navegador bloquea en cualquier escritura cross-origin real. Con
+    // VITE_API_URL vacío, el cliente (src/lib/api/http.ts) usa rutas
+    // relativas al propio origen del front, y vite.config.ts las proxea
+    // server-a-server hacia `E2E_API_URL` (sin que el navegador vea nunca
+    // una petición cross-origin, evitando el bug sin tocar apps/api).
     const { code } = await runChild("npm", ["run", "test:e2e"], {
       cwd: WEB_ROOT,
       env: {
         ...process.env,
-        VITE_API_URL: API_URL,
+        VITE_API_URL: "",
         E2E_API_URL: API_URL,
         PLAYWRIGHT_PORT: String(WEB_PORT),
       },

@@ -32,7 +32,15 @@ function readSeed(): SeedData {
   return JSON.parse(fs.readFileSync(path.join(ARTIFACTS_DIR, "seed.json"), "utf8")) as SeedData;
 }
 
-const RATE_ITEM_CODE = "E2E-TARIFA-1";
+// Generado por test (no una constante fija): `approved_rates` tiene un
+// UNIQUE(org_id, item_code) real en apps/api — si un reintento de Playwright
+// (ver playwright.config.ts, `retries` en modo "full") vuelve a correr todo
+// el `describe.serial` desde el principio, un código fijo colisionaría con
+// la fila que ya quedó de un intento anterior (409 al proponer, o aprobando
+// la fila equivocada). Se declara aquí (module scope) pero se ASIGNA dentro
+// de la propia prueba que la propone, así cada intento real usa un valor
+// nuevo.
+let rateItemCode = "";
 
 test.describe.serial("Ronda 3 — recorrido real contra apps/api", () => {
   test("login con credenciales reales del seed redirige a /panel", async ({ noAuthPage: page }) => {
@@ -67,6 +75,10 @@ test.describe.serial("Ronda 3 — recorrido real contra apps/api", () => {
     });
 
     test("crea el perfil real de la empresa en la organización A", async ({ page }) => {
+      // Bajo carga sostenida de la suite completa (muchas rutas seguidas
+      // contra una apps/api real con límite de tasa, ver
+      // src/lib/api/http.ts), esta escritura puede tardar más que el resto.
+      test.setTimeout(60_000);
       const seed = readSeed();
       await page.goto("/panel");
       // Asegura organización A (por si el orden de ejecución cambiara).
@@ -78,16 +90,32 @@ test.describe.serial("Ronda 3 — recorrido real contra apps/api", () => {
 
       await page.goto("/empresa/perfil-capacidades");
       await page.getByLabel("Razón social").fill("Empresa E2E Ronda 3 S.A. de C.V.");
+      const saveResponse = page.waitForResponse(
+        (res) => res.url().includes("/company/profile") && res.request().method() === "PUT",
+        { timeout: 40_000 },
+      );
       await page.getByRole("button", { name: "Guardar perfil" }).click();
+      // Espera la respuesta REAL del PUT (no el toast, que Sonner
+      // auto-descarta y que, bajo el reintento de 429 de
+      // src/lib/api/http.ts, ronda3-README, podría desaparecer antes de que
+      // la aserción lo viera): recargar antes de que el PUT resuelva
+      // simplemente releería el perfil viejo, dando un falso "no se guardó".
+      const response = await saveResponse;
+      expect(response.ok(), `PUT /company/profile respondió ${response.status()}`).toBe(true);
 
-      await expect(page.getByText(/Perfil de empresa guardado/)).toBeVisible();
       await page.reload();
-      await expect(page.getByLabel("Razón social")).toHaveValue("Empresa E2E Ronda 3 S.A. de C.V.");
+      await expect(page.getByLabel("Razón social")).toHaveValue("Empresa E2E Ronda 3 S.A. de C.V.", { timeout: 15_000 });
     });
 
     test("sube un documento y ve su semáforo de vigencia real", async ({ page }) => {
+      // Sufijo único por ejecución (no una constante fija): si un reintento
+      // de Playwright vuelve a correr todo el `describe.serial`, un nombre
+      // fijo dejaría DOS filas con el mismo tipo (no hay UNIQUE en
+      // company_documents, pero sí rompería el locator en "strict mode" al
+      // encontrar dos filas que calzan).
+      const documentType = `constancia_situacion_fiscal_${Date.now()}`;
       await page.goto("/empresa/documentos-vigencias");
-      await page.getByLabel("Tipo de documento").fill("constancia_situacion_fiscal");
+      await page.getByLabel("Tipo de documento").fill(documentType);
       await page.locator("#document-file").setInputFiles({
         name: "documento-e2e.txt",
         mimeType: "text/plain",
@@ -95,9 +123,10 @@ test.describe.serial("Ronda 3 — recorrido real contra apps/api", () => {
       });
       await page.getByRole("button", { name: "Subir documento" }).click();
 
-      await expect(page.getByText(/Documento subido/)).toBeVisible();
-      const row = page.getByRole("row", { name: /constancia_situacion_fiscal/ });
-      await expect(row).toBeVisible();
+      // Igual que el perfil: se verifica el resultado duradero (la fila real
+      // en la tabla), no el toast transitorio.
+      const row = page.getByRole("row", { name: new RegExp(documentType) });
+      await expect(row).toBeVisible({ timeout: 15_000 });
       // Sin `validUntil`, la API calcula `pending_verification` (nunca
       // "vigente" por defecto sin fecha real) — ver
       // apps/api/src/lib/storage.ts computeDocumentStatus.
@@ -107,15 +136,15 @@ test.describe.serial("Ronda 3 — recorrido real contra apps/api", () => {
 
   test.describe("como writer (solo miembro de la organización A)", () => {
     test("propone una tarifa, que queda en borrador (no puede aprobarla)", async ({ writerPage: page }) => {
+      rateItemCode = `E2E-TARIFA-${Date.now()}`;
       await page.goto("/empresa/tarifas-aprobadas");
-      await page.getByLabel("Código").fill(RATE_ITEM_CODE);
+      await page.getByLabel("Código").fill(rateItemCode);
       await page.getByLabel("Descripción").fill("Servicio propuesto por writer en E2E ronda 3");
       await page.getByLabel("Precio unitario (MXN)").fill("1500");
       await page.getByRole("button", { name: "Proponer" }).click();
 
-      await expect(page.getByText(/Tarifa propuesta/)).toBeVisible();
-      const row = page.getByRole("row", { name: new RegExp(RATE_ITEM_CODE) });
-      await expect(row).toBeVisible();
+      const row = page.getByRole("row", { name: new RegExp(rateItemCode) });
+      await expect(row).toBeVisible({ timeout: 15_000 });
       await expect(row.getByText("Propuesta (borrador)")).toBeVisible();
       // writer no ve columna de acciones de aprobación (MEMBERSHIP_ADMIN_ROLES only).
       await expect(page.getByRole("button", { name: "Aprobar" })).toHaveCount(0);
@@ -136,13 +165,20 @@ test.describe.serial("Ronda 3 — recorrido real contra apps/api", () => {
 
   test.describe("como admin (aprueba lo que propuso writer)", () => {
     test("aprueba la tarifa propuesta por writer", async ({ page }) => {
+      test.setTimeout(60_000);
       await page.goto("/empresa/tarifas-aprobadas");
-      const row = page.getByRole("row", { name: new RegExp(RATE_ITEM_CODE) });
+      const row = page.getByRole("row", { name: new RegExp(rateItemCode) });
       await expect(row).toBeVisible();
-      await row.getByRole("button", { name: "Aprobar" }).click();
 
-      await expect(page.getByText(/Tarifa aprobada/)).toBeVisible();
-      await expect(row.getByText("Aprobada")).toBeVisible();
+      const approveResponse = page.waitForResponse(
+        (res) => res.url().includes("/rates/") && res.url().includes("/approve") && res.request().method() === "POST",
+        { timeout: 40_000 },
+      );
+      await row.getByRole("button", { name: "Aprobar" }).click();
+      const response = await approveResponse;
+      expect(response.ok(), `POST .../rates/:id/approve respondió ${response.status()}`).toBe(true);
+
+      await expect(row.getByText("Aprobada")).toBeVisible({ timeout: 10_000 });
     });
   });
 });

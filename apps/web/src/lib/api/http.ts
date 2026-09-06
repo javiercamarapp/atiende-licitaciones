@@ -44,7 +44,15 @@ async function toApiError(response: Response): Promise<ApiError> {
   });
 }
 
-const MAX_RATE_LIMIT_RETRIES = 2;
+// 6 reintentos (no 2): verificado en la suite E2E real (test:e2e:full)
+// contra apps/api real que, bajo ráfagas sostenidas (p. ej. recorrer las 24
+// rutas del sidebar seguidas, cada una con 3-4 peticiones de arranque de
+// sesión), el límite global de 100/min puede tardar más de 1-2 reintentos
+// cortos en despejarse — un cliente HTTP robusto no debe rendirse ante un
+// límite de tasa transitorio solo porque el primer par de reintentos
+// coincidió con el pico.
+const MAX_RATE_LIMIT_RETRIES = 6;
+const MAX_RATE_LIMIT_WAIT_MS = 4000;
 
 /**
  * Petición cruda a apps/api: no inyecta autenticación ni X-Org-Id (eso lo
@@ -54,7 +62,7 @@ const MAX_RATE_LIMIT_RETRIES = 2;
  * Reintento de 429 (`@fastify/rate-limit`, ver apps/api/src/app.ts: 100/min
  * global por IP + 5/min específico en /auth/login): un límite de tasa es,
  * por definición, transitorio — respeta `Retry-After` si la API lo manda
- * (siempre lo hace) y reintenta hasta 2 veces antes de rendirse con el
+ * (siempre lo hace) y reintenta varias veces antes de rendirse con el
  * `ApiError` real. Sin esto, un pico legítimo de tráfico (varias pestañas,
  * o la propia suite E2E recorriendo muchas rutas seguidas) se mostraría
  * como un error genérico en vez de resolverse solo, como haría cualquier
@@ -70,7 +78,10 @@ export async function rawRequest<T>(path: string, init: RequestInit = {}, retrie
 
   if (response.status === 429 && retriesLeft > 0) {
     const retryAfterSeconds = Number(response.headers.get("retry-after"));
-    const waitMs = Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0 ? retryAfterSeconds * 1000 : 500;
+    const waitMs = Math.min(
+      Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0 ? retryAfterSeconds * 1000 : 500,
+      MAX_RATE_LIMIT_WAIT_MS,
+    );
     await new Promise((resolve) => setTimeout(resolve, waitMs));
     return rawRequest<T>(path, init, retriesLeft - 1);
   }
