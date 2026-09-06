@@ -169,3 +169,4 @@
 2026-09-06 16:29  NOTIF  #111 web r8a cortado por 429 servidor → #113 Opus; en curso #109 #112 #113.
 2026-09-06 16:31  NOTIF  #112 reverificación cortada por 429 → #114 Opus; en curso #109 #113 #114.
 2026-09-06 16:43  CRON a1c165a2  respaldo disparó; último ScheduleWakeup no armado por clasificador limitado → rearmando; en curso #109 #113 #114 (Opus).
+2026-09-06 16:52  NOTIF  #109 correos API cerrada (8 commits, 0086); despacho #115 auditoría mail-api, #116 worker mail_retry+E20; en curso #113 #114.
