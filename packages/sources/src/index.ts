@@ -25,6 +25,7 @@ export * from "./connectors/ocds/create-ocds-connector.js";
 export * from "./connectors/compras-mx/comprasmx-types.js";
 export * from "./connectors/compras-mx/comprasmx-mapper.js";
 export * from "./connectors/compras-mx/compras-mx-connector.js";
+export * from "./connectors/compras-mx/compras-mx-historical-csv-connector.js";
 export * from "./connectors/ocds-shcp/ocds-shcp-connector.js";
 export * from "./connectors/dof/dof-types.js";
 export * from "./connectors/dof/dof-mapper.js";

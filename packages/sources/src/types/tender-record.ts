@@ -6,6 +6,15 @@ import { z } from "zod";
  * conectores (`src/connectors/registry.ts`) es la única pieza de código
  * autorizada a mapear un `SourceId` a una implementación. Ningún otro módulo
  * debe ramificar sobre estos valores fuera del registro.
+ *
+ * `compras-mx-historico` (SR-06): fuente de DATOS ABIERTOS distinta de
+ * `compras-mx` (el CSV histórico de contratos concluidos 2010-2022 de la
+ * SABG, `ComprasMxHistoricalCsvConnector`), no el API bloqueada por
+ * reCAPTCHA. Se le da un `SourceId` propio (en vez de compartir
+ * `"compras-mx"`) porque son dos conectores distintos con evidencia de
+ * verificación distinta y `ConnectorRegistry.register()` no permite dos
+ * conectores bajo el mismo id. Adición aditiva: no elimina ni renombra
+ * ningún valor existente.
  */
 export const SourceIdSchema = z.enum([
   "compras-mx",
@@ -13,6 +22,7 @@ export const SourceIdSchema = z.enum([
   "dof",
   "pdn-s6",
   "state-portal",
+  "compras-mx-historico",
 ]);
 export type SourceId = z.infer<typeof SourceIdSchema>;
 

@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { ConnectorRegistry } from "../../src/connectors/registry.js";
 import { createComprasMxConnector } from "../../src/connectors/compras-mx/compras-mx-connector.js";
+import { createComprasMxHistoricalCsvConnector } from "../../src/connectors/compras-mx/compras-mx-historical-csv-connector.js";
 import { createDofConnector } from "../../src/connectors/dof/dof-connector.js";
 import { createOcdsShcpConnector } from "../../src/connectors/ocds-shcp/ocds-shcp-connector.js";
 import { createPdnS6Connector } from "../../src/connectors/pdn-s6/pdn-s6-connector.js";
@@ -24,16 +25,18 @@ function listTsFilesRecursively(dir: string): string[] {
 }
 
 describe("ConnectorRegistry (REQ-004)", () => {
-  it("registra los 5 conectores sin colisión de id y los recupera por id", () => {
+  it("registra los 6 conectores (5 en vivo + el CSV histórico, SR-06) sin colisión de id y los recupera por id", () => {
     const registry = new ConnectorRegistry();
     registry.register(createComprasMxConnector());
     registry.register(createOcdsShcpConnector());
     registry.register(createDofConnector());
     registry.register(createPdnS6Connector());
     registry.register(createStatePortalConnector());
+    registry.register(createComprasMxHistoricalCsvConnector());
 
-    expect(registry.all()).toHaveLength(5);
+    expect(registry.all()).toHaveLength(6);
     expect(registry.requireById("compras-mx").id).toBe("compras-mx");
+    expect(registry.requireById("compras-mx-historico").id).toBe("compras-mx-historico");
     expect(() => registry.register(createDofConnector())).toThrow(/Ya existe un conector registrado/);
   });
 
@@ -43,7 +46,7 @@ describe("ConnectorRegistry (REQ-004)", () => {
   });
 
   it("test estático: ningún archivo fuera de registry.ts ramifica con `=== \"<sourceId>\"` sobre el id de una fuente (REQ-004)", () => {
-    const sourceIds = ["compras-mx", "ocds-shcp", "dof", "pdn-s6", "state-portal"];
+    const sourceIds = ["compras-mx", "ocds-shcp", "dof", "pdn-s6", "state-portal", "compras-mx-historico"];
     const forbiddenPattern = new RegExp(`(===|==)\\s*["'](${sourceIds.join("|")})["']`);
     const allowedFiles = new Set(["registry.ts", "tender-record.ts"]); // tender-record.ts define el enum, no ramifica
 
