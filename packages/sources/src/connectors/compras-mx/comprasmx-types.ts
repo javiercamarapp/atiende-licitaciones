@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { optionalNullish } from "../../util/schema.js";
 
 /**
  * Esquema INFERIDO (no confirmado con una respuesta 200 real, ver README
@@ -13,31 +14,38 @@ import { z } from "zod";
  * `grc/igrc/xgrc` que este proyecto no intenta eludir, ver REQ-079).
  * Todos los campos son opcionales/permisivos a propósito: es un esquema de
  * mejor esfuerzo que debe ajustarse en cuanto se obtenga acceso real.
+ *
+ * Los campos opcionales usan `optionalNullish()` en vez de `.optional()` a
+ * secas (SR-13): un payload real de gobierno que devuelva `null` explícito
+ * para un campo (patrón muy común en APIs JSON, distinto de omitir la
+ * llave) no debe tumbar el registro completo con un `ZodError` clasificado
+ * como `interface_changed` -- una falsa alarma cuando la estructura real no
+ * cambió, solo el valor es `null`.
  */
 export const ComprasMxApiRecordSchema = z.object({
-  codigo_expediente: z.string().optional(),
-  cod_expediente: z.string().optional(),
-  titulo_expediente: z.string().optional(),
-  tipo_expediente: z.string().optional(),
-  tipo_contratacion: z.string().optional(),
-  entidad_federativa_contratacion: z.string().optional(),
-  dependencia_entidad: z.string().optional(),
-  unidad_compradora: z.string().optional(),
-  caracter: z.string().optional(),
-  fecha_publicacion: z.string().optional(),
-  fecha_junta_aclaraciones: z.string().optional(),
-  fecha_apertura_proposiciones: z.string().optional(),
-  fecha_fallo: z.string().optional(),
-  monto_estimado: z.number().optional(),
-  moneda: z.string().optional(),
-  estatus: z.string().optional(),
-  id_proceso: z.union([z.string(), z.number()]).optional(),
+  codigo_expediente: optionalNullish(z.string()),
+  cod_expediente: optionalNullish(z.string()),
+  titulo_expediente: optionalNullish(z.string()),
+  tipo_expediente: optionalNullish(z.string()),
+  tipo_contratacion: optionalNullish(z.string()),
+  entidad_federativa_contratacion: optionalNullish(z.string()),
+  dependencia_entidad: optionalNullish(z.string()),
+  unidad_compradora: optionalNullish(z.string()),
+  caracter: optionalNullish(z.string()),
+  fecha_publicacion: optionalNullish(z.string()),
+  fecha_junta_aclaraciones: optionalNullish(z.string()),
+  fecha_apertura_proposiciones: optionalNullish(z.string()),
+  fecha_fallo: optionalNullish(z.string()),
+  monto_estimado: optionalNullish(z.number()),
+  moneda: optionalNullish(z.string()),
+  estatus: optionalNullish(z.string()),
+  id_proceso: optionalNullish(z.union([z.string(), z.number()])),
 });
 export type ComprasMxApiRecord = z.infer<typeof ComprasMxApiRecordSchema>;
 
 export const ComprasMxApiResponseSchema = z.object({
   data: z.array(z.object({ registros: z.array(ComprasMxApiRecordSchema).default([]) })).default([]),
-  total: z.number().optional(),
+  total: optionalNullish(z.number()),
 });
 export type ComprasMxApiResponse = z.infer<typeof ComprasMxApiResponseSchema>;
 
@@ -55,17 +63,17 @@ export const ComprasMxHistoricoCsvRowSchema = z.object({
   codigo_expediente: z.string(),
   proveedor: z.string(),
   titulo_contrato: z.string(),
-  descripcion_contrato: z.string().optional(),
-  contract_type: z.string().optional(),
-  work_category_id: z.string().optional(),
-  tipo_contratacion: z.string().optional(),
-  tipo_expediente: z.string().optional(),
-  importe: z.string().optional(),
-  moneda: z.string().optional(),
-  fecha_inicio: z.string().optional(),
-  fecha_fin: z.string().optional(),
-  project_code: z.string().optional(),
-  ff_fecha_inicio: z.string().optional(),
-  ff_fecha_fin: z.string().optional(),
+  descripcion_contrato: optionalNullish(z.string()),
+  contract_type: optionalNullish(z.string()),
+  work_category_id: optionalNullish(z.string()),
+  tipo_contratacion: optionalNullish(z.string()),
+  tipo_expediente: optionalNullish(z.string()),
+  importe: optionalNullish(z.string()),
+  moneda: optionalNullish(z.string()),
+  fecha_inicio: optionalNullish(z.string()),
+  fecha_fin: optionalNullish(z.string()),
+  project_code: optionalNullish(z.string()),
+  ff_fecha_inicio: optionalNullish(z.string()),
+  ff_fecha_fin: optionalNullish(z.string()),
 });
 export type ComprasMxHistoricoCsvRow = z.infer<typeof ComprasMxHistoricoCsvRowSchema>;

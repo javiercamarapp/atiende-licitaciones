@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { optionalNullish } from "../../util/schema.js";
 
 /**
  * Representación intermedia de un aviso/convocatoria extraído de una nota
@@ -14,10 +15,12 @@ export const DofNoticeSchema = z.object({
   codigo: z.string(),
   fecha: z.string(), // DD/MM/YYYY, formato real de la URL del DOF
   dependencia: z.string(),
-  numeroConvocatoria: z.string().optional(),
+  // SR-13: `optionalNullish` en vez de `.optional()` a secas, por consistencia con el resto de los esquemas de
+  // entrada del paquete (ver comprasmx-types.ts/ocds-types.ts para el caso real que motivó el hallazgo).
+  numeroConvocatoria: optionalNullish(z.string()),
   titulo: z.string(),
-  fechaJuntaAclaraciones: z.string().optional(),
-  fechaPresentacionApertura: z.string().optional(),
-  fechaFallo: z.string().optional(),
+  fechaJuntaAclaraciones: optionalNullish(z.string()),
+  fechaPresentacionApertura: optionalNullish(z.string()),
+  fechaFallo: optionalNullish(z.string()),
 });
 export type DofNotice = z.infer<typeof DofNoticeSchema>;
