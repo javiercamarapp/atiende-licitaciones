@@ -44,16 +44,27 @@ function buildHeaders(opts: ApiRequestOptions, accessToken: string | null): Reco
 // Evita disparar N refresh en paralelo cuando varias queries reciben 401 al
 // mismo tiempo (p. ej. al volver de background con el access token vencido):
 // todas esperan la misma promesa de refresh en curso.
+//
+// RF-02 (docs/auditoria-2/ronda5-final.md, MEDIA): este mutex de módulo
+// SOLO protege a quien pase por `refreshSessionOnce()` (ver abajo) -- antes
+// de esta corrección, `AuthProvider.bootstrap()` llamaba a la función de
+// refresh de abajo DIRECTO, sin pasar por aquí. `refresh_tokens` es de un
+// solo uso con rotación real (apps/api): dos llamadas casi simultáneas al
+// refresh REAL (una del bootstrap, otra de un 401-retry concurrente de
+// `apiRequest`) con el MISMO refresh token producían un 200 para la
+// primera y un 401 para la segunda -- y el `catch` de la llamada perdedora
+// (`clearTokens()`) borraba el token recién rotado por la ganadora,
+// deslogueando a un usuario con una sesión perfectamente válida.
+// Reproducido en vivo, intermitente, tanto en `vite dev` como en el build
+// de producción real servido con `vite preview` (no es un artefacto de
+// React StrictMode). Nota: este mutex vive en memoria de MÓDULO -- no
+// protege el caso multi-pestaña (cada pestaña tiene el suyo); eso exigiría
+// además un lock cross-tab (p. ej. Web Locks API), fuera del alcance de
+// esta corrección puntual.
 let refreshInFlight: Promise<void> | null = null;
 
-/**
- * Ejecuta la rotación de refresh token contra apps/api y guarda los tokens
- * nuevos. Exportada además de usarse internamente en `apiRequest`: el
- * arranque de sesión (`AuthProvider`, ver src/hooks/useAuth.tsx) la llama
- * directamente para restaurar una sesión desde el refresh token persistido
- * en localStorage al recargar la pestaña.
- */
-export async function refreshSession(): Promise<void> {
+/** Ejecuta la rotación REAL de refresh token contra apps/api y guarda los tokens nuevos. Uso interno -- fuera de este módulo, usar SIEMPRE `refreshSessionOnce()`. */
+async function refreshSession(): Promise<void> {
   const { refreshToken } = getTokens();
   if (!refreshToken) {
     throw new ApiError("La sesión expiró. Inicia sesión de nuevo.", 401);
@@ -65,6 +76,27 @@ export async function refreshSession(): Promise<void> {
   });
   const parsed = authTokensSchema.parse(raw);
   setTokens(parsed);
+}
+
+/**
+ * RF-02: único punto de entrada externo para refrescar la sesión -- reusa
+ * la promesa de refresh YA en curso si existe, en vez de disparar una
+ * nueva. Usado por AMBOS sitios que necesitan restaurar/renovar la sesión:
+ * el reintento automático tras un 401 dentro de `apiRequest` (abajo) y
+ * `AuthProvider.bootstrap()` (src/hooks/useAuth.tsx), que la llama para
+ * restaurar una sesión desde el refresh token persistido en localStorage al
+ * recargar la pestaña. Si ambos disparan "casi" al mismo tiempo, el
+ * segundo espera la MISMA promesa del primero en vez de pedir su propio
+ * refresh -- nunca hay dos POST /auth/refresh concurrentes con el mismo
+ * token de un solo uso.
+ */
+export function refreshSessionOnce(): Promise<void> {
+  if (!refreshInFlight) {
+    refreshInFlight = refreshSession().finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
 }
 
 /**
@@ -88,12 +120,7 @@ export async function apiRequest<T>(path: string, opts: ApiRequestOptions = {}):
     if (!isAuthExpiry) throw err;
 
     try {
-      if (!refreshInFlight) {
-        refreshInFlight = refreshSession().finally(() => {
-          refreshInFlight = null;
-        });
-      }
-      await refreshInFlight;
+      await refreshSessionOnce();
     } catch {
       clearTokens();
       throw err;

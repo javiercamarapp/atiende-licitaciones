@@ -3,7 +3,8 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 
 import { server, http, HttpResponse } from "@/test/msw";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
-import { getTokens } from "@/lib/api/session";
+import { apiRequest } from "@/lib/api/client";
+import { getTokens, setTokens } from "@/lib/api/session";
 import { queryClient } from "@/lib/queryClient";
 
 function wrapper({ children }: { children: React.ReactNode }) {
@@ -16,6 +17,78 @@ describe("useAuth", () => {
     await waitFor(() => expect(result.current.status).toBe("unauthenticated"));
     expect(result.current.user).toBeNull();
     expect(result.current.memberships).toEqual([]);
+  });
+
+  // RF-02 (docs/auditoria-2/ronda5-final.md, MEDIA): antes de esta
+  // corrección, `AuthProvider.bootstrap()` llamaba a la función de refresh
+  // DIRECTO, sin pasar por el mismo mutex de módulo (`refreshInFlight`) que
+  // protege el reintento automático tras un 401 dentro de `apiRequest`. Si
+  // ambos disparaban casi al mismo tiempo con el MISMO refresh token (de un
+  // solo uso), apps/api respondía 200 a uno y 401 al otro -- y el `catch`
+  // de la llamada perdedora borraba (`clearTokens()`) el token recién
+  // rotado por la ganadora, deslogueando a un usuario con una sesión
+  // perfectamente válida (reproducido en vivo, ver ronda5-final.md).
+  it("RF-02: bootstrap y una petición 401 concurrente comparten el MISMO refresh en curso -- una sola llamada real a /auth/refresh", async () => {
+    // Simula el estado real de una recarga de página: un refresh token
+    // persistido (dispara `bootstrap()`) y, además, un access token YA
+    // presente en memoria (p. ej. otra parte de la app ya lo tenía) que
+    // resulta inválido -- dispara el 401-retry de `apiRequest` casi al
+    // mismo tiempo que `bootstrap()` pide su propio refresh.
+    setTokens({ accessToken: "stale-access", refreshToken: "ref-1" });
+
+    let refreshCalls = 0;
+    const pendingRefreshResolvers: Array<() => void> = [];
+    server.use(
+      // El propio `POST /auth/refresh` NO resuelve hasta que el test lo
+      // libere explícitamente (`pendingRefreshResolvers`) -- así se
+      // garantiza que, si el bug reapareciera (dos llamadas reales
+      // concurrentes), AMBAS quedarían pendientes simultáneamente y
+      // `refreshCalls` ya mostraría 2 antes de liberar ninguna.
+      http.post("*/auth/refresh", async () => {
+        refreshCalls += 1;
+        const callNumber = refreshCalls;
+        await new Promise<void>((resolve) => pendingRefreshResolvers.push(resolve));
+        return HttpResponse.json({ accessToken: `access-${callNumber}`, refreshToken: `ref-${callNumber}` });
+      }),
+      http.get("*/me", () => HttpResponse.json({ id: "user-1", email: "persona@empresa.com", fullName: null })),
+      http.get("*/organizations", () => HttpResponse.json([{ id: "org-a", name: "Organización A", slug: "org-a", role: "owner" }])),
+      // Simula una petición de dominio real que todavía trae el access
+      // token viejo/inválido (401 real de apps/api) -- dispara el
+      // reintento automático de `apiRequest` (ver lib/api/client.ts).
+      http.get("*/company/profile", ({ request }) => {
+        const auth = request.headers.get("authorization");
+        if (auth === "Bearer stale-access") {
+          return HttpResponse.json({ type: "unauthorized", title: "Token de acceso inválido o expirado", status: 401, requestId: "req-401" }, { status: 401 });
+        }
+        return HttpResponse.json({ id: "profile-1", legalName: "Empresa Real S.A. de C.V." });
+      }),
+    );
+
+    renderHook(() => useAuth(), { wrapper });
+
+    // Disparada justo después del montaje (mismo "casi al mismo tiempo" que
+    // reproduce la condición de carrera real): para cuando esta petición
+    // reciba su 401 real y llegue a pedir SU propio refresh, el de
+    // `bootstrap()` ya debe estar en curso.
+    const concurrentRequest = apiRequest<{ id: string; legalName: string }>("/company/profile", { orgId: "org-a" });
+
+    // Dale tiempo de sobra a que, SI el bug reapareciera, la segunda
+    // llamada real a /auth/refresh ya hubiera llegado (ambas quedarían
+    // pendientes, nunca resueltas, hasta que el test las libere abajo).
+    await waitFor(() => expect(refreshCalls).toBeGreaterThanOrEqual(1));
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    // La aserción real de RF-02: el mutex compartido garantiza UNA sola
+    // llamada real a /auth/refresh, nunca dos.
+    expect(refreshCalls).toBe(1);
+
+    act(() => {
+      pendingRefreshResolvers.forEach((resolve) => resolve());
+    });
+
+    await waitFor(() => expect(getTokens().accessToken).toBe("access-1"));
+    await expect(concurrentRequest).resolves.toEqual({ id: "profile-1", legalName: "Empresa Real S.A. de C.V." });
+    expect(refreshCalls).toBe(1);
   });
 
   it("login: éxito real hidrata usuario + memberships y selecciona la primera organización", async () => {

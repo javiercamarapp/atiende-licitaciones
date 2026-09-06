@@ -10,7 +10,7 @@ import {
   login as apiLogin,
   logout as apiLogout,
   readStoredOrgId,
-  refreshSession,
+  refreshSessionOnce,
   setTokens,
   writeStoredOrgId,
   type LoginPayload,
@@ -63,7 +63,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       try {
-        await refreshSession();
+        // RF-02 (docs/auditoria-2/ronda5-final.md): `refreshSessionOnce()`
+        // comparte el MISMO mutex que el reintento automático tras un 401
+        // de `apiRequest` -- si ambos disparan casi al mismo tiempo, este
+        // espera la promesa YA en curso en vez de pedir su propio refresh
+        // con el mismo refresh token de un solo uso (ver docstring en
+        // lib/api/client.ts).
+        await refreshSessionOnce();
         const { user: hydratedUser, memberships: hydratedMemberships } = await hydrateUserAndMemberships();
         if (cancelled) return;
         setUser(hydratedUser);
