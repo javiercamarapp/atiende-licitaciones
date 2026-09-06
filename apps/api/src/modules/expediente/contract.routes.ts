@@ -343,8 +343,8 @@ export async function expedienteContractRoutes(app: FastifyInstance): Promise<vo
         // nunca se dan por válidos sin la confirmación explícita del
         // usuario (ver `POST .../fields/:fieldId/confirm`).
         let fieldsExtracted = 0;
-        if (extraction.status === 'extracted' && extraction.text) {
-          const fields = extractContractFields(extraction.text, extraction.pageCount);
+        if (extraction.status === 'extracted' && extraction.pages) {
+          const fields = extractContractFields(extraction.pages);
           for (const field of fields) {
             await tx.query(
               `insert into contract_extracted_fields

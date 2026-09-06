@@ -12,7 +12,7 @@ import { requireOrgRole } from '../../lib/authorize.js';
 import { NotFoundError } from '../../lib/errors.js';
 import { recordAudit } from '../../lib/audit.js';
 import { decodeBase64Content, storeFile } from '../../lib/storage.js';
-import { extractDocumentText } from '../../lib/expediente/text-extraction.js';
+import { extractDocumentText, splitPersistedTextIntoPages } from '../../lib/expediente/text-extraction.js';
 import { withTx, requireTender } from '../../lib/expediente/context.js';
 import {
   documentUploadSchema,
@@ -209,12 +209,18 @@ export async function expedienteDocumentsRoutes(app: FastifyInstance): Promise<v
             documentsSkipped.push({ documentId: String(row.id), reason: `text_extraction_status=${row.text_extraction_status}` });
             continue;
           }
+          // R6-01/R6-02: `extracted_text` persiste todas las páginas
+          // concatenadas con el separador `PAGE_BREAK` (form feed) --
+          // `splitPersistedTextIntoPages` reconstruye el arreglo con el
+          // número de página REAL de cada una (nunca una única página
+          // ficticia salvo que el documento en verdad tenga una sola, p. ej.
+          // texto plano o datos de antes de este cambio sin el separador).
           docs.push({
             __id: String(row.id),
             documentId: String(row.id),
             documentLabel: (row.original_filename as string | null) ?? String(row.id),
             publishedAt: new Date(row.created_at as string | Date).toISOString(),
-            pages: [{ page: 1, text: String(row.extracted_text) }],
+            pages: splitPersistedTextIntoPages(String(row.extracted_text)),
           });
         }
 

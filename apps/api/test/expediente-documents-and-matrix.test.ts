@@ -2,6 +2,9 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { DbClient } from '@atiende/db';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createTestApp, registerAndLogin, createOrgFor, TEST_PLATFORM_API_KEY } from './helpers.js';
 
 /**
@@ -11,11 +14,15 @@ import { createTestApp, registerAndLogin, createOrgFor, TEST_PLATFORM_API_KEY } 
  *
  * Los casos que necesitan CONTROLAR con precisión el texto extraído usan
  * `text/plain` (ruta determinista, sin depender de la reconstrucción interna
- * de líneas de un PDF renderizado) -- la extracción real vía `pdf-parse`
- * sobre un PDF genuino se prueba aparte en el primer caso de este archivo y
- * en `test/expediente-text-extraction.test.ts` (unitario, incluye
- * "requires_ocr").
+ * de líneas de un PDF renderizado) -- la extracción real vía `pdfjs-dist`
+ * sobre un PDF genuino se prueba aparte en el primer caso de este archivo, en
+ * el caso "R6-01/R6-02" de más abajo (fixtures con ambos formatos de
+ * referencia cruzada) y en `test/expediente-text-extraction.test.ts`
+ * (unitario, incluye "requires_ocr").
  */
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const FIXTURES_DIR = path.join(__dirname, 'fixtures', 'pdf');
 
 function toBase64(text: string): string {
   return Buffer.from(text, 'utf8').toString('base64');
@@ -58,7 +65,7 @@ describe('expediente — documentos de bases y matriz de requisitos (E6)', () =>
     await db.close();
   });
 
-  it('sube un PDF real con texto, lo extrae vía pdf-parse y construye la matriz de requisitos', async () => {
+  it('sube un PDF real con texto, lo extrae vía pdfjs-dist y construye la matriz de requisitos', async () => {
     const owner = await registerAndLogin(app, 'matrix-owner-1@example.com');
     const org = await createOrgFor(app, owner, 'Matrix Org 1', 'matrix-org-1');
     const tenderId = await createTender(app, org.id);
@@ -97,6 +104,38 @@ describe('expediente — documentos de bases y matriz de requisitos (E6)', () =>
     expect(items.length).toBeGreaterThan(0);
     expect(items.every((i: any) => i.invalidatedAt === null)).toBe(true);
     expect(items.some((i: any) => i.sourcePage !== null)).toBe(true);
+  });
+
+  it('R6-01/R6-02: un PDF con cross-reference STREAM (fixture xref-stream.pdf, el formato que genera pdf-lib y muchos generadores reales) se extrae correctamente vía la API -- ya NO falla como con pdf-parse@1.1.1', async () => {
+    const owner = await registerAndLogin(app, 'matrix-owner-5@example.com');
+    const org = await createOrgFor(app, owner, 'Matrix Org 5', 'matrix-org-5');
+    const tenderId = await createTender(app, org.id, 'exp-005');
+
+    const contentBase64 = readFileSync(path.join(FIXTURES_DIR, 'xref-stream.pdf')).toString('base64');
+    const upload = await app.inject({
+      method: 'POST',
+      url: `/expediente/tenders/${tenderId}/documents`,
+      headers: { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id },
+      payload: { documentKind: 'bases', filename: 'bases-xref-stream.pdf', mimeType: 'application/pdf', contentBase64 },
+    });
+    expect(upload.statusCode).toBe(201);
+    expect(upload.json().textExtractionStatus).toBe('extracted');
+  });
+
+  it('R6-01/R6-02: un PDF con tabla xref CLÁSICA (fixture xref-classic.pdf) también se extrae correctamente -- soportar xref-stream no rompe el formato anterior', async () => {
+    const owner = await registerAndLogin(app, 'matrix-owner-6@example.com');
+    const org = await createOrgFor(app, owner, 'Matrix Org 6', 'matrix-org-6');
+    const tenderId = await createTender(app, org.id, 'exp-006');
+
+    const contentBase64 = readFileSync(path.join(FIXTURES_DIR, 'xref-classic.pdf')).toString('base64');
+    const upload = await app.inject({
+      method: 'POST',
+      url: `/expediente/tenders/${tenderId}/documents`,
+      headers: { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id },
+      payload: { documentKind: 'bases', filename: 'bases-xref-classic.pdf', mimeType: 'application/pdf', contentBase64 },
+    });
+    expect(upload.statusCode).toBe(201);
+    expect(upload.json().textExtractionStatus).toBe('extracted');
   });
 
   it('un documento de formato no soportado (ni PDF ni texto reconocible) queda "failed" explícito, nunca texto vacío en silencio', async () => {

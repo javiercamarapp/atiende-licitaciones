@@ -131,7 +131,7 @@ const PDF_EOF_MARKER = '%%EOF';
  * dentro de los primeros 1024 bytes, el margen que el propio formato PDF
  * permite para basura/comentarios previos al header): también debe
  * contener el marcador de fin de archivo `%%EOF`. Un PDF real de
- * `pdf-parse`/cualquier generador siempre lo tiene; su ausencia es señal de
+ * `pdfjs-dist`/cualquier generador siempre lo tiene; su ausencia es señal de
  * un archivo corrupto o de un políglota que solo IMITA el header PDF para
  * pasar una heurística superficial.
  */

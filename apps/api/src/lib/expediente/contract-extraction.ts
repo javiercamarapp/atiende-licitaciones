@@ -20,15 +20,16 @@
  * `contract_extracted_fields` con `status = 'sugerido'` (ver
  * `contract.routes.ts`).
  *
- * LIMITACIÓN DOCUMENTADA (honesta, no oculta): `pdf-parse` (usado por
- * `extractDocumentText`) no conserva los saltos de página reales dentro del
- * texto extraído -- no hay forma de saber en qué página EXACTA cae cada
- * coincidencia. `sourcePage` es una aproximación proporcional (posición del
- * texto / longitud total * número de páginas del documento), redondeada
- * hacia arriba -- puede desviarse de la página real, especialmente en
- * documentos con páginas de longitud muy desigual (portadas, anexos). Con
- * texto plano (sin `pageCount`) o `pageCount` desconocido, `sourcePage` es
- * siempre `null` -- nunca se inventa un número de página sin base real.
+ * R6-01/R6-02 (docs/auditoria-2/api-ronda6.md): antes de esta ronda,
+ * `sourcePage` era una aproximación PROPORCIONAL (posición del texto /
+ * longitud total * número de páginas), porque `pdf-parse` no conservaba los
+ * saltos de página reales. Ahora `extractDocumentText` (`pdfjs-dist`)
+ * devuelve el texto SEPARADO por página real; este módulo recibe ese
+ * arreglo (`pages`) y reporta la página EXACTA donde cayó cada coincidencia
+ * -- nunca una aproximación. Con texto plano (una única página virtual),
+ * `sourcePage` sigue siendo `1` (no `null`: hay una página real, la única
+ * que existe) para mantener el contrato de "nunca se inventa una página sin
+ * base real" sin degradar el campo cuando sí hay una página concreta.
  */
 
 export type ContractFieldKey =
@@ -151,15 +152,38 @@ function findNearestClause(text: string, index: number): string | null {
   return `Cláusula ${lastMatch[1].toUpperCase()}`;
 }
 
-/** Aproximación proporcional de página (ver limitación documentada arriba). `pageCount` null/0 -> siempre null. */
-function estimatePage(index: number, textLength: number, pageCount: number | null): number | null {
-  if (!pageCount || pageCount <= 0 || textLength <= 0) return null;
-  const fraction = Math.min(1, Math.max(0, index / textLength));
-  return Math.min(pageCount, Math.max(1, Math.ceil(fraction * pageCount)));
+export interface ContractFieldPageText {
+  page: number;
+  text: string;
 }
 
-export function extractContractFields(text: string, pageCount: number | null = null): ExtractedContractField[] {
+/** Concatena las páginas en un único string de trabajo, recordando en qué rango de offsets cae cada página real -- así `findNearestClause` puede seguir mirando hacia atrás a través de un límite de página (una cláusula puede empezar en una página y su contenido continuar en la siguiente) sin perder la página REAL de cada coincidencia. */
+function concatWithPageBoundaries(pages: readonly ContractFieldPageText[]): { text: string; boundaries: { page: number; start: number; end: number }[] } {
+  let text = '';
+  const boundaries: { page: number; start: number; end: number }[] = [];
+  for (const p of pages) {
+    const start = text.length;
+    text += p.text;
+    boundaries.push({ page: p.page, start, end: text.length });
+    text += '\n';
+  }
+  return { text, boundaries };
+}
+
+/** Página REAL que contiene el offset `index` dentro del texto concatenado -- nunca una aproximación; si por alguna razón el índice cae fuera de todos los rangos (no debería), se usa la última página conocida. */
+function pageForIndex(index: number, boundaries: { page: number; start: number; end: number }[]): number | null {
+  if (boundaries.length === 0) return null;
+  for (const b of boundaries) {
+    if (index >= b.start && index <= b.end) return b.page;
+  }
+  return boundaries[boundaries.length - 1].page;
+}
+
+export function extractContractFields(pages: readonly ContractFieldPageText[]): ExtractedContractField[] {
   const results: ExtractedContractField[] = [];
+  if (pages.length === 0) return results;
+  const { text, boundaries } = concatWithPageBoundaries(pages);
+
   for (const rule of FIELD_RULES) {
     const match = rule.pattern.exec(text);
     if (!match) continue;
@@ -172,7 +196,7 @@ export function extractContractFields(text: string, pageCount: number | null = n
     results.push({
       fieldKey: rule.fieldKey,
       value,
-      sourcePage: estimatePage(match.index, text.length, pageCount),
+      sourcePage: pageForIndex(match.index, boundaries),
       sourceClause: findNearestClause(text, match.index),
       confidence,
     });

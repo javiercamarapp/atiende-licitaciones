@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { DbClient } from '@atiende/db';
+import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { createTestApp, registerAndLogin, createOrgFor, TEST_PLATFORM_API_KEY } from './helpers.js';
 
 /**
@@ -135,6 +136,55 @@ describe('expediente — extracción del contrato firmado (REQ-052)', () => {
       payload: { action: 'correct' },
     });
     expect(missingCorrection.statusCode).toBe(422);
+  });
+
+  it('R6-02: sube el contrato firmado como PDF real de varias páginas (xref-stream, formato que genera pdf-lib) y cada campo reporta la página REAL donde aparece, no una aproximación proporcional', async () => {
+    const owner = await registerAndLogin(app, 'c052-owner-5@example.com');
+    const org = await createOrgFor(app, owner, 'C052 Org 5', 'c052-org-5');
+    const tenderId = await createTender(app, org.id, 'c052-005');
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+    await app.inject({ method: 'POST', url: `/expediente/tenders/${tenderId}/contract`, headers });
+
+    // Documento de 3 páginas reales: el número de contrato vive en la
+    // página 1, el monto total en la página 2, el administrador del
+    // contrato en la página 3 -- si `sourcePage` fuera la vieja
+    // aproximación proporcional (posición/longitud * pageCount) podría
+    // acertar por coincidencia; aquí se verifica que sea EXACTO.
+    const doc = await PDFDocument.create();
+    const font = await doc.embedFont(StandardFonts.Helvetica);
+    const page1 = doc.addPage([400, 400]);
+    page1.drawText('CONTRATO NUMERO: ADM-2026-0099', { x: 20, y: 360, size: 10, font });
+    const page2 = doc.addPage([400, 400]);
+    page2.drawText('Monto total: $999,000.00 (novecientos noventa y nueve mil pesos)', { x: 20, y: 360, size: 10, font });
+    const page3 = doc.addPage([400, 400]);
+    page3.drawText('El administrador del contrato sera el Lic. Ana Gomez.', { x: 20, y: 360, size: 10, font });
+    const buffer = Buffer.from(await doc.save()); // useObjectStreams por defecto: xref-stream real.
+
+    const upload = await app.inject({
+      method: 'POST',
+      url: `/expediente/tenders/${tenderId}/contract/documents`,
+      headers,
+      payload: { filename: 'contrato-firmado.pdf', mimeType: 'application/pdf', contentBase64: buffer.toString('base64') },
+    });
+    expect(upload.statusCode).toBe(201);
+    expect(upload.json().textExtractionStatus).toBe('extracted');
+    expect(upload.json().pageCount).toBe(3);
+
+    const fields = await app.inject({ method: 'GET', url: `/expediente/tenders/${tenderId}/contract/documents/${upload.json().id}/fields`, headers });
+    expect(fields.statusCode).toBe(200);
+    const fieldRows: any[] = fields.json();
+
+    const numeroContrato = fieldRows.find((f) => f.fieldKey === 'numero_contrato');
+    expect(numeroContrato).toBeTruthy();
+    expect(numeroContrato.sourcePage).toBe(1);
+
+    const montoTotal = fieldRows.find((f) => f.fieldKey === 'monto_total');
+    expect(montoTotal).toBeTruthy();
+    expect(montoTotal.sourcePage).toBe(2);
+
+    const administrador = fieldRows.find((f) => f.fieldKey === 'administrador_contrato');
+    expect(administrador).toBeTruthy();
+    expect(administrador.sourcePage).toBe(3);
   });
 
   it('un documento sin contenido reconocible (ni PDF con texto ni texto plano) queda "failed" y no genera campos', async () => {
