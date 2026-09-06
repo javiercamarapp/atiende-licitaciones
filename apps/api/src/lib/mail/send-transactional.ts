@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
+import { getTemplate } from '@atiende/mail';
 import type { NotificationPreferences, RegisteredRecipient, SendOutcome } from '@atiende/mail';
+import { readNotificationPreferences } from './preferences.js';
 
 export interface SendTransactionalMailInput<V = unknown> {
   to: RegisteredRecipient | RegisteredRecipient[];
@@ -66,7 +68,7 @@ export async function sendTransactionalMail<V>(app: FastifyInstance, input: Send
     templateId: input.templateId,
     variables: input.variables,
     messageKey: input.messageKey,
-    preferences: input.preferences,
+    preferences: input.preferences ?? (await resolvePreferences(app, input)),
     fromLocalPart: input.fromLocalPart,
   });
 
@@ -94,3 +96,55 @@ export async function sendTransactionalMail<V>(app: FastifyInstance, input: Send
 
   return outcome;
 }
+
+/**
+ * REQ-181..195: las preferencias del destinatario, cargadas de
+ * `notification_preferences` (0082) cuando hacen falta -- y SOLO cuando
+ * hacen falta.
+ *
+ * Tres condiciones, cada una por una razón distinta:
+ *
+ *  - **Plantilla OPCIONAL.** Una obligatoria (`account_security`,
+ *    `internal`: verificación, contraseña, 2FA, invitación, contacto
+ *    interno) no se puede apagar -- `isCategoryEnabled` de packages/mail ni
+ *    siquiera mira las preferencias -- así que consultarlas sería una
+ *    lectura a la base por cada correo de seguridad, para nada.
+ *  - **Un solo destinatario.** Con varios no hay UNA preferencia que
+ *    aplicar: quien mande un correo a varias personas debe filtrarlas antes
+ *    (o mandar uno por persona, que es lo que hace todo este módulo hoy).
+ *  - **`userId` con forma de UUID.** `RegisteredRecipient.userId` no siempre
+ *    es una fila de `users`: para una invitación es el id de la invitación y
+ *    para el buzón interno es la constante `internal-inbox` (ver
+ *    `recipients.ts`). Ambos casos son plantillas obligatorias, así que ya
+ *    quedaron fuera arriba; esta comprobación es el cinturón por si mañana
+ *    aparece un destinatario opcional sin cuenta.
+ *
+ * Un fallo al leerlas NO bloquea el envío: se sigue con los valores por
+ * defecto (todo activado), que es el mismo criterio de "ausencia de fila"
+ * de la propia migración -- una lectura fallida nunca debe silenciar un
+ * aviso de plazo que la persona sí quería.
+ */
+async function resolvePreferences<V>(
+  app: FastifyInstance,
+  input: SendTransactionalMailInput<V>
+): Promise<NotificationPreferences | undefined> {
+  const template = getTemplate(input.templateId);
+  if (!template || template.mandatory) return undefined;
+
+  const recipients = Array.isArray(input.to) ? input.to : [input.to];
+  if (recipients.length !== 1) return undefined;
+  const userId = recipients[0].userId;
+  if (!UUID_PATTERN.test(userId)) return undefined;
+
+  try {
+    return await readNotificationPreferences(app, userId);
+  } catch (error) {
+    app.log.error(
+      { err: error instanceof Error ? error.message : String(error), userId },
+      'No se pudieron leer las preferencias de notificación; se usan los valores por defecto'
+    );
+    return undefined;
+  }
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

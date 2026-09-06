@@ -1,9 +1,14 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { DEFAULT_NOTIFICATION_PREFERENCES, type NotificationPreferences } from '@atiende/mail';
 import { BadRequestError } from '../../lib/errors.js';
 import { verifySignedMailParams } from '../../lib/mail/links.js';
+import {
+  isOptionalCategory,
+  readNotificationPreferences,
+  setNotificationPreferences,
+  type OptionalCategory,
+} from '../../lib/mail/preferences.js';
 
 /**
  * REQ-181..195: centro de preferencias de notificación + baja de un clic
@@ -28,34 +33,6 @@ import { verifySignedMailParams } from '../../lib/mail/links.js';
  *    correo hace la petición en segundo plano; no hay nadie mirando una
  *    página.
  */
-
-/** Las 8 categorías apagables (`notification_preferences`, migración 0082). Las
- *  obligatorias -- seguridad de cuenta e interno -- NO están aquí a propósito:
- *  no se pueden apagar (ver MANDATORY_CATEGORIES de packages/mail). */
-const OPTIONAL_CATEGORIES = [
-  'tender_matches',
-  'tender_changes',
-  'approvals',
-  'submission',
-  'deadlines',
-  'document_expiration',
-  'post_award',
-  'weekly_summary',
-] as const;
-
-type OptionalCategory = (typeof OPTIONAL_CATEGORIES)[number];
-
-/** Columna (snake_case, como en la tabla) -> llave de `NotificationPreferences` (camelCase, como en packages/mail). */
-const COLUMN_TO_KEY: Record<OptionalCategory, keyof NotificationPreferences> = {
-  tender_matches: 'tenderMatches',
-  tender_changes: 'tenderChanges',
-  approvals: 'approvals',
-  submission: 'submission',
-  deadlines: 'deadlines',
-  document_expiration: 'documentExpiration',
-  post_award: 'postAward',
-  weekly_summary: 'weeklySummary',
-};
 
 const preferencesSchema = z.object({
   tenderMatches: z.boolean(),
@@ -134,7 +111,7 @@ export async function mailRoutes(app: FastifyInstance): Promise<void> {
   server.get(
     '/preferences',
     { preHandler: [app.authenticate], schema: { response: { 200: preferencesSchema } } },
-    async (request) => readPreferences(app, request.userId!)
+    async (request) => readNotificationPreferences(app, request.userId!)
   );
 
   server.put(
@@ -145,24 +122,11 @@ export async function mailRoutes(app: FastifyInstance): Promise<void> {
     },
     async (request) => {
       const userId = request.userId!;
-      const updates = request.body;
-      await app.db.transaction(async (tx) => {
-        await tx.query('set local role app_role');
-        await tx.query("select set_config('app.current_user_id', $1, true)", [userId]);
-        // Fila creada perezosamente (ver 0082): ausencia de fila == todo
-        // activado, así que la primera edición es la que la materializa.
-        await tx.query('insert into notification_preferences (user_id) values ($1) on conflict (user_id) do nothing', [userId]);
-        for (const column of OPTIONAL_CATEGORIES) {
-          const value = updates[COLUMN_TO_KEY[column]];
-          if (value === undefined) continue;
-          // `column` sale SIEMPRE de OPTIONAL_CATEGORIES (lista cerrada en
-          // este archivo), nunca del cuerpo de la petición -- el zod de
-          // entrada ya rechazó cualquier otra llave. Aun así se interpola
-          // solo el identificador, con el valor como parámetro.
-          await tx.query(`update notification_preferences set ${column} = $1 where user_id = $2`, [value, userId]);
-        }
-      });
-      return readPreferences(app, userId);
+      // El usuario solo puede tocar SUS preferencias: el `userId` sale del
+      // access token verificado, nunca del cuerpo (no hay forma de nombrar a
+      // otra persona en esta petición).
+      await setNotificationPreferences(app, userId, request.body);
+      return readNotificationPreferences(app, userId);
     }
   );
 }
@@ -183,28 +147,11 @@ function resolveUnsubscribeLink(
   }
   const raw = payload.category;
   if (raw === null || raw === undefined) return { userId: payload.userId, category: null };
-  if (!OPTIONAL_CATEGORIES.includes(raw as OptionalCategory)) {
+  if (!isOptionalCategory(raw)) {
+    // Una categoría desconocida (o una OBLIGATORIA, que no se puede apagar)
+    // se trata como enlace inválido -- nunca como "apaga todo".
     throw new BadRequestError('El enlace de baja no es válido o ya venció.');
   }
-  return { userId: payload.userId, category: raw as OptionalCategory };
+  return { userId: payload.userId, category: raw };
 }
 
-async function readPreferences(app: FastifyInstance, userId: string): Promise<Required<NotificationPreferences>> {
-  const { rows } = await app.db.transaction(async (tx) => {
-    await tx.query('set local role app_role');
-    await tx.query("select set_config('app.current_user_id', $1, true)", [userId]);
-    return tx.query<Record<OptionalCategory, boolean>>(
-      `select ${OPTIONAL_CATEGORIES.join(', ')} from notification_preferences where user_id = $1`,
-      [userId]
-    );
-  });
-  const row = rows[0];
-  // Sin fila: todo activado (lista de EXCLUSIÓN, no de opt-in -- ver
-  // DEFAULT_NOTIFICATION_PREFERENCES de packages/mail).
-  if (!row) return { ...DEFAULT_NOTIFICATION_PREFERENCES };
-  const result = { ...DEFAULT_NOTIFICATION_PREFERENCES };
-  for (const column of OPTIONAL_CATEGORIES) {
-    result[COLUMN_TO_KEY[column]] = row[column];
-  }
-  return result;
-}
