@@ -97,6 +97,44 @@ fundamento normativo.
   `test/fixtures/compras-mx/compranet-historico-real-sample.csv`.
   `parseComprasMxHistoricoCsv()` lo parsea y está cubierto por pruebas.
 
+**Robustez del CSV histórico frente al archivo REAL de 951 MB (SR-15/16/17,
+ronda 2 de corrección)**: la muestra verificada en vivo es UTF-8 bien
+formada, pero el archivo completo (~951 MB, export de un sistema legado) no
+tiene esa garantía. Tres gaps reales, sin evidencia de que ocurran hoy pero
+sin protección si el export cambia:
+
+- **Encoding (SR-15)**: `ComprasMxHistoricalCsvConnector` ya NO usa
+  `response.text()` (decodifica SIEMPRE como UTF-8 por spec WHATWG,
+  ignorando el charset real del servidor). `decodeHttpResponseText()`
+  (`src/util/encoding.ts`) decodifica por bytes crudos: usa el charset
+  declarado en `Content-Type` si lo hay y no es UTF-8, quita un BOM UTF-8
+  explícito, y si nada de eso aplica intenta una decodificación UTF-8
+  ESTRICTA — si los bytes no son UTF-8 válido (típico de Latin-1/
+  Windows-1252, común en exports legados mexicanos), decodifica como
+  `TextDecoder("latin1")` en vez de producir mojibake silencioso. El
+  encoding real declarado por el servidor SABG en el archivo completo NO
+  fue verificado explícitamente en esta ronda (solo `HEAD`, no `GET`
+  completo) — la heurística cubre el caso en que no lo sea.
+- **Resiliencia por fila (SR-16)**: `parseComprasMxHistoricoCsv()` valida y
+  mapea cada fila en su PROPIO `try/catch`; una fila inválida (p.ej.
+  `importe` no numérico) se acumula en `errors[]` con su número de fila,
+  sin abortar el resto del lote (antes: una sola fila inválida en
+  cualquier punto del archivo hacía perder TODAS las filas válidas, porque
+  esta función arma el array completo antes de que el conector empiece a
+  producir el primer registro — sigue sin ser streaming, limitación ya
+  reconocida).
+- **Filas con columnas de más (SR-17)**: `parseCsv()` (`src/util/csv.ts`)
+  sigue rellenando con `""` las filas con MENOS columnas que el
+  encabezado (tolerable), pero ahora RECHAZA explícitamente (como un error
+  de fila con su número, no como un registro desalineado en silencio)
+  cualquier fila con MÁS columnas — síntoma típico de una coma sin escapar
+  en un campo no entrecomillado (antes: el excedente se descartaba en
+  silencio, desalineando el resto de la fila sin ningún aviso).
+
+`ComprasMxHistoricalCsvConnector.discover()` reporta cada fila descartada
+vía `ctx.logger?.warn(...)` (visible para el consumidor) sin dejar de
+producir los registros válidos del resto del archivo.
+
 ### DOF (Diario Oficial de la Federación)
 
 - `https://dof.gob.mx/` responde 200. Usa `nota_detalle.php?codigo=&fecha=DD/MM/YYYY`
@@ -188,6 +226,21 @@ Deduplicación:
    (`src/dedupe/fingerprint.ts`), expuesta vía
    `TenderRepository.findByFingerprint`.
 
+### `null` explícito en esquemas de entrada (SR-13, ronda 2 de corrección)
+
+Los campos opcionales de los esquemas zod que validan payloads externos
+crudos (`ComprasMxApiRecordSchema`/`ComprasMxHistoricoCsvRowSchema` en
+`comprasmx-types.ts`, `DofNoticeSchema`, y todos los esquemas OCDS en
+`ocds-types.ts`) usan `optionalNullish()` (`src/util/schema.ts`) en vez de
+`.optional()` a secas: un `null` EXPLÍCITO (patrón muy común en APIs JSON
+reales de gobierno, distinto de omitir la llave) se normaliza a
+`undefined` ANTES de validar, en vez de tumbar el registro completo con un
+`ZodError` que `classifySourceFailure` clasificaría como
+`interface_changed` — una falsa alarma de "cambio de interfaz" cuando la
+estructura real no cambió, solo el valor es `null`. El tipo inferido sigue
+siendo `T | undefined` (nunca `T | null | undefined`): el resto del código
+que ya maneja "campo ausente" no necesita cambios.
+
 ## Zona horaria (ampliación §3)
 
 Todas las fechas de negocio son hora legal de México. México abolió el
@@ -198,6 +251,22 @@ una fecha/hora "naive" (sin zona, como las que trae el DOF) como hora del
 Centro. Portales en otras zonas (p.ej. Baja California, Pacífico con DST por
 frontera) deberían pasar su propio offset — no se asume la zona del proceso
 que ejecuta el conector.
+
+**Invariante (SR-12, ronda 2 de corrección)**: TODA fecha de negocio que
+sale de un mapper de este paquete pasa por `fromMexicoCityNaive()` (vía el
+wrapper propio de cada conector: `parseComprasMxDate()` en
+`comprasmx-mapper.ts` — usado tanto por el API en vivo como por
+`parseComprasMxHistoricoCsv()` desde esta ronda —, `parseDofDate()` en
+`dof-mapper.ts`, `parseOcdsDate()` en `ocds-mapper.ts`). Antes de esta
+ronda, `parseComprasMxHistoricoCsv()` (agregado por un commit posterior al
+fix original de SR-02) mapeaba `fecha_inicio`/`fecha_fin` DIRECTO a
+`TenderDatesSchema`, reintroduciendo la misma dependencia del `TZ` del
+proceso para una fila naive que SR-02 ya había cerrado para el API en vivo.
+`test/tz-invariant.test.ts` verifica, en subprocesos reales bajo
+`TZ=UTC/America/Mexico_City/Asia/Tokyo`, que los 6 conectores registrados
+producen el MISMO instante ante un fixture con fecha naive, y un test
+estático (mismo archivo) prohíbe `new Date(<algo>)` con argumento en
+`src/connectors/**` fuera de `new Date()` (reloj "ahora").
 
 ## Versionado y detección de cambios (ampliación §3)
 
@@ -211,6 +280,20 @@ que ejecuta el conector.
   `plazos` (fechas de publicación/presentación/fallo), `anexos`
   (documentos) o `estatus`.
 - `isDeadlineMovedEarlier()`: caso de prueba obligatorio "plazo adelantado".
+- **Criterio de mayúsculas/acentos en claves de anexo/clasificador (SR-18,
+  ronda 2)**: `canonicalizeVersionKey()` (`src/util/hash.ts`, NFD +
+  casefold) se usa SOLO para `attachments[].name` y `classifiers[].code` al
+  calcular `computeVersionHash()`/`detectChanges()`. Decisión de diseño
+  explícita: un cambio SOLO de mayúsculas o acentos en el nombre de un
+  anexo o el código de un clasificador (p.ej. volver a subir el mismo
+  archivo con el nombre en otro casing) NO dispara una versión falsa — es
+  formato incidental, no contenido real, la misma categoría que el orden de
+  arrays (SR-01). El contenido real de un anexo vive en `url`/`sha256`, que
+  SIGUEN comparándose tal cual (sensibles a cualquier cambio, sin
+  excepción): un cambio de hash o de URL del mismo anexo SIEMPRE dispara
+  `anexos`/versión nueva. `title`/`contractingEntity`/
+  `classifier.description` NO usan este casefold (el casing sí puede ser
+  semánticamente significativo ahí).
 - `InMemoryTenderVersionStore`: historial **append-only** (nunca se
   sobreescribe una versión), idempotente ante replay exacto (mismo
   `versionHash` -> no crea versión ni dispara evento), y emite
@@ -227,13 +310,36 @@ produce, por fuente, un `SourceHealth` con estado explícito:
 
 `classifySourceFailure()` mapea automáticamente `HttpError`(401/403 ->
 `permission_missing`, 429 -> `rate_limited`, 5xx -> `down`),
-`HostPausedError` -> `permission_missing`, mensajes con "captcha" ->
-`captcha_detected`, `ZodError` (el parser no reconoce la estructura
-recibida) -> `interface_changed`, y cualquier otro error -> `down`. El
-`SourceHealth` conserva `lastSuccessAt` de la última corrida exitosa aunque
-la corrida actual falle, y expone `staleForMs` (frescura/obsolescencia)
-para que el back office pueda mostrarla visiblemente en vez de ocultar el
-problema.
+`HostPausedError` -> `permission_missing`, `CaptchaDetectedError` ->
+`captcha_detected`, `InterfaceChangedError`/`ZodError` (el parser no
+reconoce la estructura recibida) -> `interface_changed`, y cualquier otro
+error -> `down`. El `SourceHealth` conserva `lastSuccessAt` de la última
+corrida exitosa aunque la corrida actual falle, y expone `staleForMs`
+(frescura/obsolescencia) para que el back office pueda mostrarla
+visiblemente en vez de ocultar el problema.
+
+**`ResponseClassifier` (SR-14, ronda 2 de corrección)**:
+`src/http/response-classifier.ts`, `assertLegitimateResponseBody(body,
+{url, expected})`, común a todos los conectores. Antes de esta ronda, un
+`fetchImpl` que devolviera **HTTP 200 real** con un cuerpo HTML de
+captcha/bot-challenge (escenario que este mismo README documenta como real
+para PDN-S6/Zenedge) hacía que el parser de turno simplemente no encontrara
+nada, y `DiscoveryPipeline` reportaba `health.state = "ok"` / "0 nuevas" —
+indistinguible de una corrida real sin novedades, la violación exacta que
+REQ-148 prohíbe. `assertLegitimateResponseBody()`:
+
+- Lanza `CaptchaDetectedError` si el cuerpo contiene un marcador reconocido
+  de reCAPTCHA/hCaptcha/Cloudflare (`cf-challenge`, "checking your
+  browser...")/Zenedge/mensajes en español ("verificar/verifica que no eres
+  un robot") — sin importar el formato esperado.
+- Lanza `InterfaceChangedError` si se esperaba `json`/`csv` y el cuerpo
+  tiene forma de documento HTML sin ningún marcador de captcha reconocido
+  (cambio de interfaz de la fuente, o un bloqueo genérico no identificado).
+
+Se invoca en `DofConnector` (expected `"text"`, el único conector de
+scraping de texto/HTML de hoy), `ComprasMxConnector`, `create-ocds-connector.ts`
+(compartido por `OcdsShcpConnector`/`PdnS6Connector`), `StatePortalConnector`
+(expected `"json"`) y `ComprasMxHistoricalCsvConnector` (expected `"csv"`).
 
 ## Pipeline de descubrimiento
 
@@ -299,7 +405,9 @@ npm run -w packages/sources test
 npm run -w packages/sources build
 ```
 
-Salida real de la primera corrida en `docs/logs/sources-ronda1.log`.
+Salida real de la primera corrida en `docs/logs/sources-ronda1.log`; ronda
+2 de corrección (SR-12..SR-18, ver `docs/auditoria-1/sources-reverificacion.md`)
+en `docs/logs/fix-sources-ronda2.log`.
 
 ## Pendientes explícitos (no inventar integración real)
 

@@ -6,6 +6,8 @@ export * from "./util/text.js";
 export * from "./util/hash.js";
 export * from "./util/csv.js";
 export * from "./util/timezone.js";
+export * from "./util/encoding.js";
+export * from "./util/schema.js";
 
 // Deduplicación y versionado
 export * from "./dedupe/fingerprint.js";
@@ -15,6 +17,7 @@ export * from "./dedupe/version.js";
 export * from "./http/http-client.js";
 export * from "./http/host-throttle.js";
 export * from "./http/retry.js";
+export * from "./http/response-classifier.js";
 
 // Conectores
 export * from "./connectors/types.js";
