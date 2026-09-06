@@ -99,9 +99,13 @@ export async function organizationRoutes(app: FastifyInstance): Promise<void> {
       const userId = request.userId!;
       const { rows } = await app.db.transaction(async (tx) => {
         await tx.query('set local role app_role');
+        // DB-12 (docs/auditoria-1/db-api-reverificacion.md): `app.my_organizations`
+        // ya no acepta un `user_id` arbitrario -- siempre resuelve las
+        // organizaciones del `app.current_user_id()` fijado aquí (el propio
+        // actor autenticado, nunca un valor de entrada del cliente).
+        await tx.query("select set_config('app.current_user_id', $1, true)", [userId]);
         return tx.query<{ org_id: string; org_name: string; org_slug: string; role: string }>(
-          'select * from app.my_organizations($1)',
-          [userId]
+          'select * from app.my_organizations()'
         );
       });
       return rows.map((r) => ({ id: r.org_id, name: r.org_name, slug: r.org_slug, role: r.role as any }));
