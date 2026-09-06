@@ -75,3 +75,4 @@
 2026-09-06 02:45  DESPERTAR  web↔api ronda 3 (#42) completado 63 unit + 89 E2E reales; despachados #64 (api ronda 4) y #65 (auditoría web integrado); en curso #62,#63.
 2026-09-06 02:54  DESPERTAR  expediente micro AE (#63) 413 tests; AE-08/AE-11 cableado → #64; en curso #62,#64,#65.
 2026-09-06 03:02  DESPERTAR  reverificación api auditoría 2 (#62): 7 resueltos, AE-14/API-14/AE-15 → #64; en curso #64,#65.
+2026-09-06 03:11  DESPERTAR  auditoría web integrado (#65) WI-01..05 importada a main; corrector web #66 despachado; WI-01/04 lado API → #64; en curso #64,#66.
