@@ -21,3 +21,4 @@
 2026-09-05 19:38  DESPERTAR  auditoría sources (#19) 11 hallazgos (3A/5M/3B); corrector #23 despachado; en curso #14,#17,#18,#20,#21,#22.
 2026-09-05 19:39  DESPERTAR  #21 verificación legal completada (6V/11M/4NV/3NA; D-07); en curso #14,#17,#18,#20,#22,#23.
 2026-09-05 19:40  INCIDENTE  REQUISITOS.md revertido en árbol por agente concurrente; restaurado a HEAD verificado (INC-01).
+2026-09-05 19:53  DESPERTAR  auditoría worker (#22) 12 hallazgos (4A/4M/4B); corrector #24 despachado; en curso #14,#17,#18,#20,#23.
