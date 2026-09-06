@@ -1,0 +1,244 @@
+AUDITORÍA ADVERSARIAL — Login con Google (OIDC) — REQ-172..180
+Agente: audit-api-google (Sonnet, worktree aislado)
+Repo: /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging
+Worktree de trabajo: <scratchpad>/audit-google (HEAD = 1969ff9, detached)
+Inicio: 2026-09-06 19:37 UTC
+
+================================================================
+RUBRO 1 — Reproducibilidad
+================================================================
+
+$ cd apps/api && npm run typecheck
+> tsc --noEmit
+(sin salida — limpio)
+
+$ cd apps/api && npm run lint
+> eslint src test
+(sin salida — limpio)
+
+$ cd apps/api && npx vitest run
+Test Files  1 failed | 65 passed (66)
+     Tests  1 failed | 273 passed (274)
+FAIL test/expediente-documents-and-matrix.test.ts >
+  "sube un PDF real con texto, lo extrae vía pdf-parse y construye la matriz
+  de requisitos"
+  AssertionError: expected 'failed' to be 'extracted'
+
+  Repetido en aislamiento (npx vitest run test/expediente-documents-and-matrix.test.ts):
+  MISMO resultado (1 failed | 3 passed de 4) -- ya NO es el flake aislado que
+  docs/logs/api-google.log (commit 3cc1a07) documentó como "observado una vez
+  en ejecución aislada y ausente en las dos corridas completas". En este
+  worktree (HEAD=1969ff9) falla de forma reproducible. Es la MISMA área que
+  el repo principal tiene actualmente modificada sin commitear
+  (contract-extraction.ts/text-extraction.ts/storage.ts, ver `git status`
+  del repo principal al momento de esta auditoría) -- indica que el fix real
+  de esa extracción PDF vive sin commitear en el árbol de trabajo principal,
+  no en HEAD. FUERA DE ALCANCE de esta auditoría (no toca
+  modules/auth/google/**), se deja constancia porque afecta el número total
+  reportado.
+
+  Conteo total observado (274) vs el citado en el despacho (278): diferencia
+  de 4 tests NO explicada por diffs en apps/api/test entre 3cc1a07 y HEAD
+  (`git log`/`git diff --stat` vacíos para ese path) -- se descarta que sea
+  por archivos de prueba distintos. Con el único fallo real siendo 1 test,
+  la diferencia de 4 respecto a 278 permanece sin explicación certera dentro
+  del presupuesto de esta ronda; no se investigó más a fondo por ser un área
+  no relacionada con Google OIDC. Ver hallazgo GO-08 (informe .md) para el
+  veredicto formal.
+
+  google-oidc-login.test.ts EN AISLAMIENTO: 11/11 verdes.
+  $ npx vitest run test/google-oidc-login.test.ts
+  Test Files  1 passed (1)
+       Tests  11 passed (11)
+
+$ cd packages/db && npm run typecheck && npm run lint
+(ambos limpios, sin salida)
+
+$ cd packages/db && npx vitest run
+Test Files  26 passed (26)
+     Tests  185 passed (185)
+-- COINCIDE EXACTO con el número citado en el despacho (185). Incluye:
+   - migrate.test.ts: "aplican todas sin error" + "se pueden aplicar dos
+     veces sin error (idempotente)" -- cubre 0071/0072 dentro del lote
+     completo de migraciones.
+   - req172-google-oidc.test.ts (funciones SECURITY DEFINER nuevas).
+   - security-definer-audit.test.ts (lista blanca completa, incluye las 4
+     funciones nuevas de 0071 con justificación).
+
+VEREDICTO RUBRO 1: db 100% reproducible (185/185, exacto). api: típecheck y
+lint limpios, la suite de Google (11/11) 100% verde y reproducible en
+aislamiento; el número total de la suite completa (274, no 278) está
+contaminado por trabajo NO relacionado con Google en curso en el repo
+(expediente/extracción de texto) -- no se cuenta como hallazgo de Google,
+solo como nota de contexto (ver GO-08 en el informe).
+
+Verificación idempotencia migraciones 0071/0072 en aislamiento:
+$ cd packages/db && npx vitest run test/migrate.test.ts
+Test Files  1 passed (1)
+     Tests  4 passed (4)
+-- "se pueden aplicar dos veces sin error (idempotente): la segunda vez no
+   repite nada" pasa con 0071/0072 incluidas en el lote. Confirmado también
+   manualmente: ambos archivos SQL usan `create table if not exists` /
+   `create or replace function` / `drop policy if exists` -- ningún DDL no
+   idempotente.
+
+================================================================
+RUBRO 1b — Funciones SECURITY DEFINER nuevas (lista blanca + candado)
+================================================================
+
+Cuatro funciones nuevas en 0071 (`app.create_oauth_state`,
+`app.consume_oauth_state`, `app.find_identity_by_subject`,
+`app.accept_pending_invitations_for_user`), las 4 en la lista blanca de
+packages/db/test/security-definer-audit.test.ts con justificación específica.
+
+Intento de "romper" app.accept_pending_invitations_for_user (única función
+del lote que acepta un `user_id` como parámetro externo -- superficie de
+ataque obvia: "aceptar las invitaciones pendientes de OTRO usuario"):
+
+1. Lectura del candado (0071, líneas 140-152):
+     if app.current_user_id() is null or app.current_user_id() <> p_user_id then
+       raise exception 'accept_pending_invitations_actor_mismatch';
+     end if;
+   -- test packages/db/test/req172-google-oidc.test.ts línea 139-145 ya
+   ejerce el ataque directo (actor != p_user_id → excepción) y línea 147-152
+   (sin sesión fijada → también rechaza). Repetido a mano contra PGlite
+   fresco fuera de la suite (mismo resultado, ambas rutas lanzan):
+     $ node --experimental-vm-modules ... (ver script ad-hoc, descartado tras confirmar)
+   Confirmado: NO hay bypass vía SQL directo con app_role + current_user_id
+   ajeno.
+
+2. Único punto de llamada real en apps/api (grep exhaustivo de
+   modules/auth/google/routes.ts): la función se invoca DENTRO de la MISMA
+   transacción que ya ejecutó
+   `select set_config('app.current_user_id', $1, true)` con el `userId`
+   RECIÉN INSERTADO por la propia transacción (nunca un id de entrada del
+   cliente) -- no hay ninguna otra ruta en apps/api que la invoque con un
+   `p_user_id` distinto de `app.current_user_id()`. Intento de forjar la
+   llamada saltándose ese `set_config` (p.ej. reordenando mentalmente el
+   código para ver si algún branch llama a `accept_pending_invitations_for_user`
+   ANTES de fijar el contexto): no existe tal branch -- las 3 ramas de
+   `resolveGoogleIdentity` (identidad ya vinculada / vinculación por email /
+   usuario nuevo) fijan `app.current_user_id` ANTES de cualquier operación
+   sensible, y solo la rama "usuario nuevo" llama a
+   `accept_pending_invitations_for_user`, con el `userId` que ELLA MISMA
+   generó (`randomUUID()`) e insertó dos líneas antes.
+
+3. Intento de condición de carrera: dos logins de Google concurrentes con
+   el MISMO email nunca antes registrado -- el flujo de Google resuelve
+   primero `find_user_by_email` (pre-sesión, SECURITY DEFINER) DENTRO de
+   la transacción antes de decidir "crear usuario nuevo"; dos
+   transacciones concurrentes podrían en teoría ambas ver "no existe"
+   antes de que ninguna haga commit. CORRECCIÓN tras revisar el esquema
+   (packages/db/migrations/0002_core_tenancy.sql:57): `users` SÍ tiene
+   `create unique index ux_users_email_lower on users (lower(email))` --
+   la carrera NO produce dos filas duplicadas (Postgres lo impide a nivel
+   de esquema), pero SÍ hace que la segunda transacción reciba una
+   violación `23505` que el código de Google no captura (a diferencia del
+   registro por email+contraseña, que sí la captura explícitamente) --
+   ver hallazgo GO-07 más abajo. Esto es un problema de manejo de errores/
+   robustez, no de la función SECURITY DEFINER en sí:
+   `accept_pending_invitations_for_user` seguiría respetando su propio
+   candado en la transacción que sí gane, con su `userId` legítimo.
+
+VEREDICTO: el candado de `accept_pending_invitations_for_user` RESISTE el
+intento de ruptura. Comprobado correcto (ver GO-lista de "correctos" en el
+informe .md). Hallazgo relacionado pero DISTINTO detectado en el intento de
+ruptura: posible condición de carrera de creación de usuario duplicado por
+email en alta concurrencia -- ver GO-07.
+
+(continúa en informe .md -- rubros 2-6 con hallazgos GO-01..GOxx)
+
+================================================================
+RUBRO 2 — Ataques OIDC contra el proveedor falso (8 pruebas ad-hoc)
+================================================================
+Archivo temporal: apps/api/test/zzz-audit-google-adversarial.test.ts
+(escrito, ejecutado, BORRADO -- nunca commiteado).
+
+$ npx vitest run test/zzz-audit-google-adversarial.test.ts
+Test Files  1 passed (1)
+     Tests  8 passed (8)
+
+Casos:
+ - PKCE code_challenge ajeno (no corresponde al code_verifier real
+   guardado server-side) -> 401, 0 cuentas.
+ - state firmado con clave derivada de otro JWT_SECRET -> 400.
+ - id_token expirado (expiresInSeconds: -60) -> 401, 0 cuentas.
+ - id_token firmado con clave RSA propia del atacante (no en el JWKS) ->
+   verifyGoogleIdToken lanza.
+ - id_token alg=none sin firma -> verifyGoogleIdToken lanza.
+ - id_token con iss de OTRO proveedor OIDC completo (propio JWKS) ->
+   verifyGoogleIdToken lanza al verificar contra el issuer/JWKS
+   configurado.
+ - Email con normalización de mayúsculas (Normaliza@Example.com contra
+   normaliza@example.com ya registrada) -> vincula, 1 sola cuenta,
+   status 200 sin_acceso (log: "RESULTADO normalizacion mayusculas:
+   status= 200 usuarios= 1").
+ - (diagnóstico) iat futuro: no se pudo forjar sin la clave privada real
+   del provider; jose no lo rechaza por sí solo sin maxTokenAge -- no se
+   eleva a hallazgo, exp sigue acotando la ventana.
+
+================================================================
+RUBRO 5 — Configuración: sin credenciales de Google
+================================================================
+Archivos temporales: apps/api/test/zzz-audit-google-config.test.ts,
+zzz-audit-google-config2.test.ts (escritos, ejecutados, BORRADOS).
+
+$ npx vitest run test/zzz-audit-google-config.test.ts
+STATUS start sin creds: 503 BODY: {"type":".../google-oidc-not-configured",
+  "title":"Login con Google no configurado: faltan
+  GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET/GOOGLE_REDIRECT_URI. ...",
+  "status":503, ...}
+Tests  2 passed (2)
+
+$ npx vitest run test/zzz-audit-google-config2.test.ts
+(state válido obtenido CON credenciales, luego GOOGLE_CLIENT_ID retirado
+ antes de golpear /callback con ese state)
+STATUS callback con creds retiradas: 503 BODY: {"type":
+  ".../google-oidc-not-configured", ..., "status":503}
+Tests  1 passed (1)
+
+Confirmado: 503 honesto en ambos endpoints, nunca 500, ningún secreto en
+el cuerpo de la respuesta.
+
+================================================================
+RUBRO 3 — Rate limit tier auth
+================================================================
+Archivo temporal: apps/api/test/zzz-audit-google-ratelimit.test.ts
+(escrito, ejecutado, BORRADO).
+
+$ npx vitest run test/zzz-audit-google-ratelimit.test.ts
+statuses: [ 200, 200, 200, 200, 200, 429 ]
+Tests  1 passed (1)
+
+Perfil default (rateLimitSettings.auth = { max: 5, timeWindow: '1 minute' }),
+6a petición a GET /auth/google/start en <1min -> 429. Confirma que el
+tier auth aplica igual que al resto de endpoints de autenticación.
+
+================================================================
+RUBRO 6 — Regresión
+================================================================
+$ cd apps/web && npm run typecheck   -> tsc -b --noEmit, sin salida (limpio)
+$ cd apps/worker && npm run typecheck -> tsc --noEmit, sin salida (limpio)
+
+================================================================
+Verificaciones de código adicionales (sin ejecutar, revisión directa)
+================================================================
+- grep exhaustivo "returnTo" en modules/auth/google/** y apps/web/src:
+  0 resultados -- no existe tal parámetro, sin superficie de open redirect.
+- grep exhaustivo "unlink|disconnect|desvincul" + "google" en
+  apps/api/src/modules y apps/web/src: 0 resultados -- no existe endpoint
+  de desvinculación (ver GO-09).
+- grep "Continuar con Google"/"/auth/google" en apps/web/src/pages/LoginPage.tsx:
+  0 resultados -- botón de REQ-172 no implementado en el frontend (ver GO-02),
+  coincide con docs/ACEPTACION.md (REQ-172 = PENDIENTE, "Sin código").
+- apps/api/src/modules/auth/routes.ts:130 (UNIQUE_VIOLATION = '23505')
+  capturado explícitamente en /auth/register; apps/api/src/modules/auth/google/routes.ts
+  líneas 177-182 y 194-198 (INSERT INTO user_identities / INSERT INTO users)
+  SIN try/catch equivalente -- ver GO-07.
+- packages/db/migrations/0002_core_tenancy.sql:57 confirma
+  "create unique index if not exists ux_users_email_lower on users
+  (lower(email))" -- la restricción única que GO-07 podría violar bajo
+  carrera real SÍ existe a nivel de esquema.
+
+Fin de la auditoría: 2026-09-06 19:52 UTC (aprox).
+Worktree eliminado al terminar (git worktree remove).
