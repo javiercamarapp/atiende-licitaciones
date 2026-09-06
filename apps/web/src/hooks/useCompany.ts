@@ -164,3 +164,19 @@ export function useRejectRate() {
     },
   });
 }
+
+/**
+ * Solo lectura (ronda 5): usada como selector de fuente al mapear la
+ * propuesta técnica en Redacción (kind="experience" de
+ * `POST .../proposal/technical/generate`). apps/api expone CRUD completo en
+ * `/company/experience`, pero esta ronda no agrega una pantalla propia de
+ * gestión de experiencia -- fuera del alcance despachado.
+ */
+export function useExperience() {
+  const { currentOrgId } = useAuth();
+  return useQuery({
+    queryKey: ["company", "experience", currentOrgId],
+    queryFn: () => api.listExperience(currentOrgId!),
+    enabled: Boolean(currentOrgId),
+  });
+}

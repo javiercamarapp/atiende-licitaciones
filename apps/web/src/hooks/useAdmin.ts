@@ -56,3 +56,32 @@ export function useResolveAdminIncident() {
 export function useAdminApprovals() {
   return useQuery({ queryKey: ["admin", "approvals"], queryFn: api.listAdminApprovals });
 }
+
+// Ronda 5: aprobación cross-org real de tool_calls (antes esta pantalla era
+// de solo lectura -- ver docstring de AprobacionesBackofficePage.tsx).
+export function useApproveAdminToolCall() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.approveAdminToolCall(id),
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["admin", "approvals"] });
+    },
+  });
+}
+
+export function useDenyAdminToolCall() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.denyAdminToolCall(id),
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["admin", "approvals"] });
+    },
+  });
+}
+
+export function useAdminAuditLog(filters: api.AdminAuditLogFilters = {}) {
+  return useQuery({
+    queryKey: ["admin", "audit-log", filters],
+    queryFn: () => api.listAdminAuditLog(filters),
+  });
+}
