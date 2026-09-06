@@ -39,5 +39,13 @@ describe("ExpedientePage", () => {
 
     expect(await screen.findByText("Análisis de bases")).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: /Ir al módulo/ }).length).toBeGreaterThan(3);
-  }, 20000);
+    // Timeout propio, más generoso que la mayoría de este tipo de prueba
+    // (ver docs/logs/fix-web-coverage.log y el comentario en vite.config.ts):
+    // esta página monta el resumen de LOS 8 módulos del expediente (más
+    // enlaces/queries que una página individual) -- medido en aislamiento
+    // total, sin `--coverage` este archivo no necesita más de ~1s tras
+    // abrir el <Select/>, pero CON `--coverage` el costo real de abrirlo
+    // (subiendo este timeout a 120000ms para verlo terminar sin corte) fue
+    // de ~32s. 60s deja casi 2x de margen sobre ese costo medido.
+  }, 60000);
 });

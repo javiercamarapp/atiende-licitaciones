@@ -37,5 +37,12 @@ describe("EntregasPage", () => {
     await user.click(await screen.findByRole("option", { name: TENDER.title }));
 
     expect(await screen.findByRole("heading", { name: "Declarar presentación" })).toBeInTheDocument();
-  }, 20000);
+    // Timeout propio (ver docs/logs/fix-web-coverage.log y el comentario en
+    // vite.config.ts): abrir este <Select/> real de Radix como primera
+    // acción de la prueba paga, bajo `--coverage`, un costo medido de
+    // ~17-20s en aislamiento total (sin ningún otro worker corriendo) -- no
+    // es una condición de carrera de este test, es el mismo costo que
+    // reproducen TODAS las pruebas que abren un <Select/> como primera
+    // interacción. 45s deja margen (~2x) sobre ese costo medido.
+  }, 45000);
 });

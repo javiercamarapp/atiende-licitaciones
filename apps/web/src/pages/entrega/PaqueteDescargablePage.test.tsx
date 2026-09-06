@@ -51,7 +51,12 @@ describe("PaqueteDescargablePage", () => {
     expect(await screen.findByText("Borrador")).toBeInTheDocument();
     expect(screen.queryByText("Listo para presentar")).not.toBeInTheDocument();
     expect(screen.getByText("Checklist no está en verde")).toBeInTheDocument();
-  }, 20000);
+    // Timeout propio (ver docs/logs/fix-web-coverage.log y el comentario en
+    // vite.config.ts): abrir este <Select/> real de Radix como primera
+    // acción paga, bajo `--coverage`, un costo medido de ~17-20s en
+    // aislamiento total -- no es un bug de esta prueba. 45s deja ~2x de
+    // margen sobre ese costo medido.
+  }, 45000);
 
   it("muestra 'Listo para presentar' solo cuando el servidor deriva 'ready'", async () => {
     const user = userEvent.setup();
@@ -72,5 +77,6 @@ describe("PaqueteDescargablePage", () => {
     await user.click(await screen.findByRole("option", { name: TENDER.title }));
 
     await waitFor(() => expect(screen.getByText("Listo para presentar")).toBeInTheDocument());
-  }, 20000);
+    // Timeout propio: ver comentario arriba y en vite.config.ts.
+  }, 45000);
 });

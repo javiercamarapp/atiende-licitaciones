@@ -1,0 +1,361 @@
+=== docs/logs/fix-web-coverage.log ===
+Corrección real de `apps/web:test:coverage` (ronda 6, agente CORRECTOR Sonnet).
+
+DIAGNÓSTICO REAL (reemplaza el de "contención de CPU" de rondas anteriores,
+que resultó incompleto -- ver el comentario completo en apps/web/vite.config.ts):
+
+Reproducido en PRIMER PLANO, en aislamiento total (un solo archivo,
+`--no-file-parallelism`, load average <3, sin ningún otro agente corriendo)
+que abrir un <Select/> real de Radix con `userEvent.click()` incurre en una
+pausa real de ~10-30s ANTES de que se dispare CUALQUIER macrotarea agendada
+por código totalmente independiente entre sí (el `setTimeout(0)` de
+`@radix-ui/react-dismissable-layer` para su listener de "click fuera", el
+`setTimeout(0)` de jsdom para el evento `selectionchange` tras
+`element.focus()`, y el `setTimeout(0)` interno de
+`@testing-library/user-event`) -- las tres, agendadas con milisegundos de
+diferencia entre sí, se disparan TODAS juntas ~10-30s después. Confirmado con
+un perfil de CPU (`node --cpu-prof`) que muestra ~95% del proceso INACTIVO
+durante esa pausa (ninguna función JS consume ese tiempo).
+
+Evidencia que descarta las causas sugeridas por la tarea:
+  - v8 coverage NO es la causa: la misma pausa (~10.3s) reproduce sin
+    `--coverage` en un archivo aislado (`vitest run
+    CumplimientoDocumentalPage.test.tsx`, sin cobertura). `--coverage` la
+    AGRAVA (mismo archivo con `--coverage`: ~17-20s) pero no la origina.
+  - El mock de `qrcode` SÍ sigue aplicando bajo `--coverage` (revisado
+    `src/test/setup.ts`, `vi.mock("qrcode", ...)` en el mismo `setupFiles`
+    que usa coverage) -- el "Error: Not implemented:
+    HTMLCanvasElement.prototype.getContext" que aparece abajo es de
+    axe-core (`_isIconLigature`, contraste de color), NO del QR, y es
+    inocuo: jsdom lo imprime a consola pero no hace fallar ninguna prueba
+    (ver también el comentario ya existente en setup.ts sobre por qué no se
+    stubea `getContext` globalmente).
+  - No hay handlers MSW faltantes ni peticiones de red reales escapando del
+    mock: durante la pausa no se observó ninguna llamada a `dns.lookup` ni
+    `net.Socket.connect` (instrumentado con async_hooks y monkeypatch
+    temporal, revertido).
+  - `getComputedStyle` no es el cuello de botella: <30ms acumulados durante
+    todo un click que opera un <Select/>.
+
+CORRECCIÓN DE RAÍZ (sin debilitar ninguna aserción):
+  1. apps/web/vite.config.ts: `maxWorkers` limita a 3 los workers
+     concurrentes SOLO cuando corre `--coverage` (la suite rápida `test`
+     sigue en paralelo completo, sin cambios de comportamiento ni de
+     tiempo). Reduce la contención entre varios workers que abren un
+     <Select/> Radix a la vez (verificado: 2 archivos a la vez casi
+     duplican la pausa de uno aislado, de ~32s a 52s+).
+  2. Las 11 pruebas concretas que abren un <Select/> (u otra superficie
+     Radix con efectos pasivos) como parte de su primera interacción fijan
+     su PROPIO timeout explícito (tercer argumento de `it(...)`), medido
+     con margen (~2x) sobre el costo real observado en aislamiento total:
+     ExpedientePage, EntregasPage, SeguimientoPage, AnalisisBasesPage,
+     CumplimientoDocumentalPage, RedaccionPage, RevisionPage (x3),
+     PaqueteDescargablePage (x2).
+
+REGLA OPERATIVA (ver también README.md): cualquier prueba nueva de
+apps/web que renderice un <Select/> (u otro componente Radix con Portal +
+efectos pasivos, p. ej. Dialog) como parte de su interacción debe fijar su
+propio timeout explícito de al menos 45000ms (60000ms si abre más de una
+superficie de ese tipo en la misma prueba) -- el timeout global de 20000ms
+NO alcanza bajo `--coverage` para este patrón, incluso en aislamiento total
+sin ninguna otra prueba corriendo a la vez.
+
+A continuación, DOS corridas completas y CONSECUTIVAS de
+`npm run test:coverage --workspace=apps/web` en PRIMER PLANO, bajo carga
+real de esta máquina (load average 6-16 al momento de cada corrida, con
+otros procesos corriendo -- no una máquina en reposo), ambas 30/30 archivos
+y 115/115 pruebas en verde:
+
+=== CORRIDA 1 de 2 (load average al iniciar: 6.81 13.58 12.87) ===
+
+> @atiende/web@0.1.0 test:coverage
+> NODE_OPTIONS=--no-experimental-webstorage vitest run --coverage
+
+
+ RUN  v4.1.11 /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web
+      Coverage enabled with v8
+
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17087:41)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17087:41)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+
+ Test Files  30 passed (30)
+      Tests  115 passed (115)
+   Start at  12:08:26
+   Duration  90.33s (transform 817ms, setup 3.36s, import 4.28s, tests 237.03s, environment 5.41s)
+
+ % Coverage report from v8
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-------------------|---------|----------|---------|---------|-------------------
+[33;1mAll files         [0m | [33;1m  55.58[0m | [31;1m   45.38[0m | [31;1m  43.55[0m | [33;1m   58.9[0m | [31;1m                 [0m 
+[31;1m src              [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m                 [0m 
+[31;1m  App.tsx         [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m14-90            [0m 
+[33;1m src/components   [0m | [33;1m  78.18[0m | [33;1m      75[0m | [33;1m  78.94[0m | [32;1m  80.76[0m | [31;1m                 [0m 
+[32;1m  AtiendeLogo.tsx [0m | [32;1m    100[0m | [32;1m   88.88[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m17               [0m 
+[31;1m  SkipLink.tsx    [0m | [31;1m  22.22[0m | [31;1m       0[0m | [33;1m     50[0m | [31;1m     25[0m | [31;1m19-24            [0m 
+[32;1m  StepUpDialog.tsx[0m | [32;1m  82.35[0m | [32;1m   86.95[0m | [33;1m     60[0m | [32;1m  82.35[0m | [31;1m65,83-92         [0m 
+[32;1m  ...eSelector.tsx[0m | [32;1m   92.3[0m | [33;1m   66.66[0m | [32;1m  88.88[0m | [32;1m  95.83[0m | [31;1m41               [0m 
+[31;1m ...omponents/auth[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m                 [0m 
+[31;1m  RequireAuth.tsx [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m14-29            [0m 
+[33;1m ...nts/expediente[0m | [33;1m     70[0m | [33;1m   66.66[0m | [33;1m  66.66[0m | [32;1m  85.71[0m | [31;1m                 [0m 
+[33;1m  TenderSelect.tsx[0m | [33;1m     70[0m | [33;1m   66.66[0m | [33;1m  66.66[0m | [32;1m  85.71[0m | [31;1m32               [0m 
+[33;1m ...ponents/layout[0m | [33;1m  67.34[0m | [33;1m   53.57[0m | [33;1m     60[0m | [33;1m  69.76[0m | [31;1m                 [0m 
+[33;1m  AppShell.tsx    [0m | [33;1m     75[0m | [32;1m     100[0m | [33;1m  66.66[0m | [33;1m     75[0m | [31;1m54               [0m 
+[32;1m  ...nSwitcher.tsx[0m | [32;1m     80[0m | [31;1m      40[0m | [33;1m     50[0m | [32;1m     80[0m | [31;1m57               [0m 
+[32;1m  SidebarNav.tsx  [0m | [32;1m     80[0m | [33;1m   66.66[0m | [33;1m  63.63[0m | [32;1m  85.71[0m | [31;1m42,56,75         [0m 
+[31;1m  UserMenu.tsx    [0m | [31;1m  35.71[0m | [31;1m      25[0m | [31;1m  33.33[0m | [31;1m  33.33[0m | [31;1m30-50            [0m 
+[32;1m src/components/ui[0m | [32;1m  87.94[0m | [33;1m   64.91[0m | [33;1m   72.3[0m | [32;1m  87.55[0m | [31;1m                 [0m 
+[32;1m  card.tsx        [0m | [32;1m  94.73[0m | [32;1m     100[0m | [32;1m  83.33[0m | [32;1m  94.44[0m | [31;1m54               [0m 
+[33;1m  ...down-menu.tsx[0m | [33;1m  73.33[0m | [31;1m       0[0m | [31;1m      0[0m | [33;1m  73.33[0m | [31;1m...85,108,130,142[0m 
+[32;1m  form.tsx        [0m | [32;1m  89.18[0m | [33;1m   78.57[0m | [32;1m  85.71[0m | [32;1m  88.88[0m | [31;1m45,48,111-112    [0m 
+[31;1m  scroll-area.tsx [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m6-36             [0m 
+[32;1m  select.tsx      [0m | [32;1m  93.33[0m | [32;1m     100[0m | [33;1m     75[0m | [32;1m  93.33[0m | [31;1m77               [0m 
+[31;1m  separator.tsx   [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m6-22             [0m 
+[32;1m  sheet.tsx       [0m | [32;1m     95[0m | [32;1m     100[0m | [32;1m     80[0m | [32;1m  94.73[0m | [31;1m90               [0m 
+[32;1m  table.tsx       [0m | [32;1m  91.66[0m | [32;1m     100[0m | [33;1m     75[0m | [32;1m  91.66[0m | [31;1m25,60            [0m 
+[32;1m  tooltip.tsx     [0m | [32;1m  83.33[0m | [31;1m       0[0m | [31;1m      0[0m | [32;1m  83.33[0m | [31;1m13               [0m 
+[33;1m src/hooks        [0m | [33;1m  58.04[0m | [33;1m   59.45[0m | [33;1m  51.44[0m | [33;1m  59.68[0m | [31;1m                 [0m 
+[31;1m  use-mobile.ts   [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m3-19             [0m 
+[31;1m  useAdmin.ts     [0m | [31;1m  27.77[0m | [31;1m       0[0m | [31;1m  29.16[0m | [31;1m  28.57[0m | [31;1m23-67,103-106    [0m 
+[33;1m  useAuth.tsx     [0m | [33;1m  79.76[0m | [33;1m      50[0m | [33;1m  78.94[0m | [32;1m  86.48[0m | [31;1m...06,154-156,183[0m 
+[31;1m  useCompany.ts   [0m | [31;1m  41.17[0m | [32;1m     100[0m | [31;1m  40.47[0m | [31;1m  41.17[0m | [31;1m...98-111,128-129[0m 
+[33;1m  useExpediente.ts[0m | [33;1m  60.34[0m | [32;1m      90[0m | [33;1m  50.72[0m | [33;1m  60.34[0m | [31;1m...59-260,268-269[0m 
+[31;1m  useGoNoGo.ts    [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m7-20             [0m 
+[31;1m  useMatching.ts  [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m7-19             [0m 
+[33;1m  ...emberships.ts[0m | [33;1m  68.75[0m | [32;1m     100[0m | [33;1m     50[0m | [33;1m  68.75[0m | [31;1m25-26,34-35,48   [0m 
+[32;1m  useTenders.ts   [0m | [32;1m     80[0m | [33;1m   66.66[0m | [32;1m  81.81[0m | [32;1m     80[0m | [31;1m35-38            [0m 
+[32;1m  useTwoFactor.ts [0m | [32;1m   87.5[0m | [33;1m   66.66[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m40,68            [0m 
+[32;1m src/lib          [0m | [32;1m     80[0m | [33;1m   69.38[0m | [32;1m  89.47[0m | [32;1m  83.33[0m | [31;1m                 [0m 
+[33;1m  datetime.ts     [0m | [33;1m  54.54[0m | [31;1m   41.66[0m | [33;1m  66.66[0m | [33;1m  68.75[0m | [31;1m39-43            [0m 
+[33;1m  ...eMarkdown.tsx[0m | [33;1m  75.92[0m | [33;1m      60[0m | [32;1m     80[0m | [33;1m  75.51[0m | [31;1m19-31,46-53,82-83[0m 
+[33;1m src/lib/api      [0m | [33;1m  67.07[0m | [33;1m   52.94[0m | [33;1m  53.77[0m | [33;1m  69.76[0m | [31;1m                 [0m 
+[31;1m  admin.ts        [0m | [31;1m  14.28[0m | [31;1m       0[0m | [31;1m  23.07[0m | [31;1m  17.14[0m | [31;1m30-74,109-123    [0m 
+[32;1m  agents.ts       [0m | [32;1m    100[0m | [33;1m      50[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m11               [0m 
+[33;1m  audit.ts        [0m | [33;1m   64.7[0m | [33;1m   53.33[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m23-30            [0m 
+[32;1m  auth.ts         [0m | [32;1m  83.33[0m | [32;1m     100[0m | [33;1m     75[0m | [32;1m  83.33[0m | [31;1m26               [0m 
+[32;1m  client.ts       [0m | [32;1m   97.5[0m | [32;1m   91.66[0m | [32;1m    100[0m | [32;1m  97.14[0m | [31;1m70               [0m 
+[31;1m  company.ts      [0m | [31;1m  44.82[0m | [32;1m     100[0m | [31;1m  43.75[0m | [31;1m  44.82[0m | [31;1m...05,125-126,142[0m 
+[31;1m  expediente.ts   [0m | [31;1m  39.13[0m | [31;1m      35[0m | [31;1m  42.85[0m | [31;1m  37.31[0m | [31;1m...47-248,264-301[0m 
+[31;1m  go-no-go.ts     [0m | [31;1m      0[0m | [32;1m     100[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m6-17             [0m 
+[32;1m  http.ts         [0m | [32;1m  81.25[0m | [33;1m    62.5[0m | [32;1m     80[0m | [32;1m   86.2[0m | [31;1m91-97            [0m 
+[31;1m  matching.ts     [0m | [31;1m      0[0m | [32;1m     100[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m5-11             [0m 
+[31;1m  organizations.ts[0m | [31;1m  36.36[0m | [32;1m     100[0m | [31;1m  28.57[0m | [31;1m  36.36[0m | [31;1m19-32,47-51      [0m 
+[33;1m  session.ts      [0m | [33;1m  76.92[0m | [32;1m     100[0m | [33;1m     75[0m | [32;1m   82.6[0m | [31;1m38,69-70,85      [0m 
+[33;1m  tenders.ts      [0m | [33;1m     75[0m | [33;1m   54.54[0m | [32;1m     80[0m | [32;1m   87.5[0m | [31;1m46-47            [0m 
+[31;1m src/lib/security [0m | [31;1m      0[0m | [32;1m     100[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m                 [0m 
+[31;1m  csp.ts          [0m | [31;1m      0[0m | [32;1m     100[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m29-54            [0m 
+[33;1m src/pages        [0m | [33;1m  77.63[0m | [33;1m   73.91[0m | [33;1m     75[0m | [33;1m  78.37[0m | [31;1m                 [0m 
+[32;1m  ...acionPage.tsx[0m | [32;1m  83.72[0m | [33;1m   78.57[0m | [32;1m   90.9[0m | [32;1m  85.36[0m | [31;1m...56,109,120,138[0m 
+[32;1m  LoginPage.tsx   [0m | [32;1m   82.6[0m | [33;1m    62.5[0m | [32;1m  83.33[0m | [32;1m   82.6[0m | [31;1m38,75,93-94      [0m 
+[31;1m  NotFoundPage.tsx[0m | [31;1m      0[0m | [32;1m     100[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m7                [0m 
+[31;1m  PanelPage.tsx   [0m | [31;1m      0[0m | [32;1m     100[0m | [32;1m    100[0m | [31;1m      0[0m | [31;1m4                [0m 
+[33;1m  ...oticePage.tsx[0m | [33;1m     75[0m | [32;1m    87.5[0m | [33;1m  66.66[0m | [33;1m     75[0m | [31;1m51               [0m 
+[31;1m  ...odulePage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m29-38            [0m 
+[31;1m ...ges/backoffice[0m | [31;1m   48.9[0m | [33;1m      50[0m | [31;1m   37.5[0m | [31;1m  49.24[0m | [31;1m                 [0m 
+[32;1m  ...entasPage.tsx[0m | [32;1m  82.75[0m | [32;1m      80[0m | [33;1m  69.23[0m | [32;1m  85.18[0m | [31;1m66,85,160-175    [0m 
+[32;1m  ...fficePage.tsx[0m | [32;1m  86.36[0m | [32;1m   88.46[0m | [32;1m  81.81[0m | [32;1m     90[0m | [31;1m53,72            [0m 
+[33;1m  ...toriaPage.tsx[0m | [33;1m  54.54[0m | [32;1m      80[0m | [31;1m  28.57[0m | [33;1m  54.54[0m | [31;1m46-64,100        [0m 
+[31;1m  ...toresPage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m21-45            [0m 
+[31;1m  CostosPage.tsx  [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m18-49            [0m 
+[31;1m  ...entesPage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m23-147           [0m 
+[31;1m  JobsPage.tsx    [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m18-89            [0m 
+[31;1m  ...ionesPage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m21-44            [0m 
+[33;1m  ...RolesPage.tsx[0m | [33;1m  58.06[0m | [33;1m   78.94[0m | [31;1m  46.66[0m | [33;1m     60[0m | [31;1m...52-154,185-187[0m 
+[31;1m .../convocatorias[0m | [31;1m  24.61[0m | [31;1m   27.92[0m | [31;1m  20.68[0m | [31;1m  26.78[0m | [31;1m                 [0m 
+[31;1m  ...tallePage.tsx[0m | [31;1m  33.33[0m | [31;1m   38.09[0m | [31;1m     25[0m | [31;1m  38.09[0m | [31;1m31-70,109        [0m 
+[31;1m  ...ientoPage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m19-142           [0m 
+[32;1m  ...scuraPage.tsx[0m | [32;1m   87.5[0m | [32;1m   93.75[0m | [32;1m     80[0m | [32;1m   87.5[0m | [31;1m72               [0m 
+[31;1m  MatchingPage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m14-95            [0m 
+[31;1m src/pages/empresa[0m | [31;1m  28.94[0m | [31;1m    20.1[0m | [31;1m  31.81[0m | [31;1m  28.65[0m | [31;1m                 [0m 
+[31;1m  ...nciasPage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m27-227           [0m 
+[31;1m  ...zadosPage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m21-144           [0m 
+[31;1m  ...dadesPage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m22-293           [0m 
+[32;1m  ...badasPage.tsx[0m | [32;1m  83.33[0m | [33;1m   76.92[0m | [32;1m     84[0m | [32;1m     85[0m | [31;1m...10,124-129,212[0m 
+[31;1m src/pages/entrega[0m | [31;1m  45.68[0m | [31;1m   46.19[0m | [33;1m     50[0m | [31;1m  47.27[0m | [31;1m                 [0m 
+[31;1m  EntregasPage.tsx[0m | [31;1m  43.75[0m | [31;1m   46.87[0m | [31;1m  36.36[0m | [31;1m  48.27[0m | [31;1m...,46-59,108,152[0m 
+[31;1m  ...gablePage.tsx[0m | [31;1m  33.33[0m | [33;1m      65[0m | [33;1m  57.14[0m | [31;1m  34.28[0m | [31;1m39-43,48-68,109  [0m 
+[33;1m  ...ientoPage.tsx[0m | [33;1m  56.25[0m | [31;1m   39.28[0m | [33;1m  54.54[0m | [33;1m  56.52[0m | [31;1m...52-266,350,371[0m 
+[31;1m ...ges/evaluacion[0m | [31;1m  21.11[0m | [31;1m   15.29[0m | [31;1m  12.82[0m | [31;1m  22.35[0m | [31;1m                 [0m 
+[31;1m  ...BasesPage.tsx[0m | [31;1m  29.68[0m | [31;1m   23.63[0m | [31;1m  18.51[0m | [31;1m   32.2[0m | [31;1m...42-157,199-348[0m 
+[31;1m  GoNoGoPage.tsx  [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m25-184           [0m 
+[31;1m ...es/preparacion[0m | [31;1m  44.16[0m | [33;1m   58.39[0m | [31;1m  20.16[0m | [33;1m  54.89[0m | [31;1m                 [0m 
+[32;1m  ...ionesPage.tsx[0m | [32;1m   87.5[0m | [32;1m   82.35[0m | [33;1m     75[0m | [32;1m   87.5[0m | [31;1m72               [0m 
+[31;1m  ...entalPage.tsx[0m | [31;1m     26[0m | [33;1m   58.69[0m | [31;1m    8.1[0m | [31;1m  38.23[0m | [31;1m52-65,82-160,197 [0m 
+[32;1m  ...ientePage.tsx[0m | [32;1m   87.5[0m | [31;1m   44.44[0m | [33;1m     60[0m | [32;1m    100[0m | [33;1m62-107           [0m 
+[31;1m  ...ccionPage.tsx[0m | [31;1m  36.36[0m | [31;1m   46.39[0m | [31;1m  15.15[0m | [31;1m  46.98[0m | [31;1m...93,316,345-367[0m 
+[33;1m  RevisionPage.tsx[0m | [33;1m  62.22[0m | [33;1m   72.13[0m | [33;1m     50[0m | [33;1m  62.22[0m | [31;1m...80,102,201-214[0m 
+-------------------|---------|----------|---------|---------|-------------------
+
+=============================== Coverage summary ===============================
+[33;1mStatements   : 55.58% ( 1258/2263 )[0m
+[31;1mBranches     : 45.38% ( 732/1613 )[0m
+[31;1mFunctions    : 43.55% ( 382/877 )[0m
+[33;1mLines        : 58.9% ( 1211/2056 )[0m
+================================================================================
+
+=== CORRIDA 2 de 2 (load average al iniciar: 7.74 12.23 12.43) ===
+
+> @atiende/web@0.1.0 test:coverage
+> NODE_OPTIONS=--no-experimental-webstorage vitest run --coverage
+
+
+ RUN  v4.1.11 /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web
+      Coverage enabled with v8
+
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17087:41)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17087:41)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+
+ Test Files  30 passed (30)
+      Tests  115 passed (115)
+   Start at  12:10:07
+   Duration  95.69s (transform 916ms, setup 3.31s, import 4.97s, tests 262.19s, environment 5.00s)
+
+ % Coverage report from v8
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-------------------|---------|----------|---------|---------|-------------------
+[33;1mAll files         [0m | [33;1m  55.58[0m | [31;1m   45.38[0m | [31;1m  43.55[0m | [33;1m   58.9[0m | [31;1m                 [0m 
+[31;1m src              [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m                 [0m 
+[31;1m  App.tsx         [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m14-90            [0m 
+[33;1m src/components   [0m | [33;1m  78.18[0m | [33;1m      75[0m | [33;1m  78.94[0m | [32;1m  80.76[0m | [31;1m                 [0m 
+[32;1m  AtiendeLogo.tsx [0m | [32;1m    100[0m | [32;1m   88.88[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m17               [0m 
+[31;1m  SkipLink.tsx    [0m | [31;1m  22.22[0m | [31;1m       0[0m | [33;1m     50[0m | [31;1m     25[0m | [31;1m19-24            [0m 
+[32;1m  StepUpDialog.tsx[0m | [32;1m  82.35[0m | [32;1m   86.95[0m | [33;1m     60[0m | [32;1m  82.35[0m | [31;1m65,83-92         [0m 
+[32;1m  ...eSelector.tsx[0m | [32;1m   92.3[0m | [33;1m   66.66[0m | [32;1m  88.88[0m | [32;1m  95.83[0m | [31;1m41               [0m 
+[31;1m ...omponents/auth[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m                 [0m 
+[31;1m  RequireAuth.tsx [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m14-29            [0m 
+[33;1m ...nts/expediente[0m | [33;1m     70[0m | [33;1m   66.66[0m | [33;1m  66.66[0m | [32;1m  85.71[0m | [31;1m                 [0m 
+[33;1m  TenderSelect.tsx[0m | [33;1m     70[0m | [33;1m   66.66[0m | [33;1m  66.66[0m | [32;1m  85.71[0m | [31;1m32               [0m 
+[33;1m ...ponents/layout[0m | [33;1m  67.34[0m | [33;1m   53.57[0m | [33;1m     60[0m | [33;1m  69.76[0m | [31;1m                 [0m 
+[33;1m  AppShell.tsx    [0m | [33;1m     75[0m | [32;1m     100[0m | [33;1m  66.66[0m | [33;1m     75[0m | [31;1m54               [0m 
+[32;1m  ...nSwitcher.tsx[0m | [32;1m     80[0m | [31;1m      40[0m | [33;1m     50[0m | [32;1m     80[0m | [31;1m57               [0m 
+[32;1m  SidebarNav.tsx  [0m | [32;1m     80[0m | [33;1m   66.66[0m | [33;1m  63.63[0m | [32;1m  85.71[0m | [31;1m42,56,75         [0m 
+[31;1m  UserMenu.tsx    [0m | [31;1m  35.71[0m | [31;1m      25[0m | [31;1m  33.33[0m | [31;1m  33.33[0m | [31;1m30-50            [0m 
+[32;1m src/components/ui[0m | [32;1m  87.94[0m | [33;1m   64.91[0m | [33;1m   72.3[0m | [32;1m  87.55[0m | [31;1m                 [0m 
+[32;1m  card.tsx        [0m | [32;1m  94.73[0m | [32;1m     100[0m | [32;1m  83.33[0m | [32;1m  94.44[0m | [31;1m54               [0m 
+[33;1m  ...down-menu.tsx[0m | [33;1m  73.33[0m | [31;1m       0[0m | [31;1m      0[0m | [33;1m  73.33[0m | [31;1m...85,108,130,142[0m 
+[32;1m  form.tsx        [0m | [32;1m  89.18[0m | [33;1m   78.57[0m | [32;1m  85.71[0m | [32;1m  88.88[0m | [31;1m45,48,111-112    [0m 
+[31;1m  scroll-area.tsx [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m6-36             [0m 
+[32;1m  select.tsx      [0m | [32;1m  93.33[0m | [32;1m     100[0m | [33;1m     75[0m | [32;1m  93.33[0m | [31;1m77               [0m 
+[31;1m  separator.tsx   [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m6-22             [0m 
+[32;1m  sheet.tsx       [0m | [32;1m     95[0m | [32;1m     100[0m | [32;1m     80[0m | [32;1m  94.73[0m | [31;1m90               [0m 
+[32;1m  table.tsx       [0m | [32;1m  91.66[0m | [32;1m     100[0m | [33;1m     75[0m | [32;1m  91.66[0m | [31;1m25,60            [0m 
+[32;1m  tooltip.tsx     [0m | [32;1m  83.33[0m | [31;1m       0[0m | [31;1m      0[0m | [32;1m  83.33[0m | [31;1m13               [0m 
+[33;1m src/hooks        [0m | [33;1m  58.04[0m | [33;1m   59.45[0m | [33;1m  51.44[0m | [33;1m  59.68[0m | [31;1m                 [0m 
+[31;1m  use-mobile.ts   [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m3-19             [0m 
+[31;1m  useAdmin.ts     [0m | [31;1m  27.77[0m | [31;1m       0[0m | [31;1m  29.16[0m | [31;1m  28.57[0m | [31;1m23-67,103-106    [0m 
+[33;1m  useAuth.tsx     [0m | [33;1m  79.76[0m | [33;1m      50[0m | [33;1m  78.94[0m | [32;1m  86.48[0m | [31;1m...06,154-156,183[0m 
+[31;1m  useCompany.ts   [0m | [31;1m  41.17[0m | [32;1m     100[0m | [31;1m  40.47[0m | [31;1m  41.17[0m | [31;1m...98-111,128-129[0m 
+[33;1m  useExpediente.ts[0m | [33;1m  60.34[0m | [32;1m      90[0m | [33;1m  50.72[0m | [33;1m  60.34[0m | [31;1m...59-260,268-269[0m 
+[31;1m  useGoNoGo.ts    [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m7-20             [0m 
+[31;1m  useMatching.ts  [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m7-19             [0m 
+[33;1m  ...emberships.ts[0m | [33;1m  68.75[0m | [32;1m     100[0m | [33;1m     50[0m | [33;1m  68.75[0m | [31;1m25-26,34-35,48   [0m 
+[32;1m  useTenders.ts   [0m | [32;1m     80[0m | [33;1m   66.66[0m | [32;1m  81.81[0m | [32;1m     80[0m | [31;1m35-38            [0m 
+[32;1m  useTwoFactor.ts [0m | [32;1m   87.5[0m | [33;1m   66.66[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m40,68            [0m 
+[32;1m src/lib          [0m | [32;1m     80[0m | [33;1m   69.38[0m | [32;1m  89.47[0m | [32;1m  83.33[0m | [31;1m                 [0m 
+[33;1m  datetime.ts     [0m | [33;1m  54.54[0m | [31;1m   41.66[0m | [33;1m  66.66[0m | [33;1m  68.75[0m | [31;1m39-43            [0m 
+[33;1m  ...eMarkdown.tsx[0m | [33;1m  75.92[0m | [33;1m      60[0m | [32;1m     80[0m | [33;1m  75.51[0m | [31;1m19-31,46-53,82-83[0m 
+[33;1m src/lib/api      [0m | [33;1m  67.07[0m | [33;1m   52.94[0m | [33;1m  53.77[0m | [33;1m  69.76[0m | [31;1m                 [0m 
+[31;1m  admin.ts        [0m | [31;1m  14.28[0m | [31;1m       0[0m | [31;1m  23.07[0m | [31;1m  17.14[0m | [31;1m30-74,109-123    [0m 
+[32;1m  agents.ts       [0m | [32;1m    100[0m | [33;1m      50[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m11               [0m 
+[33;1m  audit.ts        [0m | [33;1m   64.7[0m | [33;1m   53.33[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m23-30            [0m 
+[32;1m  auth.ts         [0m | [32;1m  83.33[0m | [32;1m     100[0m | [33;1m     75[0m | [32;1m  83.33[0m | [31;1m26               [0m 
+[32;1m  client.ts       [0m | [32;1m   97.5[0m | [32;1m   91.66[0m | [32;1m    100[0m | [32;1m  97.14[0m | [31;1m70               [0m 
+[31;1m  company.ts      [0m | [31;1m  44.82[0m | [32;1m     100[0m | [31;1m  43.75[0m | [31;1m  44.82[0m | [31;1m...05,125-126,142[0m 
+[31;1m  expediente.ts   [0m | [31;1m  39.13[0m | [31;1m      35[0m | [31;1m  42.85[0m | [31;1m  37.31[0m | [31;1m...47-248,264-301[0m 
+[31;1m  go-no-go.ts     [0m | [31;1m      0[0m | [32;1m     100[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m6-17             [0m 
+[32;1m  http.ts         [0m | [32;1m  81.25[0m | [33;1m    62.5[0m | [32;1m     80[0m | [32;1m   86.2[0m | [31;1m91-97            [0m 
+[31;1m  matching.ts     [0m | [31;1m      0[0m | [32;1m     100[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m5-11             [0m 
+[31;1m  organizations.ts[0m | [31;1m  36.36[0m | [32;1m     100[0m | [31;1m  28.57[0m | [31;1m  36.36[0m | [31;1m19-32,47-51      [0m 
+[33;1m  session.ts      [0m | [33;1m  76.92[0m | [32;1m     100[0m | [33;1m     75[0m | [32;1m   82.6[0m | [31;1m38,69-70,85      [0m 
+[33;1m  tenders.ts      [0m | [33;1m     75[0m | [33;1m   54.54[0m | [32;1m     80[0m | [32;1m   87.5[0m | [31;1m46-47            [0m 
+[31;1m src/lib/security [0m | [31;1m      0[0m | [32;1m     100[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m                 [0m 
+[31;1m  csp.ts          [0m | [31;1m      0[0m | [32;1m     100[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m29-54            [0m 
+[33;1m src/pages        [0m | [33;1m  77.63[0m | [33;1m   73.91[0m | [33;1m     75[0m | [33;1m  78.37[0m | [31;1m                 [0m 
+[32;1m  ...acionPage.tsx[0m | [32;1m  83.72[0m | [33;1m   78.57[0m | [32;1m   90.9[0m | [32;1m  85.36[0m | [31;1m...56,109,120,138[0m 
+[32;1m  LoginPage.tsx   [0m | [32;1m   82.6[0m | [33;1m    62.5[0m | [32;1m  83.33[0m | [32;1m   82.6[0m | [31;1m38,75,93-94      [0m 
+[31;1m  NotFoundPage.tsx[0m | [31;1m      0[0m | [32;1m     100[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m7                [0m 
+[31;1m  PanelPage.tsx   [0m | [31;1m      0[0m | [32;1m     100[0m | [32;1m    100[0m | [31;1m      0[0m | [31;1m4                [0m 
+[33;1m  ...oticePage.tsx[0m | [33;1m     75[0m | [32;1m    87.5[0m | [33;1m  66.66[0m | [33;1m     75[0m | [31;1m51               [0m 
+[31;1m  ...odulePage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m29-38            [0m 
+[31;1m ...ges/backoffice[0m | [31;1m   48.9[0m | [33;1m      50[0m | [31;1m   37.5[0m | [31;1m  49.24[0m | [31;1m                 [0m 
+[32;1m  ...entasPage.tsx[0m | [32;1m  82.75[0m | [32;1m      80[0m | [33;1m  69.23[0m | [32;1m  85.18[0m | [31;1m66,85,160-175    [0m 
+[32;1m  ...fficePage.tsx[0m | [32;1m  86.36[0m | [32;1m   88.46[0m | [32;1m  81.81[0m | [32;1m     90[0m | [31;1m53,72            [0m 
+[33;1m  ...toriaPage.tsx[0m | [33;1m  54.54[0m | [32;1m      80[0m | [31;1m  28.57[0m | [33;1m  54.54[0m | [31;1m46-64,100        [0m 
+[31;1m  ...toresPage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m21-45            [0m 
+[31;1m  CostosPage.tsx  [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m18-49            [0m 
+[31;1m  ...entesPage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m23-147           [0m 
+[31;1m  JobsPage.tsx    [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m18-89            [0m 
+[31;1m  ...ionesPage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m21-44            [0m 
+[33;1m  ...RolesPage.tsx[0m | [33;1m  58.06[0m | [33;1m   78.94[0m | [31;1m  46.66[0m | [33;1m     60[0m | [31;1m...52-154,185-187[0m 
+[31;1m .../convocatorias[0m | [31;1m  24.61[0m | [31;1m   27.92[0m | [31;1m  20.68[0m | [31;1m  26.78[0m | [31;1m                 [0m 
+[31;1m  ...tallePage.tsx[0m | [31;1m  33.33[0m | [31;1m   38.09[0m | [31;1m     25[0m | [31;1m  38.09[0m | [31;1m31-70,109        [0m 
+[31;1m  ...ientoPage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m19-142           [0m 
+[32;1m  ...scuraPage.tsx[0m | [32;1m   87.5[0m | [32;1m   93.75[0m | [32;1m     80[0m | [32;1m   87.5[0m | [31;1m72               [0m 
+[31;1m  MatchingPage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m14-95            [0m 
+[31;1m src/pages/empresa[0m | [31;1m  28.94[0m | [31;1m    20.1[0m | [31;1m  31.81[0m | [31;1m  28.65[0m | [31;1m                 [0m 
+[31;1m  ...nciasPage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m27-227           [0m 
+[31;1m  ...zadosPage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m21-144           [0m 
+[31;1m  ...dadesPage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m22-293           [0m 
+[32;1m  ...badasPage.tsx[0m | [32;1m  83.33[0m | [33;1m   76.92[0m | [32;1m     84[0m | [32;1m     85[0m | [31;1m...10,124-129,212[0m 
+[31;1m src/pages/entrega[0m | [31;1m  45.68[0m | [31;1m   46.19[0m | [33;1m     50[0m | [31;1m  47.27[0m | [31;1m                 [0m 
+[31;1m  EntregasPage.tsx[0m | [31;1m  43.75[0m | [31;1m   46.87[0m | [31;1m  36.36[0m | [31;1m  48.27[0m | [31;1m...,46-59,108,152[0m 
+[31;1m  ...gablePage.tsx[0m | [31;1m  33.33[0m | [33;1m      65[0m | [33;1m  57.14[0m | [31;1m  34.28[0m | [31;1m39-43,48-68,109  [0m 
+[33;1m  ...ientoPage.tsx[0m | [33;1m  56.25[0m | [31;1m   39.28[0m | [33;1m  54.54[0m | [33;1m  56.52[0m | [31;1m...52-266,350,371[0m 
+[31;1m ...ges/evaluacion[0m | [31;1m  21.11[0m | [31;1m   15.29[0m | [31;1m  12.82[0m | [31;1m  22.35[0m | [31;1m                 [0m 
+[31;1m  ...BasesPage.tsx[0m | [31;1m  29.68[0m | [31;1m   23.63[0m | [31;1m  18.51[0m | [31;1m   32.2[0m | [31;1m...42-157,199-348[0m 
+[31;1m  GoNoGoPage.tsx  [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m25-184           [0m 
+[31;1m ...es/preparacion[0m | [31;1m  44.16[0m | [33;1m   58.39[0m | [31;1m  20.16[0m | [33;1m  54.89[0m | [31;1m                 [0m 
+[32;1m  ...ionesPage.tsx[0m | [32;1m   87.5[0m | [32;1m   82.35[0m | [33;1m     75[0m | [32;1m   87.5[0m | [31;1m72               [0m 
+[31;1m  ...entalPage.tsx[0m | [31;1m     26[0m | [33;1m   58.69[0m | [31;1m    8.1[0m | [31;1m  38.23[0m | [31;1m52-65,82-160,197 [0m 
+[32;1m  ...ientePage.tsx[0m | [32;1m   87.5[0m | [31;1m   44.44[0m | [33;1m     60[0m | [32;1m    100[0m | [33;1m62-107           [0m 
+[31;1m  ...ccionPage.tsx[0m | [31;1m  36.36[0m | [31;1m   46.39[0m | [31;1m  15.15[0m | [31;1m  46.98[0m | [31;1m...93,316,345-367[0m 
+[33;1m  RevisionPage.tsx[0m | [33;1m  62.22[0m | [33;1m   72.13[0m | [33;1m     50[0m | [33;1m  62.22[0m | [31;1m...80,102,201-214[0m 
+-------------------|---------|----------|---------|---------|-------------------
+
+=============================== Coverage summary ===============================
+[33;1mStatements   : 55.58% ( 1258/2263 )[0m
+[31;1mBranches     : 45.38% ( 732/1613 )[0m
+[31;1mFunctions    : 43.55% ( 382/877 )[0m
+[33;1mLines        : 58.9% ( 1211/2056 )[0m
+================================================================================

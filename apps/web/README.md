@@ -794,3 +794,58 @@ origen), así el navegador nunca ve la petición como cross-origin y el bug
 deja de bloquear la suite sin necesidad de tocar `apps/api`. Reportado para
 que quien mantenga `apps/api` agregue `methods: ['GET','HEAD','PUT','PATCH','POST','DELETE']`
 (o equivalente) a su registro de `@fastify/cors`.
+
+## `test:coverage` fallaba por timeout: causa real y regla operativa (ronda 6)
+
+Corrida completa de `npm run test:coverage --workspace=apps/web` fallaba de
+forma consistente (10-11 pruebas en 8 archivos, todas con "Test timed out
+in 20000ms") en varias corridas de `ci-local.sh`. El diagnóstico previo
+("contención de CPU entre workers") era incompleto: la causa real, medida
+en aislamiento total y sin ningún otro proceso corriendo (ver
+`docs/logs/fix-web-coverage.log` para la evidencia completa), es que **abrir
+un `<Select/>` real de Radix con `userEvent.click()` incurre en una pausa
+real del propio bucle de eventos de Node de ~10-30s** en esta combinación
+de Node v25.6.1 + jsdom + Vitest 4, confirmada con un perfil de CPU
+(~95% del proceso inactivo durante la pausa: no es cómputo real) y con
+`setTimeout(0)` de tres fuentes independientes entre sí (Radix
+`DismissableLayer`, `selectionchange` de jsdom, `user-event`) que se
+disparan todos juntos recién al final de esa pausa. `--coverage` no
+origina esta pausa (reproduce igual sin cobertura) pero SÍ la agrava, y
+sobre todo la **contención entre varios workers de Vitest abriendo un
+`<Select/>` a la vez la multiplica** (un archivo que tarda ~32s aislado
+llegó a 52s+ corriendo junto a un segundo archivo).
+
+Se descartaron explícitamente como causa: el mock de `qrcode` (sigue
+aplicando bajo cobertura, en el mismo `setupFiles`), handlers de MSW
+faltantes (sin peticiones de red reales durante la pausa, verificado sin
+`dns.lookup` ni `net.Socket.connect`) y el costo de `getComputedStyle`
+(<30ms acumulados). El "Error: Not implemented:
+HTMLCanvasElement.prototype.getContext" que sigue apareciendo en el log es
+de `axe-core` (contraste de color, no del QR) y es inocuo — jsdom lo
+imprime a consola pero ninguna prueba falla por eso.
+
+Corrección aplicada (sin debilitar ninguna aserción):
+
+1. `vite.config.ts` fija `maxWorkers: 3` **solo cuando corre `--coverage`**
+   (detectado con `process.argv.includes("--coverage")`) — la suite rápida
+   `test` sin cobertura, que no sufre esta contención, sigue en paralelo
+   completo y sin cambios de tiempo.
+2. Las pruebas que abren un `<Select/>` (u otra superficie Radix con
+   Portal + efectos pasivos) como parte de su primera interacción fijan su
+   propio timeout explícito (tercer argumento de `it(...)`, 45000-60000ms
+   según el costo medido), en vez de depender del `testTimeout` global de
+   20000ms.
+
+**Regla operativa para pruebas nuevas**: cualquier prueba de `apps/web` que
+renderice un `<Select/>` u otro componente Radix con Portal + efectos
+pasivos (p. ej. `Dialog`) como parte de su interacción debe fijar su propio
+timeout explícito de al menos 45000ms (60000ms si abre más de una
+superficie de ese tipo en la misma prueba, p. ej. un `<Select/>` y luego un
+`Dialog` de step-up) — el timeout global de 20000ms no alcanza bajo
+`--coverage` para este patrón, incluso en aislamiento total.
+
+Verificado con dos corridas completas y consecutivas de
+`npm run test:coverage --workspace=apps/web` en primer plano, bajo carga
+real de esta máquina (load average 12-16, no una máquina en reposo): 30/30
+archivos y 115/115 pruebas en verde ambas veces (log completo en
+`docs/logs/fix-web-coverage.log`).

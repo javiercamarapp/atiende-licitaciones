@@ -132,36 +132,68 @@ export default defineConfig(({ command }) => ({
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
     css: true,
-    // Ronda 5: los módulos nuevos del expediente interactúan con un
-    // <Select/> real (Radix) + varias queries react-query encadenadas por
-    // prueba (convocatoria → recurso). Bajo contención real de CPU (workers
-    // de vitest en paralelo, sandbox compartido), una prueba individual que
-    // en aislamiento toma 5-10s puede tardar más que el `testTimeout` por
-    // defecto (5s) sin que haya ningún bug real -- `retry: 1` deja que una
-    // prueba genuinamente rota siga fallando dos veces seguidas, mientras
-    // absorbe ese ruido de entorno en vez de mostrar un rojo espurio.
+    // Ronda 6 (docs/logs/fix-web-coverage.log, corrigiendo el diagnóstico
+    // de "contención de CPU" de rondas anteriores, que resultó incompleto):
+    // reproducido en PRIMER PLANO, en aislamiento total (un solo archivo,
+    // `--no-file-parallelism`, load average <3 en esta máquina, sin ningún
+    // otro agente corriendo) que abrir un <Select/> real (Radix) con
+    // `userEvent.click()` incurre en una pausa real de ~10-30s ANTES de que
+    // se dispare CUALQUIER macrotarea agendada por código totalmente
+    // independiente (el propio `setTimeout(0)` de
+    // `@radix-ui/react-dismissable-layer` para registrar su listener de
+    // "click fuera", el `setTimeout(0)` de jsdom para el evento
+    // `selectionchange` tras `element.focus()`, y el `setTimeout(0)` interno
+    // de `@testing-library/user-event`) -- las tres, agendadas con ms de
+    // diferencia entre sí, se disparan TODAS juntas ~10-30s después,
+    // confirmado con un perfil de CPU (`--cpu-prof`) que muestra ~95% del
+    // proceso inactivo (no hay ninguna función JS consumiendo ese tiempo).
+    // Es decir: NO es CPU real quemándose en instrumentación v8, ni
+    // `getComputedStyle` (medido: <30ms acumulados), ni una petición de red
+    // real escapándose del mock de MSW (sin llamadas a `dns.lookup` ni
+    // `net.Socket.connect` durante la pausa) -- es el propio bucle de
+    // eventos de Node quedándose sin atender su cola de timers durante ese
+    // tramo, en esta combinación concreta de Node v25.6.1 + jsdom + Vitest 4
+    // al montar un <Portal/> con efectos pasivos (commitPassiveMountOnFiber)
+    // la PRIMERA vez que una prueba abre un desplegable Radix.
     //
-    // docs/logs/fix-web-ci4.log: reproducido en vivo -- `vitest run` (sin
-    // `--coverage`) pasa 114-115/115 en ~40s TANTO en un run limpio COMO
-    // bajo la contención real de esta máquina (load average ~10 en 10
-    // cores, con el reverificador de otro agente corriendo Playwright/Chrome
-    // en paralelo -- el equipo de CPU está compartido, ver README). Solo
-    // `vitest run --coverage` (instrumentación v8, más CPU por archivo) llegó
-    // a fallar por timeout bajo esa MISMA contención, y en cada intento
-    // fallaron pruebas DISTINTAS (EntregasPage/AnalisisBasesPage/... en un
-    // intento; RevisionPage/PaqueteDescargablePage en otro) -- ninguna
-    // prueba concreta falla de forma reproducible; es contención real de
-    // CPU, no un `waitFor` con condición imposible ni un handler MSW
-    // faltante. NO se sube este valor: los archivos que efectivamente
-    // fallaron bajo `--coverage` fijan su PROPIO timeout explícito como
-    // tercer argumento de `it(...)` (p. ej. `RevisionPage.test.tsx`,
-    // `EntregasPage.test.tsx`), que gana sobre este default global -- subir
-    // este número no les habría cambiado nada (verificado: se probó en 45s
-    // y las mismas pruebas siguieron fallando a los 20s de SU propio
-    // timeout). Tocar esos timeouts por archivo queda fuera del ámbito de
-    // esta corrección (solo el componente de QR y este archivo de config).
+    // Esto YA ocurre sin `--coverage` (confirmado: `vitest run
+    // CumplimientoDocumentalPage.test.tsx` sin cobertura, un solo archivo,
+    // tarda ~10.3s de los cuales ~10.2s son esta pausa) -- `--coverage`
+    // no la CAUSA, pero SÍ la agrava (mismo archivo con `--coverage`: ~17s) y,
+    // sobre todo, la CONTENCIÓN entre varios workers de vitest corriendo en
+    // paralelo bajo `--coverage` la multiplica: el mismo archivo aislado
+    // (ExpedientePage.test.tsx) que tarda ~32s de verdad en solitario (medido
+    // subiendo su timeout a 120000ms para verlo terminar sin corte) llegó a
+    // 52s+ corriendo junto a un segundo archivo. `retry: 1` no absorbe esto
+    // de forma fiable porque la pausa se repite en el reintento.
+    //
+    // Corrección de raíz aplicada aquí (sin debilitar ninguna aserción):
+    // 1) `maxWorkers` limita los workers concurrentes SOLO cuando corre
+    //    `--coverage` (la suite rápida `test` sin cobertura, que no sufre
+    //    contención real, sigue en paralelo completo) -- reduce cuántas
+    //    pruebas pueden pisarse esta misma pausa a la vez.
+    // 2) Las pruebas concretas que abren un <Select/> como primera acción
+    //    (identificadas y listadas en cada archivo afectado) fijan su PROPIO
+    //    timeout explícito, medido con margen sobre el costo real observado
+    //    en aislamiento (ver comentarios en cada `it(..., N)`), en vez de
+    //    depender de este valor global.
     testTimeout: 20000,
     retry: 1,
+    // Solo aplica bajo --coverage: sin este límite, el número de workers
+    // ronda el de CPUs de la máquina (10 aquí), y cada worker que abre un
+    // <Select/> Radix puede pisar la misma pausa de ~10-30s descrita arriba
+    // -- verificado que con 2 archivos a la vez la pausa de uno aislado
+    // casi se duplica (32s -> 52s+). Serializar del todo (1 worker) evita
+    // esa contención por completo pero vuelve el job de cobertura ~4-5x más
+    // lento (~9min para los 30 archivos, medido); 3 es el punto medio
+    // verificado en docs/logs/fix-web-coverage.log: dos corridas completas
+    // y consecutivas de `test:coverage` en PRIMER PLANO -- bajo carga real
+    // de esta máquina (load average 12-16, con otros procesos corriendo, no
+    // una máquina en reposo) -- pasaron 115/115 ambas veces con este
+    // límite. (Nota: `poolOptions.forks.maxForks` hace lo mismo pero Vitest
+    // 4.1.11 lo marca DEPRECATED en cada corrida -- `maxWorkers` es la
+    // forma top-level soportada.)
+    maxWorkers: process.argv.includes("--coverage") ? 3 : undefined,
     // La suite Playwright/axe vive en e2e/ (W-14) y usa su propio test
     // runner (`playwright test`, ver playwright.config.ts) — sin esta
     // exclusión, vitest intenta correr esos *.spec.ts con su runtime jsdom y

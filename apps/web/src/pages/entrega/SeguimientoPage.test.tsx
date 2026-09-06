@@ -52,5 +52,10 @@ describe("SeguimientoPage", () => {
 
     expect(await screen.findByText(/Calendario de días hábiles/)).toBeInTheDocument();
     expect(screen.getByText(/Régimen legal: LAASSP Art. 73/)).toBeInTheDocument();
-  }, 20000);
+    // Timeout propio (ver docs/logs/fix-web-coverage.log y el comentario en
+    // vite.config.ts): abrir este <Select/> real de Radix como primera
+    // acción paga, bajo `--coverage`, un costo medido de ~17-20s en
+    // aislamiento total -- no es un bug de esta prueba. 45s deja ~2x de
+    // margen sobre ese costo medido.
+  }, 45000);
 });

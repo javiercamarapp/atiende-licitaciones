@@ -49,7 +49,13 @@ describe("AnalisisBasesPage", () => {
 
     expect(await screen.findByText("bases.pdf")).toBeInTheDocument();
     expect(screen.getByText("Requiere OCR (no disponible en esta ronda)")).toBeInTheDocument();
-  }, 20000);
+    // Timeout propio (ver docs/logs/fix-web-coverage.log y el comentario en
+    // vite.config.ts): abrir este <Select/> real de Radix como primera
+    // acción paga, bajo `--coverage`, un costo medido en aislamiento total
+    // (subiendo este timeout a 120000ms para verlo terminar sin corte) de
+    // ~27s -- más que el resto de páginas del expediente. 60s deja más de
+    // 2x de margen sobre ese costo medido.
+  }, 60000);
 
   it("muestra el aviso de uso de IA (REQ-115)", async () => {
     renderWithProviders(<AnalisisBasesPage />);
