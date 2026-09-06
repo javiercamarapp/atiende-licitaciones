@@ -1,4 +1,4 @@
-import { canonicalizeWhitespaceAndUnicode, hashRawPayload, stableStringify } from "../util/hash.js";
+import { canonicalizeVersionKey, canonicalizeWhitespaceAndUnicode, hashRawPayload, stableStringify } from "../util/hash.js";
 import { sourceKey, type Attachment, type Classifier, type TenderRecord } from "../types/tender-record.js";
 
 /** Categorías de cambio detectadas entre dos versiones consecutivas de la MISMA convocatoria (ampliación §3). */
@@ -11,13 +11,17 @@ export type ChangeKind = "bases" | "aclaraciones" | "anexos" | "plazos" | "estat
  * estable (`scheme:code`) para que reordenar el array SIN cambiar su
  * contenido no altere el hash. También normaliza espacios/unicode (NFC) de
  * `code`/`description` para que diferencias incidentales de formato no
- * disparen una versión falsa.
+ * disparen una versión falsa. `code` usa `canonicalizeVersionKey` (SR-18,
+ * NFD + casefold), no solo `canonicalizeWhitespaceAndUnicode`: un cambio
+ * SOLO de mayúsculas/acentos en el código de un clasificador no debe
+ * disparar una versión falsa, mientras que `description` conserva
+ * mayúsculas (puede ser semánticamente significativo).
  */
 function canonicalClassifiers(classifiers: Classifier[]): Classifier[] {
   return [...classifiers]
     .map((c) => ({
       ...c,
-      code: canonicalizeWhitespaceAndUnicode(c.code),
+      code: canonicalizeVersionKey(c.code),
       description: c.description !== undefined ? canonicalizeWhitespaceAndUnicode(c.description) : c.description,
     }))
     .sort((a, b) => `${a.scheme}:${a.code}`.localeCompare(`${b.scheme}:${b.code}`));
@@ -25,12 +29,16 @@ function canonicalClassifiers(classifiers: Classifier[]): Classifier[] {
 
 /**
  * Canonicaliza `attachments[]` para comparación/hash (SR-01): ordena por una
- * clave estable (`url` si existe, si no `name`) y normaliza espacios/unicode
- * del `name`, por la misma razón que `canonicalClassifiers`.
+ * clave estable (`url` si existe, si no `name`) y normaliza el `name` con
+ * `canonicalizeVersionKey` (SR-18, NFD + casefold): un cambio SOLO de
+ * mayúsculas/acentos en el nombre de un anexo (p.ej. volver a subir el
+ * mismo archivo con el nombre en otro casing) no es un cambio de contenido
+ * real -- el contenido real vive en `url`/`sha256`, que siguen
+ * comparándose tal cual (sensibles a cualquier cambio).
  */
 function canonicalAttachments(attachments: Attachment[]): Attachment[] {
   return [...attachments]
-    .map((a) => ({ ...a, name: canonicalizeWhitespaceAndUnicode(a.name) }))
+    .map((a) => ({ ...a, name: canonicalizeVersionKey(a.name) }))
     .sort((a, b) => `${a.url ?? ""}:${a.name}`.localeCompare(`${b.url ?? ""}:${b.name}`));
 }
 

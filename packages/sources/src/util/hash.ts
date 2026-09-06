@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { stripAccents } from "./text.js";
 
 /** sha256 hex de una cadena UTF-8. */
 export function sha256Hex(input: string): string {
@@ -19,6 +20,29 @@ export function sha256Hex(input: string): string {
  */
 export function canonicalizeWhitespaceAndUnicode(input: string): string {
   return input.normalize("NFC").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Normaliza una CLAVE de anexo/clasificador para comparación de VERSIÓN
+ * (SR-18): a diferencia de `canonicalizeWhitespaceAndUnicode` (deliberadamente
+ * sensible a mayúsculas/acentos, usada para `title`/`contractingEntity` y el
+ * resto del contenido, donde el casing SÍ puede ser semánticamente
+ * significativo), esta función además pliega diacríticos y mayúsculas.
+ *
+ * Criterio de diseño explícito (documentado también en el README): un
+ * cambio SOLO de mayúsculas o acentos en `attachments[].name` o
+ * `classifiers[].code` (p.ej. volver a subir el mismo archivo con el nombre
+ * en "ANEXO TÉCNICO" en vez de "Anexo Técnico") NO es un cambio de
+ * CONTENIDO real de ese anexo/clasificador -- es formato incidental del
+ * nombre del archivo/código, igual que el orden de un array (SR-01) o los
+ * espacios/forma unicode ya cubiertos arriba. El contenido real de un anexo
+ * vive en `url`/`sha256`, que SIGUEN comparándose tal cual (sensibles a
+ * cualquier cambio, sin excepción): esta función nunca se aplica a esos
+ * campos, solo a la CLAVE de nombre/código usada para ordenar y comparar el
+ * conjunto.
+ */
+export function canonicalizeVersionKey(input: string): string {
+  return stripAccents(canonicalizeWhitespaceAndUnicode(input).toLowerCase());
 }
 
 /**

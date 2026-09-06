@@ -188,6 +188,44 @@ describe("SR-01: hash de versión canónico (orden de arrays/espacios/unicode no
   });
 });
 
+describe("SR-18: cambios SOLO de mayúsculas/acentos en attachments[].name o classifiers[].code NO deben disparar versión (pero hash/URL de anexo SÍ)", () => {
+  it("cambiar SOLO mayúsculas/acentos en attachments[].name no produce un versionHash distinto ni dispara 'anexos'", () => {
+    const previous = baseRecord({ attachments: [{ name: "Anexo Tecnico", url: "https://example.gob.mx/anexo.pdf" }] });
+    const next = baseRecord({ attachments: [{ name: "ANEXO TÉCNICO", url: "https://example.gob.mx/anexo.pdf" }] });
+    expect(computeVersionHash(previous)).toBe(computeVersionHash(next));
+    expect(detectChanges(previous, next)).not.toContain("anexos");
+  });
+
+  it("cambiar el hash/URL del anexo (aunque el nombre no cambie) SÍ produce un versionHash distinto y dispara 'anexos'", () => {
+    const previous = baseRecord({ attachments: [{ name: "Anexo Técnico", url: "https://example.gob.mx/anexo-v1.pdf" }] });
+    const next = baseRecord({ attachments: [{ name: "Anexo Técnico", url: "https://example.gob.mx/anexo-v2.pdf" }] });
+    expect(computeVersionHash(previous)).not.toBe(computeVersionHash(next));
+    expect(detectChanges(previous, next)).toContain("anexos");
+  });
+
+  it("cambiar el sha256 del MISMO anexo (mismo name/url) SÍ produce un versionHash distinto", () => {
+    const previous = baseRecord({
+      attachments: [{ name: "Anexo Técnico", url: "https://example.gob.mx/anexo.pdf", sha256: "a".repeat(64) }],
+    });
+    const next = baseRecord({
+      attachments: [{ name: "Anexo Técnico", url: "https://example.gob.mx/anexo.pdf", sha256: "b".repeat(64) }],
+    });
+    expect(computeVersionHash(previous)).not.toBe(computeVersionHash(next));
+  });
+
+  it("cambiar SOLO mayúsculas/acentos en classifiers[].code no produce un versionHash distinto", () => {
+    const previous = baseRecord({ classifiers: [{ scheme: "UNSPSC", code: "Adquisición" }] });
+    const next = baseRecord({ classifiers: [{ scheme: "UNSPSC", code: "ADQUISICION" }] });
+    expect(computeVersionHash(previous)).toBe(computeVersionHash(next));
+  });
+
+  it("un cambio real de classifiers[].code (no solo de formato) SÍ produce un versionHash distinto", () => {
+    const previous = baseRecord({ classifiers: [{ scheme: "UNSPSC", code: "43211500" }] });
+    const next = baseRecord({ classifiers: [{ scheme: "UNSPSC", code: "43211600" }] });
+    expect(computeVersionHash(previous)).not.toBe(computeVersionHash(next));
+  });
+});
+
 describe("InMemoryTenderVersionStore (ampliación §3: nueva publicación, replay idempotente, modificación con plazo adelantado)", () => {
   it("caso 'nueva publicación': la primera versión no dispara ChangeDetected", () => {
     const store = new InMemoryTenderVersionStore();
