@@ -2,6 +2,32 @@ import type { ActionKind, AuthorizationDecision, Role, RiskLevel } from "./types
 import { RISK_LEVEL_ORDER } from "./types.js";
 
 /**
+ * AG-04: `Object.freeze()` sobre un `Set` NO impide `.add()`/`.delete()`/
+ * `.clear()` — el freeze solo congela las propiedades propias del objeto,
+ * pero los métodos de `Set` operan sobre un slot interno que `freeze` no
+ * toca. Este `Proxy` es la única forma de hacer que un `Set` exportado sea
+ * REALMENTE inmutable en runtime: intercepta las 3 mutaciones y lanza,
+ * mientras deja pasar `has`/`values`/iteración/`size` sin cambios.
+ */
+function freezeSet<T>(source: Iterable<T>): ReadonlySet<T> {
+  const target = new Set(source);
+  return new Proxy(target, {
+    get(obj, prop) {
+      if (prop === "add" || prop === "delete" || prop === "clear") {
+        return () => {
+          throw new Error(
+            "Este Set es una constante congelada del núcleo de seguridad y no se puede modificar en runtime " +
+              "(AG-04): usa las opciones del constructor de AuthorizationPolicy para AÑADIR entradas.",
+          );
+        };
+      }
+      const value = Reflect.get(obj, prop, obj);
+      return typeof value === "function" ? value.bind(obj) : value;
+    },
+  }) as ReadonlySet<T>;
+}
+
+/**
  * Acciones "duras": ni siquiera pasan por HITL dentro del sistema. Por
  * docs/AMPLIACION-BACKOFFICE.md §6-8 y REQ-045/REQ-046: presentar/enviar
  * ofertas, firmar o suplantar firma, actuar en portales oficiales y
@@ -12,7 +38,7 @@ import { RISK_LEVEL_ORDER } from "./types.js";
  * —incluido `superadmin`/`system`— puede saltarla: se evalúa antes que el
  * techo de riesgo por rol y antes que las acciones "blandas" prohibidas.
  */
-export const DEFAULT_HARD_PROHIBITED_ACTIONS: ReadonlySet<string> = new Set([
+export const DEFAULT_HARD_PROHIBITED_ACTIONS: ReadonlySet<string> = freezeSet([
   "submit_proposal_to_portal",
   "submit_proposal_to_comprasmx",
   "send_proposal_externally",
@@ -32,7 +58,7 @@ export const DEFAULT_HARD_PROHIBITED_ACTIONS: ReadonlySet<string> = new Set([
  * duras — el sistema sí puede ejecutarlas una vez que un humano con el rol
  * correcto aprueba explícitamente vía `AgentRunner.resume()`.
  */
-export const DEFAULT_PROHIBITED_ACTIONS: ReadonlySet<string> = new Set([
+export const DEFAULT_PROHIBITED_ACTIONS: ReadonlySet<string> = freezeSet([
   "make_payment",
   "set_final_price",
   "issue_final_package",

@@ -169,6 +169,22 @@ describe("AuthorizationPolicy", () => {
       }
     });
 
+    it("AG-04 (MEDIA): DEFAULT_HARD_PROHIBITED_ACTIONS es realmente inmutable en runtime (no solo por tipos)", () => {
+      const mutable = DEFAULT_HARD_PROHIBITED_ACTIONS as unknown as Set<string>;
+      expect(() => mutable.add("cualquier_cosa")).toThrow();
+      expect(() => mutable.delete("sign_document")).toThrow();
+      expect(() => mutable.clear()).toThrow();
+      // Tras los intentos fallidos, el contenido sigue intacto.
+      expect(DEFAULT_HARD_PROHIBITED_ACTIONS.has("sign_document")).toBe(true);
+      expect(DEFAULT_HARD_PROHIBITED_ACTIONS.has("cualquier_cosa")).toBe(false);
+    });
+
+    it("AG-04: DEFAULT_PROHIBITED_ACTIONS también es inmutable en runtime", () => {
+      const mutable = DEFAULT_PROHIBITED_ACTIONS as unknown as Set<string>;
+      expect(() => mutable.add("otra_cosa")).toThrow();
+      expect(() => mutable.delete("make_payment")).toThrow();
+    });
+
     it("AG-01: actionKind read/write/payment con nombre inocuo NO se ve afectado por la prohibición dura por categoría", () => {
       const policy = new AuthorizationPolicy();
       for (const actionKind of ["read", "write"] as const) {
