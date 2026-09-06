@@ -47,12 +47,12 @@ src/
     source-runs-repository.ts  INSERT en `source_runs`
 test/
   helpers.ts                createMigratedDb (PGlite + migraciones reales), seedOrgAndUser
-  job-queue.test.ts          Reclamo atómico, backoff+jitter, dead letter, lease, idempotencia, WK-01/WK-10
-  scheduler.test.ts          Unicidad por (tipo, fuente, ventana), WK-04 (2 procesos concurrentes)
-  ingest-client.test.ts      Contra un servidor HTTP real (node:http), no un mock de fetch; WK-09
+  job-queue.test.ts          Reclamo atómico, backoff+jitter, dead letter, lease, idempotencia, WK-01/WK-10/WK-14
+  scheduler.test.ts          Unicidad por (tipo, fuente, ventana), WK-04 (lógica secuencial en PGlite) + WK-15 (SQL emitido; concurrencia real de motor PENDIENTE, ref. B-03)
+  ingest-client.test.ts      Contra un servidor HTTP real (node:http), no un mock de fetch; WK-09/WK-17 (tabla de verdad transitorio/permanente)
   discover-tenders-handler.test.ts  A1/A2/A4 (ver docs/ACEPTACION.md); WK-03/WK-05/WK-06
-  run-agent-handler.test.ts  Esqueleto de run_agent con FakeProvider; WK-08
-  worker-shutdown.test.ts    Cierre ordenado (SIGTERM), métricas, WK-02/WK-10
+  run-agent-handler.test.ts  Esqueleto de run_agent con FakeProvider; WK-08/WK-16
+  worker-shutdown.test.ts    Cierre ordenado (SIGTERM), métricas, WK-02/WK-10/WK-14
   config.test.ts             loadConfig() con env vacío/completo/inválido
   schedule-config.test.ts    loadScheduleConfig() con WORKER_SCHEDULE_JSON válido/inválido/vacío
 db-proposals/                Migraciones PENDIENTE esquema (fuera de mi ámbito tocar packages/db),
@@ -142,10 +142,27 @@ columna "Estado reparación" de `docs/auditoria-1/worker.md`, y
   misma `(kind, jobKey)` con `pg_advisory_xact_lock` dentro de una
   transacción: un segundo proceso con la misma clave se bloquea hasta que
   el primero haga COMMIT/ROLLBACK, momento en el cual su propio SELECT ya
-  ve la fila recién insertada. Verificado con 2 `Scheduler` concurrentes x
-  20 iteraciones sin duplicados (`test/scheduler.test.ts`, "WK-04"). El
-  índice único parcial sigue siendo la solución estructural definitiva,
-  propuesta en `db-proposals/PROPOSAL-02-jobs-dedupe-and-cancelled.sql`
+  ve la fila recién insertada.
+  **Nota de honestidad (WK-15, docs/auditoria-1/worker-reverificacion.md,
+  cierre de WK-04 PARCIAL)**: el SQL (`pg_advisory_xact_lock` transaccional)
+  es **correcto para Postgres real**; en **PGlite solo se verifica la
+  lógica secuencial** (que el código toma el lock, hace el SELECT y decide
+  bien "insertar" vs. "deduplicar" en el orden correcto), NO concurrencia de
+  motor real — PGlite (ver `packages/db/README.md` "Límites conocidos": una
+  sola conexión/proceso) serializa dos `db.transaction()` lanzados con
+  `Promise.all` de punta a punta, sin intercalado alguno, así que la carrera
+  que el advisory lock previene nunca llega a ocurrir en este entorno; el
+  test "dos Scheduler concurrentes... 20 iteraciones" (`test/scheduler.test.ts`,
+  "WK-04") pasaría idéntico sin el lock. Lo que SÍ está verificado en este
+  entorno, y es una garantía real, es que `enqueue()` emite exactamente el
+  SQL correcto: `test/scheduler.test.ts` ("WK-15") intercepta las sentencias
+  ejecutadas dentro de la transacción y confirma que contienen
+  `pg_advisory_xact_lock` con la clave estable `${kind}:${jobKey}`. La
+  verificación de concurrencia de motor REAL (Postgres de verdad, con
+  conexiones de sistema operativo reales compitiendo) queda **PENDIENTE**
+  hasta que exista un Postgres de pruebas en CI (ver "Pendientes" más abajo,
+  ref. B-03). El índice único parcial sigue siendo la solución estructural
+  definitiva, propuesta en `db-proposals/PROPOSAL-02-jobs-dedupe-and-cancelled.sql`
   (PENDIENTE esquema).
 - **Cancelación**: no hay estado `cancelled` en el enum `job_status` (ver
   "Pendientes"); `cancel()` usa `dead` con `last_error` describiendo el
@@ -359,21 +376,28 @@ para que `agent_runs` quede bajo RLS real. Migración propuesta en
 - **`jobs` no tiene columna/índice único para idempotencia real de
   `jobKey`** ni estado `cancelled` propio (se usa `dead`). Mitigación
   funcional YA aplicada sin migración (WK-04, ver arriba): `enqueue()`
-  serializa con `pg_advisory_xact_lock` transaccional, verificado con 2
-  procesos concurrentes x 20 iteraciones sin duplicados. El índice único
-  parcial `(kind, payload->>'jobKey') WHERE status IN ('queued','running')`
-  + `'cancelled'` en el enum `job_status` siguen siendo la solución
-  estructural definitiva, propuestos en
-  `db-proposals/PROPOSAL-02-jobs-dedupe-and-cancelled.sql` (PENDIENTE
+  serializa con `pg_advisory_xact_lock` transaccional — **SQL correcto para
+  Postgres real** (verificado por lectura de código y, ahora, por un test
+  que confirma el SQL exacto emitido, ver "WK-15" arriba); en **PGlite solo
+  se verificó la lógica secuencial**, nunca concurrencia de motor real (ver
+  nota WK-15 arriba). El índice único parcial `(kind, payload->>'jobKey')
+  WHERE status IN ('queued','running')` + `'cancelled'` en el enum
+  `job_status` siguen siendo la solución estructural definitiva, propuestos
+  en `db-proposals/PROPOSAL-02-jobs-dedupe-and-cancelled.sql` (PENDIENTE
   esquema).
-- **Concurrencia de sistema operativo real de `claim()`** no probada:
-  PGlite es una sola conexión/proceso (ver `packages/db/README.md`,
-  limitación ya documentada ahí). `test/job-queue.test.ts` prueba el mismo
-  invariante que protege a Postgres real (una única sentencia UPDATE
-  atómica), reproduciendo el patrón de
-  `packages/db/test/jobs-locking.test.ts`, pero no la concurrencia de SO en
-  sí. Pendiente contra un Postgres de pruebas real (no disponible en este
-  entorno).
+- **Concurrencia de sistema operativo real de `claim()`/`enqueue()`
+  (advisory lock) NO probada — referencia B-03**: PGlite es una sola
+  conexión/proceso (ver `packages/db/README.md`, limitación ya documentada
+  ahí), así que ningún test de este paquete ejercita dos conexiones de
+  sistema operativo reales compitiendo de verdad. `test/job-queue.test.ts`
+  prueba el mismo invariante que protege a Postgres real (una única
+  sentencia UPDATE atómica), reproduciendo el patrón de
+  `packages/db/test/jobs-locking.test.ts`; `test/scheduler.test.ts` prueba
+  la lógica secuencial de `enqueue()` + (WK-15) el SQL exacto que emite. Lo
+  que falta, y queda explícitamente **PENDIENTE (ref. B-03)**, es repetir
+  ambos escenarios contra un Postgres de pruebas real en CI (Docker/CI, no
+  disponible en este entorno) con procesos de sistema operativo genuinamente
+  concurrentes.
 - **`run_agent` no persiste `tool_calls` individuales en Postgres**: usa
   `InMemoryToolCallStore`/`InMemoryRunStore` de `packages/agents` (librería
   pura sin persistencia). Persistir contra `agent_runs`/`tool_calls` reales
