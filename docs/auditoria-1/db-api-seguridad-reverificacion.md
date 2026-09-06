@@ -231,6 +231,9 @@ para el hallazgo de reproducibilidad de la migración 0034 (encontrado en
 
 **Veredicto: CERRADO para el defecto original (DB-02/DB-10 tal como
 estaban redactados); NO CERRADO el matiz nuevo DB-13 (zona horaria).**
+[Nota posterior del corrector: DB-13 ahora **RESUELTO** por
+`0050_fix_db13_rate_validity_timezone.sql` — ver "Estado reparación" en
+la sección `### DB-13` más abajo.]
 
 ### API-01 / API-09 (refresh, TOCTOU)
 
@@ -249,6 +252,9 @@ estaban redactados); NO CERRADO el matiz nuevo DB-13 (zona horaria).**
 **Veredicto: CERRADO para API-01/API-09 tal como estaban redactados; NO
 CERRADO el matiz nuevo API-13 (ausencia de auditoría de eventos de
 autenticación).**
+[Nota posterior del corrector: API-13 ahora **RESUELTO** por
+`recordAuthAudit`/`0051_fix_api13_auth_audit_log.sql` — ver "Estado
+reparación" en la sección `### API-13` más abajo.]
 
 ### API-03 (timing de `/auth/login`)
 
@@ -372,6 +378,17 @@ conexión) en el trigger o en `withTenantContext`, o comparar usando
 `submission_deadline AT TIME ZONE 'America/Mexico_City'` en vez de un cast
 `::date` desnudo que hereda el TZ ambiente de la sesión.
 
+**Estado reparación**: **RESUELTO** — `packages/db/migrations/0050_fix_db13_rate_validity_timezone.sql`
+reemplaza el cast `::date` desnudo por `(v_submission_deadline at time
+zone 'America/Mexico_City')::date` (y el mismo criterio para el fallback
+`now()`), tal como sugería esta fila. Test real
+(`packages/db/test/security-db13-rate-validity-timezone.test.ts`)
+reproduce el escenario exacto de esta reverificación
+(`submission_deadline='2026-01-15T05:00:00Z'`, tarifa vence
+`'2026-01-14'`) y confirma el MISMO veredicto (aceptada) bajo `TimeZone`
+de sesión `UTC` y `Asia/Tokyo` — confirmado en rojo (2/3 fallan) sin la
+migración y en verde con ella.
+
 ### API-13 — BAJA/MEDIA — eventos de autenticación no se registran nunca en `audit_log`
 
 **Evidencia**: `apps/api/src/modules/auth/routes.ts` (login, refresh,
@@ -395,6 +412,18 @@ se detecta reuso (acción tipo `auth.refresh_reuse_detected`, con el
 `user_id` afectado) y, opcionalmente, en login exitoso/logout para
 trazabilidad completa de sesión — siguiendo el mismo patrón ya usado en
 `modules/organizations/routes.ts` y `modules/admin/routes.ts`.
+
+**Estado reparación**: **RESUELTO** — `lib/audit.ts` (`recordAuthAudit`) +
+`packages/db/migrations/0051_fix_api13_auth_audit_log.sql`
+(`app.record_auth_event`, `SECURITY DEFINER`, necesario porque la política
+RLS de `audit_log` solo permite `org_id IS NULL` para superadmin, ver
+0035). `auth/routes.ts` ahora audita login (éxito/fallo), refresh
+(éxito/reutilización con revocación de familia) y logout, con actor,
+ip, user-agent y `request_id` -- nunca contraseña ni token. Test real
+(`apps/api/test/security-api13-auth-audit-log.test.ts`, 5 casos)
+confirmado en rojo (función no existe) sin la migración `0051` y en verde
+con el fix; incluye el escenario exacto de esta fila (reutilizar un
+refresh token ya rotado registra `auth.refresh_reuse_detected`).
 
 ### DB-14 — nota arquitectónica (no un hallazgo nuevo distinto) — `SET ROLE` desde `app_role` a otros roles "funciona" por la identidad de la conexión física, no por RLS
 
