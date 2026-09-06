@@ -26,20 +26,33 @@ async function buildProfileAndEligibility(
 }> {
   const missingProfileFields: string[] = [];
 
-  const [capsRes, prodsRes, locsRes, docsRes, restrictionsRes, registrationsRes] = await Promise.all([
+  const [capsRes, prodsRes, locsRes, docsRes, restrictionsRes, registrationsRes, provenanceRes] = await Promise.all([
     tx.query<{ name: string }>('select name from capabilities where org_id = $1', [orgId]),
     tx.query<{ name: string }>('select name from products_services where org_id = $1', [orgId]),
     tx.query<{ state: string | null }>('select state from locations where org_id = $1', [orgId]),
-    tx.query<{ document_type: string; valid_until: string | null }>(
-      'select document_type, valid_until from company_documents where org_id = $1',
+    tx.query<{ id: string; document_type: string; valid_until: string | null }>(
+      'select id, document_type, valid_until from company_documents where org_id = $1',
       [orgId]
     ),
-    tx.query<{ kind: string; valid_until: string | null }>(
-      'select kind, valid_until from restrictions where org_id = $1',
+    tx.query<{ id: string; kind: string; valid_until: string | null }>(
+      'select id, kind, valid_until from restrictions where org_id = $1',
       [orgId]
     ),
     tx.query<{ id: string }>('select id from registrations where org_id = $1 limit 1', [orgId]),
+    // REQ-142: procedencia vinculante -- se carga de una sola vez para
+    // decidir qué documentos/restricciones son UTILIZABLES en la
+    // elegibilidad dura (ver `evaluateHardEligibility`/`fieldsWithoutProvenance`).
+    tx.query<{ entity: string; entity_id: string }>(
+      "select distinct entity, entity_id from field_provenance where org_id = $1 and entity in ('company_documents', 'restrictions')",
+      [orgId]
+    ),
   ]);
+
+  const provenanceKeys = new Set(provenanceRes.rows.map((r) => `${r.entity}:${r.entity_id}`));
+  const fieldsWithoutProvenance: string[] = [
+    ...docsRes.rows.filter((d) => !provenanceKeys.has(`company_documents:${d.id}`)).map((d) => `documento:${d.document_type}`),
+    ...restrictionsRes.rows.filter((r) => !provenanceKeys.has(`restrictions:${r.id}`)).map((r) => `restriccion:${r.kind}`),
+  ];
 
   const keywords = [...capsRes.rows.map((r) => r.name), ...prodsRes.rows.map((r) => r.name)].filter(Boolean);
   const states = locsRes.rows.map((r) => r.state).filter((s): s is string => Boolean(s));
@@ -62,6 +75,7 @@ async function buildProfileAndEligibility(
     hasActiveRestrictions: activeRestrictions.length > 0,
     restrictionKinds: activeRestrictions.map((r) => r.kind),
     hasAnyRegistration: registrationsRes.rows.length > 0,
+    fieldsWithoutProvenance,
   });
 
   return { profileInput: { keywords, states }, hardEligibility, missingProfileFields };

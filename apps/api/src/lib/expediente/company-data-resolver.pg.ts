@@ -83,14 +83,26 @@ function rateStatusToApprovalStatus(status: string): ApprovalStatus {
 export async function loadCompanyDataResolver(tx: DbExecutor, orgId: string, asOfIso: string): Promise<LoadedCompanyData> {
   const companyId = orgId;
 
-  const [profileRes, capabilitiesRes, experienceRes, documentsRes, signatoriesRes, ratesRes] = await Promise.all([
+  const [profileRes, capabilitiesRes, experienceRes, documentsRes, signatoriesRes, ratesRes, provenanceRes] = await Promise.all([
     tx.query<RawRow>('select * from company_profiles where org_id = $1', [orgId]),
     tx.query<RawRow>('select * from capabilities where org_id = $1', [orgId]),
     tx.query<RawRow>('select * from experience_records where org_id = $1', [orgId]),
     tx.query<RawRow>('select * from company_documents where org_id = $1', [orgId]),
     tx.query<RawRow>('select * from authorized_signatories where org_id = $1', [orgId]),
     tx.query<RawRow>('select * from approved_rates where org_id = $1', [orgId]),
+    // REQ-142 (procedencia vinculante): se carga TODA la procedencia de la
+    // organización de una sola vez -- abajo se usa `hasProvenance(entity,
+    // id)` para decidir si cada fila es UTILIZABLE en el expediente. Un
+    // dato de empresa SIN procedencia registrada (owner/source/updated_at
+    // en `field_provenance`) nunca se trata como "aprobado", sin importar
+    // qué digan sus demás columnas -- se BLOQUEA explícitamente (mapeado a
+    // `approvalStatus: 'rechazado'`, el mismo canal de bloqueo que ya usa
+    // `packages/expediente` para cualquier otro motivo de rechazo).
+    tx.query<{ entity: string; entity_id: string }>('select distinct entity, entity_id from field_provenance where org_id = $1', [orgId]),
   ]);
+
+  const provenanceKeys = new Set(provenanceRes.rows.map((r) => `${r.entity}:${r.entity_id}`));
+  const hasProvenance = (entity: string, entityId: string): boolean => provenanceKeys.has(`${entity}:${entityId}`);
 
   const profileRow = profileRes.rows[0];
   const profiles: CompanyProfile[] = profileRow
@@ -99,7 +111,15 @@ export async function loadCompanyDataResolver(tx: DbExecutor, orgId: string, asO
           companyId,
           legalName: String(profileRow.legal_name),
           rfc: (profileRow.tax_id as string | null) ?? '',
-          approvalStatus: 'aprobado',
+          // REQ-142: el perfil principal registra procedencia POR CAMPO
+          // (`recordFieldProvenance` con `field` = nombre de columna, ver
+          // `modules/company/routes.ts` PUT /profile) -- basta con que
+          // exista AL MENOS una fila de procedencia para esta fila del
+          // perfil (perfil creado por un flujo que sí la registra); un
+          // perfil insertado por una vía que nunca declaró procedencia de
+          // ningún campo (p. ej. una carga directa a la base de datos que
+          // se salte la API) se bloquea explícitamente.
+          approvalStatus: hasProvenance('company_profiles', String(profileRow.id)) ? 'aprobado' : 'rechazado',
         },
       ]
     : [];
@@ -110,7 +130,7 @@ export async function loadCompanyDataResolver(tx: DbExecutor, orgId: string, asO
     name: String(r.name),
     description: (r.description as string | null) ?? '',
     evidenceDocId: (r.evidence_ref as string | null) ?? undefined,
-    approvalStatus: verifiedToApprovalStatus(Boolean(r.is_verified)),
+    approvalStatus: hasProvenance('capabilities', String(r.id)) ? verifiedToApprovalStatus(Boolean(r.is_verified)) : 'rechazado',
   }));
 
   // REQ-164: sin evidence_ref no hay forma trazable de dar por buena la
@@ -123,7 +143,10 @@ export async function loadCompanyDataResolver(tx: DbExecutor, orgId: string, asO
       companyId,
       description: String(r.title),
       evidenceDocId: String(r.evidence_ref),
-      approvalStatus: verifiedToApprovalStatus(Boolean(r.is_verified)),
+      // REQ-142: experiencia sin procedencia -> bloqueo explícito, igual
+      // que sin evidencia (REQ-164) -- ambos son formas de "dato no
+      // confiable", con canales de rechazo independientes.
+      approvalStatus: hasProvenance('experience_records', String(r.id)) ? verifiedToApprovalStatus(Boolean(r.is_verified)) : 'rechazado',
     }));
 
   const documents: CompanyDocument[] = documentsRes.rows.map((r) => ({
@@ -133,7 +156,11 @@ export async function loadCompanyDataResolver(tx: DbExecutor, orgId: string, asO
     label: String(r.document_type),
     issuedAt: timestampToIso(r.created_at as string | Date) ?? asOfIso,
     expiresAt: dateOnlyToMexicoCityIso(r.valid_until as string | Date | null, 'end'),
-    approvalStatus: r.valid_until === null || r.valid_until === undefined ? 'pendiente_aprobacion' : 'aprobado',
+    approvalStatus: !hasProvenance('company_documents', String(r.id))
+      ? 'rechazado'
+      : r.valid_until === null || r.valid_until === undefined
+        ? 'pendiente_aprobacion'
+        : 'aprobado',
   }));
 
   const signers: CompanySigner[] = signatoriesRes.rows.map((r) => {
@@ -146,7 +173,11 @@ export async function loadCompanyDataResolver(tx: DbExecutor, orgId: string, asO
       companyId,
       name: String(r.full_name),
       role: (r.role_title as string | null) ?? 'firmante',
-      authorized: withinWindow,
+      // REQ-142: un firmante SIN procedencia nunca cuenta como autorizado,
+      // sin importar la ventana de vigencia -- mismo criterio de "dato no
+      // utilizable sin procedencia" aplicado al único campo booleano que
+      // expone `CompanySigner` (no tiene `approvalStatus`).
+      authorized: withinWindow && hasProvenance('authorized_signatories', String(r.id)),
     };
   });
 
@@ -159,7 +190,8 @@ export async function loadCompanyDataResolver(tx: DbExecutor, orgId: string, asO
       unit: String(r.unit),
       unitPrice: String(r.unit_price),
       currency: (r.currency as ApprovedRate['currency']) ?? 'MXN',
-      approvalStatus: rateStatusToApprovalStatus(String(r.status)),
+      // REQ-142: tarifa sin procedencia -> bloqueo explícito, sin importar `status`.
+      approvalStatus: hasProvenance('approved_rates', String(r.id)) ? rateStatusToApprovalStatus(String(r.status)) : 'rechazado',
       validFrom,
       validUntil: dateOnlyToMexicoCityIso(r.valid_until as string | Date | null, 'end'),
     };

@@ -78,7 +78,7 @@ export function toOrganizationProfile(profile: CompanyProfileForMatching): Organ
  * la base de datos.
  */
 export interface EligibilityCriterion {
-  requirement: 'budget' | 'states' | 'excludedKeywords' | 'documents_validity' | 'restrictions' | 'registrations';
+  requirement: 'budget' | 'states' | 'excludedKeywords' | 'documents_validity' | 'restrictions' | 'registrations' | 'provenance';
   status: EligibilityStatus;
   explanation: string;
 }
@@ -95,6 +95,15 @@ export interface HardEligibilityInput {
   hasActiveRestrictions: boolean;
   restrictionKinds: string[];
   hasAnyRegistration: boolean;
+  /**
+   * REQ-142 (procedencia vinculante, tolerancia cero): etiquetas legibles
+   * ("documento:acta_constitutiva", "restriccion:conflicto_interes"...) de
+   * cualquier fila de `company_documents`/`restrictions`/`registrations`
+   * que NO tenga una entrada en `field_provenance` -- ver
+   * `buildProfileAndEligibility` en `routes.ts`. Vacío si todo lo que se
+   * usó en el cómputo de elegibilidad dura tiene procedencia registrada.
+   */
+  fieldsWithoutProvenance: string[];
 }
 
 /**
@@ -145,6 +154,18 @@ export function evaluateHardEligibility(input: HardEligibilityInput): Eligibilit
       ? 'La organización tiene al menos un registro/licencia capturado.'
       : 'La organización no tiene ningún registro/licencia capturado en su perfil; no es posible evaluar elegibilidad documental.',
   });
+
+  // REQ-142: procedencia por campo VINCULANTE en matching -- un dato sin
+  // `field_provenance` (owner/source/fecha de captura) NUNCA cuenta como
+  // "cumple", sin importar lo que digan sus demás columnas (vigencia,
+  // tipo, etc.). Bloqueo explícito, con la etiqueta de cada dato afectado.
+  if (input.fieldsWithoutProvenance.length > 0) {
+    criteria.push({
+      requirement: 'provenance',
+      status: 'no_evaluable',
+      explanation: `Dato(s) sin procedencia registrada (field_provenance ausente), no utilizable(s) en matching: ${input.fieldsWithoutProvenance.join(', ')}.`,
+    });
+  }
 
   return criteria;
 }
