@@ -96,12 +96,14 @@ function TwoFactorSection() {
               <p className="mt-1 text-xs text-muted-foreground">
                 Escanea el código QR con tu app, o captura el secreto manualmente:
               </p>
-              <p className="mt-2 break-all rounded-lg bg-muted/40 p-2 font-mono text-xs">{enrollment.secretBase32}</p>
+              <p aria-label="Secreto TOTP" className="mt-2 break-all rounded-lg bg-muted/40 p-2 font-mono text-xs">
+                {enrollment.secretBase32}
+              </p>
               <p className="mt-1 break-all text-xs text-muted-foreground">{enrollment.otpauthUrl}</p>
             </div>
             <div>
               <p className="text-sm font-medium text-foreground">2. Códigos de respaldo (guárdalos ahora — no se muestran de nuevo)</p>
-              <ul className="mt-2 grid grid-cols-2 gap-1 font-mono text-xs text-muted-foreground sm:grid-cols-5">
+              <ul aria-label="Códigos de respaldo" className="mt-2 grid grid-cols-2 gap-1 font-mono text-xs text-muted-foreground sm:grid-cols-5">
                 {enrollment.backupCodes.map((code) => (
                   <li key={code} className="rounded bg-muted/40 px-2 py-1">
                     {code}

@@ -1,0 +1,355 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { generate as generateTotpCode } from "otplib";
+import { test, expect } from "./fixtures";
+import { seriousOrCriticalViolations, formatViolations } from "./utils/a11y";
+import type { SeedData } from "./global-setup";
+import type { Page } from "@playwright/test";
+
+// ESM real ("type": "module" en package.json): sin `__dirname` global.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Ronda 5: recorrido de negocio COMPLETO del expediente de participación,
+// contra apps/api real (npm run test:e2e:full): documento de bases → matriz
+// de requisitos → propuesta técnica/económica → checklist de integridad →
+// revisión/aprobación (dos actores: `writer` solicita, `admin` aprueba) →
+// paquete "borrador" → completar el expediente → paquete "listo" →
+// descarga autenticada → declaración de presentación. Además: A11 (editar
+// tras aprobar invalida y el paquete vuelve a "borrador"), A12 (writer no
+// puede aprobar) y A14 (paquete incompleto nunca "listo").
+//
+// Corre en la organización C del seed (e2e/global-setup.ts), dedicada
+// exclusivamente a esta suite con una convocatoria real ya sembrada por
+// `POST /internal/tenders/ingest` — aislada de orgA/orgB para no interferir
+// con los supuestos de ronda3-flujo-real.spec.ts (writer ve orgA vacía) ni
+// de recorrido.spec.ts (paquete de la organización por defecto sin
+// convocatorias).
+test.skip(!process.env.E2E_API_URL, "requiere `npm run test:e2e:full` (arranca apps/api real con seed)");
+
+const ARTIFACTS_DIR = path.resolve(__dirname, ".artifacts");
+
+function readSeed(): SeedData {
+  return JSON.parse(fs.readFileSync(path.join(ARTIFACTS_DIR, "seed.json"), "utf8")) as SeedData;
+}
+
+const runId = Date.now().toString(36);
+const SIGNER_ROLE_TITLE = `representante_legal_${runId}`;
+const RATE_ITEM_CODE = `E2E-EXP-${runId}`;
+const BASES_SENTENCE = `El licitante deberá contar con un representante legal ${runId} autorizado para firmar la propuesta.`;
+
+// Poblado por el test de enrolamiento 2FA (admin); consumido por las dos
+// aprobaciones posteriores (tarifa, expediente) -- cada código de respaldo
+// es de un solo uso real (ver apps/api/src/lib/step-up.ts).
+let adminBackupCodes: string[] = [];
+
+async function switchOrganization(page: import("@playwright/test").Page, orgName: string) {
+  await page.goto("/panel");
+  const switcher = page.getByRole("combobox", { name: "Organización" });
+  if (!(await switcher.innerText()).includes(orgName)) {
+    await switcher.click();
+    await page.getByRole("option", { name: new RegExp(orgName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) }).click();
+  }
+  await expect(switcher).toContainText(orgName);
+}
+
+async function selectTender(page: import("@playwright/test").Page, tenderTitle: string) {
+  const combo = page.getByRole("combobox", { name: "Convocatoria" });
+  await combo.click();
+  await page.getByRole("option", { name: tenderTitle }).click();
+}
+
+/**
+ * REQ-044/064: aprobar una tarifa o un expediente exige X-Step-Up. Enrola
+ * 2FA real (mismo secreto/algoritmo TOTP que apps/api, vía `otplib`, la
+ * misma librería) y devuelve los códigos de respaldo mostrados una única
+ * vez -- se usan para los step-up posteriores (más simples que recalcular
+ * un TOTP vigente cada vez, y cada uno es de un solo uso, igual de real).
+ */
+async function enrollTwoFactorAndGetBackupCodes(page: Page): Promise<string[]> {
+  await page.goto("/configuracion");
+  await page.getByRole("button", { name: "Enrolar 2FA" }).click();
+
+  const secret = (await page.locator('[aria-label="Secreto TOTP"]').textContent())?.trim();
+  if (!secret) throw new Error("No se pudo leer el secreto TOTP recién generado en Configuración.");
+  const backupCodes = await page.locator('[aria-label="Códigos de respaldo"] li').allTextContents();
+  if (backupCodes.length === 0) throw new Error("No se pudieron leer los códigos de respaldo mostrados al enrolar.");
+
+  const code = await generateTotpCode({ secret });
+  await page.getByLabel("Código de 6 dígitos").fill(code);
+  await page.getByRole("button", { name: "Confirmar enrolamiento" }).click();
+  await expect(page.getByText("Enrolado")).toBeVisible();
+
+  return backupCodes.map((c) => c.trim());
+}
+
+/** Completa el modal de step-up (StepUpDialog, compartido por Aprobar tarifa y Aprobar expediente) con un código de respaldo de un solo uso. */
+async function completeStepUp(page: Page, backupCode: string) {
+  await page.getByLabel("Código TOTP o de respaldo").fill(backupCode);
+  await page.getByRole("button", { name: "Verificar y continuar" }).click();
+}
+
+test.describe.serial("Expediente — flujo completo real (ronda 5)", () => {
+  test("preparación: admin agrega un firmante autorizado en la organización C", async ({ page }) => {
+    const seed = readSeed();
+    test.skip(!seed.tender, "PLATFORM_API_KEY no configurada: sin convocatoria sembrada");
+    await switchOrganization(page, seed.orgC.name);
+
+    await page.goto("/empresa/firmantes-autorizados");
+    await page.getByLabel("Nombre completo").fill(`Representante Legal E2E ${runId}`);
+    await page.getByLabel("Cargo (opcional)").fill(SIGNER_ROLE_TITLE);
+    await page.getByRole("button", { name: "Agregar" }).click();
+    await expect(page.getByText(SIGNER_ROLE_TITLE)).toBeVisible();
+  });
+
+  test("preparación: admin enrola 2FA (requerido para aprobar tarifas y expedientes, REQ-044/064)", async ({ page }) => {
+    adminBackupCodes = await enrollTwoFactorAndGetBackupCodes(page);
+    expect(adminBackupCodes.length).toBeGreaterThanOrEqual(2);
+  });
+
+  test("preparación: admin propone y aprueba una tarifa con step-up 2FA (dato real para la propuesta económica)", async ({ page }) => {
+    const seed = readSeed();
+    await switchOrganization(page, seed.orgC.name);
+
+    await page.goto("/empresa/tarifas-aprobadas");
+    await page.getByLabel("Código").fill(RATE_ITEM_CODE);
+    await page.getByLabel("Descripción").fill("Servicio de consultoría E2E");
+    await page.getByLabel("Precio unitario (MXN)").fill("15000");
+    await page.getByRole("button", { name: "Proponer" }).click();
+    await expect(page.getByText(RATE_ITEM_CODE)).toBeVisible();
+
+    const row = page.getByRole("row", { name: new RegExp(RATE_ITEM_CODE) });
+    await row.getByRole("button", { name: "Aprobar" }).click();
+    await completeStepUp(page, adminBackupCodes[0]);
+    await expect(row.getByText("Aprobada")).toBeVisible();
+  });
+
+  test("Análisis de bases: sube el documento y construye la matriz de requisitos (sin OCR necesario)", async ({ page }) => {
+    const seed = readSeed();
+    await switchOrganization(page, seed.orgC.name);
+
+    await page.goto("/evaluacion/analisis-bases");
+    await selectTender(page, seed.tender!.title);
+
+    const fileInput = page.getByLabel("Archivo (PDF de preferencia)");
+    await fileInput.setInputFiles({
+      name: "bases-e2e.txt",
+      mimeType: "text/plain",
+      buffer: Buffer.from(BASES_SENTENCE, "utf8"),
+    });
+    await page.getByRole("button", { name: "Subir" }).click();
+    await expect(page.getByText("bases-e2e.txt")).toBeVisible();
+    await expect(page.getByText("Texto extraído")).toBeVisible();
+
+    await page.getByRole("tab", { name: "Matriz de requisitos" }).click();
+    await page.getByRole("button", { name: "Recalcular matriz de requisitos" }).click();
+    await expect(page.getByText(new RegExp(`representante legal ${runId}`))).toBeVisible();
+
+    const violations = await seriousOrCriticalViolations(page);
+    expect(violations, formatViolations(violations)).toEqual([]);
+  });
+
+  test("A14: el paquete nunca aparece \"Listo\" con el expediente todavía incompleto", async ({ page }) => {
+    const seed = readSeed();
+    await switchOrganization(page, seed.orgC.name);
+
+    await page.goto("/entrega/paquete-descargable");
+    await selectTender(page, seed.tender!.title);
+    await page.getByRole("button", { name: "Ensamblar paquete" }).click();
+
+    await expect(page.getByText("Borrador", { exact: true })).toBeVisible();
+    await expect(page.getByText("Listo para presentar")).toHaveCount(0);
+  });
+
+  test("Redacción: genera la propuesta técnica mapeando el requisito a un dato real de empresa", async ({ page }) => {
+    const seed = readSeed();
+    await switchOrganization(page, seed.orgC.name);
+
+    await page.goto("/preparacion/redaccion");
+    await selectTender(page, seed.tender!.title);
+
+    await page.getByRole("button", { name: "Agregar mapeo" }).click();
+    await page.getByRole("combobox", { name: "Requisito" }).click();
+    await page.getByRole("option", { name: new RegExp(`representante legal ${runId}`) }).click();
+
+    await page.getByRole("combobox", { name: "Tipo de fuente" }).click();
+    await page.getByRole("option", { name: "Firmante autorizado" }).click();
+
+    await page.getByRole("combobox", { name: "Dato de empresa" }).click();
+    await page.getByRole("option", { name: SIGNER_ROLE_TITLE }).click();
+
+    await page.getByRole("button", { name: "Generar propuesta técnica" }).click();
+    await expect(page.getByText(/Propuesta técnica generada/)).toBeVisible();
+    await expect(page.getByText("Bloqueado / pendiente")).toHaveCount(0);
+  });
+
+  test("Redacción: genera la propuesta económica con la tarifa aprobada (sin conceptos bloqueados)", async ({ page }) => {
+    const seed = readSeed();
+    await switchOrganization(page, seed.orgC.name);
+
+    await page.goto("/preparacion/redaccion");
+    await selectTender(page, seed.tender!.title);
+
+    await page.getByRole("combobox", { name: "Concepto" }).click();
+    await page.getByRole("option", { name: new RegExp(RATE_ITEM_CODE) }).click();
+
+    await page.getByRole("button", { name: "Generar propuesta económica" }).click();
+    await expect(page.getByText(/Propuesta económica generada/)).toBeVisible();
+    await expect(page.getByText("Bloqueado / pendiente")).toHaveCount(0);
+
+    const violations = await seriousOrCriticalViolations(page);
+    expect(violations, formatViolations(violations)).toEqual([]);
+  });
+
+  test("Cumplimiento documental: ejecuta el checklist de integridad real y queda en verde", async ({ page }) => {
+    const seed = readSeed();
+    await switchOrganization(page, seed.orgC.name);
+
+    await page.goto("/preparacion/cumplimiento-documental");
+    await selectTender(page, seed.tender!.title);
+    await page.getByRole("button", { name: "Ejecutar checklist" }).click();
+
+    await expect(page.getByText("General: Verde")).toBeVisible();
+  });
+
+  test("Revisión: writer solicita revisión del expediente", async ({ writerPage: page }) => {
+    const seed = readSeed();
+    await switchOrganization(page, seed.orgC.name);
+
+    await page.goto("/preparacion/revision");
+    await selectTender(page, seed.tender!.title);
+    await expect(page.getByText("Borrador", { exact: true })).toBeVisible();
+
+    await page.getByRole("button", { name: "Solicitar revisión" }).click();
+    await expect(page.getByText("En revisión", { exact: true })).toBeVisible();
+  });
+
+  test("A12: el rol writer no puede aprobar el expediente (la UI ni siquiera ofrece el botón)", async ({ writerPage: page }) => {
+    const seed = readSeed();
+    await switchOrganization(page, seed.orgC.name);
+
+    await page.goto("/preparacion/revision");
+    await selectTender(page, seed.tender!.title);
+
+    await expect(page.getByText(/no puede aprobar/)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Aprobar expediente" })).toHaveCount(0);
+
+    const violations = await seriousOrCriticalViolations(page);
+    expect(violations, formatViolations(violations)).toEqual([]);
+  });
+
+  test("admin aprueba el expediente con step-up 2FA (actor distinto de quien solicitó la revisión)", async ({ page }) => {
+    const seed = readSeed();
+    await switchOrganization(page, seed.orgC.name);
+
+    await page.goto("/preparacion/revision");
+    await selectTender(page, seed.tender!.title);
+
+    await page.getByRole("button", { name: "Aprobar expediente" }).click();
+    await completeStepUp(page, adminBackupCodes[1]);
+    await expect(page.getByText("Aprobado", { exact: true })).toBeVisible();
+  });
+
+  test('el paquete pasa a "Listo para presentar" con el expediente completo y aprobado', async ({ page }) => {
+    const seed = readSeed();
+    await switchOrganization(page, seed.orgC.name);
+
+    await page.goto("/entrega/paquete-descargable");
+    await selectTender(page, seed.tender!.title);
+    await page.getByRole("button", { name: "Ensamblar paquete" }).click();
+
+    await expect(page.getByText("Listo para presentar")).toBeVisible();
+  });
+
+  test("descarga autenticada del paquete listo", async ({ page }) => {
+    const seed = readSeed();
+    await switchOrganization(page, seed.orgC.name);
+
+    await page.goto("/entrega/paquete-descargable");
+    await selectTender(page, seed.tender!.title);
+
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      page.getByRole("button", { name: /Descargar paquete/ }).click(),
+    ]);
+    expect(download.suggestedFilename()).toMatch(/\.zip$/);
+  });
+
+  test("declara la presentación del expediente (nunca se envía nada a un portal externo)", async ({ page }) => {
+    const seed = readSeed();
+    await switchOrganization(page, seed.orgC.name);
+
+    await page.goto("/entrega/entregas");
+    await selectTender(page, seed.tender!.title);
+    await expect(page.getByText("El sistema nunca envía ni firma nada")).toBeVisible();
+
+    const now = new Date();
+    const localDatetime = new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+    await page.getByLabel("Fecha y hora de presentación").fill(localDatetime);
+    await page.getByRole("button", { name: "Declarar presentación" }).click();
+
+    await expect(page.getByRole("heading", { name: "Presentación declarada" })).toBeVisible();
+  });
+
+  test("A11: editar una sección tras aprobar invalida la aprobación y el paquete vuelve a \"Borrador\"", async ({ page }) => {
+    const seed = readSeed();
+    await switchOrganization(page, seed.orgC.name);
+
+    await page.goto("/preparacion/redaccion");
+    await selectTender(page, seed.tender!.title);
+
+    const sectionTextarea = page.getByRole("textbox", { name: /Contenido de la sección/ }).first();
+    await sectionTextarea.fill((await sectionTextarea.inputValue()) + " Texto editado por la prueba A11.");
+    await page.getByRole("button", { name: "Guardar nueva versión" }).first().click();
+    await expect(page.getByText(/Sección actualizada/)).toBeVisible();
+
+    await page.goto("/preparacion/revision");
+    await selectTender(page, seed.tender!.title);
+    await expect(page.getByText("Invalidada tras un cambio")).toBeVisible();
+
+    // AE-14: `GET .../package/latest` re-deriva el estado ACTUAL en cada
+    // lectura -- sin volver a ensamblar, el paquete ya listo antes deja de
+    // reportarse "Listo" en cuanto la aprobación vigente deja de cubrir el
+    // estado actual del expediente.
+    await page.goto("/entrega/paquete-descargable");
+    await selectTender(page, seed.tender!.title);
+    await expect(page.getByText("Borrador", { exact: true })).toBeVisible();
+    await expect(page.getByText("Listo para presentar")).toHaveCount(0);
+  });
+
+  test("320×568 y 390×844: Análisis de bases y Redacción sin scroll horizontal con datos reales", async ({ page }) => {
+    const seed = readSeed();
+    await switchOrganization(page, seed.orgC.name);
+
+    for (const viewport of [
+      { width: 320, height: 568 },
+      { width: 390, height: 844 },
+    ]) {
+      await page.setViewportSize(viewport);
+      for (const route of ["/evaluacion/analisis-bases", "/preparacion/redaccion"]) {
+        await page.goto(route);
+        await selectTender(page, seed.tender!.title);
+        const scroll = await page.evaluate(() => ({
+          scrollWidth: document.documentElement.scrollWidth,
+          clientWidth: document.documentElement.clientWidth,
+        }));
+        expect(scroll.scrollWidth, `${route} @ ${viewport.width}x${viewport.height}`).toBe(scroll.clientWidth);
+      }
+    }
+  });
+
+  // Restaura la organización activa de `admin`/`writer` a la A: este spec
+  // corre en el MISMO worker (y por tanto el MISMO contexto de navegador
+  // compartido, ver e2e/fixtures.ts) que ronda3-flujo-real.spec.ts y
+  // recorrido.spec.ts (modo "full" fuerza `workers: 1`, ver
+  // playwright.config.ts) -- sin este último paso, si este archivo corre
+  // ANTES que esos dos (el orden entre archivos de Playwright no está
+  // garantizado), dejaría la organización activa en C, rompiendo sus
+  // supuestos ya probados (writer ve orgA vacía; el paquete de la
+  // organización por defecto de admin arranca sin convocatorias).
+  test("limpieza: restaura la organización activa a A para no afectar otras suites", async ({ page, writerPage }) => {
+    const seed = readSeed();
+    await switchOrganization(page, seed.orgA.name);
+    await switchOrganization(writerPage, seed.orgA.name);
+  });
+});
