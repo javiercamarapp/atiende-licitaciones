@@ -24,7 +24,24 @@ import { defineConfig, devices } from "@playwright/test";
 //      proceso. El costo (un arranque de `vite preview` por corrida en vez
 //      de reutilizar uno ya tibio) es aceptable frente al riesgo de auditar
 //      una build ajena sin darse cuenta.
-const PORT = Number(process.env.PLAYWRIGHT_PORT) || 4200 + (process.pid % 300);
+// WI-05 (docs/auditoria-2/web-integrado.md): Playwright vuelve a IMPORTAR
+// este archivo de configuración dentro de cada proceso worker (no solo en
+// el proceso raíz que arranca `webServer`) -- así que calcular el puerto a
+// partir de `process.pid` sin fijarlo en ninguna parte hacía que cada
+// worker recalculara un puerto DISTINTO (su propio pid de proceso hijo,
+// nunca el del proceso raíz que de verdad arrancó `vite preview`),
+// resultando en `ERR_CONNECTION_REFUSED` real contra un puerto donde nunca
+// corrió nada — reproducido en vivo corriendo esta suite con más de un
+// worker sin `PLAYWRIGHT_PORT` explícito. Fijarlo en `process.env` la
+// PRIMERA vez que se evalúa este módulo resuelve esto sin perder la
+// randomización de W-23 (evitar chocar con otro `vite preview` local): los
+// procesos worker que Playwright genera heredan el `env` del proceso raíz
+// (comportamiento estándar de Node `child_process`), así que ya lo
+// encuentran fijado y usan el MISMO valor en vez de recalcular el suyo.
+if (!process.env.PLAYWRIGHT_PORT) {
+  process.env.PLAYWRIGHT_PORT = String(4200 + (process.pid % 300));
+}
+const PORT = Number(process.env.PLAYWRIGHT_PORT);
 export const BASE_URL = `http://127.0.0.1:${PORT}`;
 
 // Ronda 3: la UI ahora exige sesión real (W-12, RequireAuth) — casi ninguna

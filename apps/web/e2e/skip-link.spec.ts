@@ -108,10 +108,26 @@ test.describe("Foco visible tras activar el skip-link (W-18)", () => {
     expect(visible, `outline: ${outline} · boxShadow: ${boxShadow} (línea base: ${boxShadowBaseline})`).toBe(true);
   });
 
-  for (const item of ALL_NAV_ITEMS) {
+  for (const [index, item] of ALL_NAV_ITEMS.entries()) {
     test(`en ${item.label} (${item.to}), el foco en #main-content es visible (outline/box-shadow reales)`, async ({
       page,
     }) => {
+      // WI-05 (docs/auditoria-2/web-integrado.md): en modo "full"
+      // (test:e2e:full, workers:1 — ver playwright.config.ts), este bucle
+      // recorre las ~29 rutas de ALL_NAV_ITEMS EN SECUENCIA dentro del
+      // mismo worker, cada una disparando varias peticiones de arranque de
+      // sesión contra apps/api real — un espaciado mínimo entre rutas
+      // (cada 5, no en TODAS, para no alargar la suite sin necesidad)
+      // reduce el riesgo de autoinducir un 429 en la primera plaza, en vez
+      // de depender solo del reintento con backoff del propio cliente
+      // (src/lib/api/http.ts) para absorberlo después de que ya ocurrió.
+      // Sin efecto en `test:e2e` a secas (sin apps/api real, sin este
+      // riesgo) ni cuando el perfil RATE_LIMIT_PROFILE=e2e ya eleva el
+      // límite muy por encima de lo que este bucle puede generar — es una
+      // capa adicional, no la única mitigación.
+      if (process.env.E2E_API_URL && index > 0 && index % 5 === 0) {
+        await page.waitForTimeout(300);
+      }
       await page.goto(item.to);
       const baseline = await leerEstiloDe(page, "#main-content");
       await page.evaluate(() => document.body.focus());

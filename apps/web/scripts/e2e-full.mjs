@@ -62,6 +62,18 @@ async function main() {
     STORAGE_DIR: path.join(WEB_ROOT, "e2e", ".artifacts", "storage"),
     CORS_ORIGINS: WEB_URL,
     PLATFORM_API_KEY: "",
+    // WI-05 (docs/auditoria-2/web-integrado.md): `test:e2e:full` recorre
+    // ~29 rutas seguidas en `e2e/skip-link.spec.ts` (ALL_NAV_ITEMS), cada
+    // una disparando varias peticiones de arranque de sesión — con el
+    // límite global "default" de apps/api (100/min hasta ronda 3, 300/min
+    // desde ronda 4) esto podía autoinducir un 429 real y hacer fallar la
+    // suite por una condición de carrera de la propia orquestación, no por
+    // una regresión de producto (ver rubro 1 de la auditoría). Literal
+    // exacto "e2e" (ver apps/api/src/config.ts / lib/rate-limit-settings.ts):
+    // nunca se activa por accidente vía NODE_ENV ni ningún otro valor, y
+    // NUNCA debe usarse fuera de este harness — eleva los límites órdenes
+    // de magnitud por encima de cualquier tráfico legítimo real.
+    RATE_LIMIT_PROFILE: "e2e",
   };
 
   const apiProcess = spawn(tsxBin, [path.join(API_ROOT, "src", "index.ts")], {
