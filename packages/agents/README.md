@@ -138,8 +138,12 @@ bypasseable, ni siquiera desde `resume()`.
 1. Los 5 **componentes de tolerancia cero** (`analista_recall`,
    `auditor_juez`, `redactor_legal`, `verificador_entailment`,
    `clasificador_anticolusion`) siempre van al proveedor por defecto, que
-   debe declarar `countryOfResidence === 'US'` (configurable). Ignora
-   cualquier `preferredProviderId` para estos componentes.
+   debe declarar `countryOfResidence === REQUIRED_COUNTRY_FOR_ZERO_TOLERANCE`
+   (`"US"`, **invariante de código, no configurable** — AG-06: ni el país
+   exigido ni la lista de los 5 componentes son opciones de constructor que
+   puedan reemplazarse; `zeroToleranceComponents` en `ProviderRouterOptions`
+   solo puede **añadir** componentes adicionales, nunca quitar los 5 de
+   REQ-125). Ignora cualquier `preferredProviderId` para estos componentes.
 2. Cualquier otro componente ("de volumen") solo se enruta a un proveedor
    alternativo si `evaluateModelGates()` confirma que los **5 gates**
    (calidad, cumplimiento de esquema, residencia de datos, suite de

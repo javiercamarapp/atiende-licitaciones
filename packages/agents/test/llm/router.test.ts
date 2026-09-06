@@ -5,6 +5,7 @@ import {
   isZeroToleranceComponent,
   ZERO_TOLERANCE_COMPONENTS,
   type ModelGateEvidence,
+  type ProviderRouterOptions,
 } from "../../src/llm/router.js";
 import { FakeProvider } from "../../src/llm/fake-provider.js";
 import { ModelGateFailedError, NoCompliantProviderError } from "../../src/errors.js";
@@ -113,7 +114,7 @@ describe("ProviderRouter", () => {
 
   it("lanza NoCompliantProviderError si el proveedor por defecto no cumple el país exigido para tolerancia cero", () => {
     const nonUsDefault = makeNonUsProvider("default-eu");
-    const router = new ProviderRouter(nonUsDefault, [], { requiredCountry: "US" });
+    const router = new ProviderRouter(nonUsDefault, []);
     expect(() => router.route({ component: "auditor_juez", tier: "premium" })).toThrow(NoCompliantProviderError);
   });
 
@@ -171,18 +172,38 @@ describe("ProviderRouter", () => {
     ).toThrow(NoCompliantProviderError);
   });
 
-  it("permite personalizar la lista de componentes de tolerancia cero", () => {
+  it("AG-06 (CRÍTICA, invariante de código): personalizar zeroToleranceComponents solo AÑADE componentes, nunca quita los 5 de REQ-125", () => {
     const usProvider = new FakeProvider();
     const altProvider = makeNonUsProvider("alt");
     const router = new ProviderRouter(usProvider, [altProvider], { zeroToleranceComponents: ["mi_componente_critico"] });
 
-    // Ya no es de tolerancia cero "auditor_juez" con esta config personalizada: puede enrutarse con gates.
-    const routed = router.route({
+    // auditor_juez SIGUE siendo de tolerancia cero pese a la config "de reemplazo":
+    // el default nunca se pierde, así que preferredProviderId se ignora igual que sin config.
+    const routedDefault = router.route({
       component: "auditor_juez",
       tier: "premium",
       preferredProviderId: "alt",
       gateEvidence: passingGateEvidence,
     });
-    expect(routed.id).toBe("alt");
+    expect(routedDefault.id).toBe(usProvider.id);
+
+    // el componente adicional personalizado SÍ queda protegido como tolerancia cero (unión, no reemplazo).
+    const routedCustom = router.route({
+      component: "mi_componente_critico",
+      tier: "premium",
+      preferredProviderId: "alt",
+      gateEvidence: passingGateEvidence,
+    });
+    expect(routedCustom.id).toBe(usProvider.id);
+  });
+
+  it("AG-06: el país exigido para tolerancia cero (REQUIRED_COUNTRY_FOR_ZERO_TOLERANCE) ya no es una opción de constructor", () => {
+    const euDefault = makeNonUsProvider("default-eu");
+    // Ni siquiera una config no tipada (p. ej. proveniente de configuración de
+    // tenant en runtime, sin pasar por el compilador) puede debilitar el país
+    // exigido: `requiredCountry` ya no existe como opción leída por el router.
+    const untypedTenantConfig = { requiredCountry: "EU" } as unknown as ProviderRouterOptions;
+    const router = new ProviderRouter(euDefault, [], untypedTenantConfig);
+    expect(() => router.route({ component: "auditor_juez", tier: "premium" })).toThrow(NoCompliantProviderError);
   });
 });

@@ -79,10 +79,23 @@ export interface ProviderRouteRequest {
   gateEvidence?: ModelGateEvidence;
 }
 
+/**
+ * País exigido para los 5 componentes de tolerancia cero (REQ-125).
+ * INVARIANTE DE CÓDIGO (AG-06): esta constante ya NO es una opción de
+ * constructor — no existe forma de debilitarla desde configuración de
+ * `apps/api` ni de tenant. Cualquier propiedad `requiredCountry` que un
+ * llamador (tipado o no) intente pasar en `ProviderRouterOptions` es
+ * ignorada: `ProviderRouter` nunca la lee.
+ */
+export const REQUIRED_COUNTRY_FOR_ZERO_TOLERANCE = "US" as const;
+
 export interface ProviderRouterOptions {
-  /** País exigido para los componentes de tolerancia cero. Por defecto "US". */
-  requiredCountry?: string;
-  /** Lista de componentes de tolerancia cero; por defecto `ZERO_TOLERANCE_COMPONENTS`. */
+  /**
+   * Componentes ADICIONALES a tratar como tolerancia cero, más allá de los
+   * 5 de `ZERO_TOLERANCE_COMPONENTS` (REQ-125). INVARIANTE DE CÓDIGO
+   * (AG-06): esta opción solo AÑADE componentes — los 5 por defecto nunca
+   * son removibles ni reemplazables desde aquí.
+   */
   zeroToleranceComponents?: Iterable<string>;
 }
 
@@ -97,7 +110,6 @@ export interface ProviderRouterOptions {
  *    decide si reintenta explícitamente contra el proveedor por defecto.
  */
 export class ProviderRouter {
-  private readonly requiredCountry: string;
   private readonly zeroToleranceComponents: Set<string>;
   private readonly providersById: Map<string, LLMProvider>;
 
@@ -106,8 +118,13 @@ export class ProviderRouter {
     private readonly alternativeProviders: LLMProvider[] = [],
     options: ProviderRouterOptions = {},
   ) {
-    this.requiredCountry = options.requiredCountry ?? "US";
-    this.zeroToleranceComponents = new Set(options.zeroToleranceComponents ?? ZERO_TOLERANCE_COMPONENTS);
+    // INVARIANTE DE CÓDIGO (AG-06): unión, nunca reemplazo — igual que
+    // AuthorizationPolicy (AG-03). `options.zeroToleranceComponents` solo
+    // puede AÑADIR componentes a los 5 de REQ-125, jamás sustituirlos.
+    this.zeroToleranceComponents = new Set(ZERO_TOLERANCE_COMPONENTS);
+    if (options.zeroToleranceComponents) {
+      for (const component of options.zeroToleranceComponents) this.zeroToleranceComponents.add(component);
+    }
     this.providersById = new Map(
       [defaultProvider, ...alternativeProviders].map((p) => [p.id, p] as const),
     );
@@ -117,7 +134,9 @@ export class ProviderRouter {
     const isZeroTolerance = this.zeroToleranceComponents.has(request.component);
 
     if (isZeroTolerance) {
-      if (this.defaultProvider.countryOfResidence !== this.requiredCountry) {
+      // País fijo (AG-06): nunca se lee de `options`, así que no hay ruta de
+      // configuración (ni de tenant ni de apps/api) que lo debilite.
+      if (this.defaultProvider.countryOfResidence !== REQUIRED_COUNTRY_FOR_ZERO_TOLERANCE) {
         throw new NoCompliantProviderError(request.component);
       }
       return this.defaultProvider;
