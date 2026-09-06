@@ -47,7 +47,47 @@ function toOrgRole(role: AgentRole): OrgRole {
  * conoce Postgres ni RLS), así que la responsabilidad de aislar por
  * organización recae enteramente en este adaptador.
  */
+/**
+ * DB-09 (docs/auditoria-1/db-api-reverificacion.md, BAJA, residual tras
+ * `0044_fix_db09_agent_run_context_bootstrap_guard.sql`): `getRun`/
+ * `updateRun`/`listToolCalls` no reciben `orgId` en su firma (contrato de
+ * `RunStore`/`ToolCallStore`, packages/agents, fuera de este ámbito) y
+ * necesitaban "descubrir" el `org_id` de una corrida ya existente antes de
+ * poder fijar el contexto de tenant -- para eso llaman a
+ * `app.agent_run_context` (`SECURITY DEFINER`, packages/db/migrations/0025
+ * -- `listToolCalls` la reutiliza tal cual, ya que un `tool_call` se busca
+ * por su `agent_run_id`, la misma clave que resuelve la función). El guard
+ * de "bootstrap" de 0044 solo
+ * rechaza si YA hay una sesión con contexto fijado; estos tres sitios
+ * llaman la función DELIBERADAMENTE sin contexto previo (ese es el punto:
+ * bootstrapear), así que ese guard no los protege -- cualquiera que
+ * alcance este código con un `runId`/`toolCallId` adivinado (UUID, no
+ * enumerable en la práctica) obtiene su `org_id`/`actor_id`.
+ *
+ * Mitigación real implementada aquí (dentro de este archivo, como pidió la
+ * reverificación): `createRun`/`recordToolCall` YA conocen el `org_id`/
+ * `actor_id` verdaderos en el momento de escribir (vienen del propio
+ * `AgentRunCreateInput`/`ToolCallTrace`, nunca de la función oracle). Se
+ * cachean en memoria de proceso (`Map`, por instancia de store) y
+ * `getRun`/`updateRun`/`listToolCalls` la consultan PRIMERO -- una corrida u
+ * tool_call creada por ESTA MISMA instancia de proceso nunca vuelve a tocar
+ * la función oracle. Solo se recurre a ella como último recurso (p.ej. tras
+ * un reinicio de proceso, tal como se comporta hoy): el riesgo residual
+ * documentado por la reverificación sigue existiendo para ESE caso, pero el
+ * cierre completo (que el propio caller de `RunStore`/`ToolCallStore` -- el
+ * futuro `AgentRunner` de packages/agents -- pase la identidad en cada
+ * llamada) exige cambiar una interfaz externa a este paquete, fuera de
+ * alcance de esta ronda.
+ */
+interface RunContext {
+  /** `null` solo es real para `PgToolCallStore` (tool_calls de un run de plataforma sin organización); `PgRunStore.createRun` rechaza `organizationId` nulo, así que ahí siempre es `string`. */
+  orgId: string | null;
+  actorId: string | null;
+}
+
 export class PgRunStore implements RunStore {
+  private readonly runContextCache = new Map<string, RunContext>();
+
   constructor(private readonly db: DbClient) {}
 
   private async withTenant<T>(orgId: string, userId: string | null, fn: (tx: DbExecutor) => Promise<T>): Promise<T> {
@@ -68,6 +108,9 @@ export class PgRunStore implements RunStore {
       throw new Error('PgRunStore requiere organizationId: no se soportan corridas sin organización en este esquema');
     }
     const id = randomUUID();
+    // Se cachea ANTES de la escritura (con el orgId/actorId reales del
+    // llamador, nunca de la función oracle) -- ver comentario DB-09 arriba.
+    this.runContextCache.set(id, { orgId: input.organizationId, actorId: input.actorId });
     return this.withTenant(input.organizationId, input.actorId, async (tx) => {
       await tx.query(
         `insert into agent_runs (id, org_id, agent_name, actor_id, actor_role, status, total_steps, completed_steps, correlation_id, estimated_cost_usd)
@@ -83,15 +126,18 @@ export class PgRunStore implements RunStore {
   async updateRun(runId: string, patch: Partial<Omit<AgentRun, 'id'>>): Promise<AgentRun> {
     // No hay contexto de organización disponible en la firma de `updateRun`
     // (packages/agents no lo pasa). Se resuelve el `org_id` real de la fila
-    // vía `app.agent_run_context` (SECURITY DEFINER, ver
+    // primero desde la caché de proceso (poblada por `createRun` con datos
+    // reales, DB-09 arriba); solo si esta instancia no la creó (p.ej. tras
+    // un reinicio) se recurre a `app.agent_run_context` (SECURITY DEFINER,
     // packages/db/migrations/0025_agent_run_lookup_helpers.sql) -- una
     // consulta directa con `app_role` y sin contexto fijado devolvería 0
     // filas siempre (RLS exige `org_id = app.current_org_id()`, que es NULL
-    // hasta que lo fijamos, precisamente lo que esta consulta resuelve).
-    const row = await this.resolveContext(runId);
+    // hasta que lo fijamos, precisamente lo que esa función resuelve).
+    const row = this.runContextCache.get(runId) ?? (await this.resolveContext(runId));
     if (!row) throw new Error(`Corrida desconocida: "${runId}"`);
 
-    return this.withTenant(row.org_id, row.actor_id, async (tx) => {
+    // `agent_runs.org_id` es NOT NULL (0004): esta fila siempre trae orgId real, sea de la caché (createRun lo exige no nulo) o del oracle (columna NOT NULL).
+    return this.withTenant(row.orgId!, row.actorId, async (tx) => {
       const sets: string[] = [];
       const values: unknown[] = [];
       let i = 1;
@@ -117,17 +163,18 @@ export class PgRunStore implements RunStore {
   }
 
   async getRun(runId: string): Promise<AgentRun | undefined> {
-    const row = await this.resolveContext(runId);
+    const row = this.runContextCache.get(runId) ?? (await this.resolveContext(runId));
     if (!row) return undefined;
-    return this.withTenant(row.org_id, row.actor_id, (tx) => this.getRunInTx(tx, runId));
+    return this.withTenant(row.orgId!, row.actorId, (tx) => this.getRunInTx(tx, runId));
   }
 
-  private async resolveContext(runId: string): Promise<{ org_id: string; actor_id: string | null } | undefined> {
+  private async resolveContext(runId: string): Promise<RunContext | undefined> {
     const { rows } = await this.db.transaction(async (tx) => {
       await tx.query('set local role app_role');
       return tx.query<{ org_id: string; actor_id: string | null }>('select * from app.agent_run_context($1)', [runId]);
     });
-    return rows[0];
+    if (rows.length === 0) return undefined;
+    return { orgId: rows[0].org_id, actorId: rows[0].actor_id };
   }
 
   private async getRunInTx(tx: DbExecutor, runId: string): Promise<AgentRun | undefined> {
@@ -169,9 +216,18 @@ export class PgRunStore implements RunStore {
 }
 
 export class PgToolCallStore implements ToolCallStore {
+  // DB-09 (ver comentario extenso en PgRunStore arriba): `listToolCalls`
+  // solo recibe `runId`, no `orgId` -- `recordToolCall` sí conoce el
+  // `organizationId`/`actorId` REAL de cada `ToolCallTrace` (el propio
+  // objeto los trae, no la función oracle) y los cachea aquí por `runId`
+  // para que `listToolCalls` de un run creado por ESTA instancia nunca
+  // tenga que llamar a `app.agent_run_context`.
+  private readonly runContextCache = new Map<string, RunContext>();
+
   constructor(private readonly db: DbClient) {}
 
   async recordToolCall(trace: ToolCallTrace): Promise<ToolCallTrace> {
+    this.runContextCache.set(trace.runId, { orgId: trace.organizationId, actorId: trace.actorId });
     await this.db.transaction(async (tx) => {
       await tx.query('set local role app_role');
       await tx.query("select set_config('app.current_org_id', $1, true)", [trace.organizationId]);
@@ -217,19 +273,24 @@ export class PgToolCallStore implements ToolCallStore {
 
   async listToolCalls(runId: string): Promise<ToolCallTrace[]> {
     // Mismo problema que RunStore.getRun/updateRun: no hay org_id en la
-    // firma. Se resuelve vía app.agent_run_context (misma corrida) antes de
-    // fijar el contexto de tenant.
-    const { rows: contextRows } = await this.db.transaction(async (tx) => {
-      await tx.query('set local role app_role');
-      return tx.query<{ org_id: string; actor_id: string | null }>('select * from app.agent_run_context($1)', [runId]);
-    });
-    const context = contextRows[0];
-    if (!context) return [];
+    // firma. Se busca primero en la caché de proceso (poblada por
+    // `recordToolCall` con datos reales, DB-09 arriba); solo si esta
+    // instancia nunca grabó una tool_call de este run (p.ej. tras un
+    // reinicio) se recurre a `app.agent_run_context`.
+    let context = this.runContextCache.get(runId);
+    if (!context) {
+      const { rows: contextRows } = await this.db.transaction(async (tx) => {
+        await tx.query('set local role app_role');
+        return tx.query<{ org_id: string; actor_id: string | null }>('select * from app.agent_run_context($1)', [runId]);
+      });
+      if (contextRows.length === 0) return [];
+      context = { orgId: contextRows[0].org_id, actorId: contextRows[0].actor_id };
+    }
 
     const { rows } = await this.db.transaction(async (tx) => {
       await tx.query('set local role app_role');
-      await tx.query("select set_config('app.current_org_id', $1, true)", [context.org_id]);
-      await tx.query("select set_config('app.current_user_id', $1, true)", [context.actor_id]);
+      await tx.query("select set_config('app.current_org_id', $1, true)", [context.orgId]);
+      await tx.query("select set_config('app.current_user_id', $1, true)", [context.actorId]);
       return tx.query<Record<string, unknown>>('select * from tool_calls where agent_run_id = $1 order by step_index asc', [runId]);
     });
     return rows.map(mapToolCallRow);
