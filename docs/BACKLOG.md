@@ -374,3 +374,8 @@ Las 12 pruebas mínimas obligatorias S1-S12 de `docs/ACEPTACION.md` se reparten 
 
 ## E21 — API: perfil y sesiones (paridad Likida/Restaurantes; detectado en web 8a)
 - Endpoints: desactivar 2FA con step-up, regenerar códigos de respaldo, listar/cerrar sesiones activas (refresh families), cambiar contraseña con step-up, desvincular Google (E19). Luego UI en `/configuracion` sustituyendo los huecos declarados.
+
+## E22 — Huecos menores del pase de trazabilidad (2026-09-06)
+- Web: onboarding a 6 pasos según REQ-191 o reformular el criterio; EmptyState con `actionLabel` en las páginas (REQ-193); `sitemap.xml` + robots; activar el formulario de contacto de la landing (8b).
+- Infra: HEALTHCHECK en apps/worker; `depends_on: condition: service_healthy` en compose prod; se atienden con los hallazgos de #123.
+- API: prueba de contrato REQ-175 (tokens Google = esquema/expiración de email+contraseña).

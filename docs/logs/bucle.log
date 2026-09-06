@@ -175,3 +175,4 @@
 2026-09-06 17:19  NOTA  #118 y #119 despachados con Opus (D-10) tras 2 bloqueos del clasificador; en curso #115 #116 #117 #118 #119.
 2026-09-06 17:29  NOTIF  #115 auditoría mail-api: AM-01/02/03 ALTA → #120; AM-04 tras #116; en curso #116 #117 #118 #119 #120.
 2026-09-06 17:32  NOTIF  #116 worker mail_retry+E20 cerrado (0087, 0088); despacho #121 WK6-04+AM-04; en curso #117 #118 #119 #120 #121.
+2026-09-06 17:39  NOTIF  #119 pase trazabilidad 0edf2f8 (57/101/65/6/5/3); despacho #122 auditoría web, #123 auditoría infra; E22; en curso #117 #118 #120 #121 #122 #123.
