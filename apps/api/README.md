@@ -468,6 +468,78 @@ mutar, `viewer` solo lee), salvo aprobar (ver más abajo).
   los que de verdad cayeron dentro de la ventana `[verifiedOn, dueDate]` de
   ese cómputo concreto (nunca por todos los cargados para el año).
 
+**Ronda 6** (REQ-051..055, post-adjudicación avanzada — ver
+`apps/api/docs/e11-cobertura.md` para el detalle completo):
+
+- **Contrato / máquina de estados (REQ-051)** —
+  `modules/expediente/contract.routes.ts` +
+  `lib/expediente/contract-lifecycle.ts`. `POST /tenders/:id/contract`
+  crea el contrato en `adjudicado`; `POST .../contract/transition` exige
+  `reason` (motivo obligatorio) y valida contra el grafo cerrado
+  `CONTRACT_TRANSITIONS` (adjudicado→contrato_firmado_declarado→
+  en_ejecucion→entregado→facturado→pagado→cerrado, con ramas modificado/
+  penalizado/rescindido/en_inconformidad) — una transición fuera del grafo
+  responde 409 con el detalle de estados permitidos, nunca aplica un
+  cambio parcial. `GET .../contract/history` expone el historial
+  INMUTABLE (`contract_status_history`, RLS sin política de UPDATE/DELETE:
+  ni el propio dueño puede editarlo). Rescindir/penalizar/modificar/marcar
+  en inconformidad exigen step-up (`X-Step-Up`,
+  `purpose='expediente.contract_transition'`). Alcanzar un estado de rama
+  (o "cerrado") encola un job `contract_state_alert` (sin envío externo).
+  `PATCH .../contract` actualiza metadatos administrativos (`endDate`,
+  `contractNumber`) — NO es una transición de estado.
+- **Extracción del contrato firmado (REQ-052)** — el usuario SUBE el
+  contrato ya firmado (`POST .../contract/documents`, declarativo: el
+  sistema nunca firma ni verifica una firma real); reutiliza
+  `extractDocumentText` (E6, mismo motor que bases: PDF con capa de texto
+  o texto plano, sin OCR → `requires_ocr`). El extractor determinista
+  (`lib/expediente/contract-extraction.ts`, regex, sin LLM) detecta número
+  de contrato, monto total, plazo de entrega, garantía de cumplimiento,
+  penas convencionales/deductivas, forma de pago, administrador del
+  contrato y cesión de derechos de cobro, cada uno con cláusula (si se
+  detecta un marcador "CLÁUSULA N"), página (aproximación proporcional,
+  documentada como heurística) y confianza. Todo campo entra
+  `status='sugerido'`; `POST .../fields/:id/confirm` (`action:
+  'confirm'|'correct'`) es la ÚNICA forma de darlo por válido.
+- **Redactor de inconformidades (REQ-053)** —
+  `modules/expediente/inconformidad.routes.ts` +
+  `lib/expediente/inconformidad.ts`. `POST /tenders/:id/inconformidad`
+  genera una VERSIÓN nueva (nunca edita una existente — el contenido es
+  INMUTABLE a nivel de trigger de base de datos) con hechos/agravios/
+  pruebas capturados por el usuario, fundamentos citando LAASSP nueva
+  Art. 49 (fallo) y Art. 95 (plazo), ambos con jurisdicción "Federal" y
+  fecha DOF 2025-04-16, y el plazo calculado con el MISMO motor
+  determinista de días hábiles que REQ-050
+  (`computeInconformidadDeadline`, 6 días hábiles, o 10 bajo cobertura de
+  tratados). Todo borrador lleva el disclaimer "BORRADOR — requiere
+  revisión de abogado" y `contentHash` (versionado). Guardrail
+  anti-frivolidad determinista (pruebas vs. agravios) clasifica
+  `viability` (nunca bloquea, solo advierte). Este módulo **nunca** envía
+  nada a ninguna autoridad — sin cliente HTTP saliente en todo el archivo.
+  `POST .../inconformidad/:id/mark-reviewed` exige step-up
+  (`purpose='expediente.inconformidad_review'`) y rol reviewer/admin/
+  owner; ya revisado responde 409.
+- **Autopsia del fallo (REQ-054)** —
+  `modules/expediente/fallo-autopsy.routes.ts`. `POST
+  /tenders/:id/fallo-autopsy` registra la comparación propuesta propia vs.
+  fallo (motivo de desechamiento, puntos/criterios, precio vs. ganador si
+  el fallo es público) y al menos una lección aprendida. Cualquier dato
+  ausente (motivo de desechamiento, nombre del ganador) se persiste
+  literalmente como `"no disponible"`, nunca inventado. Las lecciones
+  quedan vinculadas al perfil de empresa y son consultables org-wide
+  (todas las convocatorias) vía `GET /expediente/lessons-learned`.
+- **Radar de renovaciones (REQ-055)** —
+  `modules/expediente/renewal-radar.routes.ts` +
+  `lib/expediente/renewal-radar.ts`. `POST /expediente/renewals/scan`
+  (bajo demanda, sin cron real en esta ronda) evalúa los contratos de la
+  organización con `end_date` conocida contra umbrales de antelación
+  configurables (por defecto 90/60/30 días); cada umbral cruzado encola un
+  job `renewal_radar_alert` (sin envío externo) y una fila en
+  `renewal_alerts`, deduplicada por (contrato, umbral) entre escaneos.
+  Cada alerta se enriquece con convocatorias PREVIAS de la misma
+  organización y el mismo `contracting_body` como contexto de apoyo.
+  `GET /expediente/renewals/alerts` lista las alertas de la organización.
+
 Todas las rutas devuelven errores en `application/problem+json` (RFC 7807):
 `{ type, title, status, detail?, requestId }`. En producción, un error 500
 nunca expone mensaje interno ni stack (`lib/errors.ts` +
@@ -624,6 +696,26 @@ solo, pasa establemente en <2s por caso).
   cliente HTTP saliente).
 - `expediente-post-award.test.ts` — E11, plazo de pago a 17 días hábiles
   con fuente legal citada, job de recordatorio encolado, roles.
+- `expediente-contract-lifecycle.test.ts` — REQ-051 (ronda 6): grafo de
+  transiciones, 409 en transición inválida, historial inmutable, step-up
+  en transiciones sensibles, roles.
+- `expediente-contract-extraction.test.ts` — REQ-052 (ronda 6): extracción
+  determinista de campos del contrato firmado, confirmación/corrección
+  obligatoria, `requires_ocr`/`failed`, roles.
+- `expediente-inconformidad.test.ts` — REQ-053 (ronda 6): fundamentos
+  Art. 95/Art. 49 con jurisdicción y fecha DOF, plazo 6/10 días hábiles,
+  versionado con hash e inmutabilidad de contenido, step-up para marcar
+  revisado, roles.
+- `expediente-fallo-autopsy.test.ts` — REQ-054 (ronda 6): comparación
+  propuesta propia vs. fallo, campos ausentes como `"no disponible"`,
+  lecciones vinculadas al perfil de empresa, roles.
+- `expediente-renewal-radar.test.ts` — REQ-055 (ronda 6): alertas por
+  umbral de antelación configurable, dedupe entre escaneos, enriquecimiento
+  con convocatorias históricas, roles.
+- `expediente-post-award-e2e-ronda6.test.ts` — E2E ronda 6: adjudicado →
+  contrato subido → estados → inconformidad borrador → autopsia → radar
+  en un solo flujo, más un caso adversarial de aislamiento cruzado entre
+  organizaciones sobre las cinco piezas nuevas.
 - `expediente-e2e-flow.test.ts` — flujo completo de extremo a extremo
   (bases → matriz → perfil → propuesta → checklist → aprobación → paquete
   draft → ready → descarga → cambio de bases → invalidación → draft de
@@ -690,10 +782,13 @@ solo, pasa establemente en <2s por caso).
     cargarla con fechas reales sigue siendo tarea de un administrador.
   - **`2FA` en la aprobación del expediente**: implementado en ronda 5
     (`POST .../approval/approve` exige `X-Step-Up`, ver módulo `2fa`).
-  - **E11 (REQ-051..055)**: máquina de estados del contrato, extracción
-    estructurada del contrato firmado, redactor de inconformidades,
-    autopsia del fallo y radar de renovaciones NO están construidos --
-    fuera de alcance de la ronda 5 (ver `apps/api/docs/e11-cobertura.md`).
+  - **E11 (REQ-051..055)**: construido en **ronda 6** — máquina de estados
+    del contrato, extracción estructurada del contrato firmado, redactor
+    de inconformidades, autopsia del fallo y radar de renovaciones (ver
+    sección "Ronda 6" arriba y `apps/api/docs/e11-cobertura.md` para el
+    detalle línea por línea, incluyendo límites documentados que quedan
+    pendientes: taxonomía cerrada de motivo de pérdida en REQ-054, y
+    predicción de renovación sin contrato propio previo en REQ-055).
 
 ## Reparaciones — auditoría 2 (`docs/auditoria-2/api-expediente.md`)
 
