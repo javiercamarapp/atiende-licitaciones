@@ -139,11 +139,27 @@ export async function expedientePostAwardRoutes(app: FastifyInstance): Promise<v
           const deadline = computePaymentDeadline(verifiedOn, timestampToIso(tender.published_at as string | Date | null), combinedHolidays);
           dueDate = deadline.dueDate;
           legalReference = deadline.legalReference;
+          // R5-01: `calendarNote` solo puede AFIRMAR que un feriado oficial
+          // "fue incluido en el cómputo" cuando de verdad cayó dentro de la
+          // ventana real [verifiedOn, dueDate] -- antes se contaban TODOS
+          // los feriados cargados para el año (aunque cayeran fuera de la
+          // ventana de este cómputo concreto, o aunque el régimen aplicable
+          // fuera de días NATURALES, que nunca excluye inhábiles) como si
+          // hubieran afectado el resultado. El mensaje ahora distingue los
+          // tres casos honestamente.
+          let calendarNote = deadline.calendarNote;
+          if (deadline.legalRegime.unit === 'dias_habiles') {
+            const officialHolidaysInRange = countHolidaysInWindow(officialHolidays, verifiedOn, deadline.dueDate);
+            if (officialHolidaysInRange > 0) {
+              calendarNote = `${calendarNote}; ${officialHolidaysInRange} día(s) inhábil(es) oficial(es) cargado(s) en calendar_holidays cayó/cayeron dentro de la ventana de este cómputo y fue/fueron excluido(s) del plazo.`;
+            } else if (officialHolidays.length > 0) {
+              calendarNote = `${calendarNote}; ${officialHolidays.length} día(s) inhábil(es) oficial(es) cargado(s) en calendar_holidays para este año, pero ninguno cayó dentro de la ventana de este cómputo (no afectaron el plazo calculado).`;
+            }
+          } else if (officialHolidays.length > 0) {
+            calendarNote = `${calendarNote}; ${officialHolidays.length} día(s) inhábil(es) oficial(es) cargado(s) en calendar_holidays, pero el régimen aplicable a esta convocatoria es de días NATURALES (nunca excluye inhábiles).`;
+          }
           metadata = {
-            calendarNote:
-              officialHolidays.length > 0
-                ? `${deadline.calendarNote}; ${officialHolidays.length} día(s) inhábil(es) oficial(es) cargado(s) en calendar_holidays incluido(s) en el cómputo.`
-                : deadline.calendarNote,
+            calendarNote,
             legalRegime: deadline.legalRegime,
             holidays: combinedHolidays,
           };
@@ -293,9 +309,36 @@ function computeReminderRunAt(dueDateIso: string, leadDays: number): string {
 async function loadOfficialHolidays(tx: DbExecutor, verifiedOnIsoDate: string): Promise<string[]> {
   const year = Number(verifiedOnIsoDate.slice(0, 4));
   if (!Number.isInteger(year)) return [];
-  const { rows } = await tx.query<{ holiday_date: string }>(
+  const { rows } = await tx.query<{ holiday_date: string | Date }>(
     `select holiday_date from calendar_holidays where jurisdiction = 'federal' and year in ($1, $2)`,
     [year, year + 1]
   );
-  return rows.map((r) => String(r.holiday_date).slice(0, 10));
+  // R5-01 (docs/auditoria-2/api-ronda5.md, CRÍTICA): el driver (pg/PGlite)
+  // devuelve la columna `date` como una instancia de `Date` -- `String(date)`
+  // invoca `Date.prototype.toString()` (formato dependiente de la zona
+  // horaria LOCAL del proceso, p.ej. "Thu Sep 10 2026 ..."), NUNCA
+  // `toISOString()`. El resultado nunca coincidía con las claves "YYYY-MM-DD"
+  // que usa `addBusinessDays()`, así que un feriado oficial cargado NUNCA
+  // excluía el día real del cómputo, aunque `calendarNote` afirmara lo
+  // contrario. `toDateOnlyString` (arriba en este mismo archivo, ya usado
+  // por `computeAlertLevel`) normaliza con getters UTC, determinista sin
+  // importar `TZ` del proceso -- se reutiliza aquí en vez de duplicar lógica.
+  return rows.map((r) => toDateOnlyString(r.holiday_date) as string);
+}
+
+/**
+ * R5-01: cuenta cuántas fechas de `holidays` caen estrictamente DESPUÉS de
+ * `startIsoDate` y hasta `endIsoDate` inclusive -- exactamente la ventana
+ * que `addBusinessDays` recorre (empieza en `startIsoDate + 1 día`, termina
+ * en `endIsoDate`, que por construcción nunca es un fin de semana/feriado).
+ * Comparación por fecha civil pura (sin componente de hora), determinista
+ * sin importar `TZ` del proceso.
+ */
+function countHolidaysInWindow(holidays: readonly string[], startIsoDate: string, endIsoDate: string): number {
+  const startMs = new Date(`${startIsoDate.slice(0, 10)}T00:00:00Z`).getTime();
+  const endMs = new Date(`${endIsoDate.slice(0, 10)}T00:00:00Z`).getTime();
+  return holidays.filter((h) => {
+    const t = new Date(`${h.slice(0, 10)}T00:00:00Z`).getTime();
+    return t > startMs && t <= endMs;
+  }).length;
 }
