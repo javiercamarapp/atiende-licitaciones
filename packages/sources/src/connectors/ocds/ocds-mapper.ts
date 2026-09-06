@@ -1,7 +1,22 @@
 import { hashRawPayload } from "../../util/hash.js";
+import { fromMexicoCityNaive } from "../../util/timezone.js";
 import type { ClassifierScheme, ProcedureType, SourceId, TenderRecord, TenderStatus } from "../../types/tender-record.js";
 import { parseTenderRecord } from "../../types/tender-record.js";
 import { OcdsReleasePackageSchema, type OcdsRelease } from "./ocds-types.js";
+
+/**
+ * Convierte una fecha OCDS a `Date` pasando por `fromMexicoCityNaive()`
+ * (SR-02): el estándar OCDS 1.1 exige ISO 8601 CON offset explícito, así que
+ * en la práctica esto es un passthrough (`fromMexicoCityNaive` respeta un
+ * offset ya presente). Es una defensa explícita, no teórica: un portal
+ * estatal (REQ-135) que no siga el estándar al pie de la letra y emita una
+ * fecha/hora naive NO debe quedar a merced del TZ del proceso que ejecuta el
+ * conector, igual que ComprasMX/DOF.
+ */
+function parseOcdsDate(raw: string | undefined): Date | undefined {
+  if (!raw) return undefined;
+  return fromMexicoCityNaive(raw);
+}
 
 const PROCUREMENT_METHOD_TO_PROCEDURE_TYPE: Record<string, ProcedureType> = {
   open: "licitacion_publica",
@@ -90,10 +105,10 @@ export function mapOcdsReleaseToTenderRecord(release: OcdsRelease, rawPackage: u
     budgetAmount: release.tender.value?.amount,
     currency: release.tender.value?.currency ?? "MXN",
     dates: {
-      published: release.date,
-      clarificationMeeting: release.tender.enquiryPeriod?.endDate,
-      submissionDeadline: release.tender.tenderPeriod?.endDate,
-      award: release.tender.awardPeriod?.startDate ?? awardDate,
+      published: parseOcdsDate(release.date),
+      clarificationMeeting: parseOcdsDate(release.tender.enquiryPeriod?.endDate),
+      submissionDeadline: parseOcdsDate(release.tender.tenderPeriod?.endDate),
+      award: parseOcdsDate(release.tender.awardPeriod?.startDate ?? awardDate),
     },
     status: release.tender.status ? OCDS_STATUS_TO_TENDER_STATUS[release.tender.status] ?? "unknown" : "unknown",
     statusRaw: release.tender.status,

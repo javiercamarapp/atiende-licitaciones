@@ -12,8 +12,26 @@
 export const MEXICO_CITY_TZ = "America/Mexico_City";
 export const MEXICO_CITY_FIXED_OFFSET = "-06:00";
 
-/** Interpreta una fecha "naive" (sin zona) como hora del Centro de México y devuelve un `Date` UTC correcto. */
+/** true si la cadena ya trae un designador de zona horaria explícito (`Z` o `±HH:MM`) al final. */
+function hasExplicitOffset(isoDateOrDateTime: string): boolean {
+  return /(?:Z|[+-]\d{2}:\d{2})$/.test(isoDateOrDateTime);
+}
+
+/**
+ * Interpreta una fecha/hora "naive" (SIN zona horaria explícita) como hora
+ * del Centro de México y devuelve un `Date` (instante UTC) correcto,
+ * SIN importar el `TZ` del proceso que ejecuta este código (SR-02: antes de
+ * este guard, una fecha que YA traía un offset explícito -p. ej. la que
+ * usan los fixtures de ComprasMX con "Z"- se le concatenaba un SEGUNDO
+ * offset por error si se llamaba dos veces, o dependía silenciosamente del
+ * TZ del proceso si nunca se llamaba). Si `isoDateOrDateTime` YA trae un
+ * offset explícito (`Z` o `±HH:MM`), se respeta tal cual (no se reinterpreta
+ * como hora de México) y simplemente se parsea con `new Date()`.
+ */
 export function fromMexicoCityNaive(isoDateOrDateTime: string): Date {
+  if (hasExplicitOffset(isoDateOrDateTime)) {
+    return new Date(isoDateOrDateTime);
+  }
   const hasTime = /T\d{2}:\d{2}/.test(isoDateOrDateTime);
   const withOffset = hasTime
     ? `${isoDateOrDateTime}${MEXICO_CITY_FIXED_OFFSET}`

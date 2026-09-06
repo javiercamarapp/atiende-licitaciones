@@ -1,7 +1,25 @@
 import { hashRawPayload } from "../../util/hash.js";
 import { parseCsv } from "../../util/csv.js";
+import { fromMexicoCityNaive } from "../../util/timezone.js";
 import { parseTenderRecord, type TenderRecord } from "../../types/tender-record.js";
 import { ComprasMxApiRecordSchema, ComprasMxHistoricoCsvRowSchema, type ComprasMxApiRecord } from "./comprasmx-types.js";
+
+/**
+ * Convierte una fecha del API/CSV de ComprasMX a `Date` pasando SIEMPRE por
+ * `fromMexicoCityNaive()` (SR-02): el esquema de `comprasmx-types.ts` está
+ * marcado "INFERIDO... no confirmado contra un payload real", así que no se
+ * puede asumir que el backend real emita offset explícito. Sin este guard,
+ * `TenderDatesSchema` (`z.coerce.date()` -> `new Date(string)`) interpretaría
+ * una fecha/hora naive según el TZ del PROCESO que ejecuta el conector
+ * (p.ej. UTC en un contenedor de producción), produciendo un instante hasta
+ * 6 horas distinto del real. `fromMexicoCityNaive` respeta un offset
+ * explícito si ya viene en la cadena (p.ej. "...Z"), y solo aplica la
+ * interpretación de hora del Centro de México cuando la cadena es naive.
+ */
+function parseComprasMxDate(raw: string | undefined): Date | undefined {
+  if (!raw) return undefined;
+  return fromMexicoCityNaive(raw);
+}
 
 const TIPO_CONTRATACION_TO_PROCEDURE: Record<string, TenderRecord["procedureType"]> = {
   "licitacion publica": "licitacion_publica",
@@ -53,10 +71,10 @@ export function mapComprasMxApiRecordToTenderRecord(rawRecord: unknown, options:
     budgetAmount: record.monto_estimado,
     currency: record.moneda ?? "MXN",
     dates: {
-      published: record.fecha_publicacion,
-      clarificationMeeting: record.fecha_junta_aclaraciones,
-      submissionDeadline: record.fecha_apertura_proposiciones,
-      award: record.fecha_fallo,
+      published: parseComprasMxDate(record.fecha_publicacion),
+      clarificationMeeting: parseComprasMxDate(record.fecha_junta_aclaraciones),
+      submissionDeadline: parseComprasMxDate(record.fecha_apertura_proposiciones),
+      award: parseComprasMxDate(record.fecha_fallo),
     },
     status: mapStatus(record.estatus),
     statusRaw: record.estatus,
