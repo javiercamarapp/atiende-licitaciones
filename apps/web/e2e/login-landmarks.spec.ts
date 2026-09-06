@@ -17,3 +17,14 @@ test("/login tiene landmark <main>, un <h1> real y ningún contenido fuera de la
     .analyze();
   expect(results.violations, JSON.stringify(results.violations, null, 2)).toEqual([]);
 });
+
+// Ronda 8a (REQ-172): /registro es la otra pantalla pública fuera de
+// <AppShell/> (RegistroPage.tsx, mismo layout partido que /login) — se
+// somete al MISMO criterio en vez de heredar por parecido.
+test("/registro tiene landmark <main>, un <h1> real y ningún contenido fuera de landmarks (W-08)", async ({ noAuthPage: page }) => {
+  await page.goto("/registro");
+  const results = await new AxeBuilder({ page })
+    .withRules(["landmark-one-main", "page-has-heading-one", "region"])
+    .analyze();
+  expect(results.violations, JSON.stringify(results.violations, null, 2)).toEqual([]);
+});

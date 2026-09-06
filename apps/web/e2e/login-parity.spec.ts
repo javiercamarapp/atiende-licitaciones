@@ -34,14 +34,19 @@ test.describe("Paridad visual del login (W-11)", () => {
 
   // Ronda 3: se retiró la pestaña de enlace mágico (no existe ningún
   // endpoint `/auth/magic-link` en apps/api — ver LoginPage.tsx y
-  // README.md). Ahora solo hay un formulario de contraseña, sin tabs.
-  test("solo formulario de contraseña, sin tabs ni Google OAuth (ronda 3: se retiró enlace mágico sin backend)", async ({ noAuthPage: page }) => {
+  // README.md). Ronda 8a: "Continuar con Google" SÍ aparece ahora, porque
+  // apps/api ya tiene el flujo OIDC real detrás (`/auth/google/start`,
+  // REQ-172) — esta prueba afirmaba lo contrario desde ronda 3 y quedó
+  // obsoleta al implementarlo. El criterio de fondo no cambió y es el que
+  // se sigue verificando: en /login solo hay métodos con backend REAL
+  // detrás, nunca una pestaña decorativa.
+  test("métodos de acceso con backend real: contraseña + Google, sin tabs ni enlace mágico", async ({ noAuthPage: page }) => {
     await page.goto("/login");
     await expect(page.getByRole("heading", { level: 1, name: "Accede a tu panel de licitaciones" })).toBeVisible();
     await expect(page.getByLabel("Correo electrónico")).toBeVisible();
     await expect(page.getByLabel("Contraseña")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Continuar con Google" })).toBeVisible();
     await expect(page.getByRole("tab")).toHaveCount(0);
-    await expect(page.getByText("Continuar con Google")).toHaveCount(0);
     await expect(page.getByText(/enlace mágico/i)).toHaveCount(0);
   });
 });
