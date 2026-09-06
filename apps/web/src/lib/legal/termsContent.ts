@@ -20,8 +20,6 @@ export const TERMS_VERSION = 1;
 export const TERMS_LAST_UPDATED = "2026-09-06";
 
 export const TERMS_CONTENT_MARKDOWN = `
-# Términos de servicio
-
 ## 1. Objeto del servicio
 
 Atiende Licitaciones ("la Plataforma") es una herramienta de apoyo a la decisión y de organización documental para participar en licitaciones públicas en México: descubrimiento de convocatorias, cálculo de relevancia/elegibilidad ("matching"), armado de expediente (matriz de requisitos, propuesta técnica/económica, checklist de integridad) y seguimiento post-adjudicación.
