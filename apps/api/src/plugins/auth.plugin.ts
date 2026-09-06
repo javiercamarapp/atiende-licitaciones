@@ -29,10 +29,13 @@ async function authPluginImpl(app: FastifyInstance): Promise<void> {
     }
     const { rows } = await app.db.transaction(async (tx) => {
       await tx.query('set local role app_role');
-      return tx.query<{ role: string | null }>('select app.membership_role($1, $2) as role', [
-        orgId,
-        request.userId,
-      ]);
+      // DB-01 (docs/auditoria-1/db-api.md): `app.membership_role` ahora solo
+      // acepta `org_id` y resuelve SIEMPRE la membresía del propio
+      // `app.current_user_id()` (fijado aquí abajo) -- ya no acepta un
+      // `p_user_id` arbitrario que permitiera consultar el rol de otro
+      // usuario. Ver packages/db/migrations/0019_fix_db01_security_definer_scope.sql.
+      await tx.query("select set_config('app.current_user_id', $1, true)", [request.userId]);
+      return tx.query<{ role: string | null }>('select app.membership_role($1) as role', [orgId]);
     });
     const role = rows[0]?.role;
     if (!role) {
