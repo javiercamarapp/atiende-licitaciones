@@ -128,6 +128,133 @@ describe('expediente — radar de renovaciones (REQ-055)', () => {
     expect(scan.json().alertsCreated).toBe(0);
   });
 
+  it('R6-03: 5,000 contratos (15,000 alertas candidatas) escanean en <2s en PGlite -- sin N+1, en lote y paginado por cursor', async () => {
+    const owner = await registerAndLogin(app, 'c055-owner-6@example.com');
+    const org = await createOrgFor(app, owner, 'C055 Org 6', 'c055-org-6');
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+
+    // Siembra directa (bulk, una sola sentencia con dos CTE encadenados) --
+    // 5,000 convocatorias repartidas en 50 `contracting_body` distintos
+    // (para ejercitar de verdad el agrupamiento de convocatorias históricas
+    // en lote) + 5,000 contratos, todos con `end_date` a 20 días -- cruza
+    // los 3 umbrales por defecto (90/60/30) => 15,000 alertas candidatas,
+    // igual que la medición original de la auditoría (R6-03).
+    await db.query(
+      `with new_tenders as (
+         insert into tenders (org_id, source, external_id, title, contracting_body, published_at)
+         select $1, 'perf-test', 'perf-' || gs, 'Contrato de prueba ' || gs, 'Entidad ' || (gs % 50), now() - (gs || ' days')::interval
+           from generate_series(1, 5000) as gs
+         returning id
+       )
+       insert into contracts (org_id, tender_id, status, end_date)
+       select $1, id, 'adjudicado', current_date + 20
+         from new_tenders`,
+      [org.id]
+    );
+
+    const startedAt = Date.now();
+    const scan = await app.inject({ method: 'POST', url: '/expediente/renewals/scan', headers, payload: {} });
+    const elapsedMs = Date.now() - startedAt;
+    console.log(`R6-03 perf: 5000 contratos, primer escaneo=${elapsedMs}ms`);
+
+    expect(scan.statusCode).toBe(200);
+    expect(scan.json().evaluatedContracts).toBe(5000);
+    expect(scan.json().alertsCreated).toBe(15000);
+    expect(scan.json().truncated).toBe(false);
+    expect(scan.json().nextCursor).toBeNull();
+    expect(elapsedMs).toBeLessThan(2000);
+
+    // Segundo escaneo (dedupe en lote, no una consulta por alerta): también
+    // debe ser rápido y no duplicar ninguna alerta.
+    const startedAt2 = Date.now();
+    const secondScan = await app.inject({ method: 'POST', url: '/expediente/renewals/scan', headers, payload: {} });
+    const elapsedMs2 = Date.now() - startedAt2;
+    console.log(`R6-03 perf: 5000 contratos, segundo escaneo (dedupe)=${elapsedMs2}ms`);
+    expect(secondScan.json().alertsCreated).toBe(0);
+    expect(elapsedMs2).toBeLessThan(2000);
+
+    const totalAlerts = await db.query<{ count: string }>('select count(*)::text as count from renewal_alerts where org_id = $1', [org.id]);
+    expect(Number(totalAlerts.rows[0].count)).toBe(15000);
+  }, 20_000);
+
+  it('R6-03: paginación por cursor -- un pageSize pequeño produce varias páginas y `nextCursor` retoma exactamente donde se quedó, sin perder ni duplicar contratos', async () => {
+    const owner = await registerAndLogin(app, 'c055-owner-7@example.com');
+    const org = await createOrgFor(app, owner, 'C055 Org 7', 'c055-org-7');
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+
+    await db.query(
+      `with new_tenders as (
+         insert into tenders (org_id, source, external_id, title, contracting_body, published_at)
+         select $1, 'perf-test', 'perf-' || gs, 'Contrato de prueba ' || gs, 'Entidad ' || gs, now()
+           from generate_series(1, 25) as gs
+         returning id
+       )
+       insert into contracts (org_id, tender_id, status, end_date)
+       select $1, id, 'adjudicado', current_date + 20
+         from new_tenders`,
+      [org.id]
+    );
+
+    // pageSize=10 sobre 25 contratos, con un `maxDurationMs` mínimo (1ms)
+    // para forzar `truncated:true` tras CADA página que no sea la última
+    // (la última página, con menos filas que pageSize, siempre completa
+    // sin importar el límite de tiempo -- ver `scanContractsPage`): 3
+    // llamadas (10 + 10 + 5 contratos), cada una retomando exactamente
+    // donde se quedó la anterior vía `nextCursor`, sin perder ni duplicar
+    // ningún contrato.
+    let cursor: string | null = null;
+    let totalEvaluated = 0;
+    let totalAlerts = 0;
+    let iterations = 0;
+    let lastTruncated = true;
+    do {
+      const scanCursor: string | null = cursor;
+      const scan: Awaited<ReturnType<FastifyInstance['inject']>> = await app.inject({
+        method: 'POST',
+        url: '/expediente/renewals/scan',
+        headers,
+        payload: { pageSize: 10, maxDurationMs: 1, cursor: scanCursor },
+      });
+      expect(scan.statusCode).toBe(200);
+      totalEvaluated += scan.json().evaluatedContracts;
+      totalAlerts += scan.json().alertsCreated;
+      cursor = scan.json().nextCursor;
+      lastTruncated = scan.json().truncated;
+      iterations += 1;
+    } while (cursor !== null && iterations < 10);
+
+    expect(iterations).toBe(3); // 25 contratos / pageSize 10 -> 3 páginas.
+    expect(lastTruncated).toBe(false); // la última llamada SÍ termina (nextCursor null).
+    expect(totalEvaluated).toBe(25);
+    expect(totalAlerts).toBe(75); // 25 contratos x 3 umbrales (90/60/30, todos cruzados a 20 días).
+
+    const distinctAlerts = await db.query<{ count: string }>('select count(*)::text as count from renewal_alerts where org_id = $1', [org.id]);
+    expect(Number(distinctAlerts.rows[0].count)).toBe(75); // sin duplicados entre páginas.
+  });
+
+  it('R6-03: POST /renewals/scan/enqueue encola un job renewal_radar_scan (opción de ejecutarlo en segundo plano) en vez de escanear de forma síncrona', async () => {
+    const owner = await registerAndLogin(app, 'c055-owner-8@example.com');
+    const org = await createOrgFor(app, owner, 'C055 Org 8', 'c055-org-8');
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+
+    const enqueue = await app.inject({ method: 'POST', url: '/expediente/renewals/scan/enqueue', headers, payload: { leadDaysThresholds: [45] } });
+    expect(enqueue.statusCode).toBe(202);
+    expect(enqueue.json().status).toBe('queued');
+    const jobId = enqueue.json().jobId;
+
+    const job = await db.query<{ kind: string; status: string; payload: any }>('select kind, status, payload from jobs where id = $1', [jobId]);
+    expect(job.rows[0].kind).toBe('renewal_radar_scan');
+    expect(job.rows[0].status).toBe('queued');
+    expect(job.rows[0].payload.leadDaysThresholds).toEqual([45]);
+    expect(job.rows[0].payload.progress).toEqual({ cursor: null, evaluatedContracts: 0, alertsCreated: 0, done: false });
+
+    // No genera NINGUNA alerta todavía -- encolar no es lo mismo que
+    // escanear (sin consumidor de este `kind` en apps/worker en esta
+    // ronda, ver docstring del módulo).
+    const alertsCount = await db.query<{ count: string }>('select count(*)::text as count from renewal_alerts where org_id = $1', [org.id]);
+    expect(Number(alertsCount.rows[0].count)).toBe(0);
+  });
+
   it('viewer no puede iniciar un escaneo de renovaciones', async () => {
     const owner = await registerAndLogin(app, 'c055-owner-5@example.com');
     const org = await createOrgFor(app, owner, 'C055 Org 5', 'c055-org-5');
@@ -141,5 +268,13 @@ describe('expediente — radar de renovaciones (REQ-055)', () => {
       payload: {},
     });
     expect(attempt.statusCode).toBe(403);
+
+    const enqueueAttempt = await app.inject({
+      method: 'POST',
+      url: '/expediente/renewals/scan/enqueue',
+      headers: { authorization: `Bearer ${viewer.accessToken}`, 'x-org-id': org.id },
+      payload: {},
+    });
+    expect(enqueueAttempt.statusCode).toBe(403);
   });
 });

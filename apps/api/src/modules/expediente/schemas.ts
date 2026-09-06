@@ -573,12 +573,46 @@ export const falloAutopsiaSchema = z.object({
 export const renewalScanRequestSchema = z.object({
   /** Umbrales de antelación en días (configurable) -- por defecto 90/60/30. */
   leadDaysThresholds: z.array(z.number().int().positive()).min(1).max(10).default([90, 60, 30]),
+  // R6-03 (docs/auditoria-2/api-ronda6.md, ALTA): el escaneo pagina los
+  // contratos de la organización por cursor (keyset sobre contracts.id) en
+  // vez de cargarlos/procesarlos todos en una sola pasada sin límite --
+  // `cursor` retoma un escaneo previo `truncated:true` exactamente donde
+  // se quedó (nunca reprocesa ni salta contratos).
+  cursor: z.string().uuid().nullable().optional(),
+  /** Contratos a evaluar por página (una sola consulta conjunta por página, sin N+1). Límite alto para no fragmentar organizaciones normales; acotado para no degradar el tiempo por página. */
+  pageSize: z.number().int().positive().max(20000).default(2000),
+  /** Límite de tiempo (ms) para todo el request -- al superarlo, el escaneo se detiene ANTES de procesar la siguiente página y responde `truncated:true` + `nextCursor` en vez de dejar la petición HTTP colgada minutos (riesgo de timeout de proxy/gateway y de mantener la transacción abierta demasiado tiempo). */
+  maxDurationMs: z.number().int().positive().max(60_000).default(8_000),
 });
 
 export const renewalRadarRunSchema = z.object({
   runId: z.string().uuid(),
   alertsCreated: z.number(),
   evaluatedContracts: z.number(),
+  /** true si el escaneo se detuvo por `maxDurationMs` antes de terminar todos los contratos de la organización -- reintentar la misma petición con `cursor: nextCursor` continúa exactamente donde se quedó. */
+  truncated: z.boolean(),
+  nextCursor: z.string().uuid().nullable(),
+});
+
+// R6-03: alternativa a ejecutar el escaneo de forma síncrona en la propia
+// petición HTTP -- encola un job (`jobs`, kind='renewal_radar_scan') para
+// que un worker lo procese en segundo plano, avanzando por páginas y
+// persistiendo `progress` en el propio `payload` del job entre cada
+// página (mismo patrón, sin envío externo, que `contract_state_alert`/
+// `renewal_radar_alert`). NINGÚN consumidor en `apps/worker` procesa este
+// `kind` todavía en esta ronda -- el job queda encolado (`status='queued'`)
+// para un futuro worker, exactamente igual que los otros dos `kind` de
+// jobs de ronda 6 ya documentados como sin consumidor
+// (`apps/api/docs/e11-cobertura.md`). Se documenta explícitamente en vez
+// de aparentar que ya corre en segundo plano.
+export const renewalScanEnqueueRequestSchema = z.object({
+  leadDaysThresholds: z.array(z.number().int().positive()).min(1).max(10).default([90, 60, 30]),
+  pageSize: z.number().int().positive().max(20000).default(2000),
+});
+
+export const renewalScanEnqueueResponseSchema = z.object({
+  jobId: z.string().uuid(),
+  status: z.literal('queued'),
 });
 
 export const renewalAlertSchema = z.object({
