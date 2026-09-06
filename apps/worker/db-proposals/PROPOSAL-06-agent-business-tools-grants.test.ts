@@ -19,7 +19,28 @@ async function runAsWorkerRole<T>(db: DbClient, fn: (tx: DbExecutor) => Promise<
   });
 }
 
-describe('PROPOSAL-06: grants de solo-lectura de negocio + insert de agent_runs para worker_role', () => {
+/**
+ * WK6-03 (docs/auditoria-2/worker-agentes.md, BAJA): los 5 tests de este
+ * archivo hacen cada uno `createMigratedDb()` (TODAS las migraciones reales
+ * de packages/db) más varias consultas/transacciones reales contra PGlite.
+ * Bajo la suite COMPLETA de `apps/worker` (21+ archivos de test corriendo
+ * PGlite en paralelo) la auditoría midió contención real: 582ms aislado para
+ * el test que falló, pero un timeout bajo carga completa con el `testTimeout`
+ * por defecto de vitest (5000ms), no reproducible ni aislado ni en una
+ * segunda corrida completa. No es un defecto funcional del código auditado:
+ * es margen insuficiente frente a la contención de recursos del entorno.
+ *
+ * El timeout se sube a 20000ms para TODO ESTE archivo, no solo para el test
+ * que perdió la carrera esa vez: los 5 comparten exactamente el mismo trabajo
+ * pesado y el mismo riesgo, y cuál de ellos pierde la carrera bajo contención
+ * es arbitrario — subirlo solo en uno dejaría a los otros 4 igual de frágiles.
+ * 20000ms son >30x el tiempo medido aislado y 4x el default: margen suficiente
+ * para la contención observada sin ocultar un timeout genuino si el código se
+ * volviera realmente lento. El default de 5000ms se conserva para el resto de
+ * la suite (no se toca `vitest.config.ts`), para no enmascarar regresiones de
+ * rendimiento en otros archivos.
+ */
+describe('PROPOSAL-06: grants de solo-lectura de negocio + insert de agent_runs para worker_role', { timeout: 20_000 }, () => {
   it('worker_role puede leer tenders/company_profiles de CUALQUIER organización tras aplicar la propuesta', async () => {
     const db = await createMigratedDb();
     try {
@@ -74,6 +95,8 @@ describe('PROPOSAL-06: grants de solo-lectura de negocio + insert de agent_runs 
     }
   });
 
+  // WK6-03: este es el test que la auditoría vio expirar bajo carga completa
+  // (582ms aislado). El margen ahora viene del `timeout` del `describe`.
   it('SIN la propuesta aplicada, withWorkerBusinessReadContext SÍ falla explícito (SchemaGrantPendingError vía pg_policies, nunca una lista vacía fabricada)', async () => {
     const db = await createMigratedDb();
     try {

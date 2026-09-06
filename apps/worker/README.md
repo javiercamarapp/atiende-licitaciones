@@ -749,6 +749,23 @@ alto conviene una migración que añada `agent_runs.correlation_id` indexado
 abiertas por un humano vía `apps/api` solo llevarán este identificador si
 ese sistema fija `correlationId` en el payload del job.
 
+### WK6-03: `PROPOSAL-06-...test.ts` deja de ser flaky bajo carga completa
+
+La auditoría vio ese archivo expirar (`Test timed out in 5000ms`) en una
+corrida completa de la suite y pasar en 3.1s ejecutado aislado (582ms el
+test concreto). Causa: los 5 tests del archivo hacen cada uno
+`createMigratedDb()` (todas las migraciones reales de `packages/db`) más
+varias transacciones reales contra PGlite, y bajo la suite completa (21+
+archivos con PGlite en paralelo) la contención de recursos supera el
+`testTimeout` por defecto de vitest.
+
+El timeout se sube a **20000ms para todo ese archivo** (opción del
+`describe`, no `vitest.config.ts`): los 5 tests comparten el mismo trabajo
+pesado y el mismo riesgo, y cuál pierde la carrera bajo contención es
+arbitrario — subirlo solo en el que falló esa vez dejaría a los otros 4
+igual de frágiles. El default de 5000ms se conserva para el resto de la
+suite, para no enmascarar regresiones de rendimiento en otros archivos.
+
 ## Pendientes / fuera de alcance de esta ronda
 
 - **Acoplamiento a un contrato "espejo", no importado directamente**:
