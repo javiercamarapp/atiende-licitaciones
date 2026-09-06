@@ -1,6 +1,6 @@
 import { Component, Suspense, lazy, type ReactNode } from "react";
 import { BrowserRouter, Navigate, Routes, Route } from "react-router-dom";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 
 import { AtiendeMark } from "@/components/AtiendeLogo";
 import { AppShell } from "@/components/layout/AppShell";
@@ -9,6 +9,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { AuthProvider } from "@/hooks/useAuth";
+import { queryClient } from "@/lib/queryClient";
 
 const LoginPage = lazy(() => import("@/pages/LoginPage"));
 const NotFoundPage = lazy(() => import("@/pages/NotFoundPage"));
@@ -41,10 +42,6 @@ const CostosPage = lazy(() => import("@/pages/backoffice/CostosPage"));
 const IncidentesPage = lazy(() => import("@/pages/backoffice/IncidentesPage"));
 const AprobacionesBackofficePage = lazy(() => import("@/pages/backoffice/AprobacionesBackofficePage"));
 const ConfiguracionPage = lazy(() => import("@/pages/ConfiguracionPage"));
-
-const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
-});
 
 function LoadingScreen() {
   return (

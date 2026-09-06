@@ -17,6 +17,7 @@ import {
   type MyOrg,
   type UserPublic,
 } from "@/lib/api";
+import { clearUnscopedQueries, queryClient } from "@/lib/queryClient";
 
 export type AuthStatus = "loading" | "authenticated" | "unauthenticated";
 
@@ -117,6 +118,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setMemberships([]);
     setCurrentOrgId(null);
     setStatus("unauthenticated");
+    // WI-03 (docs/auditoria-2/web-integrado.md): sin esto, las queries
+    // admin/globales (sin `currentOrgId` en su `queryKey`) sobrevivían en
+    // caché tras un logout real — en un navegador compartido, la siguiente
+    // sesión (aunque sea de otro usuario) podía pintar por un instante
+    // datos de la sesión anterior antes del refetch en segundo plano. Un
+    // logout limpia TODO el caché de react-query, no solo lo admin/global:
+    // ningún dato de la sesión que termina debe sobrevivir a la siguiente.
+    queryClient.clear();
   }, []);
 
   const switchOrg = useCallback(
@@ -124,6 +133,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!memberships.some((m) => m.id === orgId)) return;
       setCurrentOrgId(orgId);
       writeStoredOrgId(orgId);
+      // WI-03: las queries de negocio (empresa/convocatorias/matching/...)
+      // ya incluyen `currentOrgId` en su clave, así que un cambio de
+      // organización no las filtra entre sí. Pero las admin/globales no
+      // tienen ninguna clave por organización — se eliminan explícitamente
+      // para que un cambio de organización nunca pinte, ni brevemente, un
+      // dato que en realidad pertenece a la vista admin de otra sesión.
+      clearUnscopedQueries();
     },
     [memberships],
   );
