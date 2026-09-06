@@ -1,0 +1,163 @@
+=== Auditoría adversarial final ronda 5 -- log de comandos reales ===
+Fecha: 2026-09-06. HEAD auditado: 38a6a3b3b9fd0947fa327c51e1b6d1e128205535 (docs: despacho auditoría final ronda 5)
+Worktree: /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-r5-final
+
+--- 1. npm install ---
+(739 packages, sin errores)
+
+--- 2. apps/api test (npm run -w apps/api test) ---
+ [32m✓[39m test/legal-privacy-notice.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 1123[2mms[22m[39m
+   [33m[2m✓[22m[39m GET /legal/privacy-notice[2m > [22mresponde 200 SIN autenticación, versionado y marcado como borrador pendiente de validación jurídica [33m1122[2mms[22m[39m
+ [32m✓[39m test/rate-limit-and-health.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 3472[2mms[22m[39m
+   [33m[2m✓[22m[39m salud (healthz/readyz)[2m > [22mGET /healthz siempre responde 200 sin tocar la base de datos [33m785[2mms[22m[39m
+   [33m[2m✓[22m[39m salud (healthz/readyz)[2m > [22mGET /readyz responde 200 con la base de datos disponible [33m625[2mms[22m[39m
+   [33m[2m✓[22m[39m salud (healthz/readyz)[2m > [22mGET /readyz responde 503 si la base de datos no está disponible [33m710[2mms[22m[39m
+ [32m✓[39m test/audit-api04-org-id-validation.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 1102[2mms[22m[39m
+ [32m✓[39m test/audit-api06-docs-json-gate.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 981[2mms[22m[39m
+[90mstdout[2m | test/security-api03-login-timing.test.ts[2m > [22m[2mAPI-03: /auth/login no es un oráculo de timing de existencia de cuenta[2m > [22m[2mla mediana de latencia de login con email existente (password incorrecta) y con email inexistente difiere menos de 1.5x en 50 muestras por lado
+[22m[39mAPI-03 login timing: mediana existente=32.26ms, mediana inexistente=29.46ms, ratio=1.09x
+
+ [32m✓[39m test/security-api03-login-timing.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 18811[2mms[22m[39m
+   [33m[2m✓[22m[39m API-03: /auth/login no es un oráculo de timing de existencia de cuenta[2m > [22mla mediana de latencia de login con email existente (password incorrecta) y con email inexistente difiere menos de 1.5x en 50 muestras por lado [33m18811[2mms[22m[39m
+ [32m✓[39m test/audit-api05-security-headers.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 849[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m59 passed[39m[22m[90m (59)[39m
+[2m      Tests [22m [1m[32m238 passed[39m[22m[90m (238)[39m
+[2m   Start at [22m 08:59:44
+[2m   Duration [22m 69.67s[2m (transform 669ms, setup 0ms, collect 13.52s, tests 245.87s, environment 6ms, prepare 1.84s)[22m
+
+
+--- 3. apps/web test unitario, 1a corrida (con contención de CPU por otros procesos del propio auditor) ---
+ Test Files  3 failed | 26 passed (29)
+      Tests  3 failed | 102 passed (105)
+   Start at  09:01:18
+   Duration  72.91s (transform 1.37s, setup 4.69s, import 6.25s, tests 428.34s, environment 7.21s)
+
+npm error Lifecycle script `test` failed with error:
+npm error code 1
+npm error path /private/tmp/claude-501/-Users-javiercamaraportepetit/***/scratchpad/audit-r5-final/apps/web
+npm error workspace @atiende/web@0.1.0
+npm error location /private/tmp/claude-501/-Users-javiercamaraportepetit/***/scratchpad/audit-r5-final/apps/web
+npm error command failed
+npm error command sh -c NODE_OPTIONS=--no-experimental-webstorage vitest run
+
+--- 4. apps/web test unitario, 2a corrida limpia (sin contención) ---
+    at hasRealTextChildren (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-r5-final/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-r5-final/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+
+ Test Files  29 passed (29)
+      Tests  105 passed (105)
+   Start at  09:04:55
+   Duration  42.43s (transform 2.12s, setup 4.71s, import 7.05s, tests 179.60s, environment 8.22s)
+
+
+--- 5. npm audit --workspace apps/web ---
+    vite-node  <=2.2.0-beta.2
+    Depends on vulnerable versions of vite
+    node_modules/vite-node
+
+
+
+5 vulnerabilities (3 moderate, 1 high, 1 critical)
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+--- 6. apps/web build de producción (vite build) ---
+[2mdist-manual/[22m[2massets/[22m[36mform-DsP7QaBn.js                        [39m[1m[2m 38.10 kB[22m[1m[22m[2m │ gzip: 13.67 kB[22m
+[2mdist-manual/[22m[2massets/[22m[36mquery-DGCaXYAZ.js                       [39m[1m[2m 49.11 kB[22m[1m[22m[2m │ gzip: 15.06 kB[22m
+[2mdist-manual/[22m[2massets/[22m[36mindex-DS61ycWC.js                       [39m[1m[2m213.25 kB[22m[1m[22m[2m │ gzip: 61.63 kB[22m
+[2mdist-manual/[22m[2massets/[22m[36mapp-platform-DmIlMrGl.js                [39m[1m[2m256.45 kB[22m[1m[22m[2m │ gzip: 82.61 kB[22m
+[32m✓ built in 1.40s[39m
+
+--- 7. vite preview: cabeceras de seguridad reales (curl -sI) ---
+HTTP/1.1 200 OK
+Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Referrer-Policy: strict-origin-when-cross-origin
+
+--- 8. grep de secretos en el bundle de producción (dist-manual/) ---
+grep -rlE "e2e-totp-encryption-key|JWT_SECRET|TOTP_ENCRYPTION_KEY|PLATFORM_API_KEY|-----BEGIN" dist-manual/  -> sin resultados (67 archivos revisados)
+
+--- 9. test:e2e:full, corrida 1/2 (contra apps/api real, PGlite) ---
+[31m  1 failed[39m
+[32m  105 passed[39m[2m (2.1m)[22m
+npm error Lifecycle script `test:e2e` failed with error:
+npm error command failed
+[test:e2e:full] apagando apps/api…
+[test:e2e:full] test:e2e:full FALLÓ (exit 1).
+npm error Lifecycle script `test:e2e:full` failed with error:
+npm error command failed
+
+--- 10. test:e2e:full, corrida 2/2 ---
+[31m  1 failed[39m
+[32m  105 passed[39m[2m (2.1m)[22m
+npm error Lifecycle script `test:e2e` failed with error:
+npm error command failed
+[test:e2e:full] apagando apps/api…
+[test:e2e:full] test:e2e:full FALLÓ (exit 1).
+npm error Lifecycle script `test:e2e:full` failed with error:
+npm error command failed
+
+--- 11. Detalle de la violación axe determinista (idéntica en ambas corridas) ---
+    Error: color-contrast (serious): Elements must meet minimum color contrast ratio thresholds — 1 nodo(s): .\!text-foreground
+
+    [2mexpect([22m[31mreceived[39m[2m).[22mtoEqual[2m([22m[32mexpected[39m[2m) // deep equality[22m
+
+    [32m- Expected  -  1[39m
+    [31m+ Received  + 64[39m
+
+--- 12. apps/api test/security-r511-tool-call-stepup.test.ts y ronda4-admin-tool-calls.test.ts (nombres de test, ya incluidos en los 238 verdes de #2) ---
+apps/api/test/security-r511-tool-call-stepup.test.ts:39:  it('sin 2FA enrolado, aprobar una tool_call responde 403 con instrucción explícita de enrolar', async () => {
+apps/api/test/security-r511-tool-call-stepup.test.ts:53:  it('enrolado pero SIN X-Step-Up, denegar una tool_call responde 403 pidiendo el encabezado', async () => {
+apps/api/test/security-r511-tool-call-stepup.test.ts:65:  it('un stepUpToken con purpose incorrecto (p.ej. company.rate_approval en lugar de tool_call.approval) es rechazado con 403', async () => {
+apps/api/test/security-r511-tool-call-stepup.test.ts:83:  it('un stepUpToken atado a OTRA organización es rechazado con 403, aunque el purpose coincida', async () => {
+apps/api/test/security-r511-tool-call-stepup.test.ts:99:  it('con X-Step-Up vigente y purpose correcto, aprobar una tool_call responde 200 y la sesión queda consumida (un solo uso)', async () => {
+apps/api/test/ronda4-admin-tool-calls.test.ts:49:  it('un usuario normal (no superadmin) recibe 403 en approve y en deny', async () => {
+apps/api/test/ronda4-admin-tool-calls.test.ts:69:  it('R5-11: un superadmin SIN 2FA enrolado recibe 403 con instrucción explícita de enrolar, aunque el rol sea correcto', async () => {
+apps/api/test/ronda4-admin-tool-calls.test.ts:89:  it('R5-11: superadmin enrolado pero SIN X-Step-Up recibe 403 pidiendo el encabezado', async () => {
+apps/api/test/ronda4-admin-tool-calls.test.ts:106:  it('R5-11: un stepUpToken con purpose incorrecto (p.ej. tool_call.approval en lugar de admin.action) es rechazado con 403', async () => {
+apps/api/test/ronda4-admin-tool-calls.test.ts:126:  it('un superadmin (sin ser owner/admin de la organización dueña) SÍ puede aprobar cross-org con step-up vigente, y queda en audit_log con la org afectada', async () => {
+apps/api/test/ronda4-admin-tool-calls.test.ts:163:  it('doble aprobación de la MISMA tool_call responde 409 en el segundo intento (cada intento con su propio step-up)', async () => {
+apps/api/test/ronda4-admin-tool-calls.test.ts:189:  it('deny también funciona cross-org para un superadmin, con step-up vigente', async () => {
+apps/api/test/ronda4-admin-tool-calls.test.ts:206:  it('una tool_call inexistente responde 404 SIN exigir step-up (nada que autorizar todavía)', async () => {
+
+--- 13. RF-01: grep confirmando que apps/web nunca declara stepUpToken al aprobar/denegar tool_calls ---
+apps/web/src/lib/api/agents.ts:16:export async function approveToolCall(orgId: string, id: string): Promise<ToolCall> {
+apps/web/src/lib/api/agents.ts:17:  const raw = await apiRequest<unknown>(`/agents/tool-calls/${id}/approve`, { method: "POST", orgId });
+apps/web/src/lib/api/agents.ts:21:export async function denyToolCall(orgId: string, id: string): Promise<ToolCall> {
+apps/web/src/lib/api/agents.ts:22:  const raw = await apiRequest<unknown>(`/agents/tool-calls/${id}/deny`, { method: "POST", orgId });
+apps/web/src/lib/api/admin.ts:85:export async function approveAdminToolCall(id: string): Promise<ToolCall> {
+apps/web/src/lib/api/admin.ts:86:  const raw = await apiRequest<unknown>(`/admin/tool-calls/${id}/approve`, { method: "POST" });
+apps/web/src/lib/api/admin.ts:90:export async function denyAdminToolCall(id: string): Promise<ToolCall> {
+apps/web/src/lib/api/admin.ts:91:  const raw = await apiRequest<unknown>(`/admin/tool-calls/${id}/deny`, { method: "POST" });
+
+--- 14. RF-02: verificación en vivo, dos llamadas POST /auth/refresh concurrentes en una sola recarga (manual-api.log, build de PRODUCCION servido con vite preview) ---
+{"level":30,"time":1788707688661,"pid":89651,"hostname":"Mac-mini-de-Javier.local","reqId":"21567155-5875-4cee-b9ec-867836716860","res":{"statusCode":200},"responseTime":1.2398749999993015,"msg":"request completed"}
+{"level":30,"time":1788707697258,"pid":89651,"hostname":"Mac-mini-de-Javier.local","reqId":"8255c575-fe89-47d5-8e06-115acedc6bc2","req":{"method":"POST","url":"/auth/refresh","host":"127.0.0.1:3401","remoteAddress":"127.0.0.1","remotePort":56688},"msg":"incoming request"}
+{"level":30,"time":1788707697260,"pid":89651,"hostname":"Mac-mini-de-Javier.local","reqId":"8255c575-fe89-47d5-8e06-115acedc6bc2","res":{"statusCode":200},"responseTime":2.4895830000023125,"msg":"request completed"}
+{"level":30,"time":1788707697261,"pid":89651,"hostname":"Mac-mini-de-Javier.local","reqId":"6f60b6fc-49c3-4f3d-b289-b48ab67347cb","req":{"method":"POST","url":"/auth/refresh","host":"127.0.0.1:3401","remoteAddress":"127.0.0.1","remotePort":56689},"msg":"incoming request"}
+{"level":30,"time":1788707697263,"pid":89651,"hostname":"Mac-mini-de-Javier.local","reqId":"6f60b6fc-49c3-4f3d-b289-b48ab67347cb","res":{"statusCode":401},"responseTime":2.5528750000012224,"msg":"request completed"}
+{"level":30,"time":1788707713401,"pid":89651,"hostname":"Mac-mini-de-Javier.local","reqId":"061fe62c-ae05-482e-b672-e7d46f224b86","res":{"statusCode":200},"responseTime":2.9950410000019474,"msg":"request completed"}
+{"level":30,"time":1788707715449,"pid":89651,"hostname":"Mac-mini-de-Javier.local","reqId":"03606d7c-bd8a-4567-afa3-ea67f8be1eb0","req":{"method":"POST","url":"/auth/refresh","host":"127.0.0.1:3401","remoteAddress":"127.0.0.1","remotePort":56749},"msg":"incoming request"}
+{"level":30,"time":1788707715453,"pid":89651,"hostname":"Mac-mini-de-Javier.local","reqId":"03606d7c-bd8a-4567-afa3-ea67f8be1eb0","res":{"statusCode":200},"responseTime":3.8959170000016456,"msg":"request completed"}
+{"level":30,"time":1788707715453,"pid":89651,"hostname":"Mac-mini-de-Javier.local","reqId":"58ccae2a-0c83-472c-b6fc-f1bf9977351e","req":{"method":"POST","url":"/auth/refresh","host":"127.0.0.1:3401","remoteAddress":"127.0.0.1","remotePort":56750},"msg":"incoming request"}
+{"level":30,"time":1788707715457,"pid":89651,"hostname":"Mac-mini-de-Javier.local","reqId":"58ccae2a-0c83-472c-b6fc-f1bf9977351e","res":{"statusCode":401},"responseTime":4.135458999997354,"msg":"request completed"}
+{"level":30,"time":1788707860313,"pid":89651,"hostname":"Mac-mini-de-Javier.local","reqId":"96551766-4dd3-4cd8-9ae8-885b20d30c4e","res":{"statusCode":200},"responseTime":3.2409590000170283,"msg":"request completed"}
+{"level":30,"time":1788707862295,"pid":89651,"hostname":"Mac-mini-de-Javier.local","reqId":"840e8f9d-dfce-4b35-82d1-2f15a67ec21b","req":{"method":"POST","url":"/auth/refresh","host":"127.0.0.1:3401","remoteAddress":"127.0.0.1","remotePort":56973},"msg":"incoming request"}
+{"level":30,"time":1788707862297,"pid":89651,"hostname":"Mac-mini-de-Javier.local","reqId":"840e8f9d-dfce-4b35-82d1-2f15a67ec21b","res":{"statusCode":200},"responseTime":2.455707999994047,"msg":"request completed"}
+{"level":30,"time":1788707862347,"pid":89651,"hostname":"Mac-mini-de-Javier.local","reqId":"03fe0142-e8bf-4807-815d-a042eeef088e","res":{"statusCode":200},"responseTime":2.0559590000193566,"msg":"request completed"}
+{"level":30,"time":1788707874822,"pid":89651,"hostname":"Mac-mini-de-Javier.local","reqId":"99bb23ac-0eb3-49d3-8806-521b1a813719","req":{"method":"POST","url":"/auth/refresh","host":"127.0.0.1:3401","remoteAddress":"127.0.0.1","remotePort":57003},"msg":"incoming request"}
+{"level":30,"time":1788707874827,"pid":89651,"hostname":"Mac-mini-de-Javier.local","reqId":"99bb23ac-0eb3-49d3-8806-521b1a813719","res":{"statusCode":200},"responseTime":5.054124999995111,"msg":"request completed"}
+
+--- 15. Sitios que llaman refreshSession() (2 nada mas: uno con mutex, otro sin) ---
+apps/web/src/hooks/useAuth.tsx:13:  refreshSession,
+apps/web/src/hooks/useAuth.tsx:66:        await refreshSession();
+apps/web/src/lib/api/client.ts:56:export async function refreshSession(): Promise<void> {
+apps/web/src/lib/api/client.ts:92:        refreshInFlight = refreshSession().finally(() => {
+
+--- 16. RF-03: sin dependencia de generacion de QR en el proyecto ---
+grep -rn qrcode apps/web/package.json apps/web/src -> sin resultados
+
+=== Fin del log ===
