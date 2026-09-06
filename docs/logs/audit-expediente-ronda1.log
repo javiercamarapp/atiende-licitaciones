@@ -40,3 +40,344 @@
 > @atiende/expediente@0.1.0 build
 > tsc -p tsconfig.build.json
 
+
+=== MUTACIÓN 1: ready gate (package-assembler.ts) — status siempre 'ready' ===
+[31m[1m[7m FAIL [27m[22m[39m test/package-assembler.test.ts[2m > [22mPackageAssembler — A13 expediente completo descargable (REQ-048/REQ-159/REQ-161/REQ-163)[2m > [22mnunca produce 'ready' por defecto: un assemble sin aprobaciones vigentes de alcance expediente es 'draft'
+[31m[1mAssertionError[22m: expected 'ready' to be 'draft' // Object.is equality[39m
+
+Expected: [32m"draft"[39m
+Received: [31m"ready"[39m
+
+[36m [2m❯[22m test/package-assembler.test.ts:[2m92:29[22m[39m
+    [90m 90| [39m    [35mconst[39m assembler [33m=[39m [35mnew[39m [33mPackageAssembler[39m()[33m;[39m
+    [90m 91| [39m    [35mconst[39m { manifest } [33m=[39m [35mawait[39m assembler[33m.[39m[34massemble[39m([34mbaseInput[39m({ isFullyA…
+    [90m 92| [39m    [34mexpect[39m(manifest[33m.[39mstatus)[33m.[39m[34mtoBe[39m([32m"draft"[39m)[33m;[39m
+    [90m   | [39m                            [31m^[39m
+    [90m 93| [39m  })[33m;[39m
+    [90m 94| [39m})[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m test/package-assembler.test.ts[2m > [22mPackageAssembler — A14 expediente incompleto nunca 'listo' (REQ-159/REQ-163)[2m > [22mcon checklist en rojo, el paquete queda en 'draft' con marca BORRADOR en el ZIP
+[31m[1m[7m FAIL [27m[22m[39m test/package-assembler.test.ts[2m > [22mPackageAssembler — A14 expediente incompleto nunca 'listo' (REQ-159/REQ-163)[2m > [22mcon documento obligatorio faltante, el paquete queda en 'draft' con marca BORRADOR en el ZIP
+[31m[1m[7m FAIL [27m[22m[39m test/package-assembler.test.ts[2m > [22mPackageAssembler — A14 expediente incompleto nunca 'listo' (REQ-159/REQ-163)[2m > [22mcon sin aprobación vigente de alcance expediente, el paquete queda en 'draft' con marca BORRADOR en el ZIP
+[31m[1m[7m FAIL [27m[22m[39m test/package-assembler.test.ts[2m > [22mPackageAssembler — A14 expediente incompleto nunca 'listo' (REQ-159/REQ-163)[2m > [22mcon aprobación existente pero invalidada, el paquete queda en 'draft' con marca BORRADOR en el ZIP
+[31m[1mAssertionError[22m: expected 'ready' to be 'draft' // Object.is equality[39m
+
+Expected: [32m"draft"[39m
+Received: [31m"ready"[39m
+
+[36m [2m❯[22m test/package-assembler.test.ts:[2m117:29[22m[39m
+    [90m115| [39m    [35mconst[39m { manifest[33m,[39m zip[33m,[39m suggestedFileName } [33m=[39m [35mawait[39m assembler[33m.[39m[34massem[39m…
+    [90m116| [39m
+    [90m117| [39m    [34mexpect[39m(manifest[33m.[39mstatus)[33m.[39m[34mtoBe[39m([32m"draft"[39m)[33m;[39m
+    [90m   | [39m                            [31m^[39m
+    [90m118| [39m    [34mexpect[39m(manifest[33m.[39mwatermark)[33m.[39m[34mtoBe[39m([32m"BORRADOR"[39m)[33m;[39m
+    [90m119| [39m    [34mexpect[39m(suggestedFileName)[33m.[39m[34mtoContain[39m([32m"BORRADOR_"[39m)[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯[22m[39m
+
+[2m Test Files [22m [1m[31m2 failed[39m[22m[90m (2)[39m
+[2m      Tests [22m [1m[31m6 failed[39m[22m[2m | [22m[1m[32m3 passed[39m[22m[90m (9)[39m
+[2m   Start at [22m 19:17:30
+[2m   Duration [22m 372ms[2m (transform 104ms, setup 0ms, collect 181ms, tests 29ms, environment 0ms, prepare 84ms)[22m
+
+
+=== MUTACIÓN 2: autoaprobación (approval-workflow.ts) — se elimina el chequeo ===
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-exp/packages/expediente[39m
+
+ [31m❯[39m test/approval-workflow.test.ts [2m([22m[2m10 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[90m 6[2mms[22m[39m
+[31m   [31m×[31m ApprovalWorkflow — A12 rol indebido (REQ-062/REQ-165)[2m > [22mrechaza autoaprobación: quien envió a revisión no puede aprobar su propio expediente, aunque tenga rol reviewer[90m 3[2mms[22m[31m[39m
+[31m     → expected true to be false // Object.is equality[39m
+ [32m✓[39m test/expediente-flow.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 15[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[1m[7m Failed Tests 1 [27m[22m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[31m[1m[7m FAIL [27m[22m[39m test/approval-workflow.test.ts[2m > [22mApprovalWorkflow — A12 rol indebido (REQ-062/REQ-165)[2m > [22mrechaza autoaprobación: quien envió a revisión no puede aprobar su propio expediente, aunque tenga rol reviewer
+[31m[1mAssertionError[22m: expected true to be false // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- false[39m
+[31m+ true[39m
+
+[36m [2m❯[22m test/approval-workflow.test.ts:[2m46:23[22m[39m
+    [90m 44| [39m    wf[33m.[39m[34mrequestReview[39m({ scopeRef[33m:[39m [32m"documento:tecnica"[39m[33m,[39m actorId[33m:[39m [32m"user-a[39m…
+    [90m 45| [39m    [35mconst[39m result [33m=[39m wf[33m.[39m[34mapprove[39m({ scope[33m:[39m [32m"documento"[39m[33m,[39m scopeRef[33m:[39m [32m"documen[39m…
+    [90m 46| [39m    [34mexpect[39m(result[33m.[39mok)[33m.[39m[34mtoBe[39m([35mfalse[39m)[33m;[39m
+    [90m   | [39m                      [31m^[39m
+    [90m 47| [39m    [35mif[39m ([33m![39mresult[33m.[39mok) [34mexpect[39m(result[33m.[39mreason)[33m.[39m[34mtoContain[39m([32m"autoaprobacion_pr[39m…
+    [90m 48| [39m  })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m1 passed[39m[22m[90m (2)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m12 passed[39m[22m[90m (13)[39m
+[2m   Start at [22m 19:17:41
+[2m   Duration [22m 342ms[2m (transform 65ms, setup 0ms, collect 95ms, tests 20ms, environment 0ms, prepare 53ms)[22m
+
+
+=== MUTACIÓN 3: vencimiento de documento (company-data.ts) — se ignora expiresAt ===
+ [32m✓[39m test/integrity-checklist.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [31m❯[39m test/expediente-flow.test.ts [2m([22m[2m3 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[90m 29[2mms[22m[39m
+[31m   [31m×[31m Flujo integrado del expediente de participación (A6-A15)[2m > [22mA7/A9 combinados: documento vencido bloquea la propuesta técnica y el checklist de vigencias, aun con todo lo demás correcto[90m 4[2mms[22m[31m[39m
+[31m     → expected 0 to be greater than 0[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[1m[7m Failed Tests 2 [27m[22m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[31m[1m[7m FAIL [27m[22m[39m test/company-data.test.ts[2m > [22mCompanyDataService (A7 documento vencido, REQ-022/REQ-023/REQ-143)[2m > [22mbloquea un documento vencido a la fecha del acto, aunque siga vigente 'hoy'
+[31m[1mAssertionError[22m: expected 'ok' to be 'blocked' // Object.is equality[39m
+
+Expected: [32m"blocked"[39m
+Received: [31m"ok"[39m
+
+[36m [2m❯[22m test/company-data.test.ts:[2m48:27[22m[39m
+    [90m 46| [39m    [35mconst[39m service [33m=[39m [35mnew[39m [33mCompanyDataService[39m(resolver)[33m;[39m
+    [90m 47| [39m    [35mconst[39m result [33m=[39m service[33m.[39m[34mresolveDocumentByType[39m([32m"empresa-1"[39m[33m,[39m [32m"opinion[39m…
+    [90m 48| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([32m"blocked"[39m)[33m;[39m
+    [90m   | [39m                          [31m^[39m
+    [90m 49| [39m    [35mif[39m (result[33m.[39mstatus [33m===[39m [32m"blocked"[39m) {
+    [90m 50| [39m      [34mexpect[39m(result[33m.[39mreason)[33m.[39m[34mtoBe[39m([32m"documento_vencido"[39m)[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m test/expediente-flow.test.ts[2m > [22mFlujo integrado del expediente de participación (A6-A15)[2m > [22mA7/A9 combinados: documento vencido bloquea la propuesta técnica y el checklist de vigencias, aun con todo lo demás correcto
+[31m[1mAssertionError[22m: expected 0 to be greater than 0[39m
+[36m [2m❯[22m test/expediente-flow.test.ts:[2m277:39[22m[39m
+    [90m275| [39m
+    [90m276| [39m    [35mconst[39m technical [33m=[39m [35mnew[39m [33mTechnicalProposalBuilder[39m(companyService)[33m.[39m[34mbui[39m…
+    [90m277| [39m    [34mexpect[39m(technical[33m.[39mblockers[33m.[39mlength)[33m.[39m[34mtoBeGreaterThan[39m([34m0[39m)[33m;[39m
+    [90m   | [39m                                      [31m^[39m
+    [90m278| [39m    [34mexpect[39m(technical[33m.[39mblockers[33m.[39m[34msome[39m((b) [33m=>[39m b[33m.[39mfield [33m===[39m [32m"documento:opini[39m…
+    [90m279| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯[22m[39m
+
+[2m Test Files [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m1 passed[39m[22m[90m (3)[39m
+[2m      Tests [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m18 passed[39m[22m[90m (20)[39m
+[2m   Start at [22m 19:17:52
+[2m   Duration [22m 449ms[2m (transform 135ms, setup 0ms, collect 215ms, tests 37ms, environment 0ms, prepare 117ms)[22m
+
+
+=== MUTACIÓN 4: precio no aprobado (company-data.ts resolveApprovedRate) — se ignora approvalStatus ===
+[31m[1m[7m FAIL [27m[22m[39m test/company-data.test.ts[2m > [22mCompanyDataService (A8 precio no aprobado, REQ-029/REQ-157/REQ-164)[2m > [22mbloquea una tarifa en estado pendiente_aprobacion
+[31m[1mAssertionError[22m: expected 'ok' to be 'blocked' // Object.is equality[39m
+
+Expected: [32m"blocked"[39m
+Received: [31m"ok"[39m
+
+[36m [2m❯[22m test/company-data.test.ts:[2m96:27[22m[39m
+    [90m 94| [39m    [35mconst[39m service [33m=[39m [35mnew[39m [33mCompanyDataService[39m(resolver)[33m;[39m
+    [90m 95| [39m    [35mconst[39m result [33m=[39m service[33m.[39m[34mresolveApprovedRate[39m([32m"empresa-1"[39m[33m,[39m [32m"consultor[39m…
+    [90m 96| [39m    [34mexpect[39m(result[33m.[39mstatus)[33m.[39m[34mtoBe[39m([32m"blocked"[39m)[33m;[39m
+    [90m   | [39m                          [31m^[39m
+    [90m 97| [39m    [35mif[39m (result[33m.[39mstatus [33m===[39m [32m"blocked"[39m) [34mexpect[39m(result[33m.[39mreason)[33m.[39m[34mtoBe[39m([32m"tarif[39m…
+    [90m 98| [39m  })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m test/economic-proposal.test.ts[2m > [22mEconomicProposalBuilder (A8 precio no aprobado, REQ-157/REQ-164)[2m > [22mrechaza de punta a punta un concepto con tarifa pendiente de aprobación: no hay total parcial que lo omita en silencio
+[31m[1mAssertionError[22m: expected [] to have a length of 1 but got +0[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 1[39m
+[31m+ 0[39m
+
+[36m [2m❯[22m test/economic-proposal.test.ts:[2m105:37[22m[39m
+    [90m103| [39m    )[33m;[39m
+    [90m104| [39m
+    [90m105| [39m    [34mexpect[39m(result[33m.[39mblockedLineItems)[33m.[39m[34mtoHaveLength[39m([34m1[39m)[33m;[39m
+    [90m   | [39m                                    [31m^[39m
+    [90m106| [39m    [34mexpect[39m(result[33m.[39mblockedLineItems[[34m0[39m][33m.[39mconcept)[33m.[39m[34mtoBe[39m([32m"capacitacion"[39m)[33m;[39m
+    [90m107| [39m    [90m// Regla dura: ante cualquier bloqueo, NO se genera un total parci[39m…
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯[22m[39m
+
+[2m Test Files [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m1 passed[39m[22m[90m (3)[39m
+[2m      Tests [22m [1m[31m2 failed[39m[22m[2m | [22m[1m[32m12 passed[39m[22m[90m (14)[39m
+[2m   Start at [22m 19:18:05
+[2m   Duration [22m 325ms[2m (transform 90ms, setup 0ms, collect 141ms, tests 25ms, environment 0ms, prepare 121ms)[22m
+
+
+=== MUTACIÓN 5: invalidación jerárquica (approval-workflow.ts recordChange) — no invalida nada ===
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 1[39m
+[31m+ 0[39m
+
+[36m [2m❯[22m test/approval-workflow.test.ts:[2m94:43[22m[39m
+    [90m 92| [39m    wf[33m.[39m[34mapprove[39m({ scope[33m:[39m [32m"expediente"[39m[33m,[39m scopeRef[33m:[39m [32m"expediente"[39m[33m,[39m actorId[33m:[39m…
+    [90m 93| [39m    [35mconst[39m change [33m=[39m wf[33m.[39m[34mrecordChange[39m({ scope[33m:[39m [32m"seccion"[39m[33m,[39m scopeRef[33m:[39m [32m"secc[39m…
+    [90m 94| [39m    [34mexpect[39m(change[33m.[39minvalidatedApprovalIds)[33m.[39m[34mtoHaveLength[39m([34m1[39m)[33m;[39m
+    [90m   | [39m                                          [31m^[39m
+    [90m 95| [39m    [34mexpect[39m(wf[33m.[39m[34mactiveApprovalsCovering[39m([32m"expediente"[39m))[33m.[39m[34mtoHaveLength[39m([34m0[39m)[33m;[39m
+    [90m 96| [39m  })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m test/approval-workflow.test.ts[2m > [22mApprovalWorkflow — A11 edición invalida aprobación (REQ-155/REQ-162)[2m > [22mun cambio en una sección NO invalida una aprobación de una sección distinta e independiente
+[31m[1mAssertionError[22m: expected [ { id: 'approval-1', …(7) } ] to have a length of +0 but got 1[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 0[39m
+[31m+ 1[39m
+
+[36m [2m❯[22m test/approval-workflow.test.ts:[2m105:71[22m[39m
+    [90m103| [39m    wf[33m.[39m[34mrecordChange[39m({ scope[33m:[39m [32m"seccion"[39m[33m,[39m scopeRef[33m:[39m [32m"seccion:tecnica:exp[39m…
+    [90m104| [39m
+    [90m105| [39m    [34mexpect[39m(wf[33m.[39m[34mactiveApprovalsCovering[39m([32m"seccion:tecnica:experiencia"[39m))[33m.[39m…
+    [90m   | [39m                                                                      [31m^[39m
+    [90m106| [39m    [34mexpect[39m(wf[33m.[39m[34mactiveApprovalsCovering[39m([32m"seccion:tecnica:capacidad"[39m))[33m.[39m[34mto[39m…
+    [90m107| [39m  })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯[22m[39m
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m1 passed[39m[22m[90m (2)[39m
+[2m      Tests [22m [1m[31m4 failed[39m[22m[2m | [22m[1m[32m9 passed[39m[22m[90m (13)[39m
+[2m   Start at [22m 19:18:06
+[2m   Duration [22m 357ms[2m (transform 63ms, setup 0ms, collect 93ms, tests 21ms, environment 0ms, prepare 102ms)[22m
+
+
+=== Rubro 6: grep superficie de no-actuación en src/ ===
+--- (sin resultados = limpio) ---
+--- fin grep ---
+=== package.json dependencias ===
+{
+  "name": "@atiende/expediente",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint src test",
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "jszip": "^3.10.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@types/node": "^22.10.2",
+    "eslint": "^9.17.0",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.19.1",
+    "vitest": "^2.1.8"
+  }
+}
+
+=== vitest run --coverage ===
+[31m[7m[31m MISSING DEPENDENCY [31m[27m Cannot find dependency '@vitest/coverage-v8'
+
+[39m
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/audit-exp/packages/expediente[39m
+      [2mCoverage enabled with [22m[33mv8[39m
+
+ [32m✓[39m test/integrity-checklist.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/approval-workflow.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/requirement-matrix.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/company-data.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+ [32m✓[39m test/llm-extractor.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m test/economic-proposal.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m test/api-surface.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/package-assembler.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 34[2mms[22m[39m
+ [32m✓[39m test/expediente-flow.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 59[2mms[22m[39m
+ [32m✓[39m test/money.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/number-to-words.test.ts [2m([22m[2m25 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m11 passed[39m[22m[90m (11)[39m
+[2m      Tests [22m [1m[32m84 passed[39m[22m[90m (84)[39m
+[2m   Start at [22m 19:21:00
+[2m   Duration [22m 715ms[2m (transform 217ms, setup 0ms, collect 533ms, tests 135ms, environment 1ms, prepare 808ms)[22m
+
+[34m % [39m[2mCoverage report from [22m[33mv8[39m
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-------------------|---------|----------|---------|---------|-------------------
+[32;1mAll files         [0m | [32;1m  89.43[0m | [32;1m   85.89[0m | [32;1m  86.45[0m | [32;1m  89.43[0m | [31;1m                 [0m 
+[31;1m expediente       [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m                 [0m 
+[31;1m  scratch7.mjs    [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m1-10             [0m 
+[32;1m expediente/src   [0m | [32;1m  89.98[0m | [32;1m   86.14[0m | [32;1m  86.81[0m | [32;1m  89.98[0m | [31;1m                 [0m 
+[32;1m  ...l-workflow.ts[0m | [32;1m  98.19[0m | [32;1m   97.22[0m | [32;1m  92.85[0m | [32;1m  98.19[0m | [31;1m191-192          [0m 
+[33;1m  company-data.ts [0m | [33;1m  69.04[0m | [32;1m   83.78[0m | [33;1m  64.28[0m | [33;1m  69.04[0m | [31;1m...04-211,214-221[0m 
+[32;1m  ...c-proposal.ts[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  index.ts        [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  ...-checklist.ts[0m | [32;1m  89.92[0m | [32;1m   87.09[0m | [32;1m    100[0m | [32;1m  89.92[0m | [31;1m...73-179,181-182[0m 
+[32;1m  money.ts        [0m | [32;1m  92.59[0m | [33;1m   59.09[0m | [32;1m   87.5[0m | [32;1m  92.59[0m | [31;1m80-83            [0m 
+[32;1m  ...r-to-words.ts[0m | [32;1m  95.33[0m | [32;1m      84[0m | [32;1m    100[0m | [32;1m  95.33[0m | [31;1m...65,181-182,187[0m 
+[32;1m  ...-assembler.ts[0m | [32;1m    100[0m | [32;1m   96.15[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m79               [0m 
+[33;1m  ...al-version.ts[0m | [33;1m  68.75[0m | [32;1m     100[0m | [31;1m  33.33[0m | [33;1m  68.75[0m | [31;1m...48,51-52,56-59[0m 
+[32;1m  ...ent-matrix.ts[0m | [32;1m  92.33[0m | [32;1m   85.84[0m | [32;1m    100[0m | [32;1m  92.33[0m | [31;1m...87-290,390-398[0m 
+[33;1m  ...l-proposal.ts[0m | [33;1m  78.26[0m | [33;1m   71.42[0m | [32;1m    100[0m | [33;1m  78.26[0m | [31;1m...07,129,133,135[0m 
+[33;1m  types.ts        [0m | [33;1m  71.42[0m | [32;1m     100[0m | [32;1m  83.33[0m | [33;1m  71.42[0m | [31;1m26-35            [0m 
+[32;1m ...diente/src/llm[0m | [32;1m    100[0m | [32;1m   83.33[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  extractor.ts    [0m | [32;1m    100[0m | [32;1m   83.33[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m67               [0m 
+-------------------|---------|----------|---------|---------|-------------------
+
+=== EX-EXP-01: aprobación no invalidada automáticamente ante cambio de hash de insumo ===
+(reproducido con script adversarial: tarifa 850.00 -> 2550.00 tras aprobación 'expediente'
+ sin llamar recordChange; ver transcript abajo)
+v1 hash: 5219c637b1952ce961b27f643c99c5dfc15b05a24001aa319e53dee4f9b7018e total: 19720.00
+approved: true isFullyApproved: true
+v2 hash: 73683b4c52e87064b537b5210984b3935d8bbd7997d4ad6dca09da30427dc527 total: 59160.00 (distinto de v1? true)
+¿Sigue 'vigente' la aprobación tras el cambio de tarifa SIN llamar recordChange? vigente
+isFullyApproved() tras el cambio silencioso: true
+checklist overall: verde
+=== RESULTADO ===
+manifest.status: ready   (aprobado originalmente con total 19720.00 pero el paquete lleva total 59160.00 )
+
+=== EX-EXP-02: PackageAssembler no filtra por scope de la aprobación vigente ===
+manifest.status: ready (debería ser 'draft' porque la única aprobación vigente es de alcance 'documento', no 'expediente')
+
+=== EX-EXP-03: requisitos obligatorios sin evidencia detectada desaparecen del pipeline ===
+ITEMS: 3 CONFLICTS: 0
+{"text":"Los licitantes deberán presentar manifestación bajo protesta","type":"administrativo","obl":"obligatorio","evidence":[]}
+{"text":"El licitante deberá manifestar por escrito que es de naciona","type":"anexo","obl":"obligatorio","evidence":["anexo_5_firmado"],"topicKey":"anexo_5"}
+{"text":"Los licitantes deberán presentar declaración de integridad c","type":"administrativo","obl":"obligatorio","evidence":[]}
+SECTIONS: 1 BLOCKERS: 1
+(solo el requisito de tipo "anexo" (con evidencia detectada) generó sección/bloqueo;
+ los otros 2 requisitos "obligatorio" (administrativo, sin evidencia detectada por el
+ extractor) NO aparecen en absoluto en el resultado de TechnicalProposalBuilder.build)
+
+=== EX-EXP-04: vigencias no deterministas según TZ del proceso (fecha sin offset explícito) ===
+--- Ejecutando con TZ=UTC ---
+expiresAt (naive) interpretado como instante: 2026-10-20T23:59:59.000Z
+¿está vencido el documento? false
+--- Ejecutando con TZ=America/Mexico_City ---
+expiresAt (naive) interpretado como instante: 2026-10-21T05:59:59.000Z
+¿está vencido el documento? false
+--- Ejecutando con TZ=Asia/Tokyo ---
+expiresAt (naive) interpretado como instante: 2026-10-20T14:59:59.000Z
+¿está vencido el documento? true
+
+=== EX-EXP-05: apócope de 'uno'/'veintiuno' nunca se aplica en centsToPesosWords ===
+1 peso: SON: UNO PESOS 00/100 M.N.        (esperado: SON: UN PESO 00/100 M.N.)
+21 pesos: SON: VEINTIUNO PESOS 00/100 M.N. (esperado: SON: VEINTIÚN PESOS 00/100 M.N.)
+IVA 250%: 250.00   (aceptado sin error, sin cota superior)
+IVA NaN: lanzó -> The number NaN cannot be converted to a BigInt because it is not an integer
+NEG QTY: lanzó -> multiplyQuantityHalfUp solo admite cantidades no negativas
+
+=== EX-EXP-06: extractDeadline no reconoce 'DD/MM/AAAA' ni '... del AAAA' (pierde topicKey) ===
+ITEMS: 3
+{"text":"El acto de presentación y apertura de proposiciones se llevará a cabo ","deadline":null,"status":"pendiente"}   <- formato DD/MM/AAAA no reconocido, sin topicKey
+{"text":"La junta de aclaraciones se realizará el 25 de septiembre del 2026 a l","deadline":null,"status":"pendiente"}   <- "del AAAA" no reconocido, sin topicKey
+{"text":"Se modifica la fecha de presentación de proposiciones, la cual ahora s","deadline":"2026-10-22T11:00:00-06:00","topicKey":"plazo_entrega_proposiciones","status":"pendiente"}
+CONFLICTS: []   <- ningún conflicto detectado pese a fechas potencialmente contradictorias en otros formatos
+
+=== EX-EXP-09: pérdida de precisión con cantidades extremas (>1e10) sin cota de validación ===
+Number.isSafeInteger(Math.round(1e10*1e6)) => false
+
+=== fin ronda 1 expediente ===
+2026-09-06T01:24:18Z
