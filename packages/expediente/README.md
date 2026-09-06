@@ -18,14 +18,14 @@ Postgres.
 | `requirement-matrix.ts` | `RequirementMatrixBuilder`: extrae `RequirementItem[]` de `TenderDocumentText` (bases/anexos/aclaraciones) vía `RuleBasedExtractor` (determinista, regex/léxico) y detecta `Conflict` entre documentos (plazos u obligatoriedad contradictorios) — nunca elige uno en silencio. `extractDeadline` reconoce "DD de mes de/del AAAA", "DD/MM/AAAA" y "DD-MM-AAAA"; cuando el patrón numérico es genuinamente ambiguo (día y mes ambos ≤12, p. ej. "05/09/2026") baja `confidence` a 0.5 sin cambiar la interpretación DD/MM por defecto (EX-EXP-06/EX-EXP-15). | REQ-156, REQ-166 |
 | `llm/extractor.ts` | Hook de extractor LLM (`LlmExtractorClient` + `LlmRequirementExtractor`) que se combina con el extractor de reglas en el mismo `RequirementMatrixBuilder`. `FakeLlmExtractorClient` para pruebas deterministas sin red. | REQ-156 |
 | `company-data.ts` | `CompanyDataResolver` (interfaz) + `CompanyDataService`: resuelve documentos/capacidades/experiencia/tarifas/firmantes con reglas duras — ausente → `missing`, vencido/no aprobado → `blocked`, nunca un valor inventado. Todas las fechas (`asOfIso`, `validFrom`, `expiresAt`) deben traer offset horario explícito válido (`assertExplicitOffset`: formato, rango -12:00/+14:00 y validez calendárica — EX-EXP-04/EX-EXP-13); `resolveApprovedRate` lanza si `rate.currency !== "MXN"`. | REQ-157, REQ-158, REQ-164, REQ-166 |
-| `technical-proposal.ts` | `TechnicalProposalBuilder`: mapea requisitos → dato de empresa aprobado, produce `ProposalStatement` con `source_ref` trazable; dato faltante/bloqueado = bloqueo de sección, nunca texto inventado. Un requisito `obligatorio` sin evidencia mapeable NUNCA se omite: queda como sección "PENDIENTE" con `SectionBlocker`. Un requisito `condicional` sin evidencia se trata igual (PENDIENTE) salvo que el llamador declare EXPLÍCITAMENTE, vía el parámetro `conditionEvaluations`, que no aplica al caso concreto (`false`); si no se declara nada, es fail-closed ("condicion_no_evaluable"), nunca desaparece en silencio (EX-EXP-03/EX-EXP-12). | REQ-157, REQ-158, REQ-164 |
+| `technical-proposal.ts` | `TechnicalProposalBuilder`: mapea requisitos → dato de empresa aprobado, produce `ProposalStatement` con `source_ref` trazable; dato faltante/bloqueado = bloqueo de sección, nunca texto inventado. Un requisito `obligatorio` sin evidencia mapeable NUNCA se omite: queda como sección "PENDIENTE" con `SectionBlocker`. Un requisito `condicional` sin evidencia se trata igual (PENDIENTE) salvo que el llamador declare EXPLÍCITAMENTE, vía el parámetro `conditionEvaluations`, que no aplica al caso concreto (`false`); si no se declara nada, es fail-closed ("condicion_no_evaluable"), nunca desaparece en silencio (EX-EXP-03/EX-EXP-12). Un requisito `opcional`, o un `condicional` marcado explícitamente como no aplicable, YA NO desaparece sin rastro: genera una sección VISIBLE con título `"NO APLICA (...)"`, sin bloqueos ni afirmaciones — `isNotApplicableSection`/`extractNotApplicableRequirements` identifican estas secciones para que `PackageAssembler` también las refleje en el manifiesto (EX-EXP-19). | REQ-157, REQ-158, REQ-164 |
 | `economic-proposal.ts` | `EconomicProposalBuilder`: cálculo económico 100% determinista (centavos en `bigint`, half-up), rechaza tarifas no aprobadas/vencidas de punta a punta (sin total parcial), genera carta + anexo desde el mismo objeto de totales (consistencia estructural). El constructor valida `ivaRate` en `[0, maxIvaRate]` (default 0.3) vía `assertValidIvaRate`. | REQ-029, REQ-030, REQ-157, REQ-160, REQ-164 |
 | `money.ts` | Aritmética monetaria en centavos (`bigint`), redondeo half-up explícito. `multiplyQuantityHalfUp` rechaza `quantity > MAX_QUANTITY` (1e7). | REQ-029 |
 | `number-to-words.ts` | Motor propio de "cantidad con letra" en español (apócope de "uno"/"veintiuno" → "un"/"veintiún" también en `centsToPesosWords`, incluido el caso FUSIONADO al final de centenas/millares/millones — "ciento veintiún", "ciento veintiún mil", "ciento veintiún millones" — EX-EXP-05/EX-EXP-12; "cien" vs "ciento", "PESO" singular para $1.00, etc.), sin dependencias externas. | REQ-031 |
-| `proposal-version.ts` | `ProposalVersionRegistry`/`computeInputsHash`: el paquete DEFINE y CALCULA él mismo el hash de insumos sobre un conjunto CERRADO y OBLIGATORIO (`ExpedienteInputs`: versión de bases, documentos de empresa usados con vigencia, tarifas usadas, perfil, plantillas) — el llamador no puede pasar un hash arbitrario ni "olvidar" un insumo (EX-EXP-01/EX-EXP-11). `changedInputsSince`/`inputChanged()` reportan exactamente QUÉ insumo cambió, no solo que el hash difiere. | REQ-161 |
+| `proposal-version.ts` | `ProposalVersionRegistry`/`computeInputsHash`/`sealInputs`: el paquete DEFINE y CALCULA él mismo el hash de insumos sobre un conjunto CERRADO y OBLIGATORIO (`ExpedienteInputs`: versión de bases, documentos de empresa usados con vigencia, tarifas usadas, perfil, plantillas). `computeInputsHash` devuelve un `InputsHash` BRANDED (rechazo en tiempo de compilación de un `string` suelto) y `sealInputs`/`ProposalVersionRegistry.createVersion(...).hash` devuelven un `HashedInputs` sellado con un símbolo PRIVADO no exportado — ni `ApprovalWorkflow.approve()` ni `PackageAssembler.buildManifest()` aceptan ya un hash calculado por fuera de este módulo, ni siquiera un `string` "correcto" en apariencia (EX-EXP-01/EX-EXP-11/EX-EXP-17, ver más abajo). `changedInputsSince`/`inputChanged()` reportan exactamente QUÉ insumo cambió, no solo que el hash difiere. | REQ-161 |
 | `integrity-checklist.ts` | `IntegrityChecklist`: 7 dimensiones independientes con resultado y evidencia propios — formatos, límites, firmas (solo "requiere firma del usuario", nunca firma), anexos obligatorios, vigencias, cálculos económicos, consistencia cruzada. | REQ-160 |
-| `approval-workflow.ts` | `ApprovalWorkflow`: borrador → en_revisión → aprobado; solo roles `reviewer`/`admin`/`owner` aprueban (nunca `writer`/`viewer`), autoaprobación prohibida; `recordChange` invalida aprobaciones según jerarquía de alcance (sección ⊂ documento ⊂ expediente). `revalidateAgainstCurrentHash`/`isFullyApprovedForCurrentHash` invalidan AUTOMÁTICAMENTE una aprobación vigente cuyo `inputsHash` ya no coincide con el hash actual de los insumos (REQ-162) — de llamada obligatoria en cada evaluación de "¿está aprobado?" antes de `assemble()`. `approve()` rechaza `scope === "expediente"` con un `scopeRef` distinto de la cadena `"expediente"` (EX-EXP-02/EX-EXP-14). | REQ-159, REQ-161, REQ-162 |
-| `package-assembler.ts` | `PackageAssembler`: arma `PackageManifest` + ZIP real (`jszip`); `ready` solo si checklist verde + existe una aprobación `vigente` de `scope === "expediente"` **y** `scopeRef === "expediente"` (EX-EXP-02/EX-EXP-14, defensa en profundidad) cuyo `inputsHash` coincide con `currentInputsHash` (recalculado por el llamador en cada ensamblaje) + sin faltantes; si no, `draft` con prefijo/marca "BORRADOR" y `draftReasons` explícitos. No existe ningún booleano `isFullyApproved` declarable desde afuera: "¿aprobado?" se deriva siempre de `approvals` dentro del assembler. Incluye siempre el aviso de responsabilidad del usuario. | REQ-048, REQ-159, REQ-161, REQ-162, REQ-163 |
+| `approval-workflow.ts` | `ApprovalWorkflow`: borrador → en_revisión → aprobado; solo roles `reviewer`/`admin`/`owner` aprueban (nunca `writer`/`viewer`), autoaprobación prohibida; `recordChange` invalida aprobaciones según jerarquía de alcance (sección ⊂ documento ⊂ expediente). `revalidateAgainstCurrentHash`/`isFullyApprovedForCurrentHash` invalidan AUTOMÁTICAMENTE una aprobación vigente cuyo `inputsHash` ya no coincide con el hash actual de los insumos (REQ-162) — de llamada obligatoria en cada evaluación de "¿está aprobado?" antes de `assemble()`. `approve()`/`revalidateAgainstCurrentHash`/`isFullyApprovedForCurrentHash` exigen un `HashedInputs` sellado (EX-EXP-17, ver abajo), nunca un `string`. `approve()` rechaza `scope === "expediente"` con un `scopeRef` distinto de la cadena `"expediente"` (EX-EXP-02/EX-EXP-14). | REQ-159, REQ-161, REQ-162 |
+| `package-assembler.ts` | `PackageAssembler`: arma `PackageManifest` + ZIP real (`jszip`); `ready` solo si checklist verde + existe una aprobación `vigente` de `scope === "expediente"` **y** `scopeRef === "expediente"` (EX-EXP-02/EX-EXP-14, defensa en profundidad) cuyo `inputsHash` coincide con el `.hash` del `HashedInputs` sellado pasado como `currentInputsHash` (EX-EXP-17) + sin faltantes; si no, `draft` con prefijo/marca "BORRADOR" y `draftReasons` explícitos. No existe ningún booleano `isFullyApproved` declarable desde afuera: "¿aprobado?" se deriva siempre de `approvals` dentro del assembler. `PackageManifest.notApplicableRequirements` refleja las secciones "NO APLICA" de la propuesta técnica cuando el llamador las pasa (EX-EXP-19). Incluye siempre el aviso de responsabilidad del usuario. | REQ-048, REQ-159, REQ-161, REQ-162, REQ-163 |
 
 Todos los módulos se re-exportan desde `src/index.ts`.
 
@@ -46,14 +46,26 @@ Todos los módulos se re-exportan desde `src/index.ts`.
   `currentInputsHash === inputsHash` de la aprobación vigente de alcance
   `"expediente"` como defensa independiente: `"ready"` es imposible con
   hash divergente incluso si el llamador olvida revalidar.
+- **El hash de insumos NUNCA puede ser un `string` calculado a mano
+  (EX-EXP-17)**: `approve()`/`revalidateAgainstCurrentHash`/
+  `isFullyApprovedForCurrentHash`/`buildManifest` exigen un `HashedInputs`
+  sellado (`sealInputs`/`computeInputsHash`/
+  `ProposalVersionRegistry.createVersion(...).hash`), verificado con un
+  símbolo privado no exportado — ver "Hash de insumos" más abajo.
 - **Fechas siempre con offset explícito y válido**: `isPast`/
   `CompanyDataService` rechazan (lanzan excepción) cualquier fecha ISO sin
   `"Z"`/`"±HH:MM"`, con offset numéricamente imposible (fuera de -12:00 a
-  +14:00, o minutos fuera de 00-59), o calendáricamente inválida (p. ej. 29
+  +14:00, o minutos fuera de 00-59), con hora/minuto/segundo fuera de rango
+  (incluida `"24:00:00"`, EX-EXP-20), o calendáricamente inválida (p. ej. 29
   de febrero en año no bisiesto) — el veredicto de vencimiento nunca
   depende del `TZ` del proceso Node, y una fecha inválida SIEMPRE lanza
   (fail-closed): `isPast` nunca compara `NaN` ni responde "no vencido"
-  sobre una fecha corrupta (EX-EXP-04/EX-EXP-13).
+  sobre una fecha corrupta (EX-EXP-04/EX-EXP-13/EX-EXP-20).
+- **`stableStringify`/`sha256Hex` distinguen `Date`/`Map`/`Set`/`BigInt`**:
+  antes colapsaban a `"{}"` (colisión real entre valores lógicamente
+  distintos) o lanzaban (`BigInt`); ahora se serializan con un marcador de
+  tipo explícito, con `Map`/`Set` ordenados canónicamente para que el orden
+  de inserción no afecte el hash (EX-EXP-18).
 - **Nunca firma el sistema**: `IntegrityChecklist` solo lee
   `userConfirmedSigned` (provisto por el llamador); no existe método que lo
   ponga en `true` desde dentro del paquete.
@@ -61,6 +73,55 @@ Todos los módulos se re-exportan desde `src/index.ts`.
   API pública exportada y el código fuente para verificar que no hay ningún
   método de "enviar/firmar/actuar en portal" ni import de un cliente
   HTTP/red en todo el paquete.
+
+## Hash de insumos: `InputsHash`/`HashedInputs` (EX-EXP-17 — LEER ANTES DE INTEGRAR)
+
+**Cambio de API pública, ronda 3 de corrección.** Antes, `ApprovalWorkflow.
+approve()`/`PackageAssembler.buildManifest()` aceptaban `inputsHash`/
+`currentInputsHash` como un `string` plano. Una reverificación adversarial
+(EX-EXP-17) demostró que esto permitía aprobar/ensamblar un expediente
+completo con un hash calculado a mano (`sha256Hex("cualquier-cosa")`, sin
+relación real con `ExpedienteInputs`) — el mismo defecto de fondo de
+EX-EXP-01/EX-EXP-11, escondido detrás de una función de hash bien diseñada
+que nada obligaba a usar. Esto ya NO es posible:
+
+- `computeInputsHash(inputs: ExpedienteInputs): InputsHash` devuelve un tipo
+  **BRANDED** (`string & { [brand]: true }`): TypeScript rechaza en tiempo
+  de compilación cualquier intento de pasar un `string` suelto donde se
+  espera un `InputsHash`.
+- `sealInputs(inputs: ExpedienteInputs): HashedInputs` (o
+  `ProposalVersionRegistry.createVersion(inputs).hash`, que la usa
+  internamente) devuelve un `HashedInputs` — `{ inputs, hash }` — **sellado
+  con un símbolo privado no exportado**: ningún código fuera de
+  `proposal-version.ts` puede construir un objeto con ese símbolo, así que
+  ni siquiera reensamblar `{ inputs, hash }` a mano con un `InputsHash`
+  *legítimo* (obtenido de otra parte) pasa la verificación en runtime —
+  ver `test/approval-workflow.test.ts`/`test/package-assembler.test.ts`,
+  sección "EX-EXP-17", para el ataque exacto y por qué el tipo por sí solo
+  no basta.
+- `ApprovalWorkflow.approve()`/`revalidateAgainstCurrentHash()`/
+  `isFullyApprovedForCurrentHash()` y `PackageAssembler.buildManifest()`
+  exigen un `HashedInputs` (nunca un `string`) y lo verifican con
+  `requireValidHashedInputs()` antes de usarlo: (1) si es un `string`, lanza
+  `InvalidInputsHashError` con un mensaje de migración explícito — el
+  soporte de `string` está **DEPRECADO por inseguro**, no aceptado en
+  silencio; (2) si no trae el símbolo privado, lanza igual; (3) recalcula
+  `computeInputsHash(value.inputs)` y lo compara contra `value.hash` — si
+  alguien mutó el objeto `inputs` referenciado DESPUÉS de sellarlo, la
+  recomputación ya no coincide y también se rechaza.
+
+**Migración para `apps/api`** (que está integrando este paquete en esta
+misma ronda): en vez de guardar/pasar un hash como `string` suelto,
+construya siempre el `ExpedienteInputs` completo y use
+`ProposalVersionRegistry.createVersion(inputs).hash` (o `sealInputs(inputs)`
+directamente) como el valor de `inputsHash`/`currentInputsHash`. Si su capa
+de persistencia necesita guardar el hash como texto (p. ej. una columna
+`inputs_hash` en Postgres), guarde `hashedInputs.hash` (el `InputsHash`
+branded, que es un `string` en runtime) — pero para volver a llamar
+`approve()`/`buildManifest()` más adelante deberá reconstruir el
+`ExpedienteInputs` completo y sellarlo de nuevo con `sealInputs`/
+`computeInputsHash`; NO intente reconstruir un `HashedInputs` a mano con ese
+string guardado, porque carece del símbolo privado y será rechazado.
 
 ## Cómo lo consumirá `apps/api`
 
@@ -80,12 +141,15 @@ Todos los módulos se re-exportan desde `src/index.ts`.
    final debe requerir sesión autenticada (fuera del alcance de este
    paquete puro). En cada evaluación (antes de cada `assemble()`), debe
    recalcular el hash actual de los insumos de alcance "expediente" (p. ej.
-   con `ProposalVersionRegistry`) y llamar
+   con `ProposalVersionRegistry.createVersion(inputs).hash`, un
+   `HashedInputs` — **ya NO un `string`**, ver "Hash de insumos" arriba,
+   EX-EXP-17) y llamar
    `ApprovalWorkflow.isFullyApprovedForCurrentHash(currentHash)` — nunca
    confiar en el estado de aprobación calculado en un momento anterior.
    Todas las fechas persistidas deben incluir offset horario explícito (o
    normalizarse a UTC con `"Z"`); `isPast`/`CompanyDataService` rechazan
-   cualquier fecha "naive".
+   cualquier fecha "naive" o con hora fuera de rango (incluida `"24:00:00"`,
+   EX-EXP-20).
 5. **Ningún endpoint de `apps/api` debe agregar una función de
    envío/firma/actuación en portal** — ese es exactamente el límite que
    este paquete fija y que `test/api-surface.test.ts` protege.
@@ -112,7 +176,14 @@ npm run -w packages/expediente typecheck
 npm run -w packages/expediente lint
 npm run -w packages/expediente test
 npm run -w packages/expediente build
+npm run -w packages/expediente test:coverage
 ```
+
+`test:coverage` (EX-EXP-21, mismo patrón que `packages/agents`/AG-14) corre
+`vitest run --coverage` con umbrales mínimos declarados en
+`vitest.config.ts` (líneas/statements/functions ≥85%, ramas ≥80%) — falla si
+la cobertura real cae por debajo, en vez de degradar en silencio sin que CI
+lo detecte.
 
 ## Limitaciones conocidas (riesgos residuales fuera de una librería pura)
 
