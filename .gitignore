@@ -12,3 +12,7 @@ test-results/
 .vercel/
 .vercel
 .env*
+
+# credenciales locales de despliegue (nunca en el repo)
+infra/env/.env.supabase
+infra/env/.env.*.local

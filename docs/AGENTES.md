@@ -128,3 +128,4 @@ Nota: la herramienta Agent de esta versión no expone el ID de modelo del subage
 | 121 | 2026-09-06 | fix WK6-04 (saneado de correlationId en la frontera del worker) + AM-04 (enqueue_mail_retry valida org_id de sesión; migración 0089) | model="sonnet" | pendiente | en curso |
 | 122 | 2026-09-06 | Auditoría adversarial independiente de apps/web rondas 7 y 8a (landing, legales, onboarding, panel, demo, Google, registro, 2FA) — solo hallazgos, worktree HEAD | model="sonnet" | pendiente | en curso |
 | 123 | 2026-09-06 | Auditoría estática de infra (Dockerfiles, compose, env, backup, CI, Vercel, check-secrets) — solo hallazgos; Docker no instalado | model="sonnet" | pendiente | en curso |
+| 124 | 2026-09-06 | Adaptación a D-11: API serverless en Vercel (estado en memoria → Postgres), migraciones remotas contra Supabase, worker por ticks + pg_cron/pg_net, docs/despliegue-supabase-vercel.md | model="sonnet" | pendiente | en curso |
