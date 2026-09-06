@@ -6,6 +6,22 @@ export function sha256Hex(input: string): string {
 }
 
 /**
+ * Normaliza una cadena para comparación/hashing de CONTENIDO (SR-01): forma
+ * unicode canónica NFC (para que la misma letra acentuada representada como
+ * carácter precompuesto o como base+diacrítico combinante produzca el mismo
+ * texto) y espacios colapsados/recortados (para que espacios de más entre
+ * palabras, tabs o saltos de línea incidentales no disparen una "versión"
+ * falsa). NO es la normalización agresiva de `util/text.ts`
+ * (`normalizeText`, que además baja a minúsculas y quita puntuación para
+ * matching/fingerprint difuso): aquí se preserva mayúsculas/puntuación
+ * porque el hash de versión debe seguir siendo sensible a cambios reales de
+ * contenido.
+ */
+export function canonicalizeWhitespaceAndUnicode(input: string): string {
+  return input.normalize("NFC").replace(/\s+/g, " ").trim();
+}
+
+/**
  * `JSON.stringify` con claves ordenadas recursivamente para obtener un hash
  * estable sin importar el orden de propiedades en el objeto de origen
  * (necesario porque el mismo payload crudo puede deserializarse con distinto

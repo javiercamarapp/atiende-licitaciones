@@ -78,6 +78,70 @@ describe("computeVersionHash / detectChanges", () => {
   });
 });
 
+describe("SR-01: hash de versión canónico (orden de arrays/espacios/unicode no debe disparar una versión falsa)", () => {
+  it("reordenar classifiers[] sin cambiar su contenido NO produce un versionHash distinto ni dispara ChangeDetected", () => {
+    const ordered = baseRecord({
+      classifiers: [
+        { scheme: "UNSPSC", code: "43211500" },
+        { scheme: "CUCoP", code: "20101501" },
+      ],
+    });
+    const reordered = baseRecord({
+      classifiers: [
+        { scheme: "CUCoP", code: "20101501" },
+        { scheme: "UNSPSC", code: "43211500" },
+      ],
+    });
+    expect(computeVersionHash(ordered)).toBe(computeVersionHash(reordered));
+    expect(detectChanges(ordered, reordered)).not.toContain("bases");
+
+    const store = new InMemoryTenderVersionStore();
+    store.record(ordered, new Date("2026-08-01T00:00:00Z"));
+    const { event } = store.record(reordered, new Date("2026-08-02T00:00:00Z"));
+    expect(event).toBeUndefined();
+  });
+
+  it("reordenar attachments[] sin cambiar su contenido NO produce un versionHash distinto ni dispara 'anexos'", () => {
+    const ordered = baseRecord({
+      attachments: [
+        { name: "Bases", url: "https://example.gob.mx/bases.pdf" },
+        { name: "Anexo técnico", url: "https://example.gob.mx/anexo-tecnico.pdf" },
+      ],
+    });
+    const reordered = baseRecord({
+      attachments: [
+        { name: "Anexo técnico", url: "https://example.gob.mx/anexo-tecnico.pdf" },
+        { name: "Bases", url: "https://example.gob.mx/bases.pdf" },
+      ],
+    });
+    expect(computeVersionHash(ordered)).toBe(computeVersionHash(reordered));
+    expect(detectChanges(ordered, reordered)).not.toContain("anexos");
+  });
+
+  it("cambiar realmente un anexo (no solo reordenar) SÍ produce un versionHash distinto y dispara 'anexos'", () => {
+    const previous = baseRecord({
+      attachments: [{ name: "Bases", url: "https://example.gob.mx/bases.pdf" }],
+    });
+    const next = baseRecord({
+      attachments: [
+        { name: "Bases", url: "https://example.gob.mx/bases.pdf" },
+        { name: "Anexo técnico", url: "https://example.gob.mx/anexo-tecnico.pdf" },
+      ],
+    });
+    expect(computeVersionHash(previous)).not.toBe(computeVersionHash(next));
+    expect(detectChanges(previous, next)).toContain("anexos");
+  });
+
+  it("normaliza unicode (NFC vs NFD) y espacios de más en el título: no produce una versión falsa", () => {
+    const tituloNfd = "Adquisición  de   equipo de cómputo"; // "ó"/"ó" descompuestos (NFD) + espacios dobles
+    const nfc = baseRecord({ title: "Adquisición de equipo de cómputo" }); // ya NFC, espacios simples
+    const nfdConEspacios = baseRecord({ title: tituloNfd });
+    expect(tituloNfd.normalize("NFC")).not.toBe(tituloNfd); // confirma que el fixture realmente está en NFD
+    expect(computeVersionHash(nfc)).toBe(computeVersionHash(nfdConEspacios));
+    expect(detectChanges(nfc, nfdConEspacios)).not.toContain("bases");
+  });
+});
+
 describe("InMemoryTenderVersionStore (ampliación §3: nueva publicación, replay idempotente, modificación con plazo adelantado)", () => {
   it("caso 'nueva publicación': la primera versión no dispara ChangeDetected", () => {
     const store = new InMemoryTenderVersionStore();

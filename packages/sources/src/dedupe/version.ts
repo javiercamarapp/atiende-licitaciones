@@ -1,26 +1,59 @@
-import { hashRawPayload } from "../util/hash.js";
-import { sourceKey, type TenderRecord } from "../types/tender-record.js";
+import { canonicalizeWhitespaceAndUnicode, hashRawPayload, stableStringify } from "../util/hash.js";
+import { sourceKey, type Attachment, type Classifier, type TenderRecord } from "../types/tender-record.js";
 
 /** Categorías de cambio detectadas entre dos versiones consecutivas de la MISMA convocatoria (ampliación §3). */
 export type ChangeKind = "bases" | "aclaraciones" | "anexos" | "plazos" | "estatus" | "otros";
 
 /**
+ * Canonicaliza `classifiers[]` para comparación/hash (SR-01): ninguna API
+ * real garantiza el mismo orden de array entre dos respuestas (paginación,
+ * orden no determinista del backend), así que se ordena por una clave
+ * estable (`scheme:code`) para que reordenar el array SIN cambiar su
+ * contenido no altere el hash. También normaliza espacios/unicode (NFC) de
+ * `code`/`description` para que diferencias incidentales de formato no
+ * disparen una versión falsa.
+ */
+function canonicalClassifiers(classifiers: Classifier[]): Classifier[] {
+  return [...classifiers]
+    .map((c) => ({
+      ...c,
+      code: canonicalizeWhitespaceAndUnicode(c.code),
+      description: c.description !== undefined ? canonicalizeWhitespaceAndUnicode(c.description) : c.description,
+    }))
+    .sort((a, b) => `${a.scheme}:${a.code}`.localeCompare(`${b.scheme}:${b.code}`));
+}
+
+/**
+ * Canonicaliza `attachments[]` para comparación/hash (SR-01): ordena por una
+ * clave estable (`url` si existe, si no `name`) y normaliza espacios/unicode
+ * del `name`, por la misma razón que `canonicalClassifiers`.
+ */
+function canonicalAttachments(attachments: Attachment[]): Attachment[] {
+  return [...attachments]
+    .map((a) => ({ ...a, name: canonicalizeWhitespaceAndUnicode(a.name) }))
+    .sort((a, b) => `${a.url ?? ""}:${a.name}`.localeCompare(`${b.url ?? ""}:${b.name}`));
+}
+
+/**
  * Subconjunto de `TenderRecord` comparado para versionar (excluye
  * `snapshot`/`sourceCursor`, que cambian en cada fetch aunque el contenido
- * de negocio sea idéntico). Es lo que se hashea para `versionHash`.
+ * de negocio sea idéntico). Es lo que se hashea para `versionHash`. Los
+ * campos de texto pasan por `canonicalizeWhitespaceAndUnicode` y los arrays
+ * de `classifiers`/`attachments` por su canonicalización con orden estable
+ * (SR-01: ignora orden de claves Y orden de arrays, normaliza espacios/NFC).
  */
 function comparableContent(record: TenderRecord) {
   return {
-    title: record.title,
-    contractingEntity: record.contractingEntity,
-    procuringUnit: record.procuringUnit,
+    title: canonicalizeWhitespaceAndUnicode(record.title),
+    contractingEntity: canonicalizeWhitespaceAndUnicode(record.contractingEntity),
+    procuringUnit: record.procuringUnit !== undefined ? canonicalizeWhitespaceAndUnicode(record.procuringUnit) : record.procuringUnit,
     procedureType: record.procedureType,
-    classifiers: record.classifiers,
+    classifiers: canonicalClassifiers(record.classifiers),
     budgetAmount: record.budgetAmount,
     currency: record.currency,
     dates: record.dates,
     status: record.status,
-    attachments: record.attachments,
+    attachments: canonicalAttachments(record.attachments),
     state: record.state,
   };
 }
@@ -40,11 +73,11 @@ export function detectChanges(previous: TenderRecord | undefined, next: TenderRe
   const changes = new Set<ChangeKind>();
 
   if (
-    previous.title !== next.title ||
-    previous.contractingEntity !== next.contractingEntity ||
+    canonicalizeWhitespaceAndUnicode(previous.title) !== canonicalizeWhitespaceAndUnicode(next.title) ||
+    canonicalizeWhitespaceAndUnicode(previous.contractingEntity) !== canonicalizeWhitespaceAndUnicode(next.contractingEntity) ||
     previous.procedureType !== next.procedureType ||
     previous.budgetAmount !== next.budgetAmount ||
-    JSON.stringify(previous.classifiers) !== JSON.stringify(next.classifiers)
+    stableStringify(canonicalClassifiers(previous.classifiers)) !== stableStringify(canonicalClassifiers(next.classifiers))
   ) {
     changes.add("bases");
   }
@@ -61,7 +94,7 @@ export function detectChanges(previous: TenderRecord | undefined, next: TenderRe
     changes.add("plazos");
   }
 
-  if (JSON.stringify(previous.attachments) !== JSON.stringify(next.attachments)) {
+  if (stableStringify(canonicalAttachments(previous.attachments)) !== stableStringify(canonicalAttachments(next.attachments))) {
     changes.add("anexos");
   }
 
