@@ -18,8 +18,17 @@ import { TechnicalProposalBuilder, type RequirementFulfillmentMapping } from "..
  * Flujo integrado end-to-end del expediente de participación: bases →
  * matriz de requisitos → datos de empresa → propuesta técnica/económica →
  * checklist de integridad → aprobación por rol → paquete final (ZIP real).
- * Cubre A6-A15 de docs/ACEPTACION.md ejercitando el flujo completo, no
- * helpers aislados ni mocks de integración.
+ *
+ * EX-EXP-16 (BAJA, reverificación ronda 1): este test ejercita el flujo
+ * completo DENTRO de la librería pura (sin helpers aislados ni mocks de
+ * integración) — es una precondición NECESARIA pero NO SUFICIENTE para
+ * A6-A15 de docs/ACEPTACION.md, que exige explícitamente pruebas de
+ * "integración"/"E2E"/"adversarial" con "UI real", "API + UI" o "portal
+ * autenticado". Ninguno de esos existe todavía (`apps/api` no importa
+ * `@atiende/expediente`): A6-A15 siguen correctamente marcadas PENDIENTE en
+ * `docs/ACEPTACION.md`. Este test NO certifica A6-A15 por sí solo — un
+ * futuro lector o agente automatizado no debe asumir que están cerradas
+ * por verlo pasar aquí.
  */
 
 const ASOF = "2026-10-20T12:00:00-06:00"; // fecha límite de entrega de proposiciones (el "acto")

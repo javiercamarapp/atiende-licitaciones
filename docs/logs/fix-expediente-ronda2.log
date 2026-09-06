@@ -201,3 +201,43 @@ Suite completa DESPUÉS de la corrección (packages/expediente):
 npm run -w packages/expediente typecheck -> exit 0
 npm run -w packages/expediente lint -> exit 0
 
+================================================================================
+## EX-EXP-16 — docstring de test/expediente-flow.test.ts no sobreestima A6-A15
+================================================================================
+
+Hallazgo documental (BAJA): el docstring afirmaba "Cubre A6-A15 de
+docs/ACEPTACION.md ejercitando el flujo completo, no helpers aislados ni
+mocks de integración", sobreestimando lo que un test 100% in-memory (sin
+HTTP/DB/UI) puede certificar según el propio estándar de ACEPTACION.md
+(que exige integración/E2E con UI/API real). Sin cambio de comportamiento
+ni de aserciones — solo se reformula el docstring para dejar explícito que
+es una precondición necesaria pero no suficiente, y que A6-A15 siguen
+PENDIENTE. No aplica "test que falla": es un hallazgo puramente
+documental, sin lógica ejecutable que reproducir.
+
+Suite completa (sin cambios de comportamiento esperados):
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/packages/expediente[39m
+
+ [32m✓[39m test/integrity-checklist.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/approval-workflow.test.ts [2m([22m[2m15 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/requirement-matrix.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/technical-proposal.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/technical-proposal-property.test.ts [2m([22m[2m200 tests[22m[2m)[22m[90m 18[2mms[22m[39m
+ [32m✓[39m test/proposal-invalidation.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 32[2mms[22m[39m
+ [32m✓[39m test/package-assembler.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 47[2mms[22m[39m
+ [32m✓[39m test/expediente-flow.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 47[2mms[22m[39m
+ [32m✓[39m test/company-data.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/economic-proposal.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m test/number-to-words.test.ts [2m([22m[2m42 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/types.test.ts [2m([22m[2m15 tests[22m[2m)[22m[90m 9[2mms[22m[39m
+ [32m✓[39m test/money.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/llm-extractor.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m test/api-surface.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m test/timezone-determinism.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 1798[2mms[22m[39m
+   [33m[2m✓[22m[39m isPast — determinismo ante el TZ del proceso (EX-EXP-04, REQ-160 vigencias)[2m > [22muna fecha CON offset explícito produce EXACTAMENTE el mismo veredicto bajo TZ=UTC, America/Mexico_City y Asia/Tokyo [33m416[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m16 passed[39m[22m[90m (16)[39m
+[2m      Tests [22m [1m[32m363 passed[39m[22m[90m (363)[39m
+[2m   Start at [22m 20:43:17
+[2m   Duration [22m 2.08s[2m (transform 301ms, setup 0ms, collect 784ms, tests 2.00s, environment 1ms, prepare 743ms)[22m
+
