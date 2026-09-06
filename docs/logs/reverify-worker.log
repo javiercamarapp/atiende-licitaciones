@@ -1,0 +1,352 @@
+Reverificación adversarial independiente — apps/worker
+=========================================================
+Fecha (UTC): 2026-09-06T02:43:00Z
+Repo: /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging
+HEAD al momento del corte: d94b228022cf064eaa5fcc9c3eb36917910509f0
+  "docs: corrección worker completada; propuestas SQL asignadas; despacho reverificación worker"
+Worktree usado (temporal, eliminado al final):
+  <scratchpad>/reverify-worker  (git worktree add <scratchpad>/reverify-worker HEAD)
+Ningún comando destructivo (reset/checkout <commit>/stash/rebase) se ejecutó en el repo principal.
+
+---------------------------------------------------------
+1) npm install en el worktree
+---------------------------------------------------------
+$ npm install
+added 677 packages, and audited 685 packages in 21s
+(6 vulnerabilities preexistentes, no relacionadas con este paquete — no auditadas aquí)
+
+---------------------------------------------------------
+2) Verificación de ancestría de los commits citados en docs/auditoria-1/worker.md
+---------------------------------------------------------
+$ git merge-base --is-ancestor <commit> HEAD && echo yes
+
+8f0344410949c06761a31820f4d30dd75469f090  fix(worker): WK-01/WK-02/WK-04/WK-10/WK-12 cola de jobs (recommit)  -> ANCESTOR: yes
+d7ac83a5c9619a3e01ad4e2978cf4f46a3a94cee  fix(worker): WK-03/WK-05/WK-06 discover_tenders...              -> ANCESTOR: yes
+a1437cc313db2b44d65fd6ae2dcbbdfaba7234cb  fix(worker): WK-09 Idempotency-Key en TenderIngestClient          -> ANCESTOR: yes
+a545298f480ce2087b6d71cf77d4f4b01b32388d  fix(worker): WK-08 defensa en profundidad org_id                  -> ANCESTOR: yes
+1b656a3eb5c6d31caf6bba65a0e07861eedb4821  fix(worker): WK-11 vitest --coverage con umbrales                 -> ANCESTOR: yes
+21aadefd373443229541932044b1281fc30d280d  docs(worker): PENDIENTE esquema — propuestas de migración         -> ANCESTOR: yes
+
+Todos los `git show --stat` de estos commits coinciden con los archivos que
+describe la columna "Estado reparación" de docs/auditoria-1/worker.md
+(job-queue.ts/worker.ts/errors.ts/types.ts/metrics.ts para 8f03444;
+discover-tenders.ts/source-run-status.ts para d7ac83a; ingest-client.ts para
+a1437cc; run-agent.ts para a545298; package.json/vitest.config.ts para
+1b656a3; los 6 archivos de db-proposals/ para 21aadef).
+
+HALLAZGO DE TRAZABILIDAD (WK-18, nuevo, ver informe): el commit citado para
+WK-13 en la tabla ("fix(worker): WK-13 declaredEffects obligatorio en tools
+de run_agent") NO EXISTE como commit independiente. `git log -p -- apps/worker/
+src/handlers/run-agent.ts` muestra que el bloque `declaredEffects: ['read_only']`
+se introdujo dentro del commit 3bc21f6623ff15eccb56c9633cfa8d9494158329, cuyo
+mensaje es "docs(sources): SR-09 README anota variación 401/403 y nomenclatura
+legal vigente" (no relacionado por su título) — ese commit sí toca, entre 9
+archivos, `apps/worker/src/handlers/run-agent.ts` (11 líneas) además de
+`docs/logs/fix-worker-wk13.log` (20 líneas, sí existe). Ancestría confirmada
+(3bc21f6 es ancestro de HEAD), y el código presente es correcto, pero el
+commit-hash/mensaje citado en la tabla de docs/auditoria-1/worker.md para
+WK-13 es una referencia inexistente (probablemente un artefacto de una
+carrera de commits concurrentes, patrón ya visto en otros commits de este
+repo con sufijo "recommit — carrera de git perdida").
+
+---------------------------------------------------------
+3) Reproducibilidad base (comandos oficiales, sin mutar nada)
+---------------------------------------------------------
+$ npm run -w packages/sources typecheck
+> tsc --noEmit
+(sin salida — OK)
+
+$ npm run -w apps/worker typecheck
+> tsc --noEmit
+(sin salida — OK)
+
+$ npm run -w apps/worker lint
+> eslint src test
+(sin salida — OK)
+
+$ npm run -w apps/worker test
+Test Files  8 passed | 3 skipped (11)
+     Tests  55 passed | 5 skipped (60)
+(los 3 archivos "skipped" son los .pending.test.ts de db-proposals/,
+describe.skip intencional documentado; los 5 tests skipped son los mismos,
+sin cuerpo de aserciones — ver sección 8 del informe)
+
+Confirma que packages/sources ya con SR-03 (not_configured para DOF sin
+noteCodes) y SR-11 (eligibility en MatchResult) corregidos NO rompe a
+apps/worker: los 5 conectores reales usados por buildDefaultConnectorRegistry()
+(incluido DOF) siguen produciendo not_configured explícito en los tests A4,
+y apps/worker no importa nada de src/matching/ de packages/sources.
+
+$ npm run -w apps/worker test:coverage (umbrales originales: lines>=85, branches>=80)
+All files: 93.01% lines / 82.42% branches / 80.59% funcs  -> PASA
+(cifras ligeramente distintas de docs/logs/fix-worker-ronda2.log, 92.75%/80.53%,
+por variación normal de qué archivos de test corrieron en la sesión —
+mismo orden de magnitud, mismo veredicto: por encima de umbral)
+
+---------------------------------------------------------
+4) WK-01 — crash simulado, attempts=max_attempts-1, lease expirado 2 veces
+---------------------------------------------------------
+Escenario pedido reproducido leyendo el test OFICIAL
+`test/job-queue.test.ts` > "JobQueue: WK-01 ... > un job que crashea
+repetidamente (nunca completa/falla) termina en 'dead', nunca 'running'
+eterno" — con maxAttempts=3: claim1(attempts=1)->lease expira->
+claim2(attempts=2)->lease expira->claim3(attempts=3, = max_attempts-1+1,
+sigue vivo)->lease expira->claim4 (excedería max_attempts) -> dead
+inmediato, `claim()` retorna undefined, fila queda dead con
+`last_error` explícito. Test PASA (ejecutado dentro de la corrida general
+de la sección 3). Lectura de código confirma: la MISMA sentencia UPDATE de
+`claim()` decide `dead` vs `running` comparando `attempts+1 > max_attempts`
+ANTES de entregar la fila, sin pasar nunca por `fail()`.
+VEREDICTO: CERRADO.
+
+---------------------------------------------------------
+5) WK-02 — fencing por `attempts`: adversarial propio (test temporal, NO commiteado)
+---------------------------------------------------------
+Archivo temporal: apps/worker/test/zz-reverify-wk02.test.ts (creado, ejecutado,
+borrado antes de terminar; nunca commiteado).
+
+$ npx vitest run --config apps/worker/vitest.config.ts apps/worker/test/zz-reverify-wk02.test.ts
+✓ A hace heartbeat con expectedAttempts viejo tras que B reclamo -> rechazado (heartbeat() devuelve false)
+✓ A intenta complete() con su workerId tras que B ya reclamo el job -> no toca ninguna fila (protegido por locked_by)
+✓ B falla y el job vuelve a queued antes de que A intente completar -> complete() de A no toca nada
+✓ GAP: mismo workerId reutilizado tras un reinicio (reclamo propio) -> complete() del proceso viejo SÍ corrompe el job de la nueva generación
+Test Files 1 passed (1) / Tests 4 passed (4)
+
+Detalle del GAP (4to test, reproducido con `JobQueue` directo, sin mocks):
+  1. Job enqueue, maxAttempts=5.
+  2. claim('worker-A') -> attempts=1, locked_by='worker-A'.
+  3. Se fuerza lease vencido (locked_at = now() - 120s).
+  4. claim('worker-A') OTRA VEZ (mismo workerId, simulando reinicio del
+     proceso con WORKER_ID estático/reutilizado) -> attempts=2,
+     locked_by='worker-A' (generación 2).
+  5. Un "zombie" de la generación 1 llama complete(jobId, 'worker-A')
+     (SIN el fencingToken=1 de su propia generación, porque complete() no
+     acepta ese parámetro).
+  6. RESULTADO OBSERVADO: complete() marca el job 'succeeded' — la
+     generación 2, que en teoría sigue "corriendo" el handler en memoria,
+     queda con su job marcado terminado bajo sus pies, sin que nada lo
+     impida (locked_by='worker-A' coincide en AMBAS generaciones).
+Confirma que `heartbeat()` SÍ implementa fencing real por `expectedAttempts`
+(WK-02 original: worker distinto reclama, heartbeat rechazado, handler se
+aborta), pero `complete()`/`fail()`/`deadLetterPermanent()` NO reciben ese
+mismo parámetro — el comentario en job-queue.ts ("doble verificación
+locked_by Y attempts... incluso en el caso extremo de colisión de workerId")
+es correcto solo para heartbeat(), no para las 3 funciones de terminación.
+VEREDICTO: PARCIAL. Nuevo hallazgo: WK-14 (ver informe).
+
+---------------------------------------------------------
+6) WK-03 — 401 vs timeout vs excepción no-HTTP; discover() lanza a mitad
+---------------------------------------------------------
+Archivo temporal: apps/worker/test/zz-reverify-wk03.test.ts (creado,
+ejecutado, borrado; nunca commiteado). Usa un `FakeThrowingIngestClient`
+inyectado (sin red real) para forzar cada tipo de excepción exacto.
+
+$ npx vitest run --config apps/worker/vitest.config.ts apps/worker/test/zz-reverify-wk03.test.ts
+✓ 401 (permanente) -> source_runs registrado con ingest_failed
+✓ timeout (IngestApiError retryable de red) -> source_runs registrado con ingest_failed
+✓ excepción NO-HTTP (TypeError propio del cliente) -> source_runs SIGUE registrándose
+✓ excepción NO-Error (throw de un string plano) -> source_runs SIGUE registrándose, sin crashear describeIngestError
+Test Files 1 passed (1) / Tests 4 passed (4)
+
+Además, el test OFICIAL `discover-tenders-handler.test.ts` > "si discover()
+falla a mitad de iteración, coverage.obtained es 0" ya cubre el caso de
+`discover()` lanzando a mitad de un AsyncIterable (generador que yield 1
+registro y luego throw) — confirmado en verde en la corrida de la sección 3.
+VEREDICTO: CERRADO. Robusto ante cualquier tipo de excepción de ingest() y
+ante fallo a mitad del AsyncIterable de discover().
+
+---------------------------------------------------------
+7) WK-04 — advisory lock, límite real de PGlite documentado
+---------------------------------------------------------
+7a) Revisión de la sentencia SQL/lock (job-queue.ts `enqueue()`):
+`select pg_advisory_xact_lock(hashtext($1)::bigint)` dentro de
+`db.transaction()`, seguido de SELECT-luego-INSERT de la misma clave
+(kind:jobKey). Sintaxis y semántica CORRECTAS para Postgres real:
+pg_advisory_xact_lock serializa transacciones concurrentes reales que
+compiten por la misma clave (hashtext puede colisionar entre claves
+distintas, pero eso solo causa serialización extra entre jobs no
+relacionados, nunca corrupción de datos).
+
+7b) Diagnóstico propio de si el test oficial de WK-04 ("2 Scheduler
+concurrentes x 20 iteraciones") realmente ejercita una carrera real dado
+que PGlite es una sola conexión/proceso (packages/db/README.md, "Límites
+conocidos"):
+Archivo temporal: apps/worker/test/zz-reverify-wk04-pglite-limit.test.ts
+
+$ npx vitest run --config apps/worker/vitest.config.ts apps/worker/test/zz-reverify-wk04-pglite-limit.test.ts
+stdout: ORDEN OBSERVADO: A:start | A:after-select | A:after-delay | A:end | B:start | B:after-select | B:after-delay | B:end
+✓ dos transaction() concurrentes SIN advisory lock: ¿se entrelazan sus sentencias o PGlite serializa la transacción completa?
+
+RESULTADO: dos `db.transaction()` lanzados con Promise.all (SIN ningún
+advisory lock, SIN ninguna protección) se ejecutan de punta a punta en
+SECUENCIA COMPLETA (A termina entera antes de que B siquiera empiece),
+incluso con una espera artificial de 30ms dentro de A vs 5ms dentro de B
+para dar oportunidad de entrelazado. CONFIRMA que PGlite serializa
+transacciones completas sin intercalar sus sentencias.
+
+CONCLUSIÓN: el test oficial "2 Scheduler concurrentes x 20 iteraciones sin
+duplicados" pasaría EXACTAMENTE IGUAL sin el advisory lock, en este entorno,
+porque PGlite nunca deja que dos transacciones compitan de verdad por el
+mismo SELECT-luego-INSERT. La mitigación (SQL) es correcta para Postgres
+real, pero la afirmación "verificado con 2 procesos concurrentes x 20
+iteraciones sin duplicados" no está respaldada por evidencia de concurrencia
+real en este entorno — coincide con la limitación general ya documentada en
+packages/db/README.md, pero esa nota no se repite junto a la entrada WK-04.
+VEREDICTO: PARCIAL. Nuevo hallazgo: WK-15 (ver informe).
+
+---------------------------------------------------------
+8) WK-08 — run_agent con job sin org_id (organizationId: null)
+---------------------------------------------------------
+Archivo temporal: apps/worker/test/zz-reverify-wk08.test.ts (creado,
+ejecutado, borrado; nunca commiteado).
+
+$ npx vitest run --config apps/worker/vitest.config.ts apps/worker/test/zz-reverify-wk08.test.ts
+stdout: RESULTADO: status= succeeded output= { error: null, richStatus: 'completed', totalSteps: 1, completedSteps: 1 }
+✓ agentRunId real de orgA + payload.organizationId=null -> ¿la fila de orgA se sobrescribe sin ninguna verificación?
+
+Escenario: agent_runs real de orgA (creado con seedOrgAndUser), job payload
+con `agentRunId` real de esa fila pero `organizationId: null` (valor
+explícitamente permitido por el tipo `RunAgentPayload.organizationId:
+string | null`). El WHERE de `updateAgentRunRow` es
+`id = $1 and ($5::uuid is null or org_id = $5::uuid)` — con $5=null la
+condición de la derecha del OR nunca se evalúa (el IS NULL de la izquierda
+ya es verdadero), así que el WHERE se reduce a `id = $1`, exactamente el
+comportamiento PRE-WK-08. RESULTADO: la fila de orgA se actualiza a
+'succeeded' sin ningún error, sin ninguna verificación de org_id.
+Esto contradice el objetivo declarado de WK-08 ("nunca sobrescribir en
+silencio... falla explícito, nunca no-op silencioso").
+VEREDICTO: PARCIAL. Nuevo hallazgo: WK-16 (ALTA, ver informe).
+
+---------------------------------------------------------
+9) WK-09 — mismo lote, orden distinto -> ¿misma Idempotency-Key?
+---------------------------------------------------------
+Archivo temporal: apps/worker/test/zz-reverify-wk09.test.ts (creado,
+ejecutado, borrado; nunca commiteado). Servidor HTTP real (node:http).
+
+$ npx vitest run --config apps/worker/vitest.config.ts apps/worker/test/zz-reverify-wk09.test.ts
+stdout: keyAB= 754ff54d... keyBA= 7e51afaf... iguales= false
+✓ mismo conjunto {A,B} en orden [A,B] vs [B,A] -> ¿misma Idempotency-Key?
+
+CRITERIO DEFINIDO Y VERIFICADO: la clave se deriva de
+`sha256(JSON.stringify(request))` — es estable BYTE A BYTE (mismo array en
+el mismo orden -> misma clave, confirmado también por el test oficial), pero
+NO es estable para "el mismo conjunto lógico de registros en otro orden"
+(confirmado arriba: keyAB != keyBA). Esto coincide EXACTAMENTE con el
+matiz que el propio hallazgo original ya declaraba ("funciona hoy porque el
+payload es determinista byte-a-byte en reintentos del mismo snapshot") — no
+es una regresión ni una sobreclaim nueva, es la misma limitación ya
+disclosed, ahora confirmada con evidencia dura. Recomendación (no bloqueante):
+ordenar `records` por (source, externalId, sourceVersion) antes de
+serializar, para que la clave sea estable ante reordenamientos del conector
+entre reintentos de TODO el job (no solo dentro de una misma llamada a
+ingest()).
+VEREDICTO: CERRADO (respecto de su alcance ya disclosed).
+
+---------------------------------------------------------
+10) WK-10 — clasificación 429/408 transitorios; 400/422 permanentes; 5xx transitorio; red sin status
+---------------------------------------------------------
+Archivo temporal: apps/worker/test/zz-reverify-wk10.test.ts (creado,
+ejecutado, borrado; nunca commiteado). Servidores HTTP reales por status code.
+
+$ npx vitest run --config apps/worker/vitest.config.ts apps/worker/test/zz-reverify-wk10.test.ts
+✓ 429 -> se reintenta dentro de ingest() y, si se agota, IngestApiError NO permanente (transitorio) — correcto
+✓ 400 -> NO se reintenta dentro de ingest(), IngestApiError SÍ permanente — correcto
+✓ 422 -> NO se reintenta, IngestApiError SÍ permanente — correcto
+✓ 5xx (500) -> SÍ se reintenta dentro de ingest() y, si se agota, NO permanente (transitorio) — correcto
+✓ error de red SIN status (conexión rechazada) -> IngestApiError NO permanente (transitorio) — correcto
+stdout: 408 permanent= true isPermanentJobError= true
+✓ GAP: 408 (transitorio por semántica HTTP) se trata como PERMANENTE -> dead-letter inmediato, contradice el criterio pedido
+Test Files 1 passed (1) / Tests 6 passed (6)
+
+Causa raíz del GAP: `RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504])`
+en `ingest-client.ts` NO incluye 408, así que `ingest()` nunca lo reintenta
+internamente; y el getter `IngestApiError.permanent` marca CUALQUIER 4xx
+no-retryable como permanente (`status>=400 && status<500`), sin excluir 408.
+Un 408 real de apps/api (bajo carga momentánea, por ejemplo) mata el job en
+el primer intento vía `deadLetterPermanent`, en vez de reintentarlo.
+VEREDICTO: PARCIAL (los 5 casos pedidos SÍ están bien excepto 408). Nuevo
+hallazgo: WK-17 (MEDIA, ver informe).
+
+---------------------------------------------------------
+11) WK-11 — gate de cobertura, mutación de umbral (control positivo/negativo)
+---------------------------------------------------------
+$ cp apps/worker/vitest.config.ts /tmp/vitest.config.ts.bak
+$ sed -i '' 's/lines: 85,/lines: 99,/; s/branches: 80,/branches: 99,/' apps/worker/vitest.config.ts
+$ npm run -w apps/worker test:coverage
+...
+ERROR: Coverage for lines (93.01%) does not meet global threshold (99%)
+ERROR: Coverage for branches (82.5%) does not meet global threshold (99%)
+npm error Lifecycle script `test:coverage` failed with error:
+npm error code 1
+$ cp /tmp/vitest.config.ts.bak apps/worker/vitest.config.ts   # revertido
+$ git diff --stat apps/worker/vitest.config.ts   # (sin salida: revertido byte a byte)
+
+Confirma que el gate de cobertura es REAL (falla el build/script con código
+de salida distinto de 0 cuando la cobertura real cae por debajo del umbral
+declarado), no decorativo. Umbrales originales (85/80) SÍ pasan con la
+cobertura real medida (93.01%/82.42%).
+VEREDICTO: CERRADO.
+
+---------------------------------------------------------
+12) Evaluación de las 3 propuestas SQL (db-proposals/)
+---------------------------------------------------------
+PROPOSAL-01-widen-source-run-status.sql (WK-07):
+  - `alter type source_run_status add value if not exists '<x>'` x3.
+  - Idempotente (IF NOT EXISTS), no rompe filas existentes (ADD VALUE solo
+    EXTIENDE el enum, nunca reescribe datos). Correcta para Postgres real
+    (requiere PG >= 9.6 para la cláusula IF NOT EXISTS de ADD VALUE; el
+    propio archivo advierte correctamente la limitación de PG de no usar el
+    valor nuevo en la MISMA transacción que lo agrega — no aplica aquí
+    porque el archivo solo agrega, no usa, los valores).
+  - VEREDICTO: correcta, sin objeciones bloqueantes.
+
+PROPOSAL-02-jobs-dedupe-and-cancelled.sql (WK-04):
+  - `alter type job_status add value if not exists 'cancelled'` — igual de
+    correcto/idempotente que arriba.
+  - `create unique index if not exists ux_jobs_kind_jobkey_active on jobs
+    (kind, (payload ->> 'jobKey')) where payload ? 'jobKey' and status in
+    ('queued','running')` — sintaxis de índice único parcial válida.
+  - RIESGO OPERACIONAL NO DOCUMENTADO en el archivo (2 puntos):
+    (a) Si ya existen filas `jobs` duplicadas activas para la misma
+        (kind, jobKey) al momento de aplicar esta migración (escenario
+        REAL: es exactamente lo que WK-04 confirmó que podía pasar ANTES
+        del advisory lock, así que sistemas ya en producción antes de esa
+        mitigación podrían tener duplicados históricos aún activos), el
+        `CREATE UNIQUE INDEX` FALLARÁ (falla segura/ruidosa, no corrompe
+        datos, pero bloquea el despliegue de la migración) sin que el
+        archivo indique un paso previo de limpieza/dedupe.
+    (b) Usa `CREATE INDEX` simple, no `CREATE INDEX CONCURRENTLY`: sobre la
+        tabla `jobs` de un sistema de colas EN VIVO (con escrituras
+        constantes de `claim()`/`heartbeat()`/`fail()`), un `CREATE INDEX`
+        normal toma un lock que bloquea escrituras concurrentes en `jobs`
+        durante la construcción del índice — riesgo operacional real para
+        el despliegue, no mencionado en el archivo.
+  - VEREDICTO: sintaxis/lógica correctas y no destructivas para datos, pero
+    con 2 riesgos de despliegue no documentados (PARCIAL, recomendación
+    dada en el informe).
+
+PROPOSAL-03-worker-role.sql (WK-08):
+  - Creación de rol `worker_role` guardada con `do $$ if not exists ... $$`
+    (idempotente), `inherit`, `grant app_role to worker_role` (hereda USAGE
+    de esquemas `public`/`app` de `app_role` vía 0001_bootstrap.sql sin
+    necesitar grants explícitos adicionales — confirmado leyendo
+    0001_bootstrap.sql). Grants de tabla (`jobs`/`source_runs`/
+    `agent_runs`) explícitos y mínimos, coherentes con lo que
+    `apps/worker` usa hoy. No requiere `GRANT EXECUTE` explícito sobre las
+    funciones RLS (`app.current_org_id()`, etc.) porque Postgres otorga
+    EXECUTE a PUBLIC por defecto en funciones nuevas y ninguna migración de
+    este repo lo revoca (`grep` sin resultados de REVOKE EXECUTE).
+  - Password placeholder (`'CAMBIAR_EN_DESPLIEGUE_REAL'`) correctamente
+    señalado como pendiente de reemplazo real antes de producción.
+  - VEREDICTO: correcta, sin objeciones bloqueantes.
+
+---------------------------------------------------------
+13) Limpieza
+---------------------------------------------------------
+$ rm -f apps/worker/test/zz-reverify-*.test.ts   (los 5 archivos temporales)
+$ git status --short apps/worker/test/          (sin salida: worktree limpio)
+$ git worktree remove --force <scratchpad>/reverify-worker   (ejecutado al final)
+
+Ningún archivo de prueba adversarial quedó commiteado. No se tocó ningún
+archivo de apps/api, packages/* ni ningún cambio sin commitear de otros
+agentes en el repo principal.
