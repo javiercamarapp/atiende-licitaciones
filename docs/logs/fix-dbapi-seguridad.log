@@ -1,0 +1,155 @@
+# fix-dbapi-seguridad.log
+# Agente: corrector de seguridad (Sonnet), ronda de reparación sobre
+# docs/auditoria-1/db-api-reverificacion.md (DB-08 CRITICA, DB-02/API-02
+# reabiertos, API-08 ALTA, DB-09/10/11, API-01/03/09..12).
+# Ambito: packages/db/migrations/0040-0049, packages/db/test/security-*.test.ts
+# (nuevos), apps/api/src/modules/auth/**, apps/api/src/modules/organizations/**
+# (solo invitaciones/roles), sus tests.
+# Salida real de los comandos finales solicitados, sin editar a mano.
+
+=== 2026-09-06T03:47:56Z npm run -w packages/db test ===
+
+> @atiende/db@0.1.0 test
+> vitest run
+
+
+ RUN  v2.1.9 /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/packages/db
+
+ ✓ test/security-definer-audit.test.ts (5 tests) 11495ms
+ ✓ test/ronda2-extensions.test.ts (8 tests) 12339ms
+ ✓ test/security-db10-rate-validity-submission-deadline.test.ts (4 tests) 12394ms
+ ✓ test/rls-ronda3-expediente.test.ts (3 tests) 13127ms
+ ✓ test/rls-roles.test.ts (5 tests) 13630ms
+ ✓ test/backoffice-extension.test.ts (5 tests) 13708ms
+ ✓ test/audit-db05-change-event-invalidation.test.ts (4 tests) 13955ms
+ ✓ test/migration-0026b-duplicate-jobs-safety-net.test.ts (2 tests) 23082ms
+   ✓ 0026b: resuelve duplicados activos preexistentes antes del índice único de 0027 > una base con jobs activos duplicados por (kind, jobKey) migra limpiamente hasta el final 12796ms
+   ✓ 0026b: resuelve duplicados activos preexistentes antes del índice único de 0027 > app.resolve_duplicate_active_jobs() es idempotente: una segunda ejecución no toca nada más 10270ms
+ ✓ test/audit-db02-rate-validity.test.ts (3 tests) 11890ms
+ ✓ test/audit-db01-security-definer-scope.test.ts (4 tests) 11548ms
+ ✓ test/jobs-locking.test.ts (2 tests) 12459ms
+ ✓ test/audit-db06-audit-log-hash-chain.test.ts (3 tests) 11766ms
+ ✓ test/audit-db03-rate-reapproval.test.ts (3 tests) 12443ms
+ ✓ test/rls-isolation.test.ts (70 tests) 14828ms
+ ✓ test/worker-role-and-job-proposals.test.ts (11 tests) 30618ms
+ ✓ test/idempotency-and-audit.test.ts (4 tests) 18351ms
+ ✓ test/org-bootstrap.test.ts (2 tests) 7500ms
+ ✓ test/security-db09-agent-run-context.test.ts (2 tests) 6162ms
+ ✓ test/migrate.test.ts (4 tests) 10700ms
+   ✓ migraciones > aplican todas sin error y quedan registradas en schema_migrations 5617ms
+   ✓ migraciones > se pueden aplicar dos veces sin error (idempotente): la segunda vez no repite nada 2510ms
+   ✓ migraciones > ensureMigrationsTable es idempotente 1223ms
+   ✓ migraciones > crea todas las tablas de dominio esperadas 1349ms
+
+ Test Files  19 passed (19)
+      Tests  144 passed (144)
+   Start at  21:47:57
+   Duration  38.01s (transform 703ms, setup 0ms, collect 1.83s, tests 262.00s, environment 3ms, prepare 2.69s)
+
+EXIT_CODE=0
+=== 2026-09-06T03:48:41Z npm run -w apps/api typecheck ===
+
+> @atiende/api@0.1.0 typecheck
+> tsc --noEmit
+
+EXIT_CODE=0
+=== 2026-09-06T03:48:49Z npm run -w apps/api lint ===
+
+> @atiende/api@0.1.0 lint
+> eslint src test
+
+EXIT_CODE=0
+=== 2026-09-06T03:48:54Z npm run -w apps/api test ===
+
+> @atiende/api@0.1.0 test
+> vitest run
+
+
+ RUN  v2.1.9 /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/api
+
+ ✓ test/expediente-documents-and-matrix.test.ts (4 tests) 13349ms
+   ✓ expediente — documentos de bases y matriz de requisitos (E6) > sube un PDF real con texto, lo extrae vía pdf-parse y construye la matriz de requisitos 2401ms
+   ✓ expediente — documentos de bases y matriz de requisitos (E6) > un documento de formato no soportado (ni PDF ni texto reconocible) queda "failed" explícito, nunca texto vacío en silencio 4037ms
+   ✓ expediente — documentos de bases y matriz de requisitos (E6) > viewer no puede subir documentos ni editar la matriz; writer sí puede editar responsable/estado 2871ms
+   ✓ expediente — documentos de bases y matriz de requisitos (E6) > A6: dos versiones de bases con plazos distintos para el mismo tema generan un conflicto escalado, y la matriz vieja queda invalidada preservando historial 4038ms
+ ✓ test/expediente-proposal.test.ts (4 tests) 13899ms
+   ✓ expediente — propuesta técnica/económica (E7) > genera la propuesta técnica real: capacidad aprobada resuelve en texto trazable; sin mapeo declarado queda PENDIENTE (nunca inventa) 2653ms
+   ✓ expediente — propuesta técnica/económica (E7) > A8: propuesta económica con tarifa NO aprobada se rechaza de punta a punta (sin total parcial); tras aprobar la tarifa, el cálculo procede 3858ms
+   ✓ expediente — propuesta técnica/económica (E7) > viewer no puede editar una sección de la propuesta; writer sí, con nueva versión 3865ms
+   ✓ expediente — propuesta técnica/económica (E7) > coordinación packages/expediente (expediente-cierre.md): cambiar la aplicabilidad de un requisito condicional invalida explícitamente una aprobación vigente (no forma parte de ExpedienteInputs, así que el hash no cambia por sí solo) 3522ms
+ ✓ test/expediente-e2e-flow.test.ts (1 test) 5407ms
+   ✓ expediente — flujo E2E completo (E6-E11) > recorre bases -> matriz -> perfil -> propuesta -> checklist -> aprobación -> paquete ready -> descarga -> cambio de bases -> invalidación -> draft 5406ms
+ ✓ test/company-profile.test.ts (6 tests) 21596ms
+   ✓ perfil de empresa (E2) > PUT /company/profile (owner) crea el perfil con procedencia por campo; viewer no puede escribirlo 2654ms
+   ✓ perfil de empresa (E2) > writer puede crear una capability (rol de escritura); viewer no puede 4214ms
+   ✓ perfil de empresa (E2) > experiencia sin evidenceRef queda marcada verifiable=false (REQ-143) 3063ms
+   ✓ perfil de empresa (E2) > company_documents: documento vencido se refleja con status expired (REQ-023, A7) 3795ms
+   ✓ perfil de empresa (E2) > A8: approved_rates -- writer propone (draft), solo owner/admin aprueban; tarifa no aprobada no es utilizable 3969ms
+   ✓ perfil de empresa (E2) > A5/aislamiento: capabilities de una organización no son visibles para otra 3899ms
+ ✓ test/tenders-and-ingest.test.ts (7 tests) 23671ms
+   ✓ convocatorias e ingesta interna (E3/E4) > POST /internal/tenders/ingest sin X-Platform-Api-Key es rechazado (401/403) 2458ms
+   ✓ convocatorias e ingesta interna (E3/E4) > A1: nueva publicación crea la convocatoria y una versión inicial 3964ms
+   ✓ convocatorias e ingesta interna (E3/E4) > A2: reingestar exactamente la misma versión es un no-op idempotente (0 filas nuevas) 2963ms
+   ✓ convocatorias e ingesta interna (E3/E4) > A3: una modificación con nueva versión de origen adelanta el plazo, crea evento e invalida dependientes 3756ms
+   ✓ convocatorias e ingesta interna (E3/E4) > lista de convocatorias no filtra entre organizaciones (aislamiento por org_id) 3401ms
+   ✓ convocatorias e ingesta interna (E3/E4) > viewer no puede escribir en go/no-go pero sí lee tenders (viewer solo lee) 3695ms
+   ✓ convocatorias e ingesta interna (E3/E4) > GET /tenders/sources/freshness responde para cualquier usuario autenticado (sin X-Org-Id) 3433ms
+ ✓ test/expediente-package-and-submission.test.ts (3 tests) 12573ms
+   ✓ expediente — paquete final y presentación declarada (E8/E9) > A14: expediente incompleto (sin checklist verde ni aprobación) nunca ensambla "ready", siempre "draft" con motivos explícitos 4797ms
+   ✓ expediente — paquete final y presentación declarada (E8/E9) > A13: expediente completo (checklist verde real + aprobación vigente con hash coincidente) ensambla "ready" y el ZIP se relee con el manifiesto correcto 3941ms
+   ✓ expediente — paquete final y presentación declarada (E8/E9) > A15: submissions solo registra la declaración del usuario (fecha + acuse subido); nunca envía nada, y el módulo no importa ningún cliente HTTP saliente 3834ms
+ ✓ test/expediente-checklist-and-approval.test.ts (3 tests) 11155ms
+   ✓ expediente — checklist de integridad y flujo de aprobación (E8) > ejecuta el checklist real (7 dimensiones) y lo persiste en compliance_items 4859ms
+   ✓ expediente — checklist de integridad y flujo de aprobación (E8) > A12: writer no puede aprobar (solo reviewer/admin/owner); autoaprobación (mismo actor) prohibida; comentarios visibles 3502ms
+   ✓ expediente — checklist de integridad y flujo de aprobación (E8) > A11: cambiar un insumo real (perfil de empresa) después de aprobar invalida la aprobación automáticamente 2793ms
+ ✓ test/matching-and-go-no-go.test.ts (4 tests) 7406ms
+   ✓ matching y go/no-go (E5) > writer NO puede decidir go/no-go (403); reviewer y owner sí pueden (E5, "writer nunca decide") 553ms
+   ✓ matching y go/no-go (E5) > A5: dos organizaciones con perfiles distintos no filtran datos entre sí en matching 2496ms
+ ✓ test/agent-persistence.test.ts (4 tests) 11850ms
+   ✓ persistencia de packages/agents (RunStore/ToolCallStore sobre Postgres) > PgRunStore: createRun/getRun/updateRun persisten y sobreviven una relectura real (no solo en memoria) 4676ms
+   ✓ persistencia de packages/agents (RunStore/ToolCallStore sobre Postgres) > PgToolCallStore: recordToolCall/listToolCalls persisten trazas reales por paso 3135ms
+   ✓ persistencia de packages/agents (RunStore/ToolCallStore sobre Postgres) > aprobación de tool_calls pendientes: writer no puede aprobar; owner sí, y queda en audit_log 2250ms
+   ✓ persistencia de packages/agents (RunStore/ToolCallStore sobre Postgres) > GET /agents/runs y /agents/tool-calls no filtran entre organizaciones 1787ms
+ ✓ test/auth-and-orgs-flow.test.ts (4 tests) 2490ms
+ ✓ test/audit-api01-refresh-rotation.test.ts (4 tests) 2010ms
+ ✓ test/security-api08-invite-owner-escalation.test.ts (4 tests) 5770ms
+   ✓ API-08: solo un owner puede invitar con el rol owner > un admin (no-owner) NO puede invitar a un tercero con role:owner 2152ms
+   ✓ API-08: solo un owner puede invitar con el rol owner > extremo a extremo: si la invitación como owner se hubiera creado, aceptarla NO debe terminar en rol owner (defensa en profundidad) 1262ms
+   ✓ API-08: solo un owner puede invitar con el rol owner > un admin SÍ puede invitar hasta el rol admin (no se rompe el caso legítimo) 1217ms
+   ✓ API-08: solo un owner puede invitar con el rol owner > un owner SÍ puede invitar con role:owner 1137ms
+ ✓ test/admin-backoffice.test.ts (6 tests) 10175ms
+   ✓ back office / superadmin (E10) > un usuario normal recibe 403 en cualquier ruta /admin/*; superadmin ve datos reales 3503ms
+   ✓ back office / superadmin (E10) > GET /admin/connectors/freshness expone el estado explícito de source_runs (nunca lista vacía silenciosa, A4) 1649ms
+   ✓ back office / superadmin (E10) > jobs: listar y reintentar un job fallido lo regresa a queued 1360ms
+   ✓ back office / superadmin (E10) > costos por organización: agregado real desde agent_runs, marcado explícitamente como estimado 1253ms
+   ✓ back office / superadmin (E10) > incidentes: crear y resolver; un usuario normal no puede 1156ms
+   ✓ back office / superadmin (E10) > aprobaciones pendientes: el back office ve tool_calls pendientes de TODAS las organizaciones 1253ms
+ ✓ test/expediente-post-award.test.ts (3 tests) 3889ms
+   ✓ expediente — seguimiento post-adjudicación (E11) > crea un hito genérico con recordatorio encolado en jobs (sin envío externo) 1740ms
+   ✓ expediente — seguimiento post-adjudicación (E11) > kind="pago" calcula el vencimiento a 17 días hábiles (LAASSP Art. 73) desde la verificación de la factura, con fuente legal citada 1140ms
+   ✓ expediente — seguimiento post-adjudicación (E11) > viewer no puede crear ni actualizar seguimientos; writer sí 1008ms
+ ✓ test/audit-db07-tenant-context-pattern.test.ts (1 test) 11ms
+ ✓ test/expediente-text-extraction.test.ts (3 tests) 28ms
+ ✓ test/isolation-and-idempotency.test.ts (4 tests) 3060ms
+ ✓ test/audit-api02-role-escalation.test.ts (3 tests) 3166ms
+   ✓ API-02: escalada de rol y protección del último owner > un owner SÍ puede promover a otro miembro a owner 1320ms
+ ✓ test/audit-api03-register-enumeration.test.ts (2 tests) 1733ms
+ ✓ test/audit-api04-org-id-validation.test.ts (1 test) 1139ms
+ ✓ test/rate-limit-and-health.test.ts (4 tests) 3502ms
+   ✓ salud (healthz/readyz) > GET /healthz siempre responde 200 sin tocar la base de datos 744ms
+   ✓ salud (healthz/readyz) > GET /readyz responde 200 con la base de datos disponible 630ms
+   ✓ salud (healthz/readyz) > GET /readyz responde 503 si la base de datos no está disponible 597ms
+ ✓ test/audit-api06-docs-json-gate.test.ts (2 tests) 1067ms
+stdout | test/security-api03-login-timing.test.ts > API-03: /auth/login no es un oráculo de timing de existencia de cuenta > la mediana de latencia de login con email existente (password incorrecta) y con email inexistente difiere menos de 1.5x en 50 muestras por lado
+API-03 login timing: mediana existente=27.59ms, mediana inexistente=25.75ms, ratio=1.07x
+
+ ✓ test/security-api03-login-timing.test.ts (1 test) 16470ms
+   ✓ API-03: /auth/login no es un oráculo de timing de existencia de cuenta > la mediana de latencia de login con email existente (password incorrecta) y con email inexistente difiere menos de 1.5x en 50 muestras por lado 16470ms
+ ✓ test/audit-api05-security-headers.test.ts (1 test) 845ms
+
+ Test Files  24 passed (24)
+      Tests  79 passed (79)
+   Start at  21:48:54
+   Duration  57.12s (transform 518ms, setup 0ms, collect 8.10s, tests 176.26s, environment 3ms, prepare 1.17s)
+
+EXIT_CODE=0
