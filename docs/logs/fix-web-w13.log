@@ -1,0 +1,45 @@
+=== W-13: axe(container) vs axe(document.body) en vitest-axe (jsdom) ===
+
+Diagnostico original de la auditoria: AppShell.test.tsx y LoginPage.test.tsx
+corrian axe(container) -- el subarbol montado por Testing Library, no
+`document` -- por lo que las 3 reglas de nivel de documento que si fallan en
+el navegador real de /login (landmark-one-main, page-has-heading-one,
+region) eran invisibles para estas pruebas.
+
+Demostracion (script temporal, LoginPage.tsx revertido a la version SIN
+<main>/<h1>, ejecutado con `npx vitest run` y luego descartado -- no forma
+parte del repo):
+
+  it("axe(container) NO detecta la falta de <main>/<h1>", ...)      -> PASA (no ve el problema)
+  it("axe(document.body) SI detecta la falta de <main>/<h1>", ...)  -> el resultado real de axe(document.body)
+      en jsdom fue violations = ["region"] unicamente -- NO incluyo
+      "landmark-one-main" ni "page-has-heading-one".
+
+Conclusion (matiz importante, no ocultado): cambiar de axe(container) a
+axe(document.body) SI amplia la cobertura de las pruebas vitest-axe (ahora
+detectan "region", que antes era invisible) pero jsdom no reproduce el
+comportamiento completo de un navegador real para "landmark-one-main" y
+"page-has-heading-one" incluso apuntando a document.body -- esas dos reglas
+dependen de calculo de visibilidad/layout que jsdom no implementa igual que
+Chromium. Por eso la reparacion sugerida por la auditoria tiene dos partes
+("ejecutar axe sobre document completo EN pruebas de pagina, O complementar
+con Playwright+axe") y aqui se hacen AMBAS: se cambia container -> 
+document.body en AppShell.test.tsx/LoginPage.test.tsx (mejora real, parcial)
+Y se mantiene/amplia la suite Playwright+axe (e2e/login-landmarks.spec.ts,
+e2e/heading-order.spec.ts, etc., W-14) como la verificacion autoritativa de
+estas 3 reglas sobre el documento real.
+
+=== Resultado tras el cambio (LoginPage.tsx en su version corregida, container -> document.body) ===
+ ✓ src/pages/LoginPage.test.tsx > LoginPage > tiene un landmark <main> y un <h1> real (W-08) 48ms
+ ✓ src/pages/LoginPage.test.tsx > LoginPage > valida el formulario de contraseña con zod antes de enviar 24ms
+ ✓ src/pages/LoginPage.test.tsx > LoginPage > rechaza un correo con formato inválido 78ms
+ ✓ src/pages/LoginPage.test.tsx > LoginPage > valida el formulario de enlace mágico con zod 28ms
+ ✓ src/pages/LoginPage.test.tsx > LoginPage > no tiene violaciones de accesibilidad detectables por axe 48ms
+ ✓ src/components/layout/AppShell.test.tsx > AppShell / sidebar > muestra todos los items de navegación con su enlace correcto 120ms
+ ✓ src/components/layout/AppShell.test.tsx > AppShell / sidebar > incluye los items de la ampliación de back office (Empresa, Fuentes y frescura, Expediente, Aprobaciones, Paquete descargable) 34ms
+ ✓ src/components/layout/AppShell.test.tsx > AppShell / sidebar > tiene landmarks de header, navegación y contenido principal 13ms
+ ✓ src/components/layout/AppShell.test.tsx > AppShell / sidebar > incluye un skip-link al contenido principal 13ms
+stderr | src/components/layout/AppShell.test.tsx > AppShell / sidebar > no tiene violaciones de accesibilidad detectables por axe
+    at AppShell (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/src/components/layout/AppShell.tsx:19:81)
+ ✓ src/components/layout/AppShell.test.tsx > AppShell / sidebar > abre y cierra el drawer móvil de forma accesible 62ms
+ ✓ src/components/layout/AppShell.test.tsx > AppShell / sidebar > no tiene violaciones de accesibilidad detectables por axe 87ms

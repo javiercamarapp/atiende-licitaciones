@@ -85,8 +85,12 @@ describe("AppShell / sidebar", () => {
   });
 
   it("no tiene violaciones de accesibilidad detectables por axe", async () => {
-    const { container } = renderShell();
-    const results = await axe(container);
+    renderShell();
+    // axe(document.body), no axe(container): corriendo solo sobre el
+    // subárbol montado por Testing Library, reglas de nivel de documento
+    // (landmark-one-main, page-has-heading-one, region) son invisibles para
+    // esta prueba aunque sí fallen en el navegador real (W-13).
+    const results = await axe(document.body);
     expect(results).toHaveNoViolations();
   }, 15000);
 });

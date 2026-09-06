@@ -54,8 +54,13 @@ describe("LoginPage", () => {
   });
 
   it("no tiene violaciones de accesibilidad detectables por axe", async () => {
-    const { container } = renderWithProviders(<LoginPage />);
-    const results = await axe(container);
+    renderWithProviders(<LoginPage />);
+    // axe(document.body), no axe(container) (W-13): LoginPage es la única
+    // pantalla sin <AppShell/>, así que sus reglas de nivel de documento
+    // (landmark-one-main, page-has-heading-one, region — W-08) solo son
+    // visibles corriendo sobre el documento completo, no sobre el subárbol
+    // que monta Testing Library.
+    const results = await axe(document.body);
     expect(results).toHaveNoViolations();
   }, 15000);
 });
