@@ -17,3 +17,4 @@
 2026-09-05 19:25  DESPERTAR  auditoría expediente (#16) 10 hallazgos (4C/2A/2M/2B); corrector #20 despachado; en curso #13,#14,#15,#17,#18,#19.
 2026-09-05 19:26  RONDA2  agente #21 verificación legal puntual (E12) despachado; en curso #13,#14,#15,#17,#18,#19,#20.
 2026-09-05 19:27  DESPERTAR  auditoría db-api (#13): 622 ataques/620 bloqueados, 14 hallazgos (6A/5M/4B); corrección delegada a #14; en curso #14,#15,#17,#18,#19,#20,#21.
+2026-09-05 19:37  DESPERTAR  #15 worker completado (069f690, 36/36); auditor #22 despachado; en curso #14,#17,#18,#19,#20,#21.
