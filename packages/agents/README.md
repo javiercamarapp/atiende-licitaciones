@@ -107,7 +107,13 @@ extensibles (p. ej. un clasificador LLM que `apps/api` agregue después).
 Cada bloqueo se registra como `GuardrailEvent` auditable
 (`getAuditLog()`); un hook roto nunca tumba la verificación
 ("registrar/verificar nunca debe lanzar", patrón de
-`docs/investigacion/likida-arquitectura.md`). `test/guardrails.test.ts`
+`docs/investigacion/likida-arquitectura.md`). **AG-07**: `GuardrailEvent`
+guarda `inputHash` (sha256, mismo patrón que `ToolCallTrace`) e
+`inputExcerpt` (extracto truncado a 160 caracteres y con secuencias largas
+de dígitos enmascaradas), **nunca** el texto crudo completo del tool_call
+bloqueado — evita que datos personales de un intento bloqueado queden en
+texto plano indefinidamente en memoria vía `getAuditLog()`.
+`test/guardrails.test.ts`
 incluye una suite generada de >200 prompts maliciosos y >100 legítimos
 (REQ-072/REQ-114: detección ≥99%, falsos positivos ≤2%) — es una capa
 determinista de patrones conocidos; **no sustituye** un clasificador

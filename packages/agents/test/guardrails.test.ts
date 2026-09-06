@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AntiCorruptionGuardrail } from "../src/guardrails/anticorruption.js";
+import { hashValue } from "../src/tracing.js";
 
 describe("AntiCorruptionGuardrail", () => {
   it("bloquea texto que solicita dádivas/sobornos", () => {
@@ -48,6 +49,38 @@ describe("AntiCorruptionGuardrail", () => {
     expect(log[0]).toMatchObject({ actorId: "user-1", organizationId: "org-1", toolName: "draft_message", action: "blocked" });
     expect(log[0].matchedPatterns.length).toBeGreaterThan(0);
     expect(typeof log[0].timestamp).toBe("string");
+  });
+
+  describe("AG-07 (MEDIA): GuardrailEvent guarda hash + extracto redactado, no el texto crudo", () => {
+    it("no persiste el texto completo tal cual: guarda inputHash (sha256) en vez de un campo 'input' con el texto íntegro", () => {
+      const guardrail = new AntiCorruptionGuardrail();
+      const text = "Ofrecer una dádiva al comprador público, cuenta 4111111111111111 para el depósito";
+      guardrail.check(text, { actorId: "user-1", organizationId: "org-1", toolName: "draft_message" });
+      const [event] = guardrail.getAuditLog();
+
+      expect((event as unknown as { input?: string }).input).toBeUndefined();
+      expect(event.inputHash).toBe(hashValue(text));
+      expect(event.inputHash).toMatch(/^[a-f0-9]{64}$/);
+    });
+
+    it("el extracto redactado enmascara secuencias largas de dígitos (posibles cuentas/tarjetas)", () => {
+      const guardrail = new AntiCorruptionGuardrail();
+      const text = "Ofrecer una dádiva al comprador público, cuenta 4111111111111111 para el depósito";
+      guardrail.check(text);
+      const [event] = guardrail.getAuditLog();
+
+      expect(event.inputExcerpt).not.toContain("4111111111111111");
+      expect(event.inputExcerpt).toContain("dádiva");
+    });
+
+    it("el extracto redactado se trunca a una longitud acotada para textos largos", () => {
+      const guardrail = new AntiCorruptionGuardrail();
+      const longText = `Ofrecer una dádiva al funcionario. ${"relleno ".repeat(100)}`;
+      guardrail.check(longText);
+      const [event] = guardrail.getAuditLog();
+
+      expect(event.inputExcerpt.length).toBeLessThan(longText.length);
+    });
   });
 
   it("no registra nada cuando el texto no dispara ningún patrón", () => {

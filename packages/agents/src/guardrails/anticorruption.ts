@@ -1,4 +1,31 @@
+import { hashValue } from "../tracing.js";
 import { isoNow } from "../types.js";
+
+/**
+ * AG-07: longitud máxima del extracto redactado que se persiste en
+ * `GuardrailEvent.inputExcerpt`. Un tool_call bloqueado puede contener
+ * cualquier dato personal en texto plano; truncar acota cuánto queda
+ * expuesto indefinidamente en memoria vía `getAuditLog()`.
+ */
+const MAX_EXCERPT_LENGTH = 160;
+
+/** Enmascara secuencias de 4+ dígitos consecutivos (posibles cuentas/tarjetas/teléfonos). */
+function redactLongDigitRuns(text: string): string {
+  return text.replace(/\d{4,}/g, (run) => "#".repeat(run.length));
+}
+
+/**
+ * AG-07: produce un extracto REDACTADO y acotado del texto bloqueado, para
+ * depuración humana, sin persistir el texto crudo completo. Complementa
+ * `inputHash` (sha256 del texto íntegro, mismo patrón que `ToolCallTrace`),
+ * que sí permite verificar/re-derivar el texto exacto si se tiene acceso al
+ * texto original, pero no lo expone por sí solo.
+ */
+function redactExcerpt(text: string): string {
+  const redacted = redactLongDigitRuns(text);
+  if (redacted.length <= MAX_EXCERPT_LENGTH) return redacted;
+  return `${redacted.slice(0, MAX_EXCERPT_LENGTH)}…`;
+}
 
 /**
  * Guardrail anticorrupción (REQ-072, REQ-111-REQ-118, patrón G-07 de
@@ -33,7 +60,10 @@ export interface GuardrailEvent {
   actorId: string | null;
   organizationId: string | null;
   toolName: string | null;
-  input: string;
+  /** sha256 hex del texto completo bloqueado (AG-07) — nunca el texto crudo, mismo patrón que `ToolCallTrace.inputHash`. */
+  inputHash: string;
+  /** Extracto truncado (máx. `MAX_EXCERPT_LENGTH` caracteres) y redactado (secuencias largas de dígitos enmascaradas), solo para depuración humana. */
+  inputExcerpt: string;
   matchedPatterns: string[];
   action: "blocked";
 }
@@ -131,7 +161,8 @@ export class AntiCorruptionGuardrail {
         actorId: ctx.actorId ?? null,
         organizationId: ctx.organizationId ?? null,
         toolName: ctx.toolName ?? null,
-        input: text,
+        inputHash: hashValue(text),
+        inputExcerpt: redactExcerpt(text),
         matchedPatterns,
         action: "blocked",
       });
