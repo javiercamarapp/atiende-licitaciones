@@ -22,6 +22,15 @@ async function issueTokenPair(
   const { token: refreshToken, jti } = await signRefreshToken(app.config.jwtSecret, userId);
   await app.db.transaction(async (tx) => {
     await tx.query('set local role app_role');
+    // DB-08 (docs/auditoria-1/db-api-reverificacion.md, CRÍTICA):
+    // `app.create_refresh_token` ahora exige que `app.current_user_id()` ya
+    // esté fijado y coincida con el `user_id` del token -- nunca confía en
+    // el parámetro por sí solo (mismo patrón que 0019 aplicó a DB-01). Se
+    // fija aquí al id YA verificado por el caller de `issueTokenPair`
+    // (login: contraseña recién validada; refresh: `sub` de un JWT firmado
+    // por el propio servidor) -- nunca a partir de un valor de entrada del
+    // cliente sin verificar.
+    await tx.query("select set_config('app.current_user_id', $1, true)", [userId]);
     await tx.query(`select app.create_refresh_token($1, $2, $3, now() + interval '${REFRESH_TTL_DAYS} days')`, [
       randomUUID(),
       userId,

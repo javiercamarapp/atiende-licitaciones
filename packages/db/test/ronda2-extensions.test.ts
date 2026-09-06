@@ -19,11 +19,15 @@ describe('0017_ronda2_extensions: refresh tokens, aceptar invitación, approved_
     const tokenId = randomUUID();
     const tokenHash = createHash('sha256').update('token-1').digest('hex');
 
-    await db.query('select app.create_refresh_token($1, $2, $3, now() + interval \'30 days\')', [
-      tokenId,
-      userId,
-      tokenHash,
-    ]);
+    // DB-08 (fix en 0040): `app.create_refresh_token` ahora exige que
+    // `app.current_user_id()` ya esté fijado y coincida con el `p_user_id`
+    // recibido -- se fija aquí vía `asActor` (mismo mecanismo que usa
+    // apps/api/src/modules/auth/routes.ts en `issueTokenPair`), en vez de
+    // invocarla en una sesión sin contexto (eso es exactamente lo que
+    // permitía acuñar tokens para cualquier `user_id` antes del fix).
+    await asActor(db, { userId }, (tx) =>
+      tx.query('select app.create_refresh_token($1, $2, $3, now() + interval \'30 days\')', [tokenId, userId, tokenHash])
+    );
 
     const found = await db.query<{ id: string; revoked_at: string | null }>(
       'select id, revoked_at from app.find_refresh_token($1)',
@@ -48,13 +52,14 @@ describe('0017_ronda2_extensions: refresh tokens, aceptar invitación, approved_
     const userId = await seedUser(db, 'refresh-all@example.com');
     const hashes = ['a', 'b', 'c'].map((s) => createHash('sha256').update(s).digest('hex'));
     for (const h of hashes) {
-      await db.query('select app.create_refresh_token($1, $2, $3, now() + interval \'30 days\')', [
-        randomUUID(),
-        userId,
-        h,
-      ]);
+      await asActor(db, { userId }, (tx) =>
+        tx.query('select app.create_refresh_token($1, $2, $3, now() + interval \'30 days\')', [randomUUID(), userId, h])
+      );
     }
-    await db.query('select app.revoke_all_refresh_tokens($1)', [userId]);
+    // DB-08 (fix en 0040): `app.revoke_all_refresh_tokens` ahora exige
+    // autorrevocación (`current_user_id() = p_user_id`) o superadmin -- se
+    // fija el contexto propio del usuario antes de invocarla.
+    await asActor(db, { userId }, (tx) => tx.query('select app.revoke_all_refresh_tokens($1)', [userId]));
     for (const h of hashes) {
       const row = await db.query<{ revoked_at: string | null }>('select revoked_at from app.find_refresh_token($1)', [
         h,
