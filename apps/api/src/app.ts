@@ -22,6 +22,8 @@ import { matchingRoutes } from './modules/matching/routes.js';
 import { goNoGoRoutes } from './modules/matching/go-no-go.routes.js';
 import { agentRoutes } from './modules/agents/routes.js';
 import { adminRoutes } from './modules/admin/routes.js';
+import { auditLogRoutes } from './modules/audit/routes.js';
+import { getRateLimitSettings } from './lib/rate-limit-settings.js';
 import { expedienteDocumentsRoutes } from './modules/expediente/documents.routes.js';
 import { expedienteProposalRoutes } from './modules/expediente/proposal.routes.js';
 import { expedienteChecklistRoutes } from './modules/expediente/checklist.routes.js';
@@ -45,6 +47,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
 
   app.decorate('db', options.db);
   app.decorate('config', options.config);
+  app.decorate('rateLimitSettings', getRateLimitSettings(options.config.rateLimitProfile));
 
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
@@ -69,9 +72,32 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   // orígenes configurados, ninguna petición cross-site con credenciales es
   // aceptada (falla cerrado); "*" no es válido junto a credentials:true así
   // que el arreglo vacío es el valor seguro por defecto.
+  //
+  // Ronda 4 (bug real encontrado por apps/web, docs/logs/web-ronda3.log):
+  // sin una lista explícita de `methods`, `@fastify/cors` respondía el
+  // preflight con `access-control-allow-methods: GET,HEAD,POST` -- sin PUT,
+  // PATCH ni DELETE -- bloqueando en el propio navegador (antes de tocar el
+  // servidor) cualquier escritura real que use esos métodos en cualquier
+  // despliegue donde `apps/web`/`apps/api` vivan en orígenes distintos
+  // (típico incluso en desarrollo local con puertos separados). `allowedHeaders`
+  // también se declara explícito: sin él, un preflight que pide
+  // `Authorization`/`X-Org-Id`/`Idempotency-Key` (las únicas cabeceras
+  // "custom" que esta API exige, ver README) dependía del comportamiento
+  // por defecto del plugin (reflejar `Access-Control-Request-Headers`), que
+  // funciona pero no es explícito ni documentado -- aquí se fija la lista
+  // real. `exposedHeaders` expone las cabeceras de límite de tasa
+  // (`X-RateLimit-*`/`Retry-After`, ver `@fastify/rate-limit` más abajo):
+  // sin `Access-Control-Expose-Headers`, JS en un origen cruzado no puede
+  // LEER esas cabeceras aunque la respuesta las traiga (no están en la
+  // lista de cabeceras "seguras" por defecto del navegador) -- rompiendo el
+  // backoff real de `apps/web` (`src/lib/api/http.ts`, "reintento de 429
+  // con backoff respetando Retry-After") en cualquier despliegue cross-origin.
   await app.register(cors, {
     origin: options.config.corsOrigins.length > 0 ? options.config.corsOrigins : false,
     credentials: true,
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Org-Id', 'Idempotency-Key', 'X-Request-Id'],
+    exposedHeaders: ['retry-after', 'x-ratelimit-limit', 'x-ratelimit-remaining', 'x-ratelimit-reset', 'x-request-id'],
   });
 
   await app.register(swagger, {
@@ -100,17 +126,26 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   // técnica de la propia API, no datos de tenant ni de back office).
   app.get('/docs/json', { schema: { hide: true }, preHandler: [app.authenticate] }, async () => app.swagger());
 
-  // Límite global por IP (protección base). Además, rutas sensibles como
-  // /auth/login declaran su propio override más estricto por ruta (ver
-  // modules/auth/routes.ts). Nota de alcance: un límite verdaderamente por
-  // organización/usuario requeriría resolver esa identidad en `onRequest`
-  // (antes de los preHandlers de autenticación), lo que ronda 1 no hace;
-  // queda documentado como pendiente en apps/api/README.md. La tabla
-  // `rate_limits` de packages/db ya existe para ese uso futuro.
+  // Límite global por IP (protección base, hook `onRequest` -- antes de
+  // cualquier autenticación, así que solo puede depender de la IP: usar
+  // `X-Org-Id`/`Authorization` aquí sin verificar permitiría a un atacante
+  // esquivar el límite rotándolos libremente). Rutas sensibles como
+  // `/auth/login` declaran su propio override más estricto por ruta (ver
+  // `modules/auth/routes.ts`); acciones de aprobación cross-tenant sensibles
+  // (`/agents/tool-calls/:id/approve|deny`, `/admin/tool-calls/:id/approve|deny`)
+  // declaran el suyo con `hook: 'preHandler'` (después de
+  // `app.authenticate`/`app.requireOrg`/`app.requireSuperadmin`, así que SÍ
+  // pueden aislar el "presupuesto" de cada organización/superadmin del de
+  // las demás -- ver `rateLimitSettings.sensitiveAction` y
+  // `lib/rate-limit-settings.ts`). Ronda 4: los límites concretos por
+  // "tier" (global/auth/sensitiveAction) y el perfil `RATE_LIMIT_PROFILE`
+  // (solo para pruebas E2E) viven en ese módulo, no como números mágicos
+  // aquí. La tabla `rate_limits` de packages/db sigue existiendo para un
+  // futuro límite persistido entre procesos (hoy en memoria, por proceso).
   await app.register(rateLimit, {
     global: true,
-    max: 100,
-    timeWindow: '1 minute',
+    max: app.rateLimitSettings.global.max,
+    timeWindow: app.rateLimitSettings.global.timeWindow,
   });
 
   await app.register(healthRoutes);
@@ -124,6 +159,10 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   await app.register(goNoGoRoutes, { prefix: '/tenders' });
   await app.register(agentRoutes, { prefix: '/agents' });
   await app.register(adminRoutes, { prefix: '/admin' });
+  // Ronda 4: bitácora de auditoría por organización (reviewer/admin/owner).
+  // La contraparte de plataforma (`GET /admin/audit-log`, superadmin) vive
+  // dentro de `adminRoutes` (prefijo `/admin`), no aquí.
+  await app.register(auditLogRoutes);
 
   // E6-E9/E11 (ronda 3): expediente de participación real sobre
   // @atiende/expediente. Todas bajo /expediente/... para no colisionar con
