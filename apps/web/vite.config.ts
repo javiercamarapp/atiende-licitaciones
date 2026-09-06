@@ -33,6 +33,11 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
     css: true,
+    // La suite Playwright/axe vive en e2e/ (W-14) y usa su propio test
+    // runner (`playwright test`, ver playwright.config.ts) — sin esta
+    // exclusión, vitest intenta correr esos *.spec.ts con su runtime jsdom y
+    // falla ("Playwright Test did not expect test.describe() to be called").
+    exclude: ["**/node_modules/**", "**/dist/**", "e2e/**"],
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "lcov"],

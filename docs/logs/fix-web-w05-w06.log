@@ -1,0 +1,269 @@
+=== W-05/W-06: reproducción del fallo con axe-core en navegador real (Playwright), ANTES de la corrección ===
+
+[2mRunning [22m2[2m tests using [22m2[2m workers[22m
+
+  [31m✘[39m  [2m2 [22m[31m[chromium] › e2e/contraste.spec.ts:17:3 › Contraste de color (W-05, W-06) › los badges de estado de fuente (CAPTCHA / cambio de interfaz) no tienen violaciones serias de contraste[39m[2m (793ms)[22m
+  [31m✘[39m  [2m1 [22m[31m[chromium] › e2e/contraste.spec.ts:8:3 › Contraste de color (W-05, W-06) › el wordmark en modo oscuro no tiene violaciones serias de contraste[39m[2m (849ms)[22m
+
+
+[31m  1) [chromium] › e2e/contraste.spec.ts:8:3 › Contraste de color (W-05, W-06) › el wordmark en modo oscuro no tiene violaciones serias de contraste [39m
+
+    Error: color-contrast (serious): Elements must meet minimum color contrast ratio thresholds — 2 nodo(s): .pb-4 > .inline-flex > .text-2xl.font-bold.tracking-tight, .bg-primary
+
+    [2mexpect([22m[31mreceived[39m[2m).[22mtoEqual[2m([22m[32mexpected[39m[2m) // deep equality[22m
+
+    [32m- Expected  -  1[39m
+    [31m+ Received  + 93[39m
+
+    [32m- Array [][39m
+    [31m+ Array [[39m
+    [31m+   Object {[39m
+    [31m+     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",[39m
+    [31m+     "help": "Elements must meet minimum color contrast ratio thresholds",[39m
+    [31m+     "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/color-contrast?application=playwright",[39m
+    [31m+     "id": "color-contrast",[39m
+    [31m+     "impact": "serious",[39m
+    [31m+     "nodes": Array [[39m
+    [31m+       Object {[39m
+    [31m+         "all": Array [],[39m
+    [31m+         "any": Array [[39m
+    [31m+           Object {[39m
+    [31m+             "data": Object {[39m
+    [31m+               "bgColor": "#141e2e",[39m
+    [31m+               "contrastRatio": 2.49,[39m
+    [31m+               "expectedContrastRatio": "3:1",[39m
+    [31m+               "fgColor": "#1d4ed8",[39m
+    [31m+               "fontSize": "18.0pt (24px)",[39m
+    [31m+               "fontWeight": "bold",[39m
+    [31m+               "messageKey": null,[39m
+    [31m+             },[39m
+    [31m+             "id": "color-contrast",[39m
+    [31m+             "impact": "serious",[39m
+    [31m+             "message": "Element has insufficient color contrast of 2.49 (foreground color: #1d4ed8, background color: #141e2e, font size: 18.0pt (24px), font weight: bold). Expected contrast ratio of 3:1",[39m
+    [31m+             "relatedNodes": Array [[39m
+    [31m+               Object {[39m
+    [31m+                 "html": "<aside aria-label=\"Barra lateral\" class=\"hidden w-60 shrink-0 flex-col rounded-2xl border border-border bg-card py-4 shadow-card md:flex\">",[39m
+    [31m+                 "target": Array [[39m
+    [31m+                   "aside",[39m
+    [31m+                 ],[39m
+    [31m+               },[39m
+    [31m+             ],[39m
+    [31m+           },[39m
+    [31m+         ],[39m
+    [31m+         "failureSummary": "Fix any of the following:[39m
+    [31m+   Element has insufficient color contrast of 2.49 (foreground color: #1d4ed8, background color: #141e2e, font size: 18.0pt (24px), font weight: bold). Expected contrast ratio of 3:1",[39m
+    [31m+         "html": "<span class=\"font-display text-2xl font-bold tracking-tight\" style=\"color: rgb(29, 78, 216);\">atiende</span>",[39m
+    [31m+         "impact": "serious",[39m
+    [31m+         "none": Array [],[39m
+    [31m+         "target": Array [[39m
+    [31m+           ".pb-4 > .inline-flex > .text-2xl.font-bold.tracking-tight",[39m
+    [31m+         ],[39m
+    [31m+       },[39m
+    [31m+       Object {[39m
+    [31m+         "all": Array [],[39m
+    [31m+         "any": Array [[39m
+    [31m+           Object {[39m
+    [31m+             "data": Object {[39m
+    [31m+               "bgColor": "#4080e7",[39m
+    [31m+               "contrastRatio": 1.74,[39m
+    [31m+               "expectedContrastRatio": "4.5:1",[39m
+    [31m+               "fgColor": "#575c65",[39m
+    [31m+               "fontSize": "10.5pt (14px)",[39m
+    [31m+               "fontWeight": "normal",[39m
+    [31m+               "messageKey": null,[39m
+    [31m+             },[39m
+    [31m+             "id": "color-contrast",[39m
+    [31m+             "impact": "serious",[39m
+    [31m+             "message": "Element has insufficient color contrast of 1.74 (foreground color: #575c65, background color: #4080e7, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",[39m
+    [31m+             "relatedNodes": Array [[39m
+    [31m+               Object {[39m
+    [31m+                 "html": "<a aria-current=\"page\" class=\"flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors bg-primary text-primary-foreground shadow-card\" href=\"/panel\" data-discover=\"true\">",[39m
+    [31m+                 "target": Array [[39m
+    [31m+                   ".bg-primary",[39m
+    [31m+                 ],[39m
+    [31m+               },[39m
+    [31m+             ],[39m
+    [31m+           },[39m
+    [31m+         ],[39m
+    [31m+         "failureSummary": "Fix any of the following:[39m
+    [31m+   Element has insufficient color contrast of 1.74 (foreground color: #575c65, background color: #4080e7, font size: 10.5pt (14px), font weight: normal). Expected contrast ratio of 4.5:1",[39m
+    [31m+         "html": "<a aria-current=\"page\" class=\"flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors bg-primary text-primary-foreground shadow-card\" href=\"/panel\" data-discover=\"true\">",[39m
+    [31m+         "impact": "serious",[39m
+    [31m+         "none": Array [],[39m
+    [31m+         "target": Array [[39m
+    [31m+           ".bg-primary",[39m
+    [31m+         ],[39m
+    [31m+       },[39m
+    [31m+     ],[39m
+    [31m+     "tags": Array [[39m
+    [31m+       "cat.color",[39m
+    [31m+       "wcag2aa",[39m
+    [31m+       "wcag143",[39m
+    [31m+       "TTv5",[39m
+    [31m+       "TT13.c",[39m
+    [31m+       "EN-301-549",[39m
+    [31m+       "EN-9.1.4.3",[39m
+    [31m+       "ACT",[39m
+    [31m+       "RGAAv4",[39m
+    [31m+       "RGAA-3.2.1",[39m
+    [31m+     ],[39m
+    [31m+   },[39m
+    [31m+ ][39m
+
+    [0m [90m 12 |[39m
+     [90m 13 |[39m     [36mconst[39m violations [33m=[39m [36mawait[39m seriousOrCriticalViolations(page)[33m;[39m
+    [31m[1m>[22m[39m[90m 14 |[39m     expect(violations[33m,[39m formatViolations(violations))[33m.[39mtoEqual([])[33m;[39m
+     [90m    |[39m                                                      [31m[1m^[22m[39m
+     [90m 15 |[39m   })[33m;[39m
+     [90m 16 |[39m
+     [90m 17 |[39m   test([32m"los badges de estado de fuente (CAPTCHA / cambio de interfaz) no tienen violaciones serias de contraste"[39m[33m,[39m [36masync[39m ({[0m
+    [2m    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/e2e/contraste.spec.ts:14:54[22m
+
+[2m    Error Context: test-results/contraste-Contraste-de-col-320f5-aciones-serias-de-contraste-chromium/error-context.md[22m
+
+[2m    attachment #2: [1mtrace[2m (application/zip) [2m─────────────────────────────────────────────────────────[2m[22m
+[2m    test-results/contraste-Contraste-de-col-320f5-aciones-serias-de-contraste-chromium/trace.zip[22m
+[2m    Usage:[22m
+
+[2m        npx playwright show-trace test-results/contraste-Contraste-de-col-320f5-aciones-serias-de-contraste-chromium/trace.zip[22m
+
+[2m    [2m────────────────────────────────────────────────────────────────────────────────────────────────[2m[22m
+
+[31m  2) [chromium] › e2e/contraste.spec.ts:17:3 › Contraste de color (W-05, W-06) › los badges de estado de fuente (CAPTCHA / cambio de interfaz) no tienen violaciones serias de contraste [39m
+
+    Error: color-contrast (serious): Elements must meet minimum color contrast ratio thresholds — 2 nodo(s): .bg-warning.text-warning-foreground.px-2\.5:nth-child(3), .bg-warning.text-warning-foreground.px-2\.5:nth-child(4)
+
+    [2mexpect([22m[31mreceived[39m[2m).[22mtoEqual[2m([22m[32mexpected[39m[2m) // deep equality[22m
+
+    [32m- Expected  -  1[39m
+    [31m+ Received  + 93[39m
+
+    [32m- Array [][39m
+    [31m+ Array [[39m
+    [31m+   Object {[39m
+    [31m+     "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",[39m
+    [31m+     "help": "Elements must meet minimum color contrast ratio thresholds",[39m
+    [31m+     "helpUrl": "https://dequeuniversity.com/rules/axe/4.13/color-contrast?application=playwright",[39m
+    [31m+     "id": "color-contrast",[39m
+    [31m+     "impact": "serious",[39m
+    [31m+     "nodes": Array [[39m
+    [31m+       Object {[39m
+    [31m+         "all": Array [],[39m
+    [31m+         "any": Array [[39m
+    [31m+           Object {[39m
+    [31m+             "data": Object {[39m
+    [31m+               "bgColor": "#c47f08",[39m
+    [31m+               "contrastRatio": 3.28,[39m
+    [31m+               "expectedContrastRatio": "4.5:1",[39m
+    [31m+               "fgColor": "#ffffff",[39m
+    [31m+               "fontSize": "9.0pt (12px)",[39m
+    [31m+               "fontWeight": "normal",[39m
+    [31m+               "messageKey": null,[39m
+    [31m+             },[39m
+    [31m+             "id": "color-contrast",[39m
+    [31m+             "impact": "serious",[39m
+    [31m+             "message": "Element has insufficient color contrast of 3.28 (foreground color: #ffffff, background color: #c47f08, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",[39m
+    [31m+             "relatedNodes": Array [[39m
+    [31m+               Object {[39m
+    [31m+                 "html": "<div class=\"inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-warning text-warning-foreground\">CAPTCHA</div>",[39m
+    [31m+                 "target": Array [[39m
+    [31m+                   ".bg-warning.text-warning-foreground.px-2\\.5:nth-child(3)",[39m
+    [31m+                 ],[39m
+    [31m+               },[39m
+    [31m+             ],[39m
+    [31m+           },[39m
+    [31m+         ],[39m
+    [31m+         "failureSummary": "Fix any of the following:[39m
+    [31m+   Element has insufficient color contrast of 3.28 (foreground color: #ffffff, background color: #c47f08, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",[39m
+    [31m+         "html": "<div class=\"inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-warning text-warning-foreground\">CAPTCHA</div>",[39m
+    [31m+         "impact": "serious",[39m
+    [31m+         "none": Array [],[39m
+    [31m+         "target": Array [[39m
+    [31m+           ".bg-warning.text-warning-foreground.px-2\\.5:nth-child(3)",[39m
+    [31m+         ],[39m
+    [31m+       },[39m
+    [31m+       Object {[39m
+    [31m+         "all": Array [],[39m
+    [31m+         "any": Array [[39m
+    [31m+           Object {[39m
+    [31m+             "data": Object {[39m
+    [31m+               "bgColor": "#c47f08",[39m
+    [31m+               "contrastRatio": 3.28,[39m
+    [31m+               "expectedContrastRatio": "4.5:1",[39m
+    [31m+               "fgColor": "#ffffff",[39m
+    [31m+               "fontSize": "9.0pt (12px)",[39m
+    [31m+               "fontWeight": "normal",[39m
+    [31m+               "messageKey": null,[39m
+    [31m+             },[39m
+    [31m+             "id": "color-contrast",[39m
+    [31m+             "impact": "serious",[39m
+    [31m+             "message": "Element has insufficient color contrast of 3.28 (foreground color: #ffffff, background color: #c47f08, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",[39m
+    [31m+             "relatedNodes": Array [[39m
+    [31m+               Object {[39m
+    [31m+                 "html": "<div class=\"inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-warning text-warning-foreground\">Cambio de interfaz</div>",[39m
+    [31m+                 "target": Array [[39m
+    [31m+                   ".bg-warning.text-warning-foreground.px-2\\.5:nth-child(4)",[39m
+    [31m+                 ],[39m
+    [31m+               },[39m
+    [31m+             ],[39m
+    [31m+           },[39m
+    [31m+         ],[39m
+    [31m+         "failureSummary": "Fix any of the following:[39m
+    [31m+   Element has insufficient color contrast of 3.28 (foreground color: #ffffff, background color: #c47f08, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1",[39m
+    [31m+         "html": "<div class=\"inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-warning text-warning-foreground\">Cambio de interfaz</div>",[39m
+    [31m+         "impact": "serious",[39m
+    [31m+         "none": Array [],[39m
+    [31m+         "target": Array [[39m
+    [31m+           ".bg-warning.text-warning-foreground.px-2\\.5:nth-child(4)",[39m
+    [31m+         ],[39m
+    [31m+       },[39m
+    [31m+     ],[39m
+    [31m+     "tags": Array [[39m
+    [31m+       "cat.color",[39m
+    [31m+       "wcag2aa",[39m
+    [31m+       "wcag143",[39m
+    [31m+       "TTv5",[39m
+    [31m+       "TT13.c",[39m
+    [31m+       "EN-301-549",[39m
+    [31m+       "EN-9.1.4.3",[39m
+    [31m+       "ACT",[39m
+    [31m+       "RGAAv4",[39m
+    [31m+       "RGAA-3.2.1",[39m
+    [31m+     ],[39m
+    [31m+   },[39m
+    [31m+ ][39m
+
+    [0m [90m 21 |[39m
+     [90m 22 |[39m     [36mconst[39m violations [33m=[39m [36mawait[39m seriousOrCriticalViolations(page)[33m;[39m
+    [31m[1m>[22m[39m[90m 23 |[39m     expect(violations[33m,[39m formatViolations(violations))[33m.[39mtoEqual([])[33m;[39m
+     [90m    |[39m                                                      [31m[1m^[22m[39m
+     [90m 24 |[39m   })[33m;[39m
+     [90m 25 |[39m })[33m;[39m
+     [90m 26 |[39m[0m
+    [2m    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web/e2e/contraste.spec.ts:23:54[22m
+
+[2m    Error Context: test-results/contraste-Contraste-de-col-aef10-aciones-serias-de-contraste-chromium/error-context.md[22m
+
+[2m    attachment #2: [1mtrace[2m (application/zip) [2m─────────────────────────────────────────────────────────[2m[22m
+[2m    test-results/contraste-Contraste-de-col-aef10-aciones-serias-de-contraste-chromium/trace.zip[22m
+[2m    Usage:[22m
+
+[2m        npx playwright show-trace test-results/contraste-Contraste-de-col-aef10-aciones-serias-de-contraste-chromium/trace.zip[22m
+
+[2m    [2m────────────────────────────────────────────────────────────────────────────────────────────────[2m[22m
+
+[31m  2 failed[39m
+[31m    [chromium] › e2e/contraste.spec.ts:8:3 › Contraste de color (W-05, W-06) › el wordmark en modo oscuro no tiene violaciones serias de contraste [39m
+[31m    [chromium] › e2e/contraste.spec.ts:17:3 › Contraste de color (W-05, W-06) › los badges de estado de fuente (CAPTCHA / cambio de interfaz) no tienen violaciones serias de contraste [39m
+
+EXIT CODE: 0
+
+=== W-05/W-06: tras la corrección (text-primary en AtiendeWordmark, --warning-foreground oscuro en modo claro) ===
+
+[2mRunning [22m2[2m tests using [22m2[2m workers[22m
+
+  [32m✓[39m  [2m1 [22m[chromium] › e2e/contraste.spec.ts:22:3 › Contraste de color (W-05, W-06) › los badges de estado de fuente (CAPTCHA / cambio de interfaz) no tienen violaciones serias de contraste[2m (669ms)[22m
+  [32m✓[39m  [2m2 [22m[chromium] › e2e/contraste.spec.ts:8:3 › Contraste de color (W-05, W-06) › el wordmark en modo oscuro no tiene violaciones serias de contraste[2m (1.0s)[22m
+
+[32m  2 passed[39m[2m (1.4s)[22m
+

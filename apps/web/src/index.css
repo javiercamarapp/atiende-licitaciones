@@ -42,7 +42,11 @@
     --success-foreground: 0 0% 100%;
 
     --warning: 38 92% 40%;
-    --warning-foreground: 0 0% 100%;
+    /* Antes 0 0% 100% (blanco): 3.28:1 sobre --warning, por debajo del 4.5:1
+       exigido para texto normal (violación axe "serious" en los badges
+       "CAPTCHA"/"Cambio de interfaz" de SourceStatusBadge, W-06). Texto
+       oscuro sobre este mismo naranja da ~5.2:1. */
+    --warning-foreground: 216 50% 12%;
 
     --border: 214 32% 91%;
     --input: 214 32% 91%;

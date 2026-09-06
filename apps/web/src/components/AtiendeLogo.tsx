@@ -48,9 +48,12 @@ export function AtiendeWordmark({
   return (
     <span className={`inline-flex items-center gap-2 ${className}`}>
       <AtiendeMark className={markClassName || "h-7 w-auto"} animado={animado} />
-      <span className="font-display text-2xl font-bold tracking-tight" style={{ color: "#1D4ED8" }}>
-        atiende
-      </span>
+      {/* Antes usaba style={{ color: "#1D4ED8" }} fijo (copiado del origen):
+          2.49:1 de contraste en modo oscuro, por debajo del 3:1 exigido para
+          texto grande (violación axe "serious", W-05). El token `text-primary`
+          tiene un valor propio en `.dark` (ver index.css) con contraste
+          suficiente en ambos modos. */}
+      <span className="font-display text-2xl font-bold tracking-tight text-primary">atiende</span>
     </span>
   );
 }

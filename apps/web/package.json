@@ -11,7 +11,8 @@
     "typecheck": "tsc -b --noEmit",
     "test": "NODE_OPTIONS=--no-experimental-webstorage vitest run",
     "test:watch": "NODE_OPTIONS=--no-experimental-webstorage vitest",
-    "test:coverage": "NODE_OPTIONS=--no-experimental-webstorage vitest run --coverage"
+    "test:coverage": "NODE_OPTIONS=--no-experimental-webstorage vitest run --coverage",
+    "test:e2e": "npm run build && playwright test"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -38,6 +39,9 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@eslint/js": "^9.17.0",
+    "@playwright/test": "^1.63.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
     "@testing-library/user-event": "^14.5.2",
@@ -46,7 +50,6 @@
     "@types/react-dom": "^18.3.5",
     "@typescript-eslint/eslint-plugin": "^8.19.1",
     "@typescript-eslint/parser": "^8.19.1",
-    "@eslint/js": "^9.17.0",
     "@vitejs/plugin-react-swc": "^3.7.2",
     "@vitest/coverage-v8": "^4.1.11",
     "autoprefixer": "^10.4.20",
