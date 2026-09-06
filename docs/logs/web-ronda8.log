@@ -1,0 +1,1024 @@
+# apps/web — ronda 8a (login/registro con Google, /sin-acceso, seguridad 2FA honesta)
+#
+# Salida REAL de la compuerta de cierre, ejecutada en primer plano en esta máquina.
+# Orden: typecheck + lint + test + test:coverage DOS veces, build, y finalmente
+# la suite E2E completa contra apps/api real (test:e2e:full).
+#
+# Nota honesta sobre lo que SÍ se recortó de este archivo: de la sección E2E se
+# omitieron las ~2.440 líneas de log JSON de pino que apps/api emite por cada
+# petición (una por request, intercaladas con la salida de Playwright). No se
+# omitió ninguna línea de resultado, error ni resumen: el conteo final y el
+# código de salida son los reales. Las secciones de typecheck/lint/test/
+# coverage/build van íntegras, sin recortar nada.
+#
+# Fallo previo REAL de esta misma compuerta (no se oculta): en un primer intento,
+# la PASADA 1/2 de test:coverage falló con 1 prueba en rojo —
+# PaqueteDescargablePage.test.tsx > "nunca muestra 'Listo para presentar' cuando
+# el servidor deriva 'draft' (A14)", agotando su timeout de 45000ms dos veces
+# (original + reintento, 132s), mientras la PASADA 2/2 pasaba sin cambio alguno.
+# Es el patrón Radix-bajo---coverage ya documentado en apps/web/README.md; las dos
+# pruebas de ese archivo que abren el <Select/> subieron a los 60000ms que esa
+# misma regla prescribe, SIN tocar ninguna aserción. Lo que sigue es la corrida
+# posterior a ese ajuste.
+
+Ronda 8a apps/web -- compuerta de cierre
+HEAD: d7fc508  (docs: reverificación r6+wk6 registrada; despacho #117)
+node: v25.6.1  npm: 11.12.1
+fecha (UTC): 2026-09-06T23:06:37Z
+
+==================================================================
+== PASADA 1/2 -- typecheck
+== inicio: 2026-09-06T23:06:37Z
+==================================================================
+
+> @atiende/web@0.1.0 typecheck
+> tsc -b --noEmit
+
+-- exit code: 0
+
+==================================================================
+== PASADA 1/2 -- lint
+== inicio: 2026-09-06T23:06:40Z
+==================================================================
+
+> @atiende/web@0.1.0 lint
+> eslint .
+
+-- exit code: 0
+
+==================================================================
+== PASADA 1/2 -- test
+== inicio: 2026-09-06T23:06:42Z
+==================================================================
+
+> @atiende/web@0.1.0 test
+> NODE_OPTIONS=--no-experimental-webstorage vitest run
+
+
+ RUN  v4.1.11 /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web
+
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17087:41)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17087:41)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17087:41)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17087:41)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17087:41)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17087:41)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+
+ Test Files  39 passed (39)
+      Tests  162 passed (162)
+   Start at  17:06:42
+   Duration  57.90s (transform 2.58s, setup 8.00s, import 11.17s, tests 218.51s, environment 12.18s)
+
+-- exit code: 0
+
+==================================================================
+== PASADA 1/2 -- test:coverage
+== inicio: 2026-09-06T23:07:40Z
+==================================================================
+
+> @atiende/web@0.1.0 test:coverage
+> NODE_OPTIONS=--no-experimental-webstorage vitest run --coverage
+
+
+ RUN  v4.1.11 /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web
+      Coverage enabled with v8
+
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17087:41)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17087:41)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17087:41)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17087:41)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17087:41)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17087:41)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+
+ Test Files  39 passed (39)
+      Tests  162 passed (162)
+   Start at  17:07:41
+   Duration  86.75s (transform 1.12s, setup 4.31s, import 5.63s, tests 234.97s, environment 6.85s)
+
+ % Coverage report from v8
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-------------------|---------|----------|---------|---------|-------------------
+[33;1mAll files         [0m | [33;1m  59.37[0m | [33;1m   50.37[0m | [31;1m  48.34[0m | [33;1m   62.8[0m | [31;1m                 [0m 
+[31;1m src              [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m                 [0m 
+[31;1m  App.tsx         [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m14-97            [0m 
+[33;1m src/components   [0m | [33;1m  78.18[0m | [33;1m   77.08[0m | [33;1m  78.94[0m | [32;1m  80.76[0m | [31;1m                 [0m 
+[31;1m  SkipLink.tsx    [0m | [31;1m  22.22[0m | [31;1m       0[0m | [33;1m     50[0m | [31;1m     25[0m | [31;1m19-24            [0m 
+[32;1m  StepUpDialog.tsx[0m | [32;1m  82.35[0m | [32;1m   86.95[0m | [33;1m     60[0m | [32;1m  82.35[0m | [31;1m65,83-92         [0m 
+[32;1m  ...eSelector.tsx[0m | [32;1m   92.3[0m | [33;1m   66.66[0m | [32;1m  88.88[0m | [32;1m  95.83[0m | [31;1m41               [0m 
+[33;1m ...omponents/auth[0m | [33;1m  60.71[0m | [33;1m   68.42[0m | [33;1m  66.66[0m | [33;1m  60.71[0m | [31;1m                 [0m 
+[31;1m  RequireAuth.tsx [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m14-63            [0m 
+[32;1m ...ents/dashboard[0m | [32;1m     90[0m | [32;1m   86.66[0m | [32;1m   87.5[0m | [32;1m     90[0m | [31;1m                 [0m 
+[33;1m  ActivityFeed.tsx[0m | [33;1m     50[0m | [32;1m    92.3[0m | [33;1m     50[0m | [33;1m     50[0m | [31;1m43               [0m 
+[32;1m  AlertsList.tsx  [0m | [32;1m    100[0m | [33;1m   76.47[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m37-38,51-53      [0m 
+[32;1m  ...klistCard.tsx[0m | [32;1m    100[0m | [32;1m      90[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m29               [0m 
+[33;1m ...nts/expediente[0m | [33;1m     70[0m | [33;1m   66.66[0m | [33;1m  66.66[0m | [32;1m  85.71[0m | [31;1m                 [0m 
+[33;1m  TenderSelect.tsx[0m | [33;1m     70[0m | [33;1m   66.66[0m | [33;1m  66.66[0m | [32;1m  85.71[0m | [31;1m32               [0m 
+[33;1m ...ponents/layout[0m | [33;1m  67.34[0m | [33;1m   53.57[0m | [33;1m     60[0m | [33;1m  69.76[0m | [31;1m                 [0m 
+[33;1m  AppShell.tsx    [0m | [33;1m     75[0m | [32;1m     100[0m | [33;1m  66.66[0m | [33;1m     75[0m | [31;1m54               [0m 
+[32;1m  ...nSwitcher.tsx[0m | [32;1m     80[0m | [31;1m      40[0m | [33;1m     50[0m | [32;1m     80[0m | [31;1m57               [0m 
+[32;1m  SidebarNav.tsx  [0m | [32;1m     80[0m | [33;1m   66.66[0m | [33;1m  63.63[0m | [32;1m  85.71[0m | [31;1m42,56,75         [0m 
+[31;1m  UserMenu.tsx    [0m | [31;1m  35.71[0m | [31;1m      25[0m | [31;1m  33.33[0m | [31;1m  33.33[0m | [31;1m30-50            [0m 
+[32;1m src/components/ui[0m | [32;1m  88.83[0m | [33;1m   64.91[0m | [33;1m  73.84[0m | [32;1m  88.47[0m | [31;1m                 [0m 
+[32;1m  card.tsx        [0m | [32;1m  94.73[0m | [32;1m     100[0m | [32;1m  83.33[0m | [32;1m  94.44[0m | [31;1m54               [0m 
+[33;1m  ...down-menu.tsx[0m | [33;1m  73.33[0m | [31;1m       0[0m | [31;1m      0[0m | [33;1m  73.33[0m | [31;1m...85,108,130,142[0m 
+[32;1m  form.tsx        [0m | [32;1m  94.59[0m | [33;1m   78.57[0m | [32;1m    100[0m | [32;1m  94.44[0m | [31;1m45,48            [0m 
+[31;1m  scroll-area.tsx [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m6-36             [0m 
+[32;1m  select.tsx      [0m | [32;1m  93.33[0m | [32;1m     100[0m | [33;1m     75[0m | [32;1m  93.33[0m | [31;1m77               [0m 
+[31;1m  separator.tsx   [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m6-22             [0m 
+[32;1m  sheet.tsx       [0m | [32;1m     95[0m | [32;1m     100[0m | [32;1m     80[0m | [32;1m  94.73[0m | [31;1m90               [0m 
+[32;1m  table.tsx       [0m | [32;1m  91.66[0m | [32;1m     100[0m | [33;1m     75[0m | [32;1m  91.66[0m | [31;1m25,60            [0m 
+[32;1m  tooltip.tsx     [0m | [32;1m  83.33[0m | [31;1m       0[0m | [31;1m      0[0m | [32;1m  83.33[0m | [31;1m13               [0m 
+[33;1m src/hooks        [0m | [33;1m  67.64[0m | [33;1m   72.81[0m | [33;1m  60.25[0m | [33;1m   68.7[0m | [31;1m                 [0m 
+[31;1m  use-mobile.ts   [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m3-19             [0m 
+[32;1m  ...nChecklist.ts[0m | [32;1m   87.5[0m | [32;1m   83.33[0m | [33;1m  66.66[0m | [32;1m  85.71[0m | [31;1m49-55            [0m 
+[31;1m  useAdmin.ts     [0m | [31;1m  27.77[0m | [31;1m       0[0m | [31;1m  29.16[0m | [31;1m  28.57[0m | [31;1m23-67,103-106    [0m 
+[32;1m  useAuth.tsx     [0m | [32;1m  85.22[0m | [33;1m      60[0m | [32;1m  90.47[0m | [32;1m  91.02[0m | [31;1m92-94,119-121,213[0m 
+[33;1m  useCompany.ts   [0m | [33;1m  52.94[0m | [32;1m     100[0m | [33;1m  52.38[0m | [33;1m  52.94[0m | [31;1m...98-111,128-129[0m 
+[32;1m  useDashboard.ts [0m | [32;1m  96.66[0m | [32;1m     100[0m | [32;1m  93.33[0m | [32;1m  96.29[0m | [31;1m68               [0m 
+[33;1m  useExpediente.ts[0m | [33;1m  60.34[0m | [32;1m      90[0m | [33;1m  50.72[0m | [33;1m  60.34[0m | [31;1m...59-260,268-269[0m 
+[31;1m  useGoNoGo.ts    [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m7-20             [0m 
+[33;1m  useMatching.ts  [0m | [33;1m     50[0m | [31;1m       0[0m | [33;1m     50[0m | [33;1m     50[0m | [31;1m16-19            [0m 
+[33;1m  ...emberships.ts[0m | [33;1m  68.75[0m | [32;1m     100[0m | [33;1m     50[0m | [33;1m  68.75[0m | [31;1m25-26,34-35,48   [0m 
+[32;1m  useTenders.ts   [0m | [32;1m     80[0m | [33;1m   66.66[0m | [32;1m  81.81[0m | [32;1m     80[0m | [31;1m35-38            [0m 
+[32;1m  useTwoFactor.ts [0m | [32;1m   87.5[0m | [33;1m   66.66[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m40,68            [0m 
+[32;1m src/lib          [0m | [32;1m  84.34[0m | [33;1m   73.46[0m | [32;1m  94.73[0m | [32;1m  88.23[0m | [31;1m                 [0m 
+[33;1m  datetime.ts     [0m | [33;1m  54.54[0m | [31;1m   41.66[0m | [33;1m  66.66[0m | [33;1m  68.75[0m | [31;1m39-43            [0m 
+[32;1m  ...eMarkdown.tsx[0m | [32;1m  85.18[0m | [33;1m      70[0m | [32;1m    100[0m | [32;1m  85.71[0m | [31;1m19-31            [0m 
+[33;1m src/lib/api      [0m | [33;1m  70.37[0m | [33;1m   52.84[0m | [33;1m  59.63[0m | [33;1m  73.33[0m | [31;1m                 [0m 
+[31;1m  admin.ts        [0m | [31;1m  14.28[0m | [31;1m       0[0m | [31;1m  23.07[0m | [31;1m  17.14[0m | [31;1m30-74,109-123    [0m 
+[32;1m  agents.ts       [0m | [32;1m    100[0m | [33;1m      50[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m11               [0m 
+[33;1m  audit.ts        [0m | [33;1m   64.7[0m | [33;1m   53.33[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m23-30            [0m 
+[32;1m  client.ts       [0m | [32;1m   97.5[0m | [32;1m   91.66[0m | [32;1m    100[0m | [32;1m  97.14[0m | [31;1m70               [0m 
+[33;1m  company.ts      [0m | [33;1m  58.62[0m | [32;1m     100[0m | [33;1m  56.25[0m | [33;1m  58.62[0m | [31;1m...05,125-126,142[0m 
+[31;1m  expediente.ts   [0m | [31;1m  40.57[0m | [31;1m      35[0m | [31;1m  42.85[0m | [31;1m   38.8[0m | [31;1m...47-248,289-301[0m 
+[31;1m  go-no-go.ts     [0m | [31;1m      0[0m | [32;1m     100[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m6-17             [0m 
+[32;1m  google.ts       [0m | [32;1m  91.66[0m | [33;1m      50[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m44-46            [0m 
+[32;1m  http.ts         [0m | [32;1m  81.25[0m | [33;1m    62.5[0m | [32;1m     80[0m | [32;1m   86.2[0m | [31;1m91-97            [0m 
+[33;1m  matching.ts     [0m | [33;1m     50[0m | [32;1m     100[0m | [33;1m     50[0m | [33;1m     50[0m | [31;1m5-6              [0m 
+[33;1m  organizations.ts[0m | [33;1m  54.54[0m | [32;1m     100[0m | [31;1m  42.85[0m | [33;1m  54.54[0m | [31;1m27-32,47-51      [0m 
+[33;1m  session.ts      [0m | [33;1m  76.92[0m | [32;1m     100[0m | [33;1m     75[0m | [32;1m   82.6[0m | [31;1m38,69-70,85      [0m 
+[33;1m  tenders.ts      [0m | [33;1m     75[0m | [33;1m   54.54[0m | [32;1m     80[0m | [32;1m   87.5[0m | [31;1m46-47            [0m 
+[31;1m src/lib/security [0m | [31;1m      0[0m | [32;1m     100[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m                 [0m 
+[31;1m  csp.ts          [0m | [31;1m      0[0m | [32;1m     100[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m29-54            [0m 
+[31;1m src/mocks        [0m | [31;1m      0[0m | [32;1m     100[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m                 [0m 
+[31;1m  browser.ts      [0m | [31;1m      0[0m | [32;1m     100[0m | [32;1m    100[0m | [31;1m      0[0m | [31;1m9                [0m 
+[31;1m  demoFixtures.ts [0m | [31;1m      0[0m | [32;1m     100[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m9-157            [0m 
+[31;1m  demoHandlers.ts [0m | [31;1m      0[0m | [32;1m     100[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m11-16            [0m 
+[33;1m src/pages        [0m | [33;1m  73.02[0m | [33;1m   69.44[0m | [33;1m  61.17[0m | [33;1m  76.61[0m | [31;1m                 [0m 
+[32;1m  ...acionPage.tsx[0m | [32;1m  93.18[0m | [32;1m   82.14[0m | [32;1m  91.66[0m | [32;1m  92.85[0m | [31;1m44-45,138        [0m 
+[31;1m  DemoPage.tsx    [0m | [31;1m  31.11[0m | [31;1m   34.61[0m | [31;1m  17.64[0m | [31;1m  35.13[0m | [31;1m29-36,67-89,139  [0m 
+[33;1m  LandingPage.tsx [0m | [33;1m  74.28[0m | [32;1m     100[0m | [33;1m     64[0m | [32;1m  83.87[0m | [31;1m438-469          [0m 
+[32;1m  LoginPage.tsx   [0m | [32;1m   82.6[0m | [33;1m    62.5[0m | [32;1m  83.33[0m | [32;1m   82.6[0m | [31;1m39,76,94-95      [0m 
+[31;1m  NotFoundPage.tsx[0m | [31;1m      0[0m | [32;1m     100[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m7                [0m 
+[32;1m  PanelPage.tsx   [0m | [32;1m  83.33[0m | [33;1m      75[0m | [33;1m     50[0m | [32;1m  83.33[0m | [31;1m117-123          [0m 
+[33;1m  ...oticePage.tsx[0m | [33;1m     75[0m | [32;1m    87.5[0m | [33;1m  66.66[0m | [33;1m     75[0m | [31;1m51               [0m 
+[32;1m  RegistroPage.tsx[0m | [32;1m  96.29[0m | [32;1m     100[0m | [32;1m   87.5[0m | [32;1m  96.29[0m | [31;1m176              [0m 
+[32;1m  ...ccesoPage.tsx[0m | [32;1m  83.33[0m | [32;1m     100[0m | [32;1m     80[0m | [32;1m  83.33[0m | [31;1m54,133-134       [0m 
+[31;1m  ...odulePage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m29-38            [0m 
+[32;1m src/pages/auth   [0m | [32;1m     85[0m | [32;1m   83.33[0m | [32;1m  88.88[0m | [32;1m  86.44[0m | [31;1m                 [0m 
+[32;1m  ...lbackPage.tsx[0m | [32;1m     85[0m | [32;1m   83.33[0m | [32;1m  88.88[0m | [32;1m  86.44[0m | [31;1m...97,160-161,201[0m 
+[31;1m ...ges/backoffice[0m | [31;1m   48.9[0m | [33;1m      50[0m | [31;1m   37.5[0m | [31;1m  49.24[0m | [31;1m                 [0m 
+[32;1m  ...entasPage.tsx[0m | [32;1m  82.75[0m | [32;1m      80[0m | [33;1m  69.23[0m | [32;1m  85.18[0m | [31;1m66,85,160-175    [0m 
+[32;1m  ...fficePage.tsx[0m | [32;1m  86.36[0m | [32;1m   88.46[0m | [32;1m  81.81[0m | [32;1m     90[0m | [31;1m53,72            [0m 
+[33;1m  ...toriaPage.tsx[0m | [33;1m  54.54[0m | [32;1m      80[0m | [31;1m  28.57[0m | [33;1m  54.54[0m | [31;1m46-64,100        [0m 
+[31;1m  ...toresPage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m21-45            [0m 
+[31;1m  CostosPage.tsx  [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m18-49            [0m 
+[31;1m  ...entesPage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m23-147           [0m 
+[31;1m  JobsPage.tsx    [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m18-89            [0m 
+[31;1m  ...ionesPage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m21-44            [0m 
+[33;1m  ...RolesPage.tsx[0m | [33;1m  58.06[0m | [33;1m   78.94[0m | [31;1m  46.66[0m | [33;1m     60[0m | [31;1m...52-154,185-187[0m 
+[31;1m .../convocatorias[0m | [31;1m  24.61[0m | [31;1m   27.92[0m | [31;1m  20.68[0m | [31;1m  26.78[0m | [31;1m                 [0m 
+[31;1m  ...tallePage.tsx[0m | [31;1m  33.33[0m | [31;1m   38.09[0m | [31;1m     25[0m | [31;1m  38.09[0m | [31;1m31-70,109        [0m 
+[31;1m  ...ientoPage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m19-142           [0m 
+[32;1m  ...scuraPage.tsx[0m | [32;1m   87.5[0m | [32;1m   93.75[0m | [32;1m     80[0m | [32;1m   87.5[0m | [31;1m72               [0m 
+[31;1m  MatchingPage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m14-95            [0m 
+[31;1m src/pages/empresa[0m | [31;1m  28.94[0m | [31;1m    20.1[0m | [31;1m  31.81[0m | [31;1m  28.65[0m | [31;1m                 [0m 
+[31;1m  ...nciasPage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m27-227           [0m 
+[31;1m  ...zadosPage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m21-144           [0m 
+[31;1m  ...dadesPage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m22-293           [0m 
+[32;1m  ...badasPage.tsx[0m | [32;1m  83.33[0m | [33;1m   76.92[0m | [32;1m     84[0m | [32;1m     85[0m | [31;1m...10,124-129,212[0m 
+[31;1m src/pages/entrega[0m | [31;1m  45.68[0m | [31;1m   46.19[0m | [33;1m     50[0m | [31;1m  47.27[0m | [31;1m                 [0m 
+[31;1m  EntregasPage.tsx[0m | [31;1m  43.75[0m | [31;1m   46.87[0m | [31;1m  36.36[0m | [31;1m  48.27[0m | [31;1m...,46-59,108,152[0m 
+[31;1m  ...gablePage.tsx[0m | [31;1m  33.33[0m | [33;1m      65[0m | [33;1m  57.14[0m | [31;1m  34.28[0m | [31;1m39-43,48-68,109  [0m 
+[33;1m  ...ientoPage.tsx[0m | [33;1m  56.25[0m | [31;1m   39.28[0m | [33;1m  54.54[0m | [33;1m  56.52[0m | [31;1m...52-266,350,371[0m 
+[31;1m ...ges/evaluacion[0m | [31;1m  21.11[0m | [31;1m   15.29[0m | [31;1m  12.82[0m | [31;1m  22.35[0m | [31;1m                 [0m 
+[31;1m  ...BasesPage.tsx[0m | [31;1m  29.68[0m | [31;1m   23.63[0m | [31;1m  18.51[0m | [31;1m   32.2[0m | [31;1m...42-157,199-348[0m 
+[31;1m  GoNoGoPage.tsx  [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m25-184           [0m 
+[31;1m ...ges/onboarding[0m | [31;1m  49.45[0m | [33;1m   68.96[0m | [33;1m     50[0m | [33;1m  51.76[0m | [31;1m                 [0m 
+[31;1m  ...rdingPage.tsx[0m | [31;1m  49.45[0m | [33;1m   68.96[0m | [33;1m     50[0m | [33;1m  51.76[0m | [31;1m...87,350,374-484[0m 
+[31;1m ...es/preparacion[0m | [31;1m  44.16[0m | [33;1m   58.39[0m | [31;1m  20.16[0m | [33;1m  54.89[0m | [31;1m                 [0m 
+[32;1m  ...ionesPage.tsx[0m | [32;1m   87.5[0m | [32;1m   82.35[0m | [33;1m     75[0m | [32;1m   87.5[0m | [31;1m72               [0m 
+[31;1m  ...entalPage.tsx[0m | [31;1m     26[0m | [33;1m   58.69[0m | [31;1m    8.1[0m | [31;1m  38.23[0m | [31;1m52-65,82-160,197 [0m 
+[32;1m  ...ientePage.tsx[0m | [32;1m   87.5[0m | [31;1m   44.44[0m | [33;1m     60[0m | [32;1m    100[0m | [33;1m62-107           [0m 
+[31;1m  ...ccionPage.tsx[0m | [31;1m  36.36[0m | [31;1m   46.39[0m | [31;1m  15.15[0m | [31;1m  46.98[0m | [31;1m...93,316,345-367[0m 
+[33;1m  RevisionPage.tsx[0m | [33;1m  62.22[0m | [33;1m   72.13[0m | [33;1m     50[0m | [33;1m  62.22[0m | [31;1m...80,102,201-214[0m 
+[32;1m src/test         [0m | [32;1m    100[0m | [32;1m   95.45[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  ...eAuthMocks.ts[0m | [32;1m    100[0m | [32;1m      95[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m64               [0m 
+-------------------|---------|----------|---------|---------|-------------------
+
+=============================== Coverage summary ===============================
+[33;1mStatements   : 59.37% ( 1624/2735 )[0m
+[33;1mBranches     : 50.37% ( 945/1876 )[0m
+[31;1mFunctions    : 48.34% ( 510/1055 )[0m
+[33;1mLines        : 62.8% ( 1562/2487 )[0m
+================================================================================
+-- exit code: 0
+
+==================================================================
+== PASADA 2/2 -- typecheck
+== inicio: 2026-09-06T23:09:08Z
+==================================================================
+
+> @atiende/web@0.1.0 typecheck
+> tsc -b --noEmit
+
+-- exit code: 0
+
+==================================================================
+== PASADA 2/2 -- lint
+== inicio: 2026-09-06T23:09:11Z
+==================================================================
+
+> @atiende/web@0.1.0 lint
+> eslint .
+
+-- exit code: 0
+
+==================================================================
+== PASADA 2/2 -- test
+== inicio: 2026-09-06T23:09:13Z
+==================================================================
+
+> @atiende/web@0.1.0 test
+> NODE_OPTIONS=--no-experimental-webstorage vitest run
+
+
+ RUN  v4.1.11 /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web
+
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17087:41)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17087:41)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17087:41)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17087:41)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17087:41)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17087:41)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+
+ Test Files  39 passed (39)
+      Tests  162 passed (162)
+   Start at  17:09:13
+   Duration  41.34s (transform 2.73s, setup 6.14s, import 10.79s, tests 181.20s, environment 9.88s)
+
+-- exit code: 0
+
+==================================================================
+== PASADA 2/2 -- test:coverage
+== inicio: 2026-09-06T23:09:54Z
+==================================================================
+
+> @atiende/web@0.1.0 test:coverage
+> NODE_OPTIONS=--no-experimental-webstorage vitest run --coverage
+
+
+ RUN  v4.1.11 /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/web
+      Coverage enabled with v8
+
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17087:41)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17087:41)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17087:41)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17087:41)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17087:41)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:17087:41)
+    at /Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+
+ Test Files  39 passed (39)
+      Tests  162 passed (162)
+   Start at  17:09:55
+   Duration  81.05s (transform 858ms, setup 3.82s, import 5.17s, tests 219.36s, environment 6.35s)
+
+ % Coverage report from v8
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-------------------|---------|----------|---------|---------|-------------------
+[33;1mAll files         [0m | [33;1m  59.37[0m | [33;1m   50.37[0m | [31;1m  48.34[0m | [33;1m   62.8[0m | [31;1m                 [0m 
+[31;1m src              [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m                 [0m 
+[31;1m  App.tsx         [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m14-97            [0m 
+[33;1m src/components   [0m | [33;1m  78.18[0m | [33;1m   77.08[0m | [33;1m  78.94[0m | [32;1m  80.76[0m | [31;1m                 [0m 
+[31;1m  SkipLink.tsx    [0m | [31;1m  22.22[0m | [31;1m       0[0m | [33;1m     50[0m | [31;1m     25[0m | [31;1m19-24            [0m 
+[32;1m  StepUpDialog.tsx[0m | [32;1m  82.35[0m | [32;1m   86.95[0m | [33;1m     60[0m | [32;1m  82.35[0m | [31;1m65,83-92         [0m 
+[32;1m  ...eSelector.tsx[0m | [32;1m   92.3[0m | [33;1m   66.66[0m | [32;1m  88.88[0m | [32;1m  95.83[0m | [31;1m41               [0m 
+[33;1m ...omponents/auth[0m | [33;1m  60.71[0m | [33;1m   68.42[0m | [33;1m  66.66[0m | [33;1m  60.71[0m | [31;1m                 [0m 
+[31;1m  RequireAuth.tsx [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m14-63            [0m 
+[32;1m ...ents/dashboard[0m | [32;1m     90[0m | [32;1m   86.66[0m | [32;1m   87.5[0m | [32;1m     90[0m | [31;1m                 [0m 
+[33;1m  ActivityFeed.tsx[0m | [33;1m     50[0m | [32;1m    92.3[0m | [33;1m     50[0m | [33;1m     50[0m | [31;1m43               [0m 
+[32;1m  AlertsList.tsx  [0m | [32;1m    100[0m | [33;1m   76.47[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m37-38,51-53      [0m 
+[32;1m  ...klistCard.tsx[0m | [32;1m    100[0m | [32;1m      90[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m29               [0m 
+[33;1m ...nts/expediente[0m | [33;1m     70[0m | [33;1m   66.66[0m | [33;1m  66.66[0m | [32;1m  85.71[0m | [31;1m                 [0m 
+[33;1m  TenderSelect.tsx[0m | [33;1m     70[0m | [33;1m   66.66[0m | [33;1m  66.66[0m | [32;1m  85.71[0m | [31;1m32               [0m 
+[33;1m ...ponents/layout[0m | [33;1m  67.34[0m | [33;1m   53.57[0m | [33;1m     60[0m | [33;1m  69.76[0m | [31;1m                 [0m 
+[33;1m  AppShell.tsx    [0m | [33;1m     75[0m | [32;1m     100[0m | [33;1m  66.66[0m | [33;1m     75[0m | [31;1m54               [0m 
+[32;1m  ...nSwitcher.tsx[0m | [32;1m     80[0m | [31;1m      40[0m | [33;1m     50[0m | [32;1m     80[0m | [31;1m57               [0m 
+[32;1m  SidebarNav.tsx  [0m | [32;1m     80[0m | [33;1m   66.66[0m | [33;1m  63.63[0m | [32;1m  85.71[0m | [31;1m42,56,75         [0m 
+[31;1m  UserMenu.tsx    [0m | [31;1m  35.71[0m | [31;1m      25[0m | [31;1m  33.33[0m | [31;1m  33.33[0m | [31;1m30-50            [0m 
+[32;1m src/components/ui[0m | [32;1m  88.83[0m | [33;1m   64.91[0m | [33;1m  73.84[0m | [32;1m  88.47[0m | [31;1m                 [0m 
+[32;1m  card.tsx        [0m | [32;1m  94.73[0m | [32;1m     100[0m | [32;1m  83.33[0m | [32;1m  94.44[0m | [31;1m54               [0m 
+[33;1m  ...down-menu.tsx[0m | [33;1m  73.33[0m | [31;1m       0[0m | [31;1m      0[0m | [33;1m  73.33[0m | [31;1m...85,108,130,142[0m 
+[32;1m  form.tsx        [0m | [32;1m  94.59[0m | [33;1m   78.57[0m | [32;1m    100[0m | [32;1m  94.44[0m | [31;1m45,48            [0m 
+[31;1m  scroll-area.tsx [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m6-36             [0m 
+[32;1m  select.tsx      [0m | [32;1m  93.33[0m | [32;1m     100[0m | [33;1m     75[0m | [32;1m  93.33[0m | [31;1m77               [0m 
+[31;1m  separator.tsx   [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m6-22             [0m 
+[32;1m  sheet.tsx       [0m | [32;1m     95[0m | [32;1m     100[0m | [32;1m     80[0m | [32;1m  94.73[0m | [31;1m90               [0m 
+[32;1m  table.tsx       [0m | [32;1m  91.66[0m | [32;1m     100[0m | [33;1m     75[0m | [32;1m  91.66[0m | [31;1m25,60            [0m 
+[32;1m  tooltip.tsx     [0m | [32;1m  83.33[0m | [31;1m       0[0m | [31;1m      0[0m | [32;1m  83.33[0m | [31;1m13               [0m 
+[33;1m src/hooks        [0m | [33;1m  67.64[0m | [33;1m   72.81[0m | [33;1m  60.25[0m | [33;1m   68.7[0m | [31;1m                 [0m 
+[31;1m  use-mobile.ts   [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m3-19             [0m 
+[32;1m  ...nChecklist.ts[0m | [32;1m   87.5[0m | [32;1m   83.33[0m | [33;1m  66.66[0m | [32;1m  85.71[0m | [31;1m49-55            [0m 
+[31;1m  useAdmin.ts     [0m | [31;1m  27.77[0m | [31;1m       0[0m | [31;1m  29.16[0m | [31;1m  28.57[0m | [31;1m23-67,103-106    [0m 
+[32;1m  useAuth.tsx     [0m | [32;1m  85.22[0m | [33;1m      60[0m | [32;1m  90.47[0m | [32;1m  91.02[0m | [31;1m92-94,119-121,213[0m 
+[33;1m  useCompany.ts   [0m | [33;1m  52.94[0m | [32;1m     100[0m | [33;1m  52.38[0m | [33;1m  52.94[0m | [31;1m...98-111,128-129[0m 
+[32;1m  useDashboard.ts [0m | [32;1m  96.66[0m | [32;1m     100[0m | [32;1m  93.33[0m | [32;1m  96.29[0m | [31;1m68               [0m 
+[33;1m  useExpediente.ts[0m | [33;1m  60.34[0m | [32;1m      90[0m | [33;1m  50.72[0m | [33;1m  60.34[0m | [31;1m...59-260,268-269[0m 
+[31;1m  useGoNoGo.ts    [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m7-20             [0m 
+[33;1m  useMatching.ts  [0m | [33;1m     50[0m | [31;1m       0[0m | [33;1m     50[0m | [33;1m     50[0m | [31;1m16-19            [0m 
+[33;1m  ...emberships.ts[0m | [33;1m  68.75[0m | [32;1m     100[0m | [33;1m     50[0m | [33;1m  68.75[0m | [31;1m25-26,34-35,48   [0m 
+[32;1m  useTenders.ts   [0m | [32;1m     80[0m | [33;1m   66.66[0m | [32;1m  81.81[0m | [32;1m     80[0m | [31;1m35-38            [0m 
+[32;1m  useTwoFactor.ts [0m | [32;1m   87.5[0m | [33;1m   66.66[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m40,68            [0m 
+[32;1m src/lib          [0m | [32;1m  84.34[0m | [33;1m   73.46[0m | [32;1m  94.73[0m | [32;1m  88.23[0m | [31;1m                 [0m 
+[33;1m  datetime.ts     [0m | [33;1m  54.54[0m | [31;1m   41.66[0m | [33;1m  66.66[0m | [33;1m  68.75[0m | [31;1m39-43            [0m 
+[32;1m  ...eMarkdown.tsx[0m | [32;1m  85.18[0m | [33;1m      70[0m | [32;1m    100[0m | [32;1m  85.71[0m | [31;1m19-31            [0m 
+[33;1m src/lib/api      [0m | [33;1m  70.37[0m | [33;1m   52.84[0m | [33;1m  59.63[0m | [33;1m  73.33[0m | [31;1m                 [0m 
+[31;1m  admin.ts        [0m | [31;1m  14.28[0m | [31;1m       0[0m | [31;1m  23.07[0m | [31;1m  17.14[0m | [31;1m30-74,109-123    [0m 
+[32;1m  agents.ts       [0m | [32;1m    100[0m | [33;1m      50[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m11               [0m 
+[33;1m  audit.ts        [0m | [33;1m   64.7[0m | [33;1m   53.33[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m23-30            [0m 
+[32;1m  client.ts       [0m | [32;1m   97.5[0m | [32;1m   91.66[0m | [32;1m    100[0m | [32;1m  97.14[0m | [31;1m70               [0m 
+[33;1m  company.ts      [0m | [33;1m  58.62[0m | [32;1m     100[0m | [33;1m  56.25[0m | [33;1m  58.62[0m | [31;1m...05,125-126,142[0m 
+[31;1m  expediente.ts   [0m | [31;1m  40.57[0m | [31;1m      35[0m | [31;1m  42.85[0m | [31;1m   38.8[0m | [31;1m...47-248,289-301[0m 
+[31;1m  go-no-go.ts     [0m | [31;1m      0[0m | [32;1m     100[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m6-17             [0m 
+[32;1m  google.ts       [0m | [32;1m  91.66[0m | [33;1m      50[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m44-46            [0m 
+[32;1m  http.ts         [0m | [32;1m  81.25[0m | [33;1m    62.5[0m | [32;1m     80[0m | [32;1m   86.2[0m | [31;1m91-97            [0m 
+[33;1m  matching.ts     [0m | [33;1m     50[0m | [32;1m     100[0m | [33;1m     50[0m | [33;1m     50[0m | [31;1m5-6              [0m 
+[33;1m  organizations.ts[0m | [33;1m  54.54[0m | [32;1m     100[0m | [31;1m  42.85[0m | [33;1m  54.54[0m | [31;1m27-32,47-51      [0m 
+[33;1m  session.ts      [0m | [33;1m  76.92[0m | [32;1m     100[0m | [33;1m     75[0m | [32;1m   82.6[0m | [31;1m38,69-70,85      [0m 
+[33;1m  tenders.ts      [0m | [33;1m     75[0m | [33;1m   54.54[0m | [32;1m     80[0m | [32;1m   87.5[0m | [31;1m46-47            [0m 
+[31;1m src/lib/security [0m | [31;1m      0[0m | [32;1m     100[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m                 [0m 
+[31;1m  csp.ts          [0m | [31;1m      0[0m | [32;1m     100[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m29-54            [0m 
+[31;1m src/mocks        [0m | [31;1m      0[0m | [32;1m     100[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m                 [0m 
+[31;1m  browser.ts      [0m | [31;1m      0[0m | [32;1m     100[0m | [32;1m    100[0m | [31;1m      0[0m | [31;1m9                [0m 
+[31;1m  demoFixtures.ts [0m | [31;1m      0[0m | [32;1m     100[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m9-157            [0m 
+[31;1m  demoHandlers.ts [0m | [31;1m      0[0m | [32;1m     100[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m11-16            [0m 
+[33;1m src/pages        [0m | [33;1m  73.02[0m | [33;1m   69.44[0m | [33;1m  61.17[0m | [33;1m  76.61[0m | [31;1m                 [0m 
+[32;1m  ...acionPage.tsx[0m | [32;1m  93.18[0m | [32;1m   82.14[0m | [32;1m  91.66[0m | [32;1m  92.85[0m | [31;1m44-45,138        [0m 
+[31;1m  DemoPage.tsx    [0m | [31;1m  31.11[0m | [31;1m   34.61[0m | [31;1m  17.64[0m | [31;1m  35.13[0m | [31;1m29-36,67-89,139  [0m 
+[33;1m  LandingPage.tsx [0m | [33;1m  74.28[0m | [32;1m     100[0m | [33;1m     64[0m | [32;1m  83.87[0m | [31;1m438-469          [0m 
+[32;1m  LoginPage.tsx   [0m | [32;1m   82.6[0m | [33;1m    62.5[0m | [32;1m  83.33[0m | [32;1m   82.6[0m | [31;1m39,76,94-95      [0m 
+[31;1m  NotFoundPage.tsx[0m | [31;1m      0[0m | [32;1m     100[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m7                [0m 
+[32;1m  PanelPage.tsx   [0m | [32;1m  83.33[0m | [33;1m      75[0m | [33;1m     50[0m | [32;1m  83.33[0m | [31;1m117-123          [0m 
+[33;1m  ...oticePage.tsx[0m | [33;1m     75[0m | [32;1m    87.5[0m | [33;1m  66.66[0m | [33;1m     75[0m | [31;1m51               [0m 
+[32;1m  RegistroPage.tsx[0m | [32;1m  96.29[0m | [32;1m     100[0m | [32;1m   87.5[0m | [32;1m  96.29[0m | [31;1m176              [0m 
+[32;1m  ...ccesoPage.tsx[0m | [32;1m  83.33[0m | [32;1m     100[0m | [32;1m     80[0m | [32;1m  83.33[0m | [31;1m54,133-134       [0m 
+[31;1m  ...odulePage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m29-38            [0m 
+[32;1m src/pages/auth   [0m | [32;1m     85[0m | [32;1m   83.33[0m | [32;1m  88.88[0m | [32;1m  86.44[0m | [31;1m                 [0m 
+[32;1m  ...lbackPage.tsx[0m | [32;1m     85[0m | [32;1m   83.33[0m | [32;1m  88.88[0m | [32;1m  86.44[0m | [31;1m...97,160-161,201[0m 
+[31;1m ...ges/backoffice[0m | [31;1m   48.9[0m | [33;1m      50[0m | [31;1m   37.5[0m | [31;1m  49.24[0m | [31;1m                 [0m 
+[32;1m  ...entasPage.tsx[0m | [32;1m  82.75[0m | [32;1m      80[0m | [33;1m  69.23[0m | [32;1m  85.18[0m | [31;1m66,85,160-175    [0m 
+[32;1m  ...fficePage.tsx[0m | [32;1m  86.36[0m | [32;1m   88.46[0m | [32;1m  81.81[0m | [32;1m     90[0m | [31;1m53,72            [0m 
+[33;1m  ...toriaPage.tsx[0m | [33;1m  54.54[0m | [32;1m      80[0m | [31;1m  28.57[0m | [33;1m  54.54[0m | [31;1m46-64,100        [0m 
+[31;1m  ...toresPage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m21-45            [0m 
+[31;1m  CostosPage.tsx  [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m18-49            [0m 
+[31;1m  ...entesPage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m23-147           [0m 
+[31;1m  JobsPage.tsx    [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m18-89            [0m 
+[31;1m  ...ionesPage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m21-44            [0m 
+[33;1m  ...RolesPage.tsx[0m | [33;1m  58.06[0m | [33;1m   78.94[0m | [31;1m  46.66[0m | [33;1m     60[0m | [31;1m...52-154,185-187[0m 
+[31;1m .../convocatorias[0m | [31;1m  24.61[0m | [31;1m   27.92[0m | [31;1m  20.68[0m | [31;1m  26.78[0m | [31;1m                 [0m 
+[31;1m  ...tallePage.tsx[0m | [31;1m  33.33[0m | [31;1m   38.09[0m | [31;1m     25[0m | [31;1m  38.09[0m | [31;1m31-70,109        [0m 
+[31;1m  ...ientoPage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m19-142           [0m 
+[32;1m  ...scuraPage.tsx[0m | [32;1m   87.5[0m | [32;1m   93.75[0m | [32;1m     80[0m | [32;1m   87.5[0m | [31;1m72               [0m 
+[31;1m  MatchingPage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m14-95            [0m 
+[31;1m src/pages/empresa[0m | [31;1m  28.94[0m | [31;1m    20.1[0m | [31;1m  31.81[0m | [31;1m  28.65[0m | [31;1m                 [0m 
+[31;1m  ...nciasPage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m27-227           [0m 
+[31;1m  ...zadosPage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m21-144           [0m 
+[31;1m  ...dadesPage.tsx[0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m22-293           [0m 
+[32;1m  ...badasPage.tsx[0m | [32;1m  83.33[0m | [33;1m   76.92[0m | [32;1m     84[0m | [32;1m     85[0m | [31;1m...10,124-129,212[0m 
+[31;1m src/pages/entrega[0m | [31;1m  45.68[0m | [31;1m   46.19[0m | [33;1m     50[0m | [31;1m  47.27[0m | [31;1m                 [0m 
+[31;1m  EntregasPage.tsx[0m | [31;1m  43.75[0m | [31;1m   46.87[0m | [31;1m  36.36[0m | [31;1m  48.27[0m | [31;1m...,46-59,108,152[0m 
+[31;1m  ...gablePage.tsx[0m | [31;1m  33.33[0m | [33;1m      65[0m | [33;1m  57.14[0m | [31;1m  34.28[0m | [31;1m39-43,48-68,109  [0m 
+[33;1m  ...ientoPage.tsx[0m | [33;1m  56.25[0m | [31;1m   39.28[0m | [33;1m  54.54[0m | [33;1m  56.52[0m | [31;1m...52-266,350,371[0m 
+[31;1m ...ges/evaluacion[0m | [31;1m  21.11[0m | [31;1m   15.29[0m | [31;1m  12.82[0m | [31;1m  22.35[0m | [31;1m                 [0m 
+[31;1m  ...BasesPage.tsx[0m | [31;1m  29.68[0m | [31;1m   23.63[0m | [31;1m  18.51[0m | [31;1m   32.2[0m | [31;1m...42-157,199-348[0m 
+[31;1m  GoNoGoPage.tsx  [0m | [31;1m      0[0m | [31;1m       0[0m | [31;1m      0[0m | [31;1m      0[0m | [31;1m25-184           [0m 
+[31;1m ...ges/onboarding[0m | [31;1m  49.45[0m | [33;1m   68.96[0m | [33;1m     50[0m | [33;1m  51.76[0m | [31;1m                 [0m 
+[31;1m  ...rdingPage.tsx[0m | [31;1m  49.45[0m | [33;1m   68.96[0m | [33;1m     50[0m | [33;1m  51.76[0m | [31;1m...87,350,374-484[0m 
+[31;1m ...es/preparacion[0m | [31;1m  44.16[0m | [33;1m   58.39[0m | [31;1m  20.16[0m | [33;1m  54.89[0m | [31;1m                 [0m 
+[32;1m  ...ionesPage.tsx[0m | [32;1m   87.5[0m | [32;1m   82.35[0m | [33;1m     75[0m | [32;1m   87.5[0m | [31;1m72               [0m 
+[31;1m  ...entalPage.tsx[0m | [31;1m     26[0m | [33;1m   58.69[0m | [31;1m    8.1[0m | [31;1m  38.23[0m | [31;1m52-65,82-160,197 [0m 
+[32;1m  ...ientePage.tsx[0m | [32;1m   87.5[0m | [31;1m   44.44[0m | [33;1m     60[0m | [32;1m    100[0m | [33;1m62-107           [0m 
+[31;1m  ...ccionPage.tsx[0m | [31;1m  36.36[0m | [31;1m   46.39[0m | [31;1m  15.15[0m | [31;1m  46.98[0m | [31;1m...93,316,345-367[0m 
+[33;1m  RevisionPage.tsx[0m | [33;1m  62.22[0m | [33;1m   72.13[0m | [33;1m     50[0m | [33;1m  62.22[0m | [31;1m...80,102,201-214[0m 
+[32;1m src/test         [0m | [32;1m    100[0m | [32;1m   95.45[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  ...eAuthMocks.ts[0m | [32;1m    100[0m | [32;1m      95[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m64               [0m 
+-------------------|---------|----------|---------|---------|-------------------
+
+=============================== Coverage summary ===============================
+[33;1mStatements   : 59.37% ( 1624/2735 )[0m
+[33;1mBranches     : 50.37% ( 945/1876 )[0m
+[31;1mFunctions    : 48.34% ( 510/1055 )[0m
+[33;1mLines        : 62.8% ( 1562/2487 )[0m
+================================================================================
+-- exit code: 0
+
+==================================================================
+== build
+== inicio: 2026-09-06T23:11:16Z
+==================================================================
+
+> @atiende/web@0.1.0 build
+> tsc -b && vite build
+
+[36mvite v6.4.3 [32mbuilding for production...[36m[39m
+transforming...
+[32m✓[39m 2129 modules transformed.
+rendering chunks...
+computing gzip size...
+[2mdist/[22m[32mindex.html                                     [39m[1m[2m  1.37 kB[22m[1m[22m[2m │ gzip:  0.64 kB[22m
+[2mdist/[22m[2massets/[22m[35mlogin-BcYFrIpy.css                      [39m[1m[2m  0.19 kB[22m[1m[22m[2m │ gzip:  0.17 kB[22m
+[2mdist/[22m[2massets/[22m[35mindex-C7zvpZg6.css                      [39m[1m[2m 37.93 kB[22m[1m[22m[2m │ gzip:  7.71 kB[22m
+[2mdist/[22m[2massets/[22m[36mplus-DmcvFsA1.js                        [39m[1m[2m  0.32 kB[22m[1m[22m[2m │ gzip:  0.26 kB[22m
+[2mdist/[22m[2massets/[22m[36marrow-left-B3K5Toj4.js                  [39m[1m[2m  0.33 kB[22m[1m[22m[2m │ gzip:  0.27 kB[22m
+[2mdist/[22m[2massets/[22m[36marrow-right-Clo3hVFI.js                 [39m[1m[2m  0.33 kB[22m[1m[22m[2m │ gzip:  0.27 kB[22m
+[2mdist/[22m[2massets/[22m[36mcircle-check-D_0ymHOC.js                [39m[1m[2m  0.34 kB[22m[1m[22m[2m │ gzip:  0.27 kB[22m
+[2mdist/[22m[2massets/[22m[36mcircle-play-C_cUhTzT.js                 [39m[1m[2m  0.36 kB[22m[1m[22m[2m │ gzip:  0.27 kB[22m
+[2mdist/[22m[2massets/[22m[36mlabel-CxmuA_Cb.js                       [39m[1m[2m  0.37 kB[22m[1m[22m[2m │ gzip:  0.27 kB[22m
+[2mdist/[22m[2massets/[22m[36mmail-B33pfTui.js                        [39m[1m[2m  0.38 kB[22m[1m[22m[2m │ gzip:  0.30 kB[22m
+[2mdist/[22m[2massets/[22m[36mupload-CV2Lpx31.js                      [39m[1m[2m  0.43 kB[22m[1m[22m[2m │ gzip:  0.32 kB[22m
+[2mdist/[22m[2massets/[22m[36muser-plus-8XvfDOYw.js                   [39m[1m[2m  0.48 kB[22m[1m[22m[2m │ gzip:  0.33 kB[22m
+[2mdist/[22m[2massets/[22m[36mloading-state-CzZVX_Qs.js               [39m[1m[2m  0.49 kB[22m[1m[22m[2m │ gzip:  0.33 kB[22m
+[2mdist/[22m[2massets/[22m[36mdatetime-phlS3Qpi.js                    [39m[1m[2m  0.52 kB[22m[1m[22m[2m │ gzip:  0.27 kB[22m
+[2mdist/[22m[2massets/[22m[36mtrash-2-D9DcZplR.js                     [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mtextarea-Byow5-G_.js                    [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36minput-DFRdAXq_.js                       [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36museMatching-BGe8Et09.js                 [39m[1m[2m  0.54 kB[22m[1m[22m[2m │ gzip:  0.31 kB[22m
+[2mdist/[22m[2massets/[22m[36mgoogle-CGAjYEm7.js                      [39m[1m[2m  0.55 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mSectionHeader-4eN96vIM.js               [39m[1m[2m  0.56 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36museAuditLog-CHjWdHSR.js                 [39m[1m[2m  0.65 kB[22m[1m[22m[2m │ gzip:  0.38 kB[22m
+[2mdist/[22m[2massets/[22m[36museMemberships-_JYH5WAj.js              [39m[1m[2m  0.70 kB[22m[1m[22m[2m │ gzip:  0.33 kB[22m
+[2mdist/[22m[2massets/[22m[36museDocumentMeta-DG6BM3nP.js             [39m[1m[2m  0.74 kB[22m[1m[22m[2m │ gzip:  0.36 kB[22m
+[2mdist/[22m[2massets/[22m[36mvalidateDocumentFile-BiFIh6bU.js        [39m[1m[2m  0.88 kB[22m[1m[22m[2m │ gzip:  0.53 kB[22m
+[2mdist/[22m[2massets/[22m[36mTenderSelect-DlHy2Ays.js                [39m[1m[2m  0.99 kB[22m[1m[22m[2m │ gzip:  0.61 kB[22m
+[2mdist/[22m[2massets/[22m[36mcard-BXNEu-pa.js                        [39m[1m[2m  1.09 kB[22m[1m[22m[2m │ gzip:  0.45 kB[22m
+[2mdist/[22m[2massets/[22m[36mtabs-CKzG8C1A.js                        [39m[1m[2m  1.09 kB[22m[1m[22m[2m │ gzip:  0.47 kB[22m
+[2mdist/[22m[2massets/[22m[36museTwoFactor-k9ujPUCq.js                [39m[1m[2m  1.23 kB[22m[1m[22m[2m │ gzip:  0.59 kB[22m
+[2mdist/[22m[2massets/[22m[36mNotFoundPage-DupEytvT.js                [39m[1m[2m  1.23 kB[22m[1m[22m[2m │ gzip:  0.70 kB[22m
+[2mdist/[22m[2massets/[22m[36mAiDisclosureNote-C54lmEon.js            [39m[1m[2m  1.24 kB[22m[1m[22m[2m │ gzip:  0.74 kB[22m
+[2mdist/[22m[2massets/[22m[36mempty-state-D3EaClF2.js                 [39m[1m[2m  1.27 kB[22m[1m[22m[2m │ gzip:  0.72 kB[22m
+[2mdist/[22m[2massets/[22m[36mrenderSimpleMarkdown-4zQ9nPbL.js        [39m[1m[2m  1.32 kB[22m[1m[22m[2m │ gzip:  0.68 kB[22m
+[2mdist/[22m[2massets/[22m[36museTenders-C9BJmqMe.js                  [39m[1m[2m  1.42 kB[22m[1m[22m[2m │ gzip:  0.54 kB[22m
+[2mdist/[22m[2massets/[22m[36mOrganizacionesPage-5bWscPQq.js          [39m[1m[2m  1.50 kB[22m[1m[22m[2m │ gzip:  0.74 kB[22m
+[2mdist/[22m[2massets/[22m[36mtable-CIkvoOOu.js                       [39m[1m[2m  1.60 kB[22m[1m[22m[2m │ gzip:  0.59 kB[22m
+[2mdist/[22m[2massets/[22m[36mlogin-IILvk6DV.js                       [39m[1m[2m  1.64 kB[22m[1m[22m[2m │ gzip:  0.91 kB[22m
+[2mdist/[22m[2massets/[22m[36merror-state-Cqsy3qZv.js                 [39m[1m[2m  1.68 kB[22m[1m[22m[2m │ gzip:  0.83 kB[22m
+[2mdist/[22m[2massets/[22m[36mConectoresPage-CgKDT7oU.js              [39m[1m[2m  1.69 kB[22m[1m[22m[2m │ gzip:  0.85 kB[22m
+[2mdist/[22m[2massets/[22m[36mCostosPage-C2RRuQ90.js                  [39m[1m[2m  1.89 kB[22m[1m[22m[2m │ gzip:  0.94 kB[22m
+[2mdist/[22m[2massets/[22m[36mJobsPage-BWxvVgMC.js                    [39m[1m[2m  2.58 kB[22m[1m[22m[2m │ gzip:  1.27 kB[22m
+[2mdist/[22m[2massets/[22m[36mAprobacionesPage-DgilksiI.js            [39m[1m[2m  2.62 kB[22m[1m[22m[2m │ gzip:  1.22 kB[22m
+[2mdist/[22m[2massets/[22m[36museAdmin-NsfTRhVA.js                    [39m[1m[2m  2.70 kB[22m[1m[22m[2m │ gzip:  0.75 kB[22m
+[2mdist/[22m[2massets/[22m[36mPrivacyNoticePage-BCWnW9K3.js           [39m[1m[2m  2.74 kB[22m[1m[22m[2m │ gzip:  1.36 kB[22m
+[2mdist/[22m[2massets/[22m[36mFuentesFrescuraPage-DKlHtxWI.js         [39m[1m[2m  3.06 kB[22m[1m[22m[2m │ gzip:  1.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mAprobacionesBackofficePage-sGQKtIhr.js  [39m[1m[2m  3.23 kB[22m[1m[22m[2m │ gzip:  1.44 kB[22m
+[2mdist/[22m[2massets/[22m[36mDescubrimientoPage-CgqkQhti.js          [39m[1m[2m  3.41 kB[22m[1m[22m[2m │ gzip:  1.59 kB[22m
+[2mdist/[22m[2massets/[22m[36mIncidentesPage-CpuTn9DK.js              [39m[1m[2m  3.47 kB[22m[1m[22m[2m │ gzip:  1.55 kB[22m
+[2mdist/[22m[2massets/[22m[36mAuditoriaPage-DPfqhEht.js               [39m[1m[2m  3.54 kB[22m[1m[22m[2m │ gzip:  1.57 kB[22m
+[2mdist/[22m[2massets/[22m[36mFirmantesAutorizadosPage-Dq2q8Slv.js    [39m[1m[2m  3.70 kB[22m[1m[22m[2m │ gzip:  1.68 kB[22m
+[2mdist/[22m[2massets/[22m[36mMatchingPage-AyLGe7iX.js                [39m[1m[2m  3.77 kB[22m[1m[22m[2m │ gzip:  1.57 kB[22m
+[2mdist/[22m[2massets/[22m[36mAlertsList-D5hmwcvM.js                  [39m[1m[2m  3.77 kB[22m[1m[22m[2m │ gzip:  1.33 kB[22m
+[2mdist/[22m[2massets/[22m[36mSinAccesoPage-CbzhGqwQ.js               [39m[1m[2m  3.91 kB[22m[1m[22m[2m │ gzip:  1.68 kB[22m
+[2mdist/[22m[2massets/[22m[36mStepUpDialog-7PzXz0t4.js                [39m[1m[2m  4.03 kB[22m[1m[22m[2m │ gzip:  1.78 kB[22m
+[2mdist/[22m[2massets/[22m[36mExpedientePage-CSsTjVBo.js              [39m[1m[2m  4.10 kB[22m[1m[22m[2m │ gzip:  1.62 kB[22m
+[2mdist/[22m[2massets/[22m[36museCompany-DPg4CB7-.js                  [39m[1m[2m  4.13 kB[22m[1m[22m[2m │ gzip:  0.83 kB[22m
+[2mdist/[22m[2massets/[22m[36mGoogleCallbackPage-Dvpc2x3S.js          [39m[1m[2m  4.37 kB[22m[1m[22m[2m │ gzip:  1.80 kB[22m
+[2mdist/[22m[2massets/[22m[36mLoginPage-DT5gR4qH.js                   [39m[1m[2m  4.67 kB[22m[1m[22m[2m │ gzip:  2.08 kB[22m
+[2mdist/[22m[2massets/[22m[36mUsuariosRolesPage-BY5osqjl.js           [39m[1m[2m  4.74 kB[22m[1m[22m[2m │ gzip:  2.08 kB[22m
+[2mdist/[22m[2massets/[22m[36mTermsPage-55dV-j7y.js                   [39m[1m[2m  5.24 kB[22m[1m[22m[2m │ gzip:  2.37 kB[22m
+[2mdist/[22m[2massets/[22m[36mEntregasPage-Dbz7fyqD.js                [39m[1m[2m  5.25 kB[22m[1m[22m[2m │ gzip:  2.36 kB[22m
+[2mdist/[22m[2massets/[22m[36mDocumentosVigenciasPage-DylzhkKS.js     [39m[1m[2m  5.26 kB[22m[1m[22m[2m │ gzip:  2.31 kB[22m
+[2mdist/[22m[2massets/[22m[36mDemoPage-DYpPCvQU.js                    [39m[1m[2m  5.41 kB[22m[1m[22m[2m │ gzip:  2.46 kB[22m
+[2mdist/[22m[2massets/[22m[36mAgentesHerramientasPage-Dz0CavFL.js     [39m[1m[2m  5.69 kB[22m[1m[22m[2m │ gzip:  2.15 kB[22m
+[2mdist/[22m[2massets/[22m[36mConvocatoriaDetallePage-CLrVh-JX.js     [39m[1m[2m  5.71 kB[22m[1m[22m[2m │ gzip:  2.18 kB[22m
+[2mdist/[22m[2massets/[22m[36mPaqueteDescargablePage-BKjNRCiS.js      [39m[1m[2m  5.73 kB[22m[1m[22m[2m │ gzip:  2.50 kB[22m
+[2mdist/[22m[2massets/[22m[36mRegistroPage-BADh5Lsa.js                [39m[1m[2m  5.85 kB[22m[1m[22m[2m │ gzip:  2.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mTarifasAprobadasPage-DvBSAZUQ.js        [39m[1m[2m  5.88 kB[22m[1m[22m[2m │ gzip:  2.51 kB[22m
+[2mdist/[22m[2massets/[22m[36mPerfilCapacidadesPage-BEZ7_PYa.js       [39m[1m[2m  6.49 kB[22m[1m[22m[2m │ gzip:  2.31 kB[22m
+[2mdist/[22m[2massets/[22m[36mCumplimientoDocumentalPage-BktNavGD.js  [39m[1m[2m  6.53 kB[22m[1m[22m[2m │ gzip:  2.39 kB[22m
+[2mdist/[22m[2massets/[22m[36mGoNoGoPage-BEEp2ZZt.js                  [39m[1m[2m  6.61 kB[22m[1m[22m[2m │ gzip:  2.75 kB[22m
+[2mdist/[22m[2massets/[22m[36mRevisionPage-CdCK33v6.js                [39m[1m[2m  7.40 kB[22m[1m[22m[2m │ gzip:  2.92 kB[22m
+[2mdist/[22m[2massets/[22m[36museExpediente-BBQToWBC.js               [39m[1m[2m  7.80 kB[22m[1m[22m[2m │ gzip:  1.67 kB[22m
+[2mdist/[22m[2massets/[22m[36mPanelPage-BDmZfnrB.js                   [39m[1m[2m  8.14 kB[22m[1m[22m[2m │ gzip:  3.14 kB[22m
+[2mdist/[22m[2massets/[22m[36mSeguimientoPage-D_NAQBZ4.js             [39m[1m[2m 10.03 kB[22m[1m[22m[2m │ gzip:  3.43 kB[22m
+[2mdist/[22m[2massets/[22m[36mAnalisisBasesPage-YnxRDNyZ.js           [39m[1m[2m 10.96 kB[22m[1m[22m[2m │ gzip:  4.04 kB[22m
+[2mdist/[22m[2massets/[22m[36mRedaccionPage-BO1VyJM-.js               [39m[1m[2m 11.46 kB[22m[1m[22m[2m │ gzip:  4.00 kB[22m
+[2mdist/[22m[2massets/[22m[36mOnboardingPage-BuXZXjx3.js              [39m[1m[2m 12.66 kB[22m[1m[22m[2m │ gzip:  4.39 kB[22m
+[2mdist/[22m[2massets/[22m[36mLandingPage-B8JkiqcW.js                 [39m[1m[2m 17.32 kB[22m[1m[22m[2m │ gzip:  5.22 kB[22m
+[2mdist/[22m[2massets/[22m[36mConfiguracionPage-BqFaBTkx.js           [39m[1m[2m 32.88 kB[22m[1m[22m[2m │ gzip: 12.79 kB[22m
+[2mdist/[22m[2massets/[22m[36mform-633ohvI7.js                        [39m[1m[2m 38.11 kB[22m[1m[22m[2m │ gzip: 13.68 kB[22m
+[2mdist/[22m[2massets/[22m[36mquery-D8y_6FMe.js                       [39m[1m[2m 49.11 kB[22m[1m[22m[2m │ gzip: 15.06 kB[22m
+[2mdist/[22m[2massets/[22m[36mindex-B6BzStq4.js                       [39m[1m[2m216.48 kB[22m[1m[22m[2m │ gzip: 62.58 kB[22m
+[2mdist/[22m[2massets/[22m[36mapp-platform-BVUrvij4.js                [39m[1m[2m256.45 kB[22m[1m[22m[2m │ gzip: 82.61 kB[22m
+[2mdist/[22m[2massets/[22m[36mbrowser-CN7sUZHg.js                     [39m[1m[2m296.75 kB[22m[1m[22m[2m │ gzip: 97.77 kB[22m
+[32m✓ built in 1.85s[39m
+-- exit code: 0
+
+== resultado de la compuerta (sin E2E): OK
+
+==================================================================
+== E2E completo: npm run -w apps/web test:e2e:full
+== (apps/api real con PGlite en memoria + proveedor OIDC falso en loopback)
+==================================================================
+
+> @atiende/web@0.1.0 test:e2e:full
+> node scripts/e2e-full.mjs
+
+[test:e2e:full] proveedor OIDC falso (solo pruebas) escuchando en http://127.0.0.1:64570
+[test:e2e:full] arrancando apps/api real (PGlite en memoria) en http://127.0.0.1:3592…
+[test:e2e:full] apps/api lista (GET /healthz → 200).
+[test:e2e:full] corriendo build + Playwright contra http://127.0.0.1:3592 (web servido en http://127.0.0.1:4272)…
+
+> @atiende/web@0.1.0 test:e2e
+> npm run build && playwright test
+
+
+> @atiende/web@0.1.0 build
+> tsc -b && vite build
+
+[36mvite v6.4.3 [32mbuilding for production...[36m[39m
+transforming...
+[32m✓[39m 2129 modules transformed.
+rendering chunks...
+computing gzip size...
+[2mdist/[22m[32mindex.html                                     [39m[1m[2m  1.37 kB[22m[1m[22m[2m │ gzip:  0.64 kB[22m
+[2mdist/[22m[2massets/[22m[35mlogin-BcYFrIpy.css                      [39m[1m[2m  0.19 kB[22m[1m[22m[2m │ gzip:  0.17 kB[22m
+[2mdist/[22m[2massets/[22m[35mindex-C7zvpZg6.css                      [39m[1m[2m 37.93 kB[22m[1m[22m[2m │ gzip:  7.71 kB[22m
+[2mdist/[22m[2massets/[22m[36mplus-DmcvFsA1.js                        [39m[1m[2m  0.32 kB[22m[1m[22m[2m │ gzip:  0.26 kB[22m
+[2mdist/[22m[2massets/[22m[36marrow-left-B3K5Toj4.js                  [39m[1m[2m  0.33 kB[22m[1m[22m[2m │ gzip:  0.27 kB[22m
+[2mdist/[22m[2massets/[22m[36marrow-right-Clo3hVFI.js                 [39m[1m[2m  0.33 kB[22m[1m[22m[2m │ gzip:  0.27 kB[22m
+[2mdist/[22m[2massets/[22m[36mcircle-check-D_0ymHOC.js                [39m[1m[2m  0.34 kB[22m[1m[22m[2m │ gzip:  0.27 kB[22m
+[2mdist/[22m[2massets/[22m[36mcircle-play-C_cUhTzT.js                 [39m[1m[2m  0.36 kB[22m[1m[22m[2m │ gzip:  0.27 kB[22m
+[2mdist/[22m[2massets/[22m[36mlabel-CxmuA_Cb.js                       [39m[1m[2m  0.37 kB[22m[1m[22m[2m │ gzip:  0.27 kB[22m
+[2mdist/[22m[2massets/[22m[36mmail-B33pfTui.js                        [39m[1m[2m  0.38 kB[22m[1m[22m[2m │ gzip:  0.30 kB[22m
+[2mdist/[22m[2massets/[22m[36mupload-CV2Lpx31.js                      [39m[1m[2m  0.43 kB[22m[1m[22m[2m │ gzip:  0.32 kB[22m
+[2mdist/[22m[2massets/[22m[36muser-plus-8XvfDOYw.js                   [39m[1m[2m  0.48 kB[22m[1m[22m[2m │ gzip:  0.33 kB[22m
+[2mdist/[22m[2massets/[22m[36mloading-state-CzZVX_Qs.js               [39m[1m[2m  0.49 kB[22m[1m[22m[2m │ gzip:  0.33 kB[22m
+[2mdist/[22m[2massets/[22m[36mdatetime-phlS3Qpi.js                    [39m[1m[2m  0.52 kB[22m[1m[22m[2m │ gzip:  0.27 kB[22m
+[2mdist/[22m[2massets/[22m[36mtrash-2-D9DcZplR.js                     [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mtextarea-Byow5-G_.js                    [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36minput-DFRdAXq_.js                       [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36museMatching-BGe8Et09.js                 [39m[1m[2m  0.54 kB[22m[1m[22m[2m │ gzip:  0.31 kB[22m
+[2mdist/[22m[2massets/[22m[36mgoogle-CGAjYEm7.js                      [39m[1m[2m  0.55 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mSectionHeader-4eN96vIM.js               [39m[1m[2m  0.56 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36museAuditLog-CHjWdHSR.js                 [39m[1m[2m  0.65 kB[22m[1m[22m[2m │ gzip:  0.38 kB[22m
+[2mdist/[22m[2massets/[22m[36museMemberships-_JYH5WAj.js              [39m[1m[2m  0.70 kB[22m[1m[22m[2m │ gzip:  0.33 kB[22m
+[2mdist/[22m[2massets/[22m[36museDocumentMeta-DG6BM3nP.js             [39m[1m[2m  0.74 kB[22m[1m[22m[2m │ gzip:  0.36 kB[22m
+[2mdist/[22m[2massets/[22m[36mvalidateDocumentFile-BiFIh6bU.js        [39m[1m[2m  0.88 kB[22m[1m[22m[2m │ gzip:  0.53 kB[22m
+[2mdist/[22m[2massets/[22m[36mTenderSelect-DlHy2Ays.js                [39m[1m[2m  0.99 kB[22m[1m[22m[2m │ gzip:  0.61 kB[22m
+[2mdist/[22m[2massets/[22m[36mcard-BXNEu-pa.js                        [39m[1m[2m  1.09 kB[22m[1m[22m[2m │ gzip:  0.45 kB[22m
+[2mdist/[22m[2massets/[22m[36mtabs-CKzG8C1A.js                        [39m[1m[2m  1.09 kB[22m[1m[22m[2m │ gzip:  0.47 kB[22m
+[2mdist/[22m[2massets/[22m[36museTwoFactor-k9ujPUCq.js                [39m[1m[2m  1.23 kB[22m[1m[22m[2m │ gzip:  0.59 kB[22m
+[2mdist/[22m[2massets/[22m[36mNotFoundPage-DupEytvT.js                [39m[1m[2m  1.23 kB[22m[1m[22m[2m │ gzip:  0.70 kB[22m
+[2mdist/[22m[2massets/[22m[36mAiDisclosureNote-C54lmEon.js            [39m[1m[2m  1.24 kB[22m[1m[22m[2m │ gzip:  0.74 kB[22m
+[2mdist/[22m[2massets/[22m[36mempty-state-D3EaClF2.js                 [39m[1m[2m  1.27 kB[22m[1m[22m[2m │ gzip:  0.72 kB[22m
+[2mdist/[22m[2massets/[22m[36mrenderSimpleMarkdown-4zQ9nPbL.js        [39m[1m[2m  1.32 kB[22m[1m[22m[2m │ gzip:  0.68 kB[22m
+[2mdist/[22m[2massets/[22m[36museTenders-C9BJmqMe.js                  [39m[1m[2m  1.42 kB[22m[1m[22m[2m │ gzip:  0.54 kB[22m
+[2mdist/[22m[2massets/[22m[36mOrganizacionesPage-5bWscPQq.js          [39m[1m[2m  1.50 kB[22m[1m[22m[2m │ gzip:  0.74 kB[22m
+[2mdist/[22m[2massets/[22m[36mtable-CIkvoOOu.js                       [39m[1m[2m  1.60 kB[22m[1m[22m[2m │ gzip:  0.59 kB[22m
+[2mdist/[22m[2massets/[22m[36mlogin-IILvk6DV.js                       [39m[1m[2m  1.64 kB[22m[1m[22m[2m │ gzip:  0.91 kB[22m
+[2mdist/[22m[2massets/[22m[36merror-state-Cqsy3qZv.js                 [39m[1m[2m  1.68 kB[22m[1m[22m[2m │ gzip:  0.83 kB[22m
+[2mdist/[22m[2massets/[22m[36mConectoresPage-CgKDT7oU.js              [39m[1m[2m  1.69 kB[22m[1m[22m[2m │ gzip:  0.85 kB[22m
+[2mdist/[22m[2massets/[22m[36mCostosPage-C2RRuQ90.js                  [39m[1m[2m  1.89 kB[22m[1m[22m[2m │ gzip:  0.94 kB[22m
+[2mdist/[22m[2massets/[22m[36mJobsPage-BWxvVgMC.js                    [39m[1m[2m  2.58 kB[22m[1m[22m[2m │ gzip:  1.27 kB[22m
+[2mdist/[22m[2massets/[22m[36mAprobacionesPage-DgilksiI.js            [39m[1m[2m  2.62 kB[22m[1m[22m[2m │ gzip:  1.22 kB[22m
+[2mdist/[22m[2massets/[22m[36museAdmin-NsfTRhVA.js                    [39m[1m[2m  2.70 kB[22m[1m[22m[2m │ gzip:  0.75 kB[22m
+[2mdist/[22m[2massets/[22m[36mPrivacyNoticePage-BCWnW9K3.js           [39m[1m[2m  2.74 kB[22m[1m[22m[2m │ gzip:  1.36 kB[22m
+[2mdist/[22m[2massets/[22m[36mFuentesFrescuraPage-DKlHtxWI.js         [39m[1m[2m  3.06 kB[22m[1m[22m[2m │ gzip:  1.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mAprobacionesBackofficePage-sGQKtIhr.js  [39m[1m[2m  3.23 kB[22m[1m[22m[2m │ gzip:  1.44 kB[22m
+[2mdist/[22m[2massets/[22m[36mDescubrimientoPage-CgqkQhti.js          [39m[1m[2m  3.41 kB[22m[1m[22m[2m │ gzip:  1.59 kB[22m
+[2mdist/[22m[2massets/[22m[36mIncidentesPage-CpuTn9DK.js              [39m[1m[2m  3.47 kB[22m[1m[22m[2m │ gzip:  1.55 kB[22m
+[2mdist/[22m[2massets/[22m[36mAuditoriaPage-DPfqhEht.js               [39m[1m[2m  3.54 kB[22m[1m[22m[2m │ gzip:  1.57 kB[22m
+[2mdist/[22m[2massets/[22m[36mFirmantesAutorizadosPage-Dq2q8Slv.js    [39m[1m[2m  3.70 kB[22m[1m[22m[2m │ gzip:  1.68 kB[22m
+[2mdist/[22m[2massets/[22m[36mMatchingPage-AyLGe7iX.js                [39m[1m[2m  3.77 kB[22m[1m[22m[2m │ gzip:  1.57 kB[22m
+[2mdist/[22m[2massets/[22m[36mAlertsList-D5hmwcvM.js                  [39m[1m[2m  3.77 kB[22m[1m[22m[2m │ gzip:  1.33 kB[22m
+[2mdist/[22m[2massets/[22m[36mSinAccesoPage-CbzhGqwQ.js               [39m[1m[2m  3.91 kB[22m[1m[22m[2m │ gzip:  1.68 kB[22m
+[2mdist/[22m[2massets/[22m[36mStepUpDialog-7PzXz0t4.js                [39m[1m[2m  4.03 kB[22m[1m[22m[2m │ gzip:  1.78 kB[22m
+[2mdist/[22m[2massets/[22m[36mExpedientePage-CSsTjVBo.js              [39m[1m[2m  4.10 kB[22m[1m[22m[2m │ gzip:  1.62 kB[22m
+[2mdist/[22m[2massets/[22m[36museCompany-DPg4CB7-.js                  [39m[1m[2m  4.13 kB[22m[1m[22m[2m │ gzip:  0.83 kB[22m
+[2mdist/[22m[2massets/[22m[36mGoogleCallbackPage-Dvpc2x3S.js          [39m[1m[2m  4.37 kB[22m[1m[22m[2m │ gzip:  1.80 kB[22m
+[2mdist/[22m[2massets/[22m[36mLoginPage-DT5gR4qH.js                   [39m[1m[2m  4.67 kB[22m[1m[22m[2m │ gzip:  2.08 kB[22m
+[2mdist/[22m[2massets/[22m[36mUsuariosRolesPage-BY5osqjl.js           [39m[1m[2m  4.74 kB[22m[1m[22m[2m │ gzip:  2.08 kB[22m
+[2mdist/[22m[2massets/[22m[36mTermsPage-55dV-j7y.js                   [39m[1m[2m  5.24 kB[22m[1m[22m[2m │ gzip:  2.37 kB[22m
+[2mdist/[22m[2massets/[22m[36mEntregasPage-Dbz7fyqD.js                [39m[1m[2m  5.25 kB[22m[1m[22m[2m │ gzip:  2.36 kB[22m
+[2mdist/[22m[2massets/[22m[36mDocumentosVigenciasPage-DylzhkKS.js     [39m[1m[2m  5.26 kB[22m[1m[22m[2m │ gzip:  2.31 kB[22m
+[2mdist/[22m[2massets/[22m[36mDemoPage-DYpPCvQU.js                    [39m[1m[2m  5.41 kB[22m[1m[22m[2m │ gzip:  2.46 kB[22m
+[2mdist/[22m[2massets/[22m[36mAgentesHerramientasPage-Dz0CavFL.js     [39m[1m[2m  5.69 kB[22m[1m[22m[2m │ gzip:  2.15 kB[22m
+[2mdist/[22m[2massets/[22m[36mConvocatoriaDetallePage-CLrVh-JX.js     [39m[1m[2m  5.71 kB[22m[1m[22m[2m │ gzip:  2.18 kB[22m
+[2mdist/[22m[2massets/[22m[36mPaqueteDescargablePage-BKjNRCiS.js      [39m[1m[2m  5.73 kB[22m[1m[22m[2m │ gzip:  2.50 kB[22m
+[2mdist/[22m[2massets/[22m[36mRegistroPage-BADh5Lsa.js                [39m[1m[2m  5.85 kB[22m[1m[22m[2m │ gzip:  2.34 kB[22m
+[2mdist/[22m[2massets/[22m[36mTarifasAprobadasPage-DvBSAZUQ.js        [39m[1m[2m  5.88 kB[22m[1m[22m[2m │ gzip:  2.51 kB[22m
+[2mdist/[22m[2massets/[22m[36mPerfilCapacidadesPage-BEZ7_PYa.js       [39m[1m[2m  6.49 kB[22m[1m[22m[2m │ gzip:  2.31 kB[22m
+[2mdist/[22m[2massets/[22m[36mCumplimientoDocumentalPage-BktNavGD.js  [39m[1m[2m  6.53 kB[22m[1m[22m[2m │ gzip:  2.39 kB[22m
+[2mdist/[22m[2massets/[22m[36mGoNoGoPage-BEEp2ZZt.js                  [39m[1m[2m  6.61 kB[22m[1m[22m[2m │ gzip:  2.75 kB[22m
+[2mdist/[22m[2massets/[22m[36mRevisionPage-CdCK33v6.js                [39m[1m[2m  7.40 kB[22m[1m[22m[2m │ gzip:  2.92 kB[22m
+[2mdist/[22m[2massets/[22m[36museExpediente-BBQToWBC.js               [39m[1m[2m  7.80 kB[22m[1m[22m[2m │ gzip:  1.67 kB[22m
+[2mdist/[22m[2massets/[22m[36mPanelPage-BDmZfnrB.js                   [39m[1m[2m  8.14 kB[22m[1m[22m[2m │ gzip:  3.14 kB[22m
+[2mdist/[22m[2massets/[22m[36mSeguimientoPage-D_NAQBZ4.js             [39m[1m[2m 10.03 kB[22m[1m[22m[2m │ gzip:  3.43 kB[22m
+[2mdist/[22m[2massets/[22m[36mAnalisisBasesPage-YnxRDNyZ.js           [39m[1m[2m 10.96 kB[22m[1m[22m[2m │ gzip:  4.04 kB[22m
+[2mdist/[22m[2massets/[22m[36mRedaccionPage-BO1VyJM-.js               [39m[1m[2m 11.46 kB[22m[1m[22m[2m │ gzip:  4.00 kB[22m
+[2mdist/[22m[2massets/[22m[36mOnboardingPage-BuXZXjx3.js              [39m[1m[2m 12.66 kB[22m[1m[22m[2m │ gzip:  4.39 kB[22m
+[2mdist/[22m[2massets/[22m[36mLandingPage-B8JkiqcW.js                 [39m[1m[2m 17.32 kB[22m[1m[22m[2m │ gzip:  5.22 kB[22m
+[2mdist/[22m[2massets/[22m[36mConfiguracionPage-BqFaBTkx.js           [39m[1m[2m 32.88 kB[22m[1m[22m[2m │ gzip: 12.79 kB[22m
+[2mdist/[22m[2massets/[22m[36mform-633ohvI7.js                        [39m[1m[2m 38.11 kB[22m[1m[22m[2m │ gzip: 13.68 kB[22m
+[2mdist/[22m[2massets/[22m[36mquery-D8y_6FMe.js                       [39m[1m[2m 49.11 kB[22m[1m[22m[2m │ gzip: 15.06 kB[22m
+[2mdist/[22m[2massets/[22m[36mindex-B6BzStq4.js                       [39m[1m[2m216.48 kB[22m[1m[22m[2m │ gzip: 62.58 kB[22m
+[2mdist/[22m[2massets/[22m[36mapp-platform-BVUrvij4.js                [39m[1m[2m256.45 kB[22m[1m[22m[2m │ gzip: 82.61 kB[22m
+[2mdist/[22m[2massets/[22m[36mbrowser-CN7sUZHg.js                     [39m[1m[2m296.75 kB[22m[1m[22m[2m │ gzip: 97.77 kB[22m
+[32m✓ built in 1.99s[39m
+
+[2mRunning [22m137[2m tests using [22m1[2m worker[22m
+
+  [32m✓[39m  [2m  1 [22m[chromium] › e2e/ai-disclosure.spec.ts:10:5 › Disclosure de IA (W-15) › /preparacion/redaccion muestra el aviso de uso de IA[2m (1.2s)[22m
+  [32m✓[39m  [2m  2 [22m[chromium] › e2e/ai-disclosure.spec.ts:10:5 › Disclosure de IA (W-15) › /preparacion/revision muestra el aviso de uso de IA[2m (639ms)[22m
+  [32m✓[39m  [2m  3 [22m[chromium] › e2e/ai-disclosure.spec.ts:10:5 › Disclosure de IA (W-15) › /evaluacion/analisis-bases muestra el aviso de uso de IA[2m (636ms)[22m
+  [32m✓[39m  [2m  4 [22m[chromium] › e2e/contraste.spec.ts:8:3 › Contraste de color (W-05, W-06) › el wordmark en modo oscuro no tiene violaciones serias de contraste[2m (1.5s)[22m
+  [32m✓[39m  [2m  5 [22m[chromium] › e2e/contraste.spec.ts:22:3 › Contraste de color (W-05, W-06) › los badges de estado de fuente (CAPTCHA / cambio de interfaz) no tienen violaciones serias de contraste[2m (970ms)[22m
+  [32m✓[39m  [2m  6 [22m[chromium] › e2e/contraste.spec.ts:37:3 › Contraste de color (W-05, W-06) › los 5 estados de fuente (incluido el badge destructive) no tienen violaciones serias de contraste en modo oscuro[2m (1.4s)[22m
+  [32m✓[39m  [2m  7 [22m[chromium] › e2e/csp.spec.ts:11:3 › Content-Security-Policy real (WI-01) › la respuesta HTTP de vite preview trae una CSP real sin 'unsafe-inline' en script-src[2m (1.0s)[22m
+  [32m✓[39m  [2m  8 [22m[chromium] › e2e/csp.spec.ts:21:3 › Content-Security-Policy real (WI-01) › el documento sirve el meta tag CSP (defensa en profundidad para hosting estático sin cabeceras propias)[2m (962ms)[22m
+  [32m✓[39m  [2m  9 [22m[chromium] › e2e/csp.spec.ts:28:3 › Content-Security-Policy real (WI-01) › un <script> inline inyectado dinámicamente NO se ejecuta bajo la CSP real[2m (1.0s)[22m
+  [32m✓[39m  [2m 10 [22m[chromium] › e2e/dashboard.spec.ts:24:3 › Panel/Dashboard real (REQ-169) › muestra KPIs reales calculados sobre la convocatoria sembrada de orgD[2m (1.2s)[22m
+  [32m✓[39m  [2m 11 [22m[chromium] › e2e/dashboard.spec.ts:53:3 › Panel/Dashboard real (REQ-169) › sin violaciones serious/critical de axe, y deja la organización activa de vuelta en orgA[2m (1.6s)[22m
+  [32m✓[39m  [2m 12 [22m[chromium] › e2e/demo.spec.ts:9:3 › Demo de solo lectura (/demo) › etiqueta los datos de ejemplo y muestra KPIs con datos ficticios[2m (929ms)[22m
+  [32m✓[39m  [2m 13 [22m[chromium] › e2e/demo.spec.ts:18:3 › Demo de solo lectura (/demo) › nunca mezcla con datos reales: el namespace /demo-api/* es propio[2m (936ms)[22m
+  [32m✓[39m  [2m 14 [22m[chromium] › e2e/demo.spec.ts:35:3 › Demo de solo lectura (/demo) › enlaza de vuelta a inicio y a iniciar sesión[2m (919ms)[22m
+  [32m✓[39m  [2m 15 [22m[chromium] › e2e/demo.spec.ts:42:3 › Demo de solo lectura (/demo) › sin violaciones serious/critical de axe[2m (1.2s)[22m
+  [32m✓[39m  [2m 16 [22m[chromium] › e2e/demo.spec.ts:49:3 › Demo de solo lectura (/demo) › móvil 390×844: sin scroll horizontal[2m (910ms)[22m
+  [32m✓[39m  [2m 17 [22m[chromium] › e2e/expediente-flujo-completo.spec.ts:85:3 › Expediente — flujo completo real (ronda 5) › preparación: admin agrega un firmante autorizado en la organización C[2m (1.8s)[22m
+  [32m✓[39m  [2m 18 [22m[chromium] › e2e/expediente-flujo-completo.spec.ts:97:3 › Expediente — flujo completo real (ronda 5) › preparación: admin propone y aprueba una tarifa con step-up 2FA (dato real para la propuesta económica)[2m (2.4s)[22m
+  [32m✓[39m  [2m 19 [22m[chromium] › e2e/expediente-flujo-completo.spec.ts:114:3 › Expediente — flujo completo real (ronda 5) › Análisis de bases: sube el documento y construye la matriz de requisitos (sin OCR necesario)[2m (2.3s)[22m
+  [32m✓[39m  [2m 20 [22m[chromium] › e2e/expediente-flujo-completo.spec.ts:139:3 › Expediente — flujo completo real (ronda 5) › A14: el paquete nunca aparece "Listo" con el expediente todavía incompleto[2m (2.9s)[22m
+  [32m✓[39m  [2m 21 [22m[chromium] › e2e/expediente-flujo-completo.spec.ts:170:3 › Expediente — flujo completo real (ronda 5) › Redacción: genera la propuesta técnica mapeando el requisito a un dato real de empresa[2m (3.2s)[22m
+  [32m✓[39m  [2m 22 [22m[chromium] › e2e/expediente-flujo-completo.spec.ts:197:3 › Expediente — flujo completo real (ronda 5) › Redacción: genera la propuesta económica con la tarifa aprobada (sin conceptos bloqueados)[2m (3.1s)[22m
+  [32m✓[39m  [2m 23 [22m[chromium] › e2e/expediente-flujo-completo.spec.ts:227:3 › Expediente — flujo completo real (ronda 5) › Cumplimiento documental: ejecuta el checklist de integridad real y queda en verde[2m (1.8s)[22m
+  [32m✓[39m  [2m 24 [22m[chromium] › e2e/expediente-flujo-completo.spec.ts:238:3 › Expediente — flujo completo real (ronda 5) › Revisión: writer solicita revisión del expediente[2m (2.6s)[22m
+  [32m✓[39m  [2m 25 [22m[chromium] › e2e/expediente-flujo-completo.spec.ts:250:3 › Expediente — flujo completo real (ronda 5) › A12: el rol writer no puede aprobar el expediente (la UI ni siquiera ofrece el botón)[2m (2.4s)[22m
+  [32m✓[39m  [2m 26 [22m[chromium] › e2e/expediente-flujo-completo.spec.ts:273:3 › Expediente — flujo completo real (ronda 5) › admin aprueba el expediente con step-up 2FA (actor distinto de quien solicitó la revisión)[2m (11.4s)[22m
+  [32m✓[39m  [2m 27 [22m[chromium] › e2e/expediente-flujo-completo.spec.ts:285:3 › Expediente — flujo completo real (ronda 5) › el paquete pasa a "Listo para presentar" con el expediente completo y aprobado[2m (2.0s)[22m
+  [32m✓[39m  [2m 28 [22m[chromium] › e2e/expediente-flujo-completo.spec.ts:296:3 › Expediente — flujo completo real (ronda 5) › descarga autenticada del paquete listo[2m (1.8s)[22m
+  [32m✓[39m  [2m 29 [22m[chromium] › e2e/expediente-flujo-completo.spec.ts:310:3 › Expediente — flujo completo real (ronda 5) › declara la presentación del expediente (nunca se envía nada a un portal externo)[2m (1.8s)[22m
+  [32m✓[39m  [2m 30 [22m[chromium] › e2e/expediente-flujo-completo.spec.ts:326:3 › Expediente — flujo completo real (ronda 5) › A11: editar una sección tras aprobar invalida la aprobación y el paquete vuelve a "Borrador"[2m (3.6s)[22m
+  [32m✓[39m  [2m 31 [22m[chromium] › e2e/expediente-flujo-completo.spec.ts:352:3 › Expediente — flujo completo real (ronda 5) › 320×568 y 390×844: Análisis de bases y Redacción sin scroll horizontal con datos reales[2m (4.0s)[22m
+  [32m✓[39m  [2m 32 [22m[chromium] › e2e/expediente-flujo-completo.spec.ts:382:3 › Expediente — flujo completo real (ronda 5) › limpieza: restaura la organización activa a A para no afectar otras suites[2m (2.3s)[22m
+  [32m✓[39m  [2m 33 [22m[chromium] › e2e/google-login.spec.ts:62:3 › Login con Google contra apps/api real (REQ-172..180, D-09) › cuenta de Google nueva: login → /sin-acceso → crear organización → panel[2m (1.9s)[22m
+  [32m✓[39m  [2m 34 [22m[chromium] › e2e/google-login.spec.ts:98:3 › Login con Google contra apps/api real (REQ-172..180, D-09) › REQ-176: una cuenta existente con 2FA enrolado exige el segundo factor antes de completar el login con Google[2m (12.6s)[22m
+  [32m✓[39m  [2m 35 [22m[chromium] › e2e/google-login.spec.ts:134:3 › Login con Google contra apps/api real (REQ-172..180, D-09) › adversarial: un `state` inventado nunca abre sesión (se consumió, expiró o jamás existió)[2m (970ms)[22m
+  [32m✓[39m  [2m 36 [22m[chromium] › e2e/heading-order.spec.ts:12:5 › Orden de encabezados (W-07) › /convocatorias/fuentes-frescura no tiene salto de nivel de encabezado[2m (811ms)[22m
+  [32m✓[39m  [2m 37 [22m[chromium] › e2e/heading-order.spec.ts:12:5 › Orden de encabezados (W-07) › /entrega/paquete-descargable no tiene salto de nivel de encabezado[2m (792ms)[22m
+  [32m✓[39m  [2m 38 [22m[chromium] › e2e/landing.spec.ts:9:3 › Landing pública (/) › muestra el hero real y navega a /demo y /login[2m (991ms)[22m
+  [32m✓[39m  [2m 39 [22m[chromium] › e2e/landing.spec.ts:21:3 › Landing pública (/) › enlaza el pie a /privacidad y /legal/terminos[2m (1.0s)[22m
+  [32m✓[39m  [2m 40 [22m[chromium] › e2e/landing.spec.ts:32:3 › Landing pública (/) › escritorio (1280×800): sin violaciones serious/critical de axe[2m (1.2s)[22m
+  [32m✓[39m  [2m 41 [22m[chromium] › e2e/landing.spec.ts:39:3 › Landing pública (/) › móvil 390×844: sin scroll horizontal ni violaciones serious/critical[2m (1.2s)[22m
+  [32m✓[39m  [2m 42 [22m[chromium] › e2e/landing.spec.ts:48:3 › Landing pública (/) › móvil 320×568 (el más angosto soportado): sin scroll horizontal[2m (907ms)[22m
+  [32m✓[39m  [2m 43 [22m[chromium] › e2e/landing.spec.ts:55:3 › Landing pública (/) › el formulario de solicitar demo queda deshabilitado (sin backend de contacto)[2m (929ms)[22m
+  [32m✓[39m  [2m 44 [22m[chromium] › e2e/landing.spec.ts:61:3 › Landing pública (/) › una sesión activa redirige la landing a /panel[2m (667ms)[22m
+  [32m✓[39m  [2m 45 [22m[chromium] › e2e/login-landmarks.spec.ts:13:1 › /login tiene landmark <main>, un <h1> real y ningún contenido fuera de landmarks (W-08)[2m (1.1s)[22m
+  [32m✓[39m  [2m 46 [22m[chromium] › e2e/login-landmarks.spec.ts:24:1 › /registro tiene landmark <main>, un <h1> real y ningún contenido fuera de landmarks (W-08)[2m (1.1s)[22m
+  [32m✓[39m  [2m 47 [22m[chromium] › e2e/login-parity.spec.ts:12:3 › Paridad visual del login (W-11) › escritorio: layout de pantalla partida con kicker, titular y lámina decorativa[2m (991ms)[22m
+  [32m✓[39m  [2m 48 [22m[chromium] › e2e/login-parity.spec.ts:23:3 › Paridad visual del login (W-11) › móvil (390×844): la lámina decorativa se oculta y no hay scroll horizontal[2m (985ms)[22m
+  [32m✓[39m  [2m 49 [22m[chromium] › e2e/login-parity.spec.ts:43:3 › Paridad visual del login (W-11) › métodos de acceso con backend real: contraseña + Google, sin tabs ni enlace mágico[2m (990ms)[22m
+  [32m✓[39m  [2m 50 [22m[chromium] › e2e/onboarding.spec.ts:26:3 › Onboarding: primer login sin organizaciones › wizard completo hasta el checklist real del panel[2m (2.2s)[22m
+  [32m✓[39m  [2m 51 [22m[chromium] › e2e/recorrido.spec.ts:32:3 › Login sin sesión (W-14/ronda 3) › /login muestra el formulario real cuando no hay sesión[2m (968ms)[22m
+  [32m✓[39m  [2m 52 [22m[chromium] › e2e/recorrido.spec.ts:40:3 › Recorrido esencial (W-14) › shell: con sesión, /panel muestra el AppShell completo[2m (662ms)[22m
+  [32m✓[39m  [2m 53 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Panel (/panel) carga sin violaciones serious/critical[2m (1.0s)[22m
+  [32m✓[39m  [2m 54 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Perfil y capacidades (/empresa/perfil-capacidades) carga sin violaciones serious/critical[2m (1.1s)[22m
+  [32m✓[39m  [2m 55 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Documentos y vigencias (/empresa/documentos-vigencias) carga sin violaciones serious/critical[2m (1.2s)[22m
+  [32m✓[39m  [2m 56 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Firmantes autorizados (/empresa/firmantes-autorizados) carga sin violaciones serious/critical[2m (1.1s)[22m
+  [32m✓[39m  [2m 57 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Tarifas aprobadas (/empresa/tarifas-aprobadas) carga sin violaciones serious/critical[2m (1.1s)[22m
+  [32m✓[39m  [2m 58 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Descubrimiento (/convocatorias/descubrimiento) carga sin violaciones serious/critical[2m (1.0s)[22m
+  [32m✓[39m  [2m 59 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Matching (/convocatorias/matching) carga sin violaciones serious/critical[2m (966ms)[22m
+  [32m✓[39m  [2m 60 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Fuentes y frescura (/convocatorias/fuentes-frescura) carga sin violaciones serious/critical[2m (977ms)[22m
+  [32m✓[39m  [2m 61 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Go/No-Go (/evaluacion/go-no-go) carga sin violaciones serious/critical[2m (968ms)[22m
+  [32m✓[39m  [2m 62 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Análisis de bases (/evaluacion/analisis-bases) carga sin violaciones serious/critical[2m (990ms)[22m
+  [32m✓[39m  [2m 63 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Cumplimiento documental (/preparacion/cumplimiento-documental) carga sin violaciones serious/critical[2m (981ms)[22m
+  [32m✓[39m  [2m 64 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Redacción (/preparacion/redaccion) carga sin violaciones serious/critical[2m (956ms)[22m
+  [32m✓[39m  [2m 65 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Revisión (/preparacion/revision) carga sin violaciones serious/critical[2m (961ms)[22m
+  [32m✓[39m  [2m 66 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Expediente (/preparacion/expediente) carga sin violaciones serious/critical[2m (967ms)[22m
+  [32m✓[39m  [2m 67 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Aprobaciones (/preparacion/aprobaciones) carga sin violaciones serious/critical[2m (1.1s)[22m
+  [32m✓[39m  [2m 68 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Entregas (/entrega/entregas) carga sin violaciones serious/critical[2m (1.2s)[22m
+  [32m✓[39m  [2m 69 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Paquete descargable (/entrega/paquete-descargable) carga sin violaciones serious/critical[2m (1.2s)[22m
+  [32m✓[39m  [2m 70 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Seguimiento post-adjudicación (/entrega/seguimiento) carga sin violaciones serious/critical[2m (2.1s)[22m
+  [32m✓[39m  [2m 71 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Organizaciones (/backoffice/organizaciones) carga sin violaciones serious/critical[2m (2.8s)[22m
+  [32m✓[39m  [2m 72 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Usuarios y roles (/backoffice/usuarios-roles) carga sin violaciones serious/critical[2m (1.3s)[22m
+  [32m✓[39m  [2m 73 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Agentes y herramientas (/backoffice/agentes-herramientas) carga sin violaciones serious/critical[2m (1.2s)[22m
+  [32m✓[39m  [2m 74 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Auditoría / Trazabilidad (/backoffice/auditoria) carga sin violaciones serious/critical[2m (1.2s)[22m
+  [32m✓[39m  [2m 75 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Conectores (/backoffice/conectores) carga sin violaciones serious/critical[2m (2.1s)[22m
+  [32m✓[39m  [2m 76 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Jobs (/backoffice/jobs) carga sin violaciones serious/critical[2m (1.6s)[22m
+  [32m✓[39m  [2m 77 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Costos (/backoffice/costos) carga sin violaciones serious/critical[2m (1.3s)[22m
+  [32m✓[39m  [2m 78 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Incidentes (/backoffice/incidentes) carga sin violaciones serious/critical[2m (1.2s)[22m
+  [32m✓[39m  [2m 79 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Aprobaciones (tool_calls) (/backoffice/aprobaciones) carga sin violaciones serious/critical[2m (1.4s)[22m
+  [32m✓[39m  [2m 80 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Configuración (/configuracion) carga sin violaciones serious/critical[2m (1.5s)[22m
+  [32m✓[39m  [2m 81 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Aviso de privacidad (/privacidad) carga sin violaciones serious/critical[2m (876ms)[22m
+  [32m✓[39m  [2m 82 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Términos de servicio (/legal/terminos) carga sin violaciones serious/critical[2m (938ms)[22m
+  [32m✓[39m  [2m 83 [22m[chromium] › e2e/recorrido.spec.ts:54:3 › Recorrido esencial (W-14) › drawer móvil (390×844): se abre, comparte SidebarNav y no hay scroll horizontal[2m (1.8s)[22m
+  [32m✓[39m  [2m 84 [22m[chromium] › e2e/recorrido.spec.ts:69:3 › Recorrido esencial (W-14) › tema oscuro: activa .dark en <html> y el panel sigue sin violaciones serious/critical[2m (2.0s)[22m
+  [32m✓[39m  [2m 85 [22m[chromium] › e2e/recorrido.spec.ts:77:3 › Recorrido esencial (W-14) › Fuentes y frescura: expone los 5 estados de fuente sin violaciones serious/critical[2m (1.2s)[22m
+  [32m✓[39m  [2m 86 [22m[chromium] › e2e/recorrido.spec.ts:93:3 › Recorrido esencial (W-14) › Paquete descargable: sin convocatorias en la organización por defecto, nunca "Listo", sin violaciones serious/critical[2m (1.2s)[22m
+  [32m✓[39m  [2m 87 [22m[chromium] › e2e/recorrido.spec.ts:103:3 › Recorrido esencial (W-14) › todas las rutas del sidebar: sin scroll horizontal a 390×844[2m (16.9s)[22m
+  [32m✓[39m  [2m 88 [22m[chromium] › e2e/ronda3-flujo-real.spec.ts:61:3 › Ronda 3 — recorrido real contra apps/api › login con credenciales reales del seed redirige a /panel[2m (1.3s)[22m
+  [32m✓[39m  [2m 89 [22m[chromium] › e2e/ronda3-flujo-real.spec.ts:73:5 › Ronda 3 — recorrido real contra apps/api › como admin (owner de ambas organizaciones del seed) › cambia de organización con el selector real (X-Org-Id)[2m (1.7s)[22m
+  [32m✓[39m  [2m 90 [22m[chromium] › e2e/ronda3-flujo-real.spec.ts:92:5 › Ronda 3 — recorrido real contra apps/api › como admin (owner de ambas organizaciones del seed) › crea el perfil real de la empresa en la organización A[2m (1.4s)[22m
+  [32m✓[39m  [2m 91 [22m[chromium] › e2e/ronda3-flujo-real.spec.ts:125:5 › Ronda 3 — recorrido real contra apps/api › como admin (owner de ambas organizaciones del seed) › sube un documento y ve su semáforo de vigencia real[2m (752ms)[22m
+  [32m✓[39m  [2m 92 [22m[chromium] › e2e/ronda3-flujo-real.spec.ts:160:5 › Ronda 3 — recorrido real contra apps/api › como admin (owner de ambas organizaciones del seed) › rechaza en el cliente un archivo de e.firma sin llegar a enviarlo por red (REQ-098)[2m (681ms)[22m
+  [32m✓[39m  [2m 93 [22m[chromium] › e2e/ronda3-flujo-real.spec.ts:181:5 › Ronda 3 — recorrido real contra apps/api › como writer (solo miembro de la organización A) › propone una tarifa, que queda en borrador (no puede aprobarla)[2m (787ms)[22m
+  [32m✓[39m  [2m 94 [22m[chromium] › e2e/ronda3-flujo-real.spec.ts:196:5 › Ronda 3 — recorrido real contra apps/api › como writer (solo miembro de la organización A) › ve convocatorias vacías honestas (sin datos ficticios)[2m (656ms)[22m
+  [32m✓[39m  [2m 95 [22m[chromium] › e2e/ronda3-flujo-real.spec.ts:201:5 › Ronda 3 — recorrido real contra apps/api › como writer (solo miembro de la organización A) › recibe un 403 honesto de la API al entrar a back office (no es superadmin)[2m (1.7s)[22m
+  [32m✓[39m  [2m 96 [22m[chromium] › e2e/ronda3-flujo-real.spec.ts:233:5 › Ronda 3 — recorrido real contra apps/api › como admin (aprueba lo que propuso writer) › aprueba la tarifa propuesta por writer con step-up 2FA, resistiendo un doble clic físico en "Verificar y continuar" (WI-06)[2m (2.6s)[22m
+  [32m✓[39m  [2m 97 [22m[chromium] › e2e/skip-link.spec.ts:58:3 › Skip-link mueve el foco real (W-09) › en LoginPage (sin sesión), el skip-link mueve el foco al formulario (#login-form)[2m (1.1s)[22m
+  [32m✓[39m  [2m 98 [22m[chromium] › e2e/skip-link.spec.ts:77:3 › Skip-link mueve el foco real (W-09) › en AppShell, el skip-link mueve el foco al contenido principal (#main-content)[2m (755ms)[22m
+  [32m✓[39m  [2m 99 [22m[chromium] › e2e/skip-link.spec.ts:97:3 › Foco visible tras activar el skip-link (W-18) › en LoginPage (sin sesión), el foco en #login-form es visible (outline/box-shadow reales)[2m (1.1s)[22m
+  [32m✓[39m  [2m100 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Panel (/panel), el foco en #main-content es visible (outline/box-shadow reales)[2m (947ms)[22m
+  [32m✓[39m  [2m101 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Perfil y capacidades (/empresa/perfil-capacidades), el foco en #main-content es visible (outline/box-shadow reales)[2m (845ms)[22m
+  [32m✓[39m  [2m102 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Documentos y vigencias (/empresa/documentos-vigencias), el foco en #main-content es visible (outline/box-shadow reales)[2m (908ms)[22m
+  [32m✓[39m  [2m103 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Firmantes autorizados (/empresa/firmantes-autorizados), el foco en #main-content es visible (outline/box-shadow reales)[2m (750ms)[22m
+  [32m✓[39m  [2m104 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Tarifas aprobadas (/empresa/tarifas-aprobadas), el foco en #main-content es visible (outline/box-shadow reales)[2m (830ms)[22m
+  [32m✓[39m  [2m105 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Descubrimiento (/convocatorias/descubrimiento), el foco en #main-content es visible (outline/box-shadow reales)[2m (1.1s)[22m
+  [32m✓[39m  [2m106 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Matching (/convocatorias/matching), el foco en #main-content es visible (outline/box-shadow reales)[2m (870ms)[22m
+  [32m✓[39m  [2m107 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Fuentes y frescura (/convocatorias/fuentes-frescura), el foco en #main-content es visible (outline/box-shadow reales)[2m (811ms)[22m
+  [32m✓[39m  [2m108 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Go/No-Go (/evaluacion/go-no-go), el foco en #main-content es visible (outline/box-shadow reales)[2m (866ms)[22m
+  [32m✓[39m  [2m109 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Análisis de bases (/evaluacion/analisis-bases), el foco en #main-content es visible (outline/box-shadow reales)[2m (905ms)[22m
+  [32m✓[39m  [2m110 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Cumplimiento documental (/preparacion/cumplimiento-documental), el foco en #main-content es visible (outline/box-shadow reales)[2m (1.2s)[22m
+  [32m✓[39m  [2m111 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Redacción (/preparacion/redaccion), el foco en #main-content es visible (outline/box-shadow reales)[2m (762ms)[22m
+  [32m✓[39m  [2m112 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Revisión (/preparacion/revision), el foco en #main-content es visible (outline/box-shadow reales)[2m (854ms)[22m
+  [32m✓[39m  [2m113 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Expediente (/preparacion/expediente), el foco en #main-content es visible (outline/box-shadow reales)[2m (858ms)[22m
+  [32m✓[39m  [2m114 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Aprobaciones (/preparacion/aprobaciones), el foco en #main-content es visible (outline/box-shadow reales)[2m (923ms)[22m
+  [32m✓[39m  [2m115 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Entregas (/entrega/entregas), el foco en #main-content es visible (outline/box-shadow reales)[2m (1.4s)[22m
+  [32m✓[39m  [2m116 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Paquete descargable (/entrega/paquete-descargable), el foco en #main-content es visible (outline/box-shadow reales)[2m (839ms)[22m
+  [32m✓[39m  [2m117 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Seguimiento post-adjudicación (/entrega/seguimiento), el foco en #main-content es visible (outline/box-shadow reales)[2m (843ms)[22m
+  [32m✓[39m  [2m118 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Organizaciones (/backoffice/organizaciones), el foco en #main-content es visible (outline/box-shadow reales)[2m (843ms)[22m
+  [32m✓[39m  [2m119 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Usuarios y roles (/backoffice/usuarios-roles), el foco en #main-content es visible (outline/box-shadow reales)[2m (858ms)[22m
+  [32m✓[39m  [2m120 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Agentes y herramientas (/backoffice/agentes-herramientas), el foco en #main-content es visible (outline/box-shadow reales)[2m (1.5s)[22m
+  [32m✓[39m  [2m121 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Auditoría / Trazabilidad (/backoffice/auditoria), el foco en #main-content es visible (outline/box-shadow reales)[2m (952ms)[22m
+  [32m✓[39m  [2m122 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Conectores (/backoffice/conectores), el foco en #main-content es visible (outline/box-shadow reales)[2m (1.1s)[22m
+  [32m✓[39m  [2m123 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Jobs (/backoffice/jobs), el foco en #main-content es visible (outline/box-shadow reales)[2m (1.2s)[22m
+  [32m✓[39m  [2m124 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Costos (/backoffice/costos), el foco en #main-content es visible (outline/box-shadow reales)[2m (786ms)[22m
+  [32m✓[39m  [2m125 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Incidentes (/backoffice/incidentes), el foco en #main-content es visible (outline/box-shadow reales)[2m (1.2s)[22m
+  [32m✓[39m  [2m126 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Aprobaciones (tool_calls) (/backoffice/aprobaciones), el foco en #main-content es visible (outline/box-shadow reales)[2m (1.1s)[22m
+  [32m✓[39m  [2m127 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Configuración (/configuracion), el foco en #main-content es visible (outline/box-shadow reales)[2m (789ms)[22m
+  [32m✓[39m  [2m128 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Aviso de privacidad (/privacidad), el foco en #main-content es visible (outline/box-shadow reales)[2m (874ms)[22m
+  [32m✓[39m  [2m129 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Términos de servicio (/legal/terminos), el foco en #main-content es visible (outline/box-shadow reales)[2m (683ms)[22m
+  [32m✓[39m  [2m130 [22m[chromium] › e2e/touch-targets.spec.ts:9:3 › Objetivos táctiles ≥44×44px (W-10) › el botón hamburguesa mide al menos 44×44px[2m (1.1s)[22m
+  [32m✓[39m  [2m131 [22m[chromium] › e2e/touch-targets.spec.ts:20:3 › Objetivos táctiles ≥44×44px (W-10) › el primer link del drawer móvil mide al menos 44px de alto[2m (1.2s)[22m
+  [32m✓[39m  [2m132 [22m[chromium] › e2e/touch-targets.spec.ts:37:3 › Objetivos táctiles ≥44×44px (W-10) › todos los botones de acordeón de grupo del drawer móvil miden al menos 44px de alto[2m (1.2s)[22m
+  [32m✓[39m  [2m133 [22m[chromium] › e2e/touch-targets.spec.ts:60:3 › Objetivos táctiles ≥44×44px (W-10) › todos los controles interactivos del drawer móvil (grupos + enlaces) miden al menos 44px de alto[2m (2.0s)[22m
+  [32m✓[39m  [2m134 [22m[chromium] › e2e/touch-targets.spec.ts:90:5 › Objetivos táctiles ≥44×44px (W-10) › W-22: OrganizationSwitcher y "Cerrar menú" del drawer miden ≥44×44px a 320×568[2m (1.0s)[22m
+  [32m✓[39m  [2m135 [22m[chromium] › e2e/touch-targets.spec.ts:90:5 › Objetivos táctiles ≥44×44px (W-10) › W-22: OrganizationSwitcher y "Cerrar menú" del drawer miden ≥44×44px a 390×844[2m (1.0s)[22m
+  [32m✓[39m  [2m136 [22m[chromium] › e2e/touch-targets.spec.ts:134:5 › Controles del header dentro del viewport (W-21) › header: hamburguesa, OrganizationSwitcher y UserMenu quedan dentro del viewport a 320×568[2m (1.7s)[22m
+  [32m✓[39m  [2m137 [22m[chromium] › e2e/touch-targets.spec.ts:134:5 › Controles del header dentro del viewport (W-21) › header: hamburguesa, OrganizationSwitcher y UserMenu quedan dentro del viewport a 390×844[2m (1.8s)[22m
+
+[32m  137 passed[39m[2m (3.6m)[22m
+[test:e2e:full] apagando apps/api y el proveedor OIDC falso…
+[test:e2e:full] test:e2e:full OK.
+
+-- exit code (test:e2e:full): 0

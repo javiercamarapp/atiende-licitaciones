@@ -54,9 +54,16 @@ describe("PaqueteDescargablePage", () => {
     // Timeout propio (ver docs/logs/fix-web-coverage.log y el comentario en
     // vite.config.ts): abrir este <Select/> real de Radix como primera
     // acción paga, bajo `--coverage`, un costo medido de ~17-20s en
-    // aislamiento total -- no es un bug de esta prueba. 45s deja ~2x de
-    // margen sobre ese costo medido.
-  }, 45000);
+    // aislamiento total -- no es un bug de esta prueba.
+    //
+    // Ronda 8a: 45s NO alcanzaba. En la primera de las dos corridas de
+    // cierre esta prueba agotó el timeout dos veces seguidas (original +
+    // reintento, 132s en total) y la segunda corrida pasó sin cambio
+    // alguno: flaky de temporización, no un fallo de producto. La regla
+    // operativa que el propio README de apps/web fija para este patrón es
+    // 60000ms; se aplica aquí y en su prueba gemela de abajo, sin tocar
+    // ninguna aserción.
+  }, 60000);
 
   it("muestra 'Listo para presentar' solo cuando el servidor deriva 'ready'", async () => {
     const user = userEvent.setup();
@@ -78,5 +85,5 @@ describe("PaqueteDescargablePage", () => {
 
     await waitFor(() => expect(screen.getByText("Listo para presentar")).toBeInTheDocument());
     // Timeout propio: ver comentario arriba y en vite.config.ts.
-  }, 45000);
+  }, 60000);
 });

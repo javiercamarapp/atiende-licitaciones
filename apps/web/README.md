@@ -9,6 +9,110 @@ y, desde ronda 7, en la ruta aislada `/demo`, ver `src/test/msw.ts` y
 sigue mostrando un estado honesto (vacío, error con `request_id`, o "endpoint
 pendiente en apps/api") en vez de datos ficticios.
 
+## Ronda 8a — login/registro con Google, compuerta `/sin-acceso` y seguridad honesta
+
+Cubre REQ-172 (entrada con Google en login **y** registro), REQ-174 (web) y
+REQ-176 (web), más D-09. Todo contra `apps/api` real: no se inventó ningún
+endpoint ni ningún dato.
+
+- **`GoogleAuthButton`** (`src/components/auth/GoogleAuthButton.tsx`) en
+  `/login` y en la nueva `/registro`, **junto** al método de
+  email+contraseña, nunca en su lugar. Pide `GET /auth/google/start` y navega
+  el navegador COMPLETO a la `authorizationUrl` real (nunca un `fetch` de esa
+  URL: es una redirección de usuario al proveedor). REQ-178: `apps/api` no
+  expone ninguna señal previa de "Google está configurado", así que el botón
+  arranca habilitado y se apoya en el `503` REAL de ese mismo endpoint —
+  cuando llega, queda deshabilitado con la explicación exacta del servidor en
+  vez de reintentar una redirección que fallaría igual.
+- **`/auth/google/callback`** (`src/pages/auth/GoogleCallbackPage.tsx`): la
+  pantalla donde aterriza el navegador de vuelta del proveedor
+  (`GOOGLE_REDIRECT_URI` apunta AQUÍ, no a `apps/api` — ese endpoint responde
+  JSON, no una pantalla). Resuelve los tres estados reales (`ok`,
+  `sin_acceso`, `requires_2fa`) y muestra cualquier error con el mensaje y el
+  `request_id` que manda la API: `state` ausente o ya consumido (400), 403 de
+  conflicto de identidad (REQ-180) y 503.
+- **`/registro`** (`src/pages/RegistroPage.tsx`, ronda 8a): `POST
+  /auth/register` ya existía en `apps/api` y en `src/lib/api/auth.ts`, pero
+  ninguna pantalla lo llamaba. El formulario es espejo exacto de
+  `registerBodySchema`. **API-03**: ese endpoint responde SIEMPRE `201`,
+  exista o no ya el correo (antienumeración deliberada), así que la pantalla
+  NO afirma "cuenta creada" — encadena un `login()` real, y un correo ya
+  registrado con otra contraseña termina en el 401 honesto de la API.
+- **`/sin-acceso`** (D-09, `src/pages/SinAccesoPage.tsx`): un usuario
+  autenticado sin ninguna organización aterriza aquí (`RequireOrganization`
+  redirige a esta ruta, antes saltaba directo a `/onboarding`) con los dos
+  caminos reales — "Crear mi organización" entra al wizard existente, que es
+  quien llama a `POST /orgs` con el nombre que teclea el usuario, y "Pedir
+  invitación" explica el flujo real. Nunca se crea una organización con datos
+  que Google no aporta (ni razón social ni RFC).
+
+### Seguridad (`/configuracion`): lo que la API expone y lo que no
+
+Enrolar 2FA (QR + secreto manual + los 10 códigos de respaldo, mostrados una
+sola vez) y confirmarlo ya existían desde ronda 5. Lo que esta ronda añade es
+**decir la verdad sobre los huecos** en la propia pantalla, tras comprobar
+ruta por ruta que no existe endpoint detrás:
+
+| Pedido | Estado real |
+| --- | --- |
+| Enrolar / verificar TOTP | ✅ `POST /auth/2fa/enroll`, `POST /auth/2fa/verify-enrollment` |
+| Códigos de respaldo | ✅ pero **solo en el enrolamiento** — no hay endpoint para regenerarlos |
+| Step-up al aprobar | ✅ `POST /auth/2fa/step-up` (`components/StepUpDialog.tsx`) |
+| Desactivar 2FA | ❌ `apps/api/src/modules/twofa/routes.ts` tiene exactamente cuatro rutas; ninguna desenrola (re-enrolar responde `409` a propósito) |
+| Sesiones activas | ❌ `modules/auth/routes.ts` solo revoca el refresh token de la sesión actual (`POST /auth/logout`); `modules/me/routes.ts` es un único `GET` |
+
+No se construyó ningún botón para las dos últimas: figuran como huecos
+declarados en `/configuracion`, con su motivo.
+
+### E2E real del flujo con Google (`e2e/google-login.spec.ts`)
+
+`npm run -w apps/web test:e2e:full` arranca ahora, además de `apps/api` real,
+un **proveedor OIDC falso en loopback**
+(`scripts/fake-oidc-server.mjs`) y apunta `OIDC_ISSUER_URL` a él — la única
+excepción `http://` que `apps/api` tolera (GO-03). Ninguna petición sale a
+Internet y no interviene ninguna credencial de Google.
+
+No se reutilizó `apps/api/test/helpers/fake-oidc.ts` porque su `/authorize`
+responde texto plano (aquellas pruebas llaman a `issueAuthorizationCode()` a
+mano); en un navegador real el usuario NAVEGA y hace falta un `302` hacia
+`redirect_uri?code&state`. El doble de esta suite implementa discovery, JWKS,
+`/authorize` con redirección y `/token` con PKCE S256 verificado de verdad.
+La identidad que "inicia sesión" la fija el test antes de cada clic (`POST
+/__control/next-identity`): nunca se inventa un usuario.
+
+Dos bloqueos reales encontrados al recorrerlo, ambos reproducidos en vivo:
+
+1. **El proxy de `test:e2e:full` se tragaba la pantalla de callback.**
+   `vite.config.ts` mandaba todo `/auth` a la API, así que la navegación del
+   navegador a `/auth/google/callback` recibía el JSON de la API en vez de la
+   SPA — el flujo con Google era literalmente irrecorrible. El `bypass`
+   ahora distingue por **tipo** de petición (`sec-fetch-dest`/`Accept`), no
+   solo por ruta: la navegación recibe el `index.html` y el `fetch` de esa
+   misma pantalla al endpoint homónimo se sigue proxeando (sin esa
+   distinción la pantalla moría con `Unexpected token '<' ... is not valid
+   JSON`).
+2. **La compuerta de verificación de correo bloqueaba todo el seed.**
+   `apps/api` activó por defecto el `403 email-not-verified` en `POST
+   /auth/login`, y esta suite no configura proveedor de correo real
+   (`CaptureProvider`, en memoria y sin endpoint para leer el enlace), así
+   que `e2e/global-setup.ts` no podía confirmar los correos que él mismo
+   registra. Se usa el escape que `apps/api/README.md` documenta para este
+   caso (`REQUIRE_EMAIL_VERIFICATION=false`). **Consecuencia asumida**: esta
+   suite NO ejercita esa compuerta — la pantalla de "verifica tu correo" es
+   trabajo de la ronda 8b y llegará con su propia cobertura.
+
+`test:e2e:full` acepta además argumentos para Playwright
+(`npm run -w apps/web test:e2e:full -- --grep "Login con Google"`).
+
+### Queda para la ronda 8b
+
+Recuperación de contraseña (`POST /auth/password/forgot` y
+`/auth/password/reset` ya existen en `apps/api`), formulario de contacto
+público, preferencias de notificación/baja de un clic y la pantalla de
+verificación de correo (`POST /auth/email/verify` y
+`/auth/email/resend-verification`). Ninguna tiene todavía pantalla en
+`apps/web`.
+
 ## Ronda 7 — landing pública, términos, onboarding, dashboard real y demo
 
 Cuatro pantallas nuevas y una reescrita, todas con datos reales de `apps/api`
@@ -922,3 +1026,14 @@ Verificado con dos corridas completas y consecutivas de
 real de esta máquina (load average 12-16, no una máquina en reposo): 30/30
 archivos y 115/115 pruebas en verde ambas veces (log completo en
 `docs/logs/fix-web-coverage.log`).
+
+**Ronda 8a — el margen de 45000ms resultó insuficiente en un caso.** En la
+primera de las dos corridas de cierre,
+`PaqueteDescargablePage.test.tsx > "nunca muestra 'Listo para presentar'
+cuando el servidor deriva 'draft' (A14)"` agotó su timeout dos veces
+seguidas (original + reintento, 132s en total) y la SEGUNDA corrida pasó sin
+cambio alguno — flaky de temporización del mismo patrón Radix descrito
+arriba, no un fallo de producto. Las dos pruebas de ese archivo que abren el
+`<Select/>` suben a los 60000ms que esta misma regla ya prescribía, sin
+tocar ninguna aserción. Salida real de ambas corridas en
+`docs/logs/web-ronda8.log`.
