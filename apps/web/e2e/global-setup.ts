@@ -48,7 +48,7 @@ export interface SeedData {
      * recalculan un código TOTP vigente en el momento de cada step-up
      * (ver e2e/two-factor-helpers.ts), nunca reutilizan uno ya usado.
      */
-    twoFactor: { secretBase32: string; backupCodes: string[] };
+    twoFactor: { secretBase32: string; backupCodes: string[]; enrolledAtMs: number };
   };
   writer: { email: string; password: string };
   orgA: { id: string; name: string; slug: string };

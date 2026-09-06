@@ -60,6 +60,18 @@ async function selectTender(page: import("@playwright/test").Page, tenderTitle: 
 // código TOTP vigente en el momento de cada step-up.
 
 test.describe.serial("Expediente — flujo completo real (ronda 5)", () => {
+  // REQ-044/064 (R5-02): `POST /auth/2fa/step-up` comparte con `/enroll` y
+  // `/verify-enrollment` un límite de tasa FIJO de 5 peticiones/5min por IP,
+  // nunca relajado ni siquiera por `RATE_LIMIT_PROFILE=e2e` (ver
+  // apps/api/src/lib/rate-limit-settings.ts) -- esta suite ya comparte esa
+  // IP con ronda3-flujo-real.spec.ts (mismo worker en modo "full") y usa 2
+  // de esos 5 cupos para sus propios step-up reales (aprobar tarifa,
+  // aprobar expediente). Reintentar un test de aquí que involucre step-up
+  // no arregla un límite de tasa real -- solo gastaría más presupuesto y
+  // arriesgaría tumbar los cupos restantes de esta MISMA corrida. Se
+  // desactivan los reintentos para todo este archivo.
+  test.describe.configure({ retries: 0 });
+
   test("preparación: admin agrega un firmante autorizado en la organización C", async ({ page }) => {
     const seed = readSeed();
     test.skip(!seed.tender, "PLATFORM_API_KEY no configurada: sin convocatoria sembrada");

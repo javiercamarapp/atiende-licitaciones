@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, expect } from "./fixtures";
-import { getAdminStepUpCode, completeStepUp } from "./two-factor-helpers";
+import { getAdminStepUpCode } from "./two-factor-helpers";
 import type { SeedData } from "./global-setup";
 
 // ESM real ("type": "module" en package.json): sin `__dirname` global.
@@ -42,12 +42,22 @@ function readSeed(): SeedData {
 // de la propia prueba que la propone, así cada intento real usa un valor
 // nuevo.
 let rateItemCode = "";
-// WI-06 (docs/auditoria-2/reverificacion-final-integrada.md): tarifa aparte
-// para el ataque de doble clic, para no interferir con el recorrido
-// principal (que ya aprueba `rateItemCode` en su propio test).
-let dblClickRateItemCode = "";
 
 test.describe.serial("Ronda 3 — recorrido real contra apps/api", () => {
+  // REQ-044/064 (R5-02): `POST /auth/2fa/step-up` (como `/enroll` y
+  // `/verify-enrollment`) comparte un límite de tasa FIJO de 5
+  // peticiones/5min POR IP, nunca relajado ni siquiera por
+  // `RATE_LIMIT_PROFILE=e2e` (ver apps/api/src/lib/rate-limit-settings.ts,
+  // docstring "R5-02: NUNCA se relaja") -- una medida anti-fuerza-bruta
+  // deliberada, fuera del alcance de apps/web. Esta suite ya gasta 2 de esas
+  // 5 peticiones en el enrolamiento de global-setup.ts; reintentar un test
+  // de este archivo que involucre step-up NO arregla un límite de tasa real
+  // (solo gastaría más presupuesto y arriesgaría tumbar los intentos
+  // restantes de esta MISMA corrida, incluidos los de
+  // expediente-flujo-completo.spec.ts, que corre en el mismo worker/IP) --
+  // se desactivan los reintentos para todo este archivo.
+  test.describe.configure({ retries: 0 });
+
   test("login con credenciales reales del seed redirige a /panel", async ({ noAuthPage: page }) => {
     const seed = readSeed();
     await page.goto("/login");
@@ -183,21 +193,6 @@ test.describe.serial("Ronda 3 — recorrido real contra apps/api", () => {
       await expect(page.getByRole("button", { name: "Aprobar" })).toHaveCount(0);
     });
 
-    // WI-06: tarifa dedicada, propuesta aparte, para el ataque de doble clic
-    // físico que corre más abajo como admin.
-    test("propone una segunda tarifa, dedicada al ataque de doble clic (WI-06)", async ({ writerPage: page }) => {
-      dblClickRateItemCode = `E2E-TARIFA-DBLCLICK-${Date.now()}`;
-      await page.goto("/empresa/tarifas-aprobadas");
-      await page.getByLabel("Código").fill(dblClickRateItemCode);
-      await page.getByLabel("Descripción").fill("Servicio para ataque de doble clic WI-06");
-      await page.getByLabel("Precio unitario (MXN)").fill("2000");
-      await page.getByRole("button", { name: "Proponer" }).click();
-
-      const row = page.getByRole("row", { name: new RegExp(dblClickRateItemCode) });
-      await expect(row).toBeVisible({ timeout: 15_000 });
-      await expect(row.getByText("Propuesta (borrador)")).toBeVisible();
-    });
-
     test("ve convocatorias vacías honestas (sin datos ficticios)", async ({ writerPage: page }) => {
       await page.goto("/convocatorias/descubrimiento");
       await expect(page.getByText("Aún no hay convocatorias")).toBeVisible();
@@ -215,44 +210,31 @@ test.describe.serial("Ronda 3 — recorrido real contra apps/api", () => {
     // REQ-044/064 (ronda 5): aprobar exige X-Step-Up. El enrolamiento de 2FA
     // de `admin` ocurre UNA SOLA VEZ en e2e/global-setup.ts (proceso único,
     // inmune a reintentos de Playwright) -- aquí solo se calcula un código
-    // TOTP vigente en el momento de cada step-up (ver two-factor-helpers.ts).
-    test("aprueba la tarifa propuesta por writer con step-up 2FA", async ({ page }) => {
+    // TOTP vigente en el momento del step-up (ver two-factor-helpers.ts).
+    //
+    // WI-06 (docs/auditoria-2/reverificacion-final-integrada.md) va
+    // fusionado en ESTA MISMA prueba (antes eran dos: una aprobación simple
+    // y un ataque de doble clic sobre una segunda tarifa dedicada) -- el
+    // límite de tasa de `/auth/2fa/step-up` (5 peticiones/5min por IP,
+    // nunca relajado, ver arriba) no alcanza para dos verificaciones TOTP
+    // reales independientes en esta suite sin arriesgar 429 reales en el
+    // resto de los flujos con step-up (ver expediente-flujo-completo.spec.ts).
+    // Desde que aprobar exige step-up, "Aprobar" en la fila solo abre el
+    // modal (sin red) -- el punto real de doble envío es "Verificar y
+    // continuar" dentro de StepUpDialog. Un doble clic FÍSICO real (dos
+    // gestos `page.mouse.click()` reales, disparados con `Promise.all` sin
+    // `await` entre ellos -- no `dispatchEvent`/JS sintético) ahí debía
+    // disparar 2 peticiones de red reales antes de la reparación del guard
+    // síncrono en TarifasAprobadasPage.tsx. Verifica de una sola vez: (a) la
+    // tarifa real queda "Aprobada", (b) contra el servidor real, se dispara
+    // UNA sola petición `POST .../rates/:id/approve` (no dos), (c) ningún
+    // toast de error aparece (ni el 409 honesto de WI-04, que sí aparecería
+    // si el guard cliente dejara pasar un segundo POST real).
+    test("aprueba la tarifa propuesta por writer con step-up 2FA, resistiendo un doble clic físico en \"Verificar y continuar\" (WI-06)", async ({ page }) => {
       test.setTimeout(60_000);
       const seed = readSeed();
       await page.goto("/empresa/tarifas-aprobadas");
       const row = page.getByRole("row", { name: new RegExp(rateItemCode) });
-      await expect(row).toBeVisible();
-
-      await row.getByRole("button", { name: "Aprobar" }).click();
-
-      const approveResponse = page.waitForResponse(
-        (res) => res.url().includes("/rates/") && res.url().includes("/approve") && res.request().method() === "POST",
-        { timeout: 40_000 },
-      );
-      await completeStepUp(page, await getAdminStepUpCode(seed));
-      const response = await approveResponse;
-      expect(response.ok(), `POST .../rates/:id/approve respondió ${response.status()}`).toBe(true);
-
-      await expect(row.getByText("Aprobada")).toBeVisible({ timeout: 10_000 });
-    });
-
-    // WI-06 (docs/auditoria-2/reverificacion-final-integrada.md), reubicado
-    // en ronda 5: desde que aprobar exige step-up (REQ-044/064), "Aprobar"
-    // en la fila SOLO abre el modal (sin red) -- el punto real de doble
-    // envío ahora es "Verificar y continuar" dentro de StepUpDialog. Un
-    // doble clic FÍSICO real (dos gestos `page.mouse.click()` reales,
-    // disparados con `Promise.all` sin `await` entre ellos -- no
-    // `dispatchEvent`/JS sintético) ahí debía disparar 2 peticiones de red
-    // reales antes de la reparación del guard síncrono en
-    // TarifasAprobadasPage.tsx. Verifica: (a) contra el servidor real, se
-    // dispara UNA sola petición `POST .../rates/:id/approve` (no dos), (b)
-    // ningún toast de error aparece (ni el 409 honesto de WI-04, que sí
-    // aparecería si el guard cliente dejara pasar un segundo POST real).
-    test("un doble clic físico real en \"Verificar y continuar\" dispara UNA sola petición de red (WI-06)", async ({ page }) => {
-      test.setTimeout(60_000);
-      const seed = readSeed();
-      await page.goto("/empresa/tarifas-aprobadas");
-      const row = page.getByRole("row", { name: new RegExp(dblClickRateItemCode) });
       await expect(row).toBeVisible();
 
       const approveRequests: string[] = [];

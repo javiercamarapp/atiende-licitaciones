@@ -116,19 +116,30 @@ export function createSeedClient(apiUrl: string) {
      * momento de cada step-up (nunca reutilizan uno viejo, así que ni el
      * rechazo de replay de apps/api ni un reintento de Playwright rompen
      * el flujo).
+     *
+     * `enrolledAtMs` (instante justo antes de generar el código de
+     * `verify-enrollment`) queda en `seed.json` para que
+     * `e2e/two-factor-helpers.ts` pueda evitar el "time step" (ventana TOTP
+     * de 30s) que este código YA consumió del lado del servidor -- apps/api
+     * rechaza SIEMPRE un código de un time step <= al último aceptado
+     * (protección de replay, ver `apps/api/src/lib/step-up.ts`), así que un
+     * primer step-up real demasiado pronto tras el enrolamiento (dentro de
+     * la MISMA ventana de 30s) recibiría un 403 real aunque el código sea
+     * "fresco" desde la perspectiva del cliente.
      */
-    async enrollTwoFactor(accessToken: string): Promise<{ secretBase32: string; backupCodes: string[] }> {
+    async enrollTwoFactor(accessToken: string): Promise<{ secretBase32: string; backupCodes: string[]; enrolledAtMs: number }> {
       const enrollment = await request<{ secretBase32: string; otpauthUrl: string; backupCodes: string[] }>("/auth/2fa/enroll", {
         method: "POST",
         headers: { Authorization: `Bearer ${accessToken}` },
       });
+      const enrolledAtMs = Date.now();
       const code = await generateTotpCode({ secret: enrollment.secretBase32 });
       await request("/auth/2fa/verify-enrollment", {
         method: "POST",
         headers: { Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify({ code }),
       });
-      return { secretBase32: enrollment.secretBase32, backupCodes: enrollment.backupCodes };
+      return { secretBase32: enrollment.secretBase32, backupCodes: enrollment.backupCodes, enrolledAtMs };
     },
     async waitForHealthz(timeoutMs: number): Promise<void> {
       const deadline = Date.now() + timeoutMs;
