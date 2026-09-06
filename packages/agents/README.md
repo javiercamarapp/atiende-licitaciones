@@ -10,6 +10,22 @@ Alcance de esta ronda: `packages/agents/**`. No depende de `packages/db` ni
 de `apps/api`; solo define contratos (interfaces) que esos paquetes deberán
 implementar.
 
+## Pruebas y cobertura
+
+`npm run -w packages/agents test` corre la suite (vitest). `npm run
+-w packages/agents test:coverage` corre la misma suite con
+`@vitest/coverage-v8` y **falla si la cobertura real cae por debajo del
+umbral** configurado en `vitest.config.ts` (AG-14: líneas ≥85%, ramas ≥80%,
+funciones ≥85%, statements ≥85% — calibrado con margen contra la cobertura
+real medida en esta ronda, ver `docs/logs/fix-agents-ronda1.log`). El
+umbral se verificó realmente gatilla el fallo: se probó momentáneamente con
+un umbral de 99.9% (que la suite actual no alcanza) y `test:coverage`
+terminó con código de salida distinto de cero, antes de fijar los valores
+de producción. Este repositorio no tiene todavía un pipeline de CI
+(`.github/workflows` no existe); `test:coverage` queda listo para
+invocarse en cuanto se agregue uno — mientras tanto, ejecutarlo
+manualmente antes de cada release es la única puerta activa.
+
 ## Arquitectura
 
 ```
