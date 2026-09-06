@@ -5,7 +5,7 @@
  * cualquier organización de la que el usuario sea miembro).
  */
 import { randomUUID } from 'node:crypto';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import type { DbExecutor } from '@atiende/db';
 import { recordSecurityAudit } from '../../lib/audit.js';
@@ -73,6 +73,20 @@ interface FailureAuditParams {
   retryAfterSeconds?: number;
   requestId: string;
   correlationId?: string | null;
+  /**
+   * R5-10 (docs/auditoria-2/api-ronda5-reverificacion.md, MEDIA-BAJA): ip/
+   * user-agent del cliente en el momento del fallo -- ver `auditContext`
+   * abajo. Cierra la asimetría con `auth.login_failed` (API-13,
+   * `modules/auth/routes.ts`), que ya los incluye.
+   */
+  ip: string;
+  userAgent: string | null;
+}
+
+/** R5-10: mismo extractor que `auditContext` en `modules/auth/routes.ts` -- ip/user-agent de la request, NUNCA contraseñas/códigos/tokens. */
+function auditContext(request: FastifyRequest): { ip: string; userAgent: string | null } {
+  const ua = request.headers['user-agent'];
+  return { ip: request.ip, userAgent: Array.isArray(ua) ? (ua[0] ?? null) : (ua ?? null) };
 }
 
 /** Incrementa el contador de fallos POR USUARIO (DB, con bloqueo progresivo) y audita el fallo, en su PROPIA transacción (ver `withUserTx`). Si el usuario ya estaba bloqueado, no vuelve a incrementar el contador (evita que reintentos durante el bloqueo alarguen el bloqueo indefinidamente). */
@@ -83,7 +97,14 @@ async function recordFailure(app: FastifyInstance, params: FailureAuditParams): 
       action: params.action,
       entity: 'user_totp_secrets',
       entityId: params.userId,
-      after: { reason: params.reason, ...(params.retryAfterSeconds !== undefined ? { retryAfterSeconds: params.retryAfterSeconds } : {}) },
+      // R5-10: paridad con `auth.login_failed` -- ip/userAgent SIEMPRE
+      // presentes en el `after` de un fallo de 2FA, junto con la razón.
+      after: {
+        reason: params.reason,
+        ip: params.ip,
+        userAgent: params.userAgent,
+        ...(params.retryAfterSeconds !== undefined ? { retryAfterSeconds: params.retryAfterSeconds } : {}),
+      },
       requestId: params.requestId,
       correlationId: params.correlationId,
     });
@@ -180,6 +201,7 @@ export async function twofaRoutes(app: FastifyInstance): Promise<void> {
       const code = assertSixDigitCode(request.body.code);
       const orgId = resolveOptionalOrgId(request.headers['x-org-id']);
       const purpose = request.body.purpose ?? null;
+      const { ip, userAgent } = auditContext(request);
 
       // R5-02: contador de fallos POR USUARIO persistido en DB -- rotar de
       // IP no reinicia este presupuesto (a diferencia del límite de tasa
@@ -187,7 +209,7 @@ export async function twofaRoutes(app: FastifyInstance): Promise<void> {
       // el código, en su propia transacción de solo lectura.
       const lockout = await withUserTx(app, userId, (tx) => checkTwofaLockout(tx, userId));
       if (lockout.locked) {
-        await recordFailure(app, { action: 'twofa.verification_failed', userId, reason: 'locked_out', retryAfterSeconds: lockout.retryAfterSeconds, requestId: request.id, correlationId: request.correlationId });
+        await recordFailure(app, { action: 'twofa.verification_failed', userId, reason: 'locked_out', retryAfterSeconds: lockout.retryAfterSeconds, requestId: request.id, correlationId: request.correlationId, ip, userAgent });
         throw new TooManyRequestsError(lockoutMessage(lockout.retryAfterSeconds), lockout.retryAfterSeconds);
       }
 
@@ -198,7 +220,7 @@ export async function twofaRoutes(app: FastifyInstance): Promise<void> {
         )
       );
       if (row.rows.length === 0) {
-        await recordFailure(app, { action: 'twofa.verification_failed', userId, reason: 'no_pending_enrollment', requestId: request.id, correlationId: request.correlationId });
+        await recordFailure(app, { action: 'twofa.verification_failed', userId, reason: 'no_pending_enrollment', requestId: request.id, correlationId: request.correlationId, ip, userAgent });
         throw new ForbiddenError('No hay un enrolamiento de 2FA pendiente para este usuario. Llame primero a POST /auth/2fa/enroll.');
       }
       const secret = decryptSecret(row.rows[0].secret_ciphertext, app.config.totpEncryptionKey);
@@ -211,7 +233,7 @@ export async function twofaRoutes(app: FastifyInstance): Promise<void> {
         // intento de fuerza bruta en retrospectiva. R5-02: además
         // incrementa el contador de fallos por usuario (bloqueo progresivo).
         await withUserTx(app, userId, (tx) => recordTwofaFailure(tx, userId));
-        await recordFailure(app, { action: 'twofa.verification_failed', userId, reason: 'invalid_code_or_replay', requestId: request.id, correlationId: request.correlationId });
+        await recordFailure(app, { action: 'twofa.verification_failed', userId, reason: 'invalid_code_or_replay', requestId: request.id, correlationId: request.correlationId, ip, userAgent });
         throw new ForbiddenError('Código TOTP inválido o ya utilizado (replay rechazado).');
       }
 
@@ -260,11 +282,12 @@ export async function twofaRoutes(app: FastifyInstance): Promise<void> {
       const rawCode = request.body.code.trim();
       const orgId = resolveOptionalOrgId(request.headers['x-org-id']);
       const purpose = request.body.purpose ?? null;
+      const { ip, userAgent } = auditContext(request);
 
       // R5-02: ver docstring equivalente en /2fa/verify-enrollment arriba.
       const lockout = await withUserTx(app, userId, (tx) => checkTwofaLockout(tx, userId));
       if (lockout.locked) {
-        await recordFailure(app, { action: 'twofa.step_up_denied', userId, reason: 'locked_out', retryAfterSeconds: lockout.retryAfterSeconds, requestId: request.id, correlationId: request.correlationId });
+        await recordFailure(app, { action: 'twofa.step_up_denied', userId, reason: 'locked_out', retryAfterSeconds: lockout.retryAfterSeconds, requestId: request.id, correlationId: request.correlationId, ip, userAgent });
         throw new TooManyRequestsError(lockoutMessage(lockout.retryAfterSeconds), lockout.retryAfterSeconds);
       }
 
@@ -286,7 +309,7 @@ export async function twofaRoutes(app: FastifyInstance): Promise<void> {
         if (backupRow.rows.length === 0) {
           // R5-03: fallo de backup code (inválido o ya usado) también queda en audit_log.
           await withUserTx(app, userId, (tx) => recordTwofaFailure(tx, userId));
-          await recordFailure(app, { action: 'twofa.step_up_denied', userId, reason: 'invalid_or_used_backup_code', requestId: request.id, correlationId: request.correlationId });
+          await recordFailure(app, { action: 'twofa.step_up_denied', userId, reason: 'invalid_or_used_backup_code', requestId: request.id, correlationId: request.correlationId, ip, userAgent });
           throw new ForbiddenError('Código de respaldo inválido o ya utilizado.');
         }
 
@@ -305,7 +328,7 @@ export async function twofaRoutes(app: FastifyInstance): Promise<void> {
       if (!verification.valid || (lastUsed !== null && verification.timeStep <= lastUsed)) {
         // R5-03: código TOTP inválido/replay también queda en audit_log.
         await withUserTx(app, userId, (tx) => recordTwofaFailure(tx, userId));
-        await recordFailure(app, { action: 'twofa.step_up_denied', userId, reason: 'invalid_code_or_replay', requestId: request.id, correlationId: request.correlationId });
+        await recordFailure(app, { action: 'twofa.step_up_denied', userId, reason: 'invalid_code_or_replay', requestId: request.id, correlationId: request.correlationId, ip, userAgent });
         throw new ForbiddenError('Código TOTP inválido, o ya fue utilizado (replay rechazado).');
       }
 

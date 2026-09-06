@@ -124,6 +124,42 @@ describe('R5-02/R5-03: límite de tasa + bloqueo progresivo + auditoría de fall
     expect(auditRows.rows.length).toBeGreaterThan(0);
   });
 
+  /**
+   * R5-10 (docs/auditoria-2/api-ronda5-reverificacion.md, MEDIA-BAJA): los
+   * fallos de 2FA se auditaban SIN la IP del cliente, a diferencia de
+   * `auth.login_failed` (API-13) -- una asimetría que la propia
+   * justificación de R5-03 invocaba explícitamente como el estándar a
+   * igualar. Fijado: `ip`/`userAgent` en el `after` de `recordFailure`.
+   */
+  it('R5-10: un fallo de 2FA audita ip/userAgent en el after, con la misma paridad que auth.login_failed', async () => {
+    const user = await registerAndLogin(app, 'r510-user-1@example.com');
+    const headers = { authorization: `Bearer ${user.accessToken}`, 'user-agent': 'r510-test-agent/1.0' };
+    await app.inject({ method: 'POST', url: '/auth/2fa/enroll', headers });
+
+    const failVerify = await app.inject({ method: 'POST', url: '/auth/2fa/verify-enrollment', headers, payload: { code: '000000' } });
+    expect(failVerify.statusCode).toBe(403);
+
+    const twofaFailure = await db.query<{ after: { ip: string; userAgent: string; reason: string } }>(
+      "select after from audit_log where entity = 'user_totp_secrets' and action = 'twofa.verification_failed' and actor_id = $1 order by created_at desc limit 1",
+      [user.id]
+    );
+    expect(twofaFailure.rows.length).toBe(1);
+    expect(twofaFailure.rows[0].after.ip).toBeTruthy();
+    expect(twofaFailure.rows[0].after.userAgent).toBe('r510-test-agent/1.0');
+    expect(twofaFailure.rows[0].after.reason).toBe('invalid_code_or_replay');
+
+    // Comparación directa contra un auth.login_failed real en la misma
+    // corrida: ambos eventos deben incluir ip -- ya no hay asimetría.
+    await app.inject({ method: 'POST', url: '/auth/login', payload: { email: user.email, password: 'contraseña-incorrecta' } });
+    const loginFailure = await db.query<{ after: { ip: string } }>(
+      "select after from audit_log where action = 'auth.login_failed' and actor_id = $1 order by created_at desc limit 1",
+      [user.id]
+    );
+    expect(loginFailure.rows.length).toBe(1);
+    expect(loginFailure.rows[0].after.ip).toBeTruthy();
+    expect(loginFailure.rows[0].after.ip).toBe(twofaFailure.rows[0].after.ip);
+  });
+
   it('estando bloqueado (locked_until en el futuro), un intento adicional responde 429 y también queda auditado', async () => {
     const user = await registerAndLogin(app, 'r502-user-5@example.com');
     const headers = { authorization: `Bearer ${user.accessToken}` };

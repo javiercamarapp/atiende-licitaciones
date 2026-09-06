@@ -300,3 +300,17 @@ profunda de esas dos áreas en este encargo, y ningún hallazgo de esta
 reverificación requiere tocarlas para confirmarse (R5-09 se confirmó
 leyendo `apps/web` como consumidor, sin modificarlo). El worktree
 `reverify-api5` se eliminó al cierre de esta reverificación.
+
+
+---
+
+## Estado reparación (corrector, post-reverificación)
+
+Agregado por el agente corrector Sonnet `fix-api-r5-09-10`, ámbito
+exclusivo `apps/api/**` + `packages/db/migrations/0062-0064` +
+`packages/db/test/<nuevos>`. Evidencia de comandos reales en
+`docs/logs/fix-api-r5-09-10.log`.
+
+| Hallazgo | Estado reparación | Commit / evidencia |
+| --- | --- | --- |
+| R5-10 (MEDIA-BAJA) | **CORREGIDO** | `ip`/`userAgent` del cliente (mismo extractor `auditContext` que `modules/auth/routes.ts`) agregados al `after` de `recordFailure` en `modules/twofa/routes.ts` -- paridad exacta con `auth.login_failed` (API-13), sin migración nueva (`audit_log.after` ya es `jsonb` sin esquema fijo). Test nuevo en `apps/api/test/security-r502-r503-twofa-brute-force.test.ts` ("R5-10: un fallo de 2FA audita ip/userAgent en el after, con la misma paridad que auth.login_failed") -- compara directamente un `twofa.verification_failed` real contra un `auth.login_failed` real en la misma corrida, misma IP en ambos. |
