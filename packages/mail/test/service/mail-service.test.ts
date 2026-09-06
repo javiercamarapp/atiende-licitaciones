@@ -1,0 +1,273 @@
+import { describe, expect, it, vi } from "vitest";
+import { MailService } from "../../src/service/mail-service";
+import { InMemorySendRecordStore } from "../../src/service/send-store";
+import { InMemorySuppressionStore } from "../../src/suppression/types";
+import { emailVerificationTemplate } from "../../src/templates/catalog/email-verification";
+import { newTenderMatchTemplate } from "../../src/templates/catalog/new-tender-match";
+import type { MailProvider, SendResult } from "../../src/provider/types";
+import type { RegisteredRecipient } from "../../src/recipients/types";
+
+const RECIPIENT: RegisteredRecipient = { email: "persona@ejemplo.mx", userId: "u1", status: "active" };
+
+function fakeProvider(results: SendResult[]): { provider: MailProvider; calls: number[] } {
+  const calls: number[] = [];
+  let i = 0;
+  const provider: MailProvider = {
+    name: "fake",
+    async send() {
+      calls.push(Date.now());
+      const result = results[Math.min(i, results.length - 1)];
+      i++;
+      return result!;
+    },
+  };
+  return { provider, calls };
+}
+
+function buildService(provider: MailProvider, overrides: Partial<ConstructorParameters<typeof MailService>[0]> = {}): MailService {
+  return new MailService({
+    provider,
+    retryPolicy: { maxAttempts: 3, baseDelayMs: 1, maxDelayMs: 5, jitterRatio: 0 },
+    sleep: async () => {},
+    random: () => 0.5,
+    ...overrides,
+  });
+}
+
+const VALID_VARS = { ...emailVerificationTemplate.sampleData };
+const TENDER_MATCH_VARS = { ...newTenderMatchTemplate.sampleData };
+
+describe("MailService.send", () => {
+  it("manda con éxito al primer intento y registra el envío", async () => {
+    const { provider } = fakeProvider([{ ok: true, providerMessageId: "p1" }]);
+    const store = new InMemorySendRecordStore();
+    const service = buildService(provider, { store });
+
+    const outcome = await service.send({
+      to: RECIPIENT,
+      templateId: emailVerificationTemplate.id,
+      variables: VALID_VARS,
+      messageKey: "verificacion:u1",
+    });
+
+    expect(outcome).toEqual({ status: "sent", messageKey: "verificacion:u1", providerMessageId: "p1" });
+    expect((await store.get("verificacion:u1"))?.status).toBe("sent");
+  });
+
+  it("es idempotente: una segunda llamada con la misma messageKey no vuelve a llamar al provider", async () => {
+    const sendSpy = vi.fn().mockResolvedValue({ ok: true, providerMessageId: "p1" });
+    const provider: MailProvider = { name: "fake", send: sendSpy };
+    const service = buildService(provider);
+
+    const input = { to: RECIPIENT, templateId: emailVerificationTemplate.id, variables: VALID_VARS, messageKey: "verificacion:u1" };
+    const first = await service.send(input);
+    const second = await service.send(input);
+
+    expect(first.status).toBe("sent");
+    expect(second).toEqual({ status: "already_sent", messageKey: "verificacion:u1", providerMessageId: "p1" });
+    expect(sendSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("reintenta ante 429/5xx y termina en éxito (backoff)", async () => {
+    const { provider } = fakeProvider([
+      { ok: false, kind: "retryable", statusCode: 429, detail: "rate limited" },
+      { ok: false, kind: "retryable", statusCode: 503, detail: "down" },
+      { ok: true, providerMessageId: "p-final" },
+    ]);
+    const service = buildService(provider);
+
+    const outcome = await service.send({
+      to: RECIPIENT,
+      templateId: emailVerificationTemplate.id,
+      variables: VALID_VARS,
+      messageKey: "verificacion:u2",
+    });
+
+    expect(outcome).toEqual({ status: "sent", messageKey: "verificacion:u2", providerMessageId: "p-final" });
+  });
+
+  it("un 4xx permanente NO reintenta y queda registrado como failed_permanent", async () => {
+    const sendSpy = vi.fn().mockResolvedValue({ ok: false, kind: "permanent", statusCode: 422, detail: "remitente inválido" });
+    const provider: MailProvider = { name: "fake", send: sendSpy };
+    const store = new InMemorySendRecordStore();
+    const service = buildService(provider, { store });
+
+    const outcome = await service.send({
+      to: RECIPIENT,
+      templateId: emailVerificationTemplate.id,
+      variables: VALID_VARS,
+      messageKey: "verificacion:u3",
+    });
+
+    expect(outcome).toEqual({ status: "failed_permanent", messageKey: "verificacion:u3", detail: "remitente inválido" });
+    expect(sendSpy).toHaveBeenCalledTimes(1);
+    expect((await store.get("verificacion:u3"))?.status).toBe("failed_permanent");
+  });
+
+  it("agota los reintentos y queda registrado como dead (outbox)", async () => {
+    const sendSpy = vi.fn().mockResolvedValue({ ok: false, kind: "retryable", detail: "siempre falla" });
+    const provider: MailProvider = { name: "fake", send: sendSpy };
+    const store = new InMemorySendRecordStore();
+    const service = buildService(provider, { store, retryPolicy: { maxAttempts: 3, baseDelayMs: 1, maxDelayMs: 2, jitterRatio: 0 } });
+
+    const outcome = await service.send({
+      to: RECIPIENT,
+      templateId: emailVerificationTemplate.id,
+      variables: VALID_VARS,
+      messageKey: "verificacion:u4",
+    });
+
+    expect(outcome).toEqual({ status: "dead", messageKey: "verificacion:u4", detail: "siempre falla" });
+    expect(sendSpy).toHaveBeenCalledTimes(3);
+    expect((await store.get("verificacion:u4"))?.status).toBe("dead");
+  });
+
+  it("not_configured no se reintenta y no se registra como enviado", async () => {
+    const sendSpy = vi.fn().mockResolvedValue({ ok: false, kind: "not_configured" });
+    const provider: MailProvider = { name: "fake", send: sendSpy };
+    const service = buildService(provider);
+
+    const outcome = await service.send({
+      to: RECIPIENT,
+      templateId: emailVerificationTemplate.id,
+      variables: VALID_VARS,
+      messageKey: "verificacion:u5",
+    });
+
+    expect(outcome).toEqual({ status: "not_configured", messageKey: "verificacion:u5" });
+    expect(sendSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("variables inválidas contra el esquema se rechazan sin llamar al provider", async () => {
+    const sendSpy = vi.fn();
+    const provider: MailProvider = { name: "fake", send: sendSpy };
+    const service = buildService(provider);
+
+    const outcome = await service.send({
+      to: RECIPIENT,
+      templateId: emailVerificationTemplate.id,
+      variables: { ...VALID_VARS, appUrl: "no-es-una-url" },
+      messageKey: "verificacion:u6",
+    });
+
+    expect(outcome.status).toBe("invalid_variables");
+    expect(sendSpy).not.toHaveBeenCalled();
+  });
+
+  it("un destinatario no registrado se rechaza sin llamar al provider", async () => {
+    const sendSpy = vi.fn();
+    const provider: MailProvider = { name: "fake", send: sendSpy };
+    const service = buildService(provider);
+
+    const outcome = await service.send({
+      to: { email: "no-es-correo" } as RegisteredRecipient,
+      templateId: emailVerificationTemplate.id,
+      variables: VALID_VARS,
+      messageKey: "verificacion:u7",
+    });
+
+    expect(outcome.status).toBe("unregistered_recipient");
+    expect(sendSpy).not.toHaveBeenCalled();
+  });
+
+  it("respeta las preferencias de notificación: categoría opcional apagada se salta sin llamar al provider", async () => {
+    const sendSpy = vi.fn();
+    const provider: MailProvider = { name: "fake", send: sendSpy };
+    const service = buildService(provider);
+
+    const outcome = await service.send({
+      to: RECIPIENT,
+      templateId: newTenderMatchTemplate.id,
+      variables: TENDER_MATCH_VARS,
+      messageKey: "match:u1:tender1",
+      preferences: { tenderMatches: false },
+    });
+
+    expect(outcome).toEqual({ status: "skipped_preferences", messageKey: "match:u1:tender1" });
+    expect(sendSpy).not.toHaveBeenCalled();
+  });
+
+  it("una categoría obligatoria (account_security) ignora las preferencias del usuario", async () => {
+    const { provider } = fakeProvider([{ ok: true, providerMessageId: "p1" }]);
+    const service = buildService(provider);
+
+    const outcome = await service.send({
+      to: RECIPIENT,
+      templateId: emailVerificationTemplate.id,
+      variables: VALID_VARS,
+      messageKey: "verificacion:u8",
+      preferences: {}, // ninguna preferencia habilita explícitamente esto, y no debería importar
+    });
+
+    expect(outcome.status).toBe("sent");
+  });
+
+  it("un destinatario en la lista de supresión se bloquea sin llamar al provider", async () => {
+    const sendSpy = vi.fn();
+    const provider: MailProvider = { name: "fake", send: sendSpy };
+    const suppressionStore = new InMemorySuppressionStore();
+    await suppressionStore.suppress(RECIPIENT.email, "bounce", "test");
+    const service = buildService(provider, { suppressionStore });
+
+    const outcome = await service.send({
+      to: RECIPIENT,
+      templateId: newTenderMatchTemplate.id,
+      variables: TENDER_MATCH_VARS,
+      messageKey: "match:u1:tender2",
+    });
+
+    expect(outcome).toEqual({ status: "skipped_suppressed", messageKey: "match:u1:tender2" });
+    expect(sendSpy).not.toHaveBeenCalled();
+  });
+
+  it("FAIL-CLOSED: si la consulta de supresión lanza, se trata como suprimido", async () => {
+    const sendSpy = vi.fn();
+    const provider: MailProvider = { name: "fake", send: sendSpy };
+    const suppressionStore = { isSuppressed: vi.fn().mockRejectedValue(new Error("db caída")), suppress: vi.fn(), unsuppress: vi.fn(), get: vi.fn() };
+    const service = buildService(provider, { suppressionStore });
+
+    const outcome = await service.send({
+      to: RECIPIENT,
+      templateId: newTenderMatchTemplate.id,
+      variables: TENDER_MATCH_VARS,
+      messageKey: "match:u1:tender3",
+    });
+
+    expect(outcome.status).toBe("skipped_suppressed");
+    expect(sendSpy).not.toHaveBeenCalled();
+  });
+
+  it("un destinatario NO suprimido pasa normalmente", async () => {
+    const { provider } = fakeProvider([{ ok: true, providerMessageId: "p1" }]);
+    const suppressionStore = new InMemorySuppressionStore();
+    await suppressionStore.suppress("otra-persona@ejemplo.mx", "complaint", "test");
+    const service = buildService(provider, { suppressionStore });
+
+    const outcome = await service.send({
+      to: RECIPIENT,
+      templateId: emailVerificationTemplate.id,
+      variables: VALID_VARS,
+      messageKey: "verificacion:u9",
+    });
+
+    expect(outcome.status).toBe("sent");
+  });
+});
+
+describe("MailService.signedLink / verifySignedLink", () => {
+  it("lanza si no se configuró un LinkSigner", () => {
+    const service = buildService({ name: "fake", send: vi.fn() });
+    expect(() => service.signedLink("https://a.mx", "/x", {}, 60)).toThrow(/LinkSigner/);
+    expect(() => service.verifySignedLink("https://a.mx/x")).toThrow(/LinkSigner/);
+  });
+
+  it("delega en el LinkSigner inyectado", () => {
+    const linkSigner = {
+      signedLink: vi.fn().mockReturnValue("https://a.mx/x?d=1&s=2"),
+      verifySignedLink: vi.fn().mockReturnValue({ ok: true, payload: {} }),
+    };
+    const service = buildService({ name: "fake", send: vi.fn() }, { linkSigner });
+    expect(service.signedLink("https://a.mx", "/x", { a: 1 }, 60)).toBe("https://a.mx/x?d=1&s=2");
+    expect(service.verifySignedLink("https://a.mx/x?d=1&s=2")).toEqual({ ok: true, payload: {} });
+  });
+});
