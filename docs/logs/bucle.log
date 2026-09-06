@@ -50,3 +50,4 @@
 2026-09-06 21:18  DESPERTAR  corrector sources vuelta 2 (#37) 145/145; worker typecheck verificado OK por Fable; reverificador de cierre (#48) despachado; en curso #41,#42,#43,#45,#46,#47.
 2026-09-06 21:18  DESPERTAR  micro-fix AG-23 (#46) 263/263; INC-04 (git add -A ajeno) registrado y regla reenviada a #43; en curso #41,#42,#43,#45,#47,#48.
 2026-09-06 21:20  DESPERTAR  reverificación db-api (#41): DB-08 CRÍTICA (refresh tokens ajenos) + reabiertos; corrector seguridad #49 despachado; en curso #42,#43,#45,#47,#48,#49.
+2026-09-06 21:20  RONDA3  #50 refresco de BACKLOG despachado; en curso #42,#43,#45,#47,#48,#49.
