@@ -16,6 +16,15 @@ export interface StepUpDialogProps {
   onOpenChange: (open: boolean) => void;
   /** Se llama con el `stepUpToken` recién verificado; el llamador decide qué acción real ejecutar con él. */
   onVerified: (stepUpToken: string) => void;
+  /**
+   * R5-09: identificador EXACTO de la acción que se autoriza -- debe
+   * coincidir con el `purpose` que la ruta consumidora exige (ver
+   * `requireStepUp` en apps/api/src/lib/step-up.ts), p. ej.
+   * `"company.rate_approval"` o `"expediente.approval"`. La organización
+   * activa (`X-Org-Id`) viaja sola, vía `useAuth().currentOrgId` dentro de
+   * `useVerifyStepUp`.
+   */
+  purpose: string;
   title?: string;
   description?: string;
 }
@@ -28,7 +37,7 @@ export interface StepUpDialogProps {
  * RevisionPage. Si el usuario no tiene 2FA enrolado, lo dirige a
  * Configuración en vez de pedir un código que la API rechazaría igual.
  */
-export function StepUpDialog({ open, onOpenChange, onVerified, title, description }: StepUpDialogProps) {
+export function StepUpDialog({ open, onOpenChange, onVerified, purpose, title, description }: StepUpDialogProps) {
   const { data: status, isLoading, isError, error: statusError, refetch } = useTwoFactorStatus();
   const verifyStepUp = useVerifyStepUp();
   const [code, setCode] = useState("");
@@ -38,7 +47,7 @@ export function StepUpDialog({ open, onOpenChange, onVerified, title, descriptio
     e.preventDefault();
     setError(null);
     try {
-      const result = await verifyStepUp.mutateAsync(code.trim());
+      const result = await verifyStepUp.mutateAsync({ code: code.trim(), purpose });
       setCode("");
       onOpenChange(false);
       onVerified(result.stepUpToken);

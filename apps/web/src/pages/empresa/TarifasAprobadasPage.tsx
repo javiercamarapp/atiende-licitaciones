@@ -300,6 +300,10 @@ export default function TarifasAprobadasPage() {
         }}
         title="Verificación en dos pasos para aprobar la tarifa"
         description="Aprobar una tarifa exige confirmar tu identidad con un segundo factor (REQ-044/064)."
+        // R5-09: debe coincidir EXACTO con el `purpose` que
+        // `POST /company/rates/:id/approve` exige en su `requireStepUp`
+        // (ver apps/api/src/modules/company/routes.ts).
+        purpose="company.rate_approval"
         onVerified={(stepUpToken) => {
           if (stepUpTargetRateId) runApprove(stepUpTargetRateId, stepUpToken);
         }}

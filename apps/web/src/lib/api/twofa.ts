@@ -30,8 +30,22 @@ export async function verifyTwoFactorEnrollment(code: string): Promise<VerifyEnr
   return verifyEnrollmentResponseSchema.parse(raw);
 }
 
-/** Acepta un código TOTP de 6 dígitos O un código de respaldo "XXXX-XXXX" (un solo uso). */
-export async function verifyStepUp(code: string): Promise<StepUpResponse> {
-  const raw = await apiRequest<unknown>("/auth/2fa/step-up", { method: "POST", body: { code } });
+/**
+ * Acepta un código TOTP de 6 dígitos O un código de respaldo "XXXX-XXXX"
+ * (un solo uso).
+ *
+ * R5-09 (reverificación api ronda 5): declara SIEMPRE la organización
+ * activa (`X-Org-Id`, vía `orgId`) y un `purpose` específico de la acción
+ * que se autoriza (p. ej. `"company.rate_approval"`,
+ * `"expediente.approval"` -- deben coincidir EXACTAMENTE con el `purpose`
+ * que la ruta que consume `X-Step-Up` exige, ver
+ * apps/api/src/lib/step-up.ts `requireStepUp`). Antes de esta ronda ninguno
+ * de los dos viajaba, así que la sesión de step-up quedaba "genérica" del
+ * lado del servidor (servía para aprobar cualquier tarifa/expediente de
+ * cualquier organización dentro de su vigencia) — apps/api pasará a
+ * exigirlos (403 si faltan).
+ */
+export async function verifyStepUp(code: string, orgId: string, purpose: string): Promise<StepUpResponse> {
+  const raw = await apiRequest<unknown>("/auth/2fa/step-up", { method: "POST", body: { code, purpose }, orgId });
   return stepUpResponseSchema.parse(raw);
 }

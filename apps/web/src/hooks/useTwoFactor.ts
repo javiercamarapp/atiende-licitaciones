@@ -33,6 +33,20 @@ export function useVerifyTwoFactorEnrollment() {
   });
 }
 
+/**
+ * R5-09: la organización activa (`currentOrgId`, para `X-Org-Id`) y el
+ * `purpose` de la acción concreta (declarado por el llamador, ver
+ * `StepUpDialog`) viajan SIEMPRE -- sin ellos, la sesión de step-up
+ * resultante queda "genérica" del lado del servidor y sirve para aprobar
+ * cualquier tarifa/expediente de cualquier organización dentro de su
+ * vigencia (ver docstring de `verifyStepUp` en lib/api/twofa.ts).
+ */
 export function useVerifyStepUp() {
-  return useMutation({ mutationFn: (code: string) => verifyStepUp(code) });
+  const { currentOrgId } = useAuth();
+  return useMutation({
+    mutationFn: ({ code, purpose }: { code: string; purpose: string }) => {
+      if (!currentOrgId) throw new Error("No hay una organización activa para pedir el step-up.");
+      return verifyStepUp(code, currentOrgId, purpose);
+    },
+  });
 }

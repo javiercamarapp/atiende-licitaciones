@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { renderWithProviders } from "@/test/utils";
@@ -50,5 +50,60 @@ describe("RevisionPage", () => {
     await user.click(await screen.findByRole("option", { name: TENDER.title }));
 
     expect(await screen.findByText("Invalidada tras un cambio")).toBeInTheDocument();
+  }, 20000);
+
+  // R5-09 (reverificación api ronda 5): antes de esta ronda, `POST
+  // /auth/2fa/step-up` no declaraba ni la organización activa ni el
+  // propósito de la acción -- ver el mismo hallazgo cubierto en
+  // TarifasAprobadasPage.test.tsx.
+  it("admin pide el step-up con la organización activa (X-Org-Id) y el propósito exacto de la acción (R5-09)", async () => {
+    mockSession("admin");
+    server.use(
+      http.get("*/expediente/tenders/:tenderId/approval", () =>
+        HttpResponse.json({
+          state: "en_revision",
+          approvals: [],
+          comments: [],
+          currentInputsHash: "def456",
+          fullyApproved: false,
+        }),
+      ),
+      http.get("*/auth/2fa/status", () => HttpResponse.json({ enrolled: true, enrolledAt: "2026-01-01T00:00:00Z" })),
+    );
+
+    let capturedOrgIdHeader: string | null = null;
+    let capturedBody: unknown;
+    let capturedStepUpHeader: string | null = null;
+    server.use(
+      http.post("*/auth/2fa/step-up", async ({ request }) => {
+        capturedOrgIdHeader = request.headers.get("x-org-id");
+        capturedBody = await request.json();
+        return HttpResponse.json({ stepUpToken: "step-up-1", expiresAt: "2026-01-01T00:10:00Z" });
+      }),
+      http.post("*/expediente/tenders/:tenderId/approval/approve", ({ request }) => {
+        capturedStepUpHeader = request.headers.get("x-step-up");
+        return HttpResponse.json({
+          state: "aprobado",
+          approvals: [],
+          comments: [],
+          currentInputsHash: "def456",
+          fullyApproved: true,
+        });
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderWithProviders(<RevisionPage />);
+    await user.click(await screen.findByRole("combobox", { name: "Convocatoria" }));
+    await user.click(await screen.findByRole("option", { name: TENDER.title }));
+
+    await user.click(await screen.findByRole("button", { name: "Aprobar expediente" }));
+    await user.type(await screen.findByLabelText("Código TOTP o de respaldo", {}, { timeout: 10000 }), "123456");
+    await user.click(screen.getByRole("button", { name: "Verificar y continuar" }));
+
+    await waitFor(() => expect(capturedBody).toBeDefined());
+    expect(capturedOrgIdHeader).toBe("org-a");
+    expect(capturedBody).toEqual({ code: "123456", purpose: "expediente.approval" });
+    await waitFor(() => expect(capturedStepUpHeader).toBe("step-up-1"));
   }, 20000);
 });

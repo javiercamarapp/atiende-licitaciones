@@ -234,6 +234,10 @@ export default function RevisionPage() {
         onOpenChange={setStepUpOpen}
         title="Verificación en dos pasos para aprobar el expediente"
         description="Aprobar un expediente exige confirmar tu identidad con un segundo factor (REQ-044/064)."
+        // R5-09: debe coincidir EXACTO con el `purpose` que
+        // `POST .../approval/approve` exige en su `requireStepUp` (ver
+        // apps/api/src/modules/expediente/approval.routes.ts).
+        purpose="expediente.approval"
         onVerified={onApproveWithStepUp}
       />
     </div>

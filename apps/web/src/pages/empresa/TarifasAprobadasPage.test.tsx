@@ -182,4 +182,34 @@ describe("TarifasAprobadasPage (WI-04, ronda 5: step-up 2FA)", () => {
     expect(await screen.findByText("Aún no tienes 2FA enrolado", {}, { timeout: 10000 })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Ir a Configuración/ })).toHaveAttribute("href", "/configuracion");
   }, 15000);
+
+  // R5-09 (reverificación api ronda 5): antes de esta ronda, `POST
+  // /auth/2fa/step-up` no declaraba ni la organización activa ni el
+  // propósito de la acción, así que la sesión de step-up quedaba
+  // "genérica" del lado del servidor -- servía para aprobar cualquier
+  // tarifa/expediente de cualquier organización dentro de su vigencia (ver
+  // apps/api/src/lib/step-up.ts `requireStepUp`). apps/api pasará a
+  // exigirlos (403 si faltan).
+  it("pide el step-up con la organización activa (X-Org-Id) y el propósito exacto de la acción (R5-09)", async () => {
+    const user = userEvent.setup();
+    let capturedOrgIdHeader: string | null = null;
+    let capturedBody: unknown;
+    server.use(
+      http.get("*/company/rates", () => HttpResponse.json([RATE_BASE])),
+      http.post("*/auth/2fa/step-up", async ({ request }) => {
+        capturedOrgIdHeader = request.headers.get("x-org-id");
+        capturedBody = await request.json();
+        return HttpResponse.json({ stepUpToken: "step-up-1", expiresAt: "2026-01-01T00:10:00Z" });
+      }),
+      http.post("*/company/rates/:id/approve", () => HttpResponse.json({ ...RATE_BASE, status: "approved", approvedBy: "user-1" })),
+    );
+
+    renderWithProviders(<TarifasAprobadasPage />);
+    await screen.findByText("SRV-001");
+    await approveViaStepUp(user);
+
+    await waitFor(() => expect(capturedBody).toBeDefined());
+    expect(capturedOrgIdHeader).toBe("org-a");
+    expect(capturedBody).toEqual({ code: "123456", purpose: "company.rate_approval" });
+  }, 15000);
 });
