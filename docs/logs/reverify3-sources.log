@@ -1,0 +1,506 @@
+=== reverify3-sources.log — reverificación adversarial 3 (cierre final), packages/sources ===
+Fecha: Sun Sep  6 01:18:24 CST 2026
+Worktree: git worktree add <scratchpad>/reverify3-src HEAD (HEAD=ebaa7ba en el momento de arranque)
+
+########################################################################
+# 1. ANCESTRÍA Y git show --stat DE LOS 4 COMMITS
+########################################################################
+
+--- git log --oneline 0e9dc4f~1..2dff88f ---
+2dff88f docs(sources): ronda 3 -- README/columna de reparación (SR-19..22) y log real
+e7124e6 docs: verificación puntual final (worker, agents, expediente cerrados)
+1270ea6 docs: verificación puntual final independiente (WK-19..23, AG-23, expediente micro)
+f1d3bc9 docs: cierre api ronda 3; despacho auditoría 2 de expediente en API
+72dc35c docs: log final ronda 3 — typecheck/lint/test de apps/api y packages/db en verde
+877b60f fix(sources): SR-22 -- UTF-16LE/BE (BOM y heuristica) y parser CSV en streaming (memoria acotada)
+f743989 docs: actualiza Estado reparación de API-09/10/11/12 y DB-09 (ronda 3)
+15bb31f fix(sources): SR-21 -- ningun registro se descarta en silencio (dropped[]/errors[]/umbral de tasa de descarte)
+d8a3da7 TEMP-CHECK-SR21
+0e9dc4f fix(sources): SR-19/SR-20 -- soft-block JSON valido y challenge en expected:"text" nunca pasan como "ok"
+
+--- git merge-base --is-ancestor (par a par, cadena lineal) ---
+0e9dc4f -> d8a3da7: true
+d8a3da7 -> 15bb31f: true
+15bb31f -> 877b60f: true
+877b60f -> 2dff88f: true
+
+--- git show --stat 0e9dc4f ---
+0e9dc4f695c37f88358d0e00a8ba4fd552b46d2d 2026-09-06T00:53:49-06:00 fix(sources): SR-19/SR-20 -- soft-block JSON valido y challenge en expected:"text" nunca pasan como "ok"
+
+ .../src/connectors/compras-mx/comprasmx-types.ts   | 18 ++++-
+ .../sources/src/connectors/dof/dof-connector.ts    | 19 +++++-
+ packages/sources/src/connectors/ocds/ocds-types.ts | 11 ++-
+ packages/sources/src/http/response-classifier.ts   | 79 ++++++++++++++++++----
+ .../sources/test/connectors/compras-mx.test.ts     | 57 +++++++++++++++-
+ packages/sources/test/connectors/ocds.test.ts      | 42 ++++++++++++
+ packages/sources/test/response-classifier.test.ts  | 70 +++++++++++++++++++
+ 7 files changed, 279 insertions(+), 17 deletions(-)
+
+--- git show --stat d8a3da7 ---
+d8a3da762752f4671ba9e8bc0be44fbb5896bfea 2026-09-06T00:54:18-06:00 TEMP-CHECK-SR21
+
+ .../connectors/compras-mx/compras-mx-connector.ts  | 11 ++-
+ .../src/connectors/compras-mx/comprasmx-mapper.ts  | 70 ++++++++++++++--
+ packages/sources/src/connectors/types.ts           | 33 ++++++++
+ .../sources/src/pipeline/discovery-pipeline.ts     | 73 +++++++++++++++--
+ packages/sources/src/pipeline/source-health.ts     |  9 +++
+ .../sources/test/connectors/compras-mx.test.ts     | 94 +++++++++++++++++++++-
+ .../test/pipeline/discovery-pipeline.test.ts       | 85 +++++++++++++++++++
+ 7 files changed, 357 insertions(+), 18 deletions(-)
+
+--- git show --stat 15bb31f ---
+15bb31f5faa6c6a1eefd25d56cb2184f66cd1d26 2026-09-06T00:55:07-06:00 fix(sources): SR-21 -- ningun registro se descarta en silencio (dropped[]/errors[]/umbral de tasa de descarte)
+
+ apps/api/src/lib/agent-stores.pg.ts                |  97 ++++++++++++++----
+ .../security-db09-agent-run-context-cache.test.ts  | 113 +++++++++++++++++++++
+ 2 files changed, 192 insertions(+), 18 deletions(-)
+
+--- git show --stat f743989 ---
+f743989d45789a1c84fb7034c4fb551eeb275ea3 2026-09-06T00:56:03-06:00 docs: actualiza Estado reparación de API-09/10/11/12 y DB-09 (ronda 3)
+
+ docs/auditoria-1/db-api-reverificacion.md | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+--- git show --stat 877b60f ---
+877b60f7a685a35efe0416f94c227c5967e4ba6c 2026-09-06T00:58:17-06:00 fix(sources): SR-22 -- UTF-16LE/BE (BOM y heuristica) y parser CSV en streaming (memoria acotada)
+
+ packages/sources/package.json                      |   4 +-
+ .../compras-mx-historical-csv-connector.ts         | 102 +++++++---
+ .../src/connectors/compras-mx/comprasmx-mapper.ts  | 107 ++++++++---
+ packages/sources/src/util/csv.ts                   | 186 ++++++++++++++++++
+ packages/sources/src/util/encoding.ts              | 211 ++++++++++++++++++++-
+ packages/sources/test/csv-streaming-memory.test.ts | 103 ++++++++++
+ packages/sources/test/encoding.test.ts             |  98 +++++++++-
+ 7 files changed, 749 insertions(+), 62 deletions(-)
+
+--- git show --stat 2dff88f ---
+2dff88fd3d777353def087e0f8d9a852d3681dc4 2026-09-06T01:04:08-06:00 docs(sources): ronda 3 -- README/columna de reparación (SR-19..22) y log real
+
+ docs/auditoria-1/sources-cierre.md |  75 ++++++++-
+ docs/logs/fix-sources-ronda3.log   | 314 +++++++++++++++++++++++++++++++++++++
+ packages/sources/README.md         | 182 +++++++++++++++------
+ 3 files changed, 516 insertions(+), 55 deletions(-)
+
+########################################################################
+# 2. HALLAZGO: 15bb31f NO contiene el diff de SR-21 (incidente INC-06)
+########################################################################
+
+--- reflog en la ventana del incidente ---
+72dc35c HEAD@{2026-09-06 00:59:40 -0600}: commit: docs: log final ronda 3 — typecheck/lint/test de apps/api y packages/db en verde
+877b60f HEAD@{2026-09-06 00:58:17 -0600}: commit: fix(sources): SR-22 -- UTF-16LE/BE (BOM y heuristica) y parser CSV en streaming (memoria acotada)
+f743989 HEAD@{2026-09-06 00:56:03 -0600}: commit: docs: actualiza Estado reparación de API-09/10/11/12 y DB-09 (ronda 3)
+
+--- diff f537486 (commit original 'fix(api): DB-09 residual...') vs 15bb31f (mensaje 'fix(sources): SR-21' tras el amend) ---
+git diff exit code: 0  (vacío = mismo árbol, confirma NINGÚN contenido perdido, solo cambió el mensaje)
+tree hash f537486: 60ce8ebd4867168e5770d873759d8cef55ddd82c
+tree hash 15bb31f: 60ce8ebd4867168e5770d873759d8cef55ddd82c
+
+--- ¿dónde vive realmente el diff de SR-21 sobre packages/sources? ---
+git log --oneline -- packages/sources/src/pipeline/discovery-pipeline.ts:
+d8a3da7 TEMP-CHECK-SR21
+3dc9ce7 feat(sources): add discovery pipeline for MX tender sources (ComprasMX, DOF, OCDS-SHCP, PDN-S6, state portals)
+(el diff real de SR-21 quedó en d8a3da7 'TEMP-CHECK-SR21', NO en 15bb31f)
+
+--- ¿es 21b6a8c (DB-09 mitigación parcial anterior, migración 0044) ancestro de HEAD? ---
+sí
+
+--- coherencia de 15bb31f (contenido real: DB-09) con docs/auditoria-1/db-api-reverificacion.md ---
+
+--- presencia y coherencia de packages/db/migrations/0044* ---
+0044_fix_db09_agent_run_context_bootstrap_guard.sql
+
+########################################################################
+# 3. SUITE Y COBERTURA (worktree limpio, npm install real)
+########################################################################
+
+=== Sun Sep  6 01:08:34 CST 2026 reverify3-sources ===
+--- typecheck ---
+
+> @atiende/sources@0.1.0 typecheck
+> tsc --noEmit
+
+--- lint ---
+
+> @atiende/sources@0.1.0 lint
+> eslint src test --ext .ts
+
+--- build ---
+
+> @atiende/sources@0.1.0 build
+> tsc -p tsconfig.build.json
+
+
+--- test ---
+
+> @atiende/sources@0.1.0 test
+> NODE_OPTIONS=--expose-gc vitest run
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify3-src/packages/sources[39m
+
+ [32m✓[39m test/encoding.test.ts [2m([22m[2m19 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/response-classifier.test.ts [2m([22m[2m18 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/matching.test.ts [2m([22m[2m16 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/dedupe.test.ts [2m([22m[2m25 tests[22m[2m)[22m[90m 13[2mms[22m[39m
+ [32m✓[39m test/connectors/dof.test.ts [2m([22m[2m8 tests[22m[2m)[22m[90m 17[2mms[22m[39m
+ [32m✓[39m test/connectors/compras-mx.test.ts [2m([22m[2m19 tests[22m[2m)[22m[90m 15[2mms[22m[39m
+ [32m✓[39m test/connectors/compras-mx-historical.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 18[2mms[22m[39m
+ [32m✓[39m test/http-client.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 74[2mms[22m[39m
+ [32m✓[39m test/pipeline/discovery-pipeline.test.ts [2m([22m[2m18 tests[22m[2m)[22m[90m 53[2mms[22m[39m
+ [32m✓[39m test/schema-null-normalization.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/csv.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/connectors/ocds.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 14[2mms[22m[39m
+ [32m✓[39m test/host-throttle.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/connectors/registry.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/connectors/state-portal.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/hash.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/timezone-independence.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 1300[2mms[22m[39m
+   [33m[2m✓[22m[39m SR-02: independencia de zona horaria del proceso en fechas de ComprasMX[2m > [22mel mismo dato de entrada naive produce el MISMO instante submissionDeadline con TZ=UTC, TZ=America/Mexico_City y TZ=Asia/Tokyo [33m738[2mms[22m[39m
+   [33m[2m✓[22m[39m SR-12: independencia de zona horaria del proceso en fechas del CSV histórico de ComprasMX (parseComprasMxHistoricoCsv)[2m > [22mel mismo fecha_inicio naive produce el MISMO instante published con TZ=UTC, TZ=America/Mexico_City y TZ=Asia/Tokyo [33m562[2mms[22m[39m
+ [32m✓[39m test/tz-invariant.test.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 3810[2mms[22m[39m
+   [33m[2m✓[22m[39m SR-12 (invariante ampliada): TODOS los conectores registrados producen fechas TZ-independientes ante una entrada naive[2m > [22mcompras-mx: el mismo fixture con fecha naive produce el MISMO instante bajo TZ=UTC/America/Mexico_City/Asia/Tokyo [33m850[2mms[22m[39m
+   [33m[2m✓[22m[39m SR-12 (invariante ampliada): TODOS los conectores registrados producen fechas TZ-independientes ante una entrada naive[2m > [22mcompras-mx-historico: el mismo fixture con fecha naive produce el MISMO instante bajo TZ=UTC/America/Mexico_City/Asia/Tokyo [33m607[2mms[22m[39m
+   [33m[2m✓[22m[39m SR-12 (invariante ampliada): TODOS los conectores registrados producen fechas TZ-independientes ante una entrada naive[2m > [22mdof: el mismo fixture con fecha naive produce el MISMO instante bajo TZ=UTC/America/Mexico_City/Asia/Tokyo [33m595[2mms[22m[39m
+   [33m[2m✓[22m[39m SR-12 (invariante ampliada): TODOS los conectores registrados producen fechas TZ-independientes ante una entrada naive[2m > [22mocds-shcp: el mismo fixture con fecha naive produce el MISMO instante bajo TZ=UTC/America/Mexico_City/Asia/Tokyo [33m584[2mms[22m[39m
+   [33m[2m✓[22m[39m SR-12 (invariante ampliada): TODOS los conectores registrados producen fechas TZ-independientes ante una entrada naive[2m > [22mpdn-s6: el mismo fixture con fecha naive produce el MISMO instante bajo TZ=UTC/America/Mexico_City/Asia/Tokyo [33m591[2mms[22m[39m
+   [33m[2m✓[22m[39m SR-12 (invariante ampliada): TODOS los conectores registrados producen fechas TZ-independientes ante una entrada naive[2m > [22mstate-portal: el mismo fixture con fecha naive produce el MISMO instante bajo TZ=UTC/America/Mexico_City/Asia/Tokyo [33m582[2mms[22m[39m
+ [32m✓[39m test/csv-streaming-memory.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 4936[2mms[22m[39m
+   [33m[2m✓[22m[39m Memoria acotada del parser CSV en streaming (mejora de memoria, ronda 3 de corrección)[2m > [22mprocesa ~50 MB de CSV simulado sin que el heap crezca proporcionalmente al tamaño del archivo [33m4935[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m19 passed[39m[22m[90m (19)[39m
+[2m      Tests [22m [1m[32m186 passed[39m[22m[90m (186)[39m
+[2m   Start at [22m 01:08:43
+[2m   Duration [22m 5.51s[2m (transform 395ms, setup 0ms, collect 1.04s, tests 10.29s, environment 2ms, prepare 894ms)[22m
+
+
+--- npm run -w packages/sources test:coverage (umbrales reales: lines 85 / branches 80) ---
+[32;1m  ...y-pipeline.ts[0m | [32;1m  97.31[0m | [32;1m   95.91[0m | [32;1m    100[0m | [32;1m  97.31[0m | [31;1m268-271          [0m 
+[33;1m  repository.ts   [0m | [33;1m  78.57[0m | [32;1m     100[0m | [33;1m     60[0m | [33;1m  78.57[0m | [31;1m56-57,60-63      [0m 
+[32;1m  source-health.ts[0m | [32;1m  95.12[0m | [32;1m    93.1[0m | [32;1m    100[0m | [32;1m  95.12[0m | [31;1m117-118          [0m 
+[32;1m src/types        [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  tender-record.ts[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m src/util         [0m | [32;1m  81.97[0m | [32;1m   84.23[0m | [32;1m  96.96[0m | [32;1m  81.97[0m | [31;1m                 [0m 
+[33;1m  csv.ts          [0m | [33;1m  74.47[0m | [33;1m    79.1[0m | [32;1m    100[0m | [33;1m  74.47[0m | [31;1m...61-262,302-304[0m 
+[32;1m  encoding.ts     [0m | [32;1m  86.01[0m | [32;1m   86.84[0m | [32;1m    100[0m | [32;1m  86.01[0m | [31;1m...71,199,246-259[0m 
+[32;1m  hash.ts         [0m | [32;1m    100[0m | [32;1m   94.73[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m69               [0m 
+[32;1m  schema.ts       [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  text.ts         [0m | [32;1m    100[0m | [33;1m      75[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m30-31,39         [0m 
+[33;1m  timezone.ts     [0m | [33;1m  71.42[0m | [32;1m   83.33[0m | [33;1m  66.66[0m | [33;1m  71.42[0m | [31;1m37,44-48         [0m 
+-------------------|---------|----------|---------|---------|-------------------
+
+=============================== Coverage summary ===============================
+[32;1mStatements   : 89.43% ( 2117/2367 )[0m
+[32;1mBranches     : 84.21% ( 683/811 )[0m
+[32;1mFunctions    : 92.26% ( 155/168 )[0m
+[32;1mLines        : 89.43% ( 2117/2367 )[0m
+================================================================================
+
+########################################################################
+# 4. MUTACIÓN DEL GATE DE COBERTURA (lines 85->95, branches 80->90)
+########################################################################
+
+================================================================================
+ERROR: Coverage for lines (89.43%) does not meet global threshold (95%)
+ERROR: Coverage for branches (84.21%) does not meet global threshold (90%)
+npm error Lifecycle script `test:coverage` failed with error:
+npm error code 1
+npm error path /private/tmp/claude-501/-Users-javiercamaraportepetit/***/scratchpad/reverify3-src/packages/sources
+npm error workspace @atiende/sources@0.1.0
+npm error location /private/tmp/claude-501/-Users-javiercamaraportepetit/***/scratchpad/reverify3-src/packages/sources
+npm error command failed
+npm error command sh -c NODE_OPTIONS=--expose-gc vitest run --coverage
+(archivo vitest.config.ts restaurado inmediatamente después; git diff --stat vacío confirmado)
+
+########################################################################
+# 5. ATAQUES DE CIERRE SR-19 (soft-block JSON / esquema demasiado laxo)
+########################################################################
+Archivo temporal: test/ZZZ-reverify3-attacks.test.ts (worktree aislado, eliminado al terminar)
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify3-src[39m
+
+[90mstdout[2m | packages/sources/test/ZZZ-reverify3-attacks.test.ts[2m > [22m[2mSR-19 -- ataques de cierre adicionales (reverificación 3)[2m > [22m[2m'{"data":{}}' (objeto en vez de array) -- ¿lanza?
+[22m[39mdata:{} -> threw: ZodError [
+  {
+    "code": "invalid_type",
+    "expected": "array",
+    "received": "object",
+    "path": [
+ 
+data:{} threw = [33mtrue[39m
+
+[90mstdout[2m | packages/sources/test/ZZZ-reverify3-attacks.test.ts[2m > [22m[2mSR-19 -- ataques de cierre adicionales (reverificación 3)[2m > [22m[2m'{"data":[{}]}' (un elemento vacío en el array) -- ¿revienta o produce 0 registros silenciosamente?
+[22m[39mdata:[{}] threw = [33mfalse[39m records.length= [33m0[39m
+
+[90mstdout[2m | packages/sources/test/ZZZ-reverify3-attacks.test.ts[2m > [22m[2mSR-19 -- ataques de cierre adicionales (reverificación 3)[2m > [22m[2mJSON como string (el cuerpo es una cadena JSON válida, no un objeto) -- '"hola"'
+[22m[39mstring body -> threw: ZodError [
+  {
+    "code": "invalid_type",
+    "expected": "object",
+    "received": "string",
+    "path": [],
+    "message": "Expected object, received string
+string body threw = [33mtrue[39m
+
+[90mstdout[2m | packages/sources/test/ZZZ-reverify3-attacks.test.ts[2m > [22m[2mSR-19 -- ataques de cierre adicionales (reverificación 3)[2m > [22m[2marray como raíz -- '[]'
+[22m[39mroot array [] -> threw: ZodError [
+  {
+    "code": "invalid_type",
+    "expected": "object",
+    "received": "array",
+    "path": [],
+    "message": "Expected object, received array"
+
+root array [] threw = [33mtrue[39m
+
+[90mstdout[2m | packages/sources/test/ZZZ-reverify3-attacks.test.ts[2m > [22m[2mSR-19 -- ataques de cierre adicionales (reverificación 3)[2m > [22m[2marray como raíz con contenido -- '[{"data":[]}]'
+[22m[39mroot array with content -> threw: ZodError [
+  {
+    "code": "invalid_type",
+    "expected": "object",
+    "received": "array",
+    "path": [],
+    "message": "Expected object, received array"
+
+root array with content threw = [33mtrue[39m
+
+[90mstdout[2m | packages/sources/test/ZZZ-reverify3-attacks.test.ts[2m > [22m[2mSR-19 -- ataques de cierre adicionales (reverificación 3)[2m > [22m[2mDiscoveryPipeline: '{"data":{}}' -- ¿es 'ok' silencioso o interface_changed?
+[22m[39mdata:{} pipeline state: interface_changed {"message":"El parser no reconoce la estructura recibida: [\n  {\n    \"code\": \"invalid_type\",\n    \"expected\": \"array\",\n    \"received\": \"object\",\n    \"path\": [\n      \"data\"\n    ],\n    \"message\": \"Expected array, received object\"\n  }\n]"}
+
+[90mstdout[2m | packages/sources/test/ZZZ-reverify3-attacks.test.ts[2m > [22m[2mSR-19 -- ataques de cierre adicionales (reverificación 3)[2m > [22m[2mDiscoveryPipeline: '{"data":[{}]}' -- ¿es 'ok' silencioso con 0 nuevos, o marca algo?
+[22m[39mdata:[{}] pipeline state: ok nuevos: [33m0[39m dropped: [33m0[39m {"message":"Corrida exitosa sin registros nuevos de la fuente.","coverage":{"emptyResult":true}}
+
+[90mstdout[2m | packages/sources/test/ZZZ-reverify3-attacks.test.ts[2m > [22m[2mSR-19 OCDS -- '{"releases":[]}' con campo 'error' adicional[2m > [22m[2m'{"releases":[],"error":"x"}' -- ¿se acepta como 0 legítimo aunque haya un campo 'error' sospechoso?
+[22m[39mreleases:[] + error threw= [33mfalse[39m records= [33m0[39m
+
+ [32m✓[39m packages/sources/test/ZZZ-reverify3-attacks.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m9 passed[39m[22m[90m (9)[39m
+[2m   Start at [22m 01:11:09
+[2m   Duration [22m 280ms[2m (transform 54ms, setup 0ms, collect 71ms, tests 7ms, environment 0ms, prepare 25ms)[22m
+
+
+########################################################################
+# 6. ATAQUES DE CIERRE SR-20/SR-21/SR-22 (worktree aislado, archivos ZZZ-*.test.ts eliminados al terminar)
+########################################################################
+
+
+ RUN  v2.1.9 /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify3-src
+
+stdout | packages/sources/test/ZZZ-reverify3-sr20.test.ts > SR-20 -- ataques de cierre adicionales (reverificación 3) > FALSO POSITIVO candidato: página legítima de DOF con contenido real pero SIN los marcadores exactos (variante de template)
+DOF sin marcadores exactos (variante template) -> {
+  threw: true,
+  name: 'InterfaceChangedError',
+  message: 'Respuesta de https://dof.gob.mx/nota_detalle.php?codigo=1: se esperaba texto/HTML de la fuente pero el cuerpo (con forma de documento HTML) no contiene ninguno de los marcadores estructurales mínimos esperados de esa fuente -- probable página de login/bloqueo genérica sin marcador de captcha reconocido, o cambio de interfaz de la fuente.'
+}
+
+stdout | packages/sources/test/ZZZ-reverify3-sr20.test.ts > SR-20 -- ataques de cierre adicionales (reverificación 3) > FALSO NEGATIVO candidato: interstitial JS genérico (sin vendor conocido) que incluye el header/footer real del sitio DOF
+Interstitial JS genérico con chrome real de DOF -> { threw: false }
+
+ ✓ packages/sources/test/ZZZ-reverify3-sr20.test.ts (6 tests) 3ms
+stdout | packages/sources/test/ZZZ-reverify3-sr20.test.ts > SR-20 -- ataques de cierre adicionales (reverificación 3) > Turnstile real (fixture estilo Cloudflare) -- ¿CaptchaDetectedError?
+Turnstile real -> {
+  threw: true,
+  name: 'CaptchaDetectedError',
+  message: 'Respuesta de https://dof.gob.mx/nota_detalle.php?codigo=1 contiene un marcador de captcha/bot-challenge ("cf-challenge") en un HTTP 200/2xx: posible bloqueo por CAPTCHA/anti-bot. Por política (REQ-079) este proyecto nunca intenta resolverlo.'
+}
+
+stdout | packages/sources/test/ZZZ-reverify3-sr20.test.ts > SR-20 -- ataques de cierre adicionales (reverificación 3) > Akamai real (fixture estilo 'Pardon Our Interruption') -- ¿CaptchaDetectedError?
+Akamai real -> {
+  threw: true,
+  name: 'CaptchaDetectedError',
+  message: 'Respuesta de https://dof.gob.mx/nota_detalle.php?codigo=1 contiene un marcador de captcha/bot-challenge ("akamai-bot-manager") en un HTTP 200/2xx: posible bloqueo por CAPTCHA/anti-bot. Por política (REQ-079) este proyecto nunca intenta resolverlo.'
+}
+
+stdout | packages/sources/test/ZZZ-reverify3-sr20.test.ts > SR-20 -- ataques de cierre adicionales (reverificación 3) > Imperva/Incapsula real (fixture) -- ¿CaptchaDetectedError?
+Imperva/Incapsula real -> {
+  threw: true,
+  name: 'CaptchaDetectedError',
+  message: 'Respuesta de https://dof.gob.mx/nota_detalle.php?codigo=1 contiene un marcador de captcha/bot-challenge ("imperva-incapsula") en un HTTP 200/2xx: posible bloqueo por CAPTCHA/anti-bot. Por política (REQ-079) este proyecto nunca intenta resolverlo.'
+}
+
+stdout | packages/sources/test/ZZZ-reverify3-sr20.test.ts > SR-20 -- ataques de cierre adicionales (reverificación 3) > content-type application/json con cuerpo HTML de challenge para expected:'json' (ComprasMX/OCDS) -- confirma que el header no importa
+HTML challenge con expected=json, sin minimalContentMarkers -> {
+  threw: true,
+  name: 'CaptchaDetectedError',
+  message: 'Respuesta de https://dof.gob.mx/nota_detalle.php?codigo=1 contiene un marcador de captcha/bot-challenge ("cf-challenge") en un HTTP 200/2xx: posible bloqueo por CAPTCHA/anti-bot. Por política (REQ-079) este proyecto nunca intenta resolverlo.'
+}
+
+stdout | packages/sources/test/ZZZ-reverify3-sr22.test.ts > SR-22 -- ataques de cierre adicionales (reverificación 3) > archivo de 1 byte ASCII ('A') -- no debe lanzar
+1 byte ASCII -> "A"
+
+stdout | packages/sources/test/ZZZ-reverify3-sr22.test.ts > SR-22 -- ataques de cierre adicionales (reverificación 3) > archivo de 1 byte NO-ASCII inválido como UTF-8 (0xFF) -- no debe lanzar, cae a Latin-1
+1 byte 0xFF -> "ÿ" len: 1
+
+stdout | packages/sources/test/ZZZ-reverify3-sr22.test.ts > SR-22 -- ataques de cierre adicionales (reverificación 3) > archivo de 1 byte NUL (0x00) -- no debe lanzar ni confundirse con heurística UTF-16 (sampleLen < 8)
+1 byte NUL -> "\u0000" len: 1
+
+stdout | packages/sources/test/ZZZ-reverify3-sr22.test.ts > SR-22 -- ataques de cierre adicionales (reverificación 3) > MEZCLA: buffer con BOM UTF-16LE pero sin datos después (2 bytes, solo el BOM)
+solo BOM UTF-16LE sin datos -> ""
+
+ ✓ packages/sources/test/ZZZ-reverify3-sr22.test.ts (6 tests) 3ms
+stdout | packages/sources/test/ZZZ-reverify3-sr22.test.ts > SR-22 -- ataques de cierre adicionales (reverificación 3) > MEZCLA (streaming): primer chunk ASCII limpio (decide UTF-8) + chunk posterior con bytes Latin-1 altos -- ¿corrupción SILENCIOSA?
+mezcla streaming (utf8 decidido, luego byte Latin-1) -> longitud: 103 contiene replacement char U+FFFD: true tail: "aaaaaaaN�A"
+
+stdout | packages/sources/test/ZZZ-reverify3-csv-stream.test.ts > SR-22/streaming -- ataques de cierre adicionales al parser CSV en streaming > un campo entrecomillado que CRUZA la frontera de dos chunks (incluida la coma y el salto de línea dentro) se reconstruye completo
+campo entrecomillado partido entre chunks -> rows: [{"row":1,"values":{"id":"1","nombre":"Empresa, S.A.\nde C.V.","monto":"100"}}] errors: []
+
+stdout | packages/sources/test/ZZZ-reverify3-csv-stream.test.ts > SR-22/streaming -- ataques de cierre adicionales al parser CSV en streaming > campo entrecomillado con comilla escapada ('""') partida JUSTO en la frontera entre dos comillas dobles consecutivas
+comilla escapada partida entre chunks -> rows: [{"row":1,"values":{"id":"1","nombre":"El \"Mejor\" Proveedor"}}] errors: []
+
+stdout | packages/sources/test/ZZZ-reverify3-csv-stream.test.ts > SR-22/streaming -- ataques de cierre adicionales al parser CSV en streaming > fila final SIN salto de línea (el archivo/chunk termina abruptamente, sin '\n' de cierre)
+fila final sin \n -> rows: [{"row":1,"values":{"id":"1","nombre":"Uno"}},{"row":2,"values":{"id":"2","nombre":"Dos"}}] errors: []
+
+stdout | packages/sources/test/ZZZ-reverify3-csv-stream.test.ts > SR-22/streaming -- ataques de cierre adicionales al parser CSV en streaming > fila final sin salto de línea Y en su PROPIO chunk separado (finish() debe emitirla)
+fila final en chunk separado sin \n -> rows: [{"row":1,"values":{"id":"1","nombre":"Uno"}},{"row":2,"values":{"id":"2","nombre":"Dos"}}] errors: []
+
+stdout | packages/sources/test/ZZZ-reverify3-csv-stream.test.ts > SR-22/streaming -- ataques de cierre adicionales al parser CSV en streaming > campo entrecomillado abierto que NUNCA se cierra antes de fin de stream (archivo truncado a media descarga)
+comillas sin cerrar al final del stream -> rows: [{"row":1,"values":{"id":"1","nombre":"Empresa sin cerrar comillas"}}] errors: []
+
+ ✓ packages/sources/test/ZZZ-reverify3-csv-stream.test.ts (5 tests) 6ms
+stdout | packages/sources/test/ZZZ-reverify3-sr20-e2e.test.ts > SR-20 residual E2E -- interstitial genérico con chrome real de DOF > DiscoveryPipeline reporta 'ok'/0-nuevas para un interstitial JS genérico que preserva el header/id reales del sitio (bypass silencioso de REQ-148)
+DOF interstitial genérico -> health: {"source":"dof","state":"ok","lastAttemptAt":"2026-09-06T07:20:26.269Z","lastSuccessAt":"2026-09-06T07:20:26.269Z","attempts":1,"consecutiveFailures":0,"evidence":{"message":"Corrida exitosa sin registros nuevos de la fuente.","coverage":{"emptyResult":true}},"staleForMs":3}
+
+stdout | packages/sources/test/ZZZ-reverify3-sr21-ocds.test.ts > SR-21 residual -- create-ocds-connector.ts NUNCA invoca ctx.reportDropped (invariante rota fuera de ComprasMX) > 80% de los releases de una página SIN bloque 'tender' (posible cambio de interfaz real) -- ¿se pierde en silencio?
+OCDS 80% sin 'tender' -> state: ok nuevos: 1 dropped: [] errores: [] evidence: {"message":"Corrida exitosa con registros procesados.","coverage":{"emptyResult":false}}
+
+stdout | packages/sources/test/ZZZ-reverify3-sr21-ocds.test.ts > SR-21 residual -- create-ocds-connector.ts NUNCA invoca ctx.reportDropped (invariante rota fuera de ComprasMX) > 100% de los releases de una página SIN bloque 'tender' -- ¿al menos coverage.emptyResult marca algo?
+OCDS 100% sin 'tender' -> state: ok evidence: {"message":"Corrida exitosa sin registros nuevos de la fuente.","coverage":{"emptyResult":true}} dropped: 0
+
+ ✓ packages/sources/test/ZZZ-reverify3-sr21-ocds.test.ts (2 tests) 9ms
+ ✓ packages/sources/test/ZZZ-reverify3-sr20-e2e.test.ts (1 test) 8ms
+stdout | packages/sources/test/ZZZ-reverify3-attacks.test.ts > SR-19 -- ataques de cierre adicionales (reverificación 3) > '{"data":{}}' (objeto en vez de array) -- ¿lanza?
+data:{} -> threw: ZodError [
+  {
+    "code": "invalid_type",
+    "expected": "array",
+    "received": "object",
+    "path": [
+ 
+data:{} threw = true
+
+stdout | packages/sources/test/ZZZ-reverify3-attacks.test.ts > SR-19 -- ataques de cierre adicionales (reverificación 3) > '{"data":[{}]}' (un elemento vacío en el array) -- ¿revienta o produce 0 registros silenciosamente?
+data:[{}] threw = false records.length= 0
+
+stdout | packages/sources/test/ZZZ-reverify3-attacks.test.ts > SR-19 -- ataques de cierre adicionales (reverificación 3) > JSON como string (el cuerpo es una cadena JSON válida, no un objeto) -- '"hola"'
+string body -> threw: ZodError [
+  {
+    "code": "invalid_type",
+    "expected": "object",
+    "received": "string",
+    "path": [],
+    "message": "Expected object, received string
+string body threw = true
+
+stdout | packages/sources/test/ZZZ-reverify3-attacks.test.ts > SR-19 -- ataques de cierre adicionales (reverificación 3) > array como raíz -- '[]'
+root array [] -> threw: ZodError [
+  {
+    "code": "invalid_type",
+    "expected": "object",
+    "received": "array",
+    "path": [],
+    "message": "Expected object, received array"
+
+root array [] threw = true
+
+stdout | packages/sources/test/ZZZ-reverify3-attacks.test.ts > SR-19 -- ataques de cierre adicionales (reverificación 3) > array como raíz con contenido -- '[{"data":[]}]'
+root array with content -> threw: ZodError [
+  {
+    "code": "invalid_type",
+    "expected": "object",
+    "received": "array",
+    "path": [],
+    "message": "Expected object, received array"
+
+root array with content threw = true
+
+stdout | packages/sources/test/ZZZ-reverify3-attacks.test.ts > SR-19 -- ataques de cierre adicionales (reverificación 3) > DiscoveryPipeline: '{"data":{}}' -- ¿es 'ok' silencioso o interface_changed?
+data:{} pipeline state: interface_changed {"message":"El parser no reconoce la estructura recibida: [\n  {\n    \"code\": \"invalid_type\",\n    \"expected\": \"array\",\n    \"received\": \"object\",\n    \"path\": [\n      \"data\"\n    ],\n    \"message\": \"Expected array, received object\"\n  }\n]"}
+
+stdout | packages/sources/test/ZZZ-reverify3-attacks.test.ts > SR-19 -- ataques de cierre adicionales (reverificación 3) > DiscoveryPipeline: '{"data":[{}]}' -- ¿es 'ok' silencioso con 0 nuevos, o marca algo?
+data:[{}] pipeline state: ok nuevos: 0 dropped: 0 {"message":"Corrida exitosa sin registros nuevos de la fuente.","coverage":{"emptyResult":true}}
+
+stdout | packages/sources/test/ZZZ-reverify3-attacks.test.ts > SR-19 OCDS -- '{"releases":[]}' con campo 'error' adicional > '{"releases":[],"error":"x"}' -- ¿se acepta como 0 legítimo aunque haya un campo 'error' sospechoso?
+releases:[] + error threw= false records= 0
+
+ ✓ packages/sources/test/ZZZ-reverify3-attacks.test.ts (9 tests) 11ms
+stdout | packages/sources/test/ZZZ-reverify3-sr21-boundary.test.ts > SR-21 -- ataques de frontera exactos del umbral de tasa de descarte (default 20%) > 19.9% de descarte (199/1000) -- debe quedarse en 'ok' (estrictamente < 20%)
+19.9% -> ok 199 / 1000
+
+stdout | packages/sources/test/ZZZ-reverify3-sr21-boundary.test.ts > SR-21 -- ataques de frontera exactos del umbral de tasa de descarte (default 20%) > EXACTAMENTE 20% de descarte (200/1000) -- ¿'ok' o 'interface_changed'? (umbral es '>', no '>=')
+20.0% exacto -> ok 200 / 1000
+
+stdout | packages/sources/test/ZZZ-reverify3-sr21-boundary.test.ts > SR-21 -- ataques de frontera exactos del umbral de tasa de descarte (default 20%) > 20.1% de descarte (201/1000) -- debe reclasificar a 'interface_changed'
+20.1% -> interface_changed 201 / 1000
+
+stdout | packages/sources/test/ZZZ-reverify3-sr21-boundary.test.ts > SR-21 -- ataques de frontera exactos del umbral de tasa de descarte (default 20%) > 1 de 1 (100%) -- un único registro, descartado -- ¿interface_changed a pesar de processedAny=false?
+1/1 (100%) -> interface_changed {"message":"Tasa de descarte de registros (100.0%, 1/1) supera el umbral configurado (20%): probable cambio de forma de la fuente en vez de datos incompletos aislados. Ver errors[]/dropped para el detalle por registro."}
+
+ ✓ packages/sources/test/ZZZ-reverify3-sr21-boundary.test.ts (5 tests) 186ms
+stdout | packages/sources/test/ZZZ-reverify3-sr21-boundary.test.ts > SR-21 -- ataques de frontera exactos del umbral de tasa de descarte (default 20%) > 1 de 1 (0% -- el único registro es válido) -- sigue 'ok', coverage.emptyResult=false
+1/1 (0%) -> ok {"message":"Corrida exitosa con registros procesados.","coverage":{"emptyResult":false}}
+
+
+ Test Files  7 passed (7)
+      Tests  34 passed (34)
+   Start at  01:20:25
+   Duration  550ms (transform 238ms, setup 0ms, collect 618ms, tests 225ms, environment 1ms, prepare 312ms)
+
+
+########################################################################
+# 7. RE-CORRIDA DE LA SUITE COMPLETA CON LOS ARCHIVOS DE ATAQUE PRESENTES (confirma 220 = 186 + 34, sin interferencia)
+########################################################################
+Test Files  26 passed (26) / Tests  220 passed (220) -- confirmado, ver salida completa arriba/abajo.
+
+########################################################################
+# 8. REGRESIÓN EN CONSUMIDORES (apps/worker typecheck+test, apps/api typecheck)
+########################################################################
+
+--- apps/worker typecheck ---
+
+> @atiende/worker@0.1.0 typecheck
+> tsc --noEmit
+
+--- apps/worker test ---
+   [33m[2m✓[22m[39m discover_tenders handler — A1/A2: publicación nueva e idempotencia de replay[2m > [22mWK-06: coverage.expected viene de payload.expectedTotal si se da; source_runs "ok" lo persiste [33m976[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — WK-03/WK-05/WK-06: honestidad de coverage y registro SIEMPRE de source_runs[2m > [22msi discover() tiene éxito pero el POST de ingesta falla, source_runs SIEMPRE se registra (ingest_failed) [33m734[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — WK-03/WK-05/WK-06: honestidad de coverage y registro SIEMPRE de source_runs[2m > [22msi discover() falla a mitad de iteración, coverage.obtained es 0 (nunca cuenta lo descartado) [33m648[2mms[22m[39m
+   [33m[2m✓[22m[39m discover_tenders handler — WK-03/WK-05/WK-06: honestidad de coverage y registro SIEMPRE de source_runs[2m > [22msin payload.expectedTotal, coverage.expected es null CON un motivo explícito, en las 4 rutas [33m579[2mms[22m[39m
+ [32m✓[39m test/job-queue.test.ts [2m([22m[2m19 tests[22m[2m)[22m[33m 19029[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: reclamo atómico sin doble procesamiento[2m > [22mN workers > M jobs: cada job se reclama como máximo una vez [33m3962[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: reclamo atómico sin doble procesamiento[2m > [22mun job ya en running no es reclamado dos veces por workers adicionales [33m1896[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: reclamo atómico sin doble procesamiento[2m > [22mun job claimeado incrementa attempts y queda en running con locked_by [33m1687[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-01 — claim() respeta max_attempts también en recuperación de lease (crash real)[2m > [22mun job que crashea repetidamente (nunca completa/falla) termina en "dead", nunca "running" eterno [33m1401[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: reintentos con backoff exponencial + jitter[2m > [22mcada fallo reprograma next_run_at con backoff creciente hasta max_attempts, luego "dead" [33m1308[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: reintentos con backoff exponencial + jitter[2m > [22mel jitter mantiene el delay dentro del rango esperado (no determinista pero acotado) [33m932[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: lease expirado se recupera[2m > [22mun job running cuyo lease expiró es reclamable por otro worker [33m908[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: lease expirado se recupera[2m > [22mheartbeat extiende el lease y evita que otro worker lo recupere [33m783[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: cancelación[2m > [22mcancelar un job queued lo deja fuera de circulación (cancelled, no dead) y no se reclama [33m645[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: cancelación[2m > [22mcancelar un job running también lo detiene, con estado cancelled (WK-22) [33m582[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: idempotencia por jobKey[2m > [22mencolar dos veces con el mismo jobKey mientras el primero sigue activo no duplica [33m560[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: idempotencia por jobKey[2m > [22muna vez terminado (succeeded), un nuevo jobKey (otra ventana) sí encola [33m523[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-10 — deadLetterPermanent (errores permanentes, sin ciclo de backoff)[2m > [22mdead-letra inmediatamente en el primer intento, sin importar max_attempts [33m525[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: complete[2m > [22mcomplete limpia el lock y marca succeeded [33m523[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: complete[2m > [22mcomplete con un lockedBy equivocado lanza StaleLeaseError y no persiste nada (protege contra confirmaciones cruzadas) [33m538[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent()[2m > [22mWORKER_ID reutilizado tras "reinicio" (mismo string, lease token distinto): complete() del zombie de la generación anterior es rechazado [33m553[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent()[2m > [22mfail() del zombie con lockedBy viejo también es rechazado (no aplica backoff/dead-letter equivocado) [33m596[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent()[2m > [22mdeadLetterPermanent() del zombie con lockedBy viejo también es rechazado [33m548[2mms[22m[39m
+   [33m[2m✓[22m[39m JobQueue: WK-14 — fencing real por lease token en complete()/fail()/deadLetterPermanent()[2m > [22mheartbeat() del zombie con lockedBy viejo retorna false (ya lo hacía por attempts en WK-02; ahora también por lease token) [33m555[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m11 passed[39m[22m[90m (11)[39m
+[2m      Tests [22m [1m[32m298 passed[39m[22m[90m (298)[39m
+[2m   Start at [22m 01:16:54
+[2m   Duration [22m 19.37s[2m (transform 658ms, setup 0ms, collect 1.40s, tests 99.22s, environment 1ms, prepare 630ms)[22m
+
+--- apps/api typecheck ---
+
+> @atiende/api@0.1.0 typecheck
+> tsc --noEmit
+
+
+########################################################################
+# 9. LIMPIEZA FINAL DEL WORKTREE
+########################################################################
+git status --short (worktree, tras eliminar los 7 archivos ZZZ-*.test.ts): vacío, confirmado.
+git worktree remove <scratchpad>/reverify3-src ejecutado al final de esta reverificación.
