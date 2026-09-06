@@ -264,10 +264,32 @@ export async function expedienteContractRoutes(app: FastifyInstance): Promise<vo
           await requireStepUp(tx, { userId, stepUpHeader: request.headers['x-step-up'], orgId, purpose: 'expediente.contract_transition' });
         }
 
+        // R6-04 (docs/auditoria-2/api-ronda6.md, MEDIA): el `SELECT` de
+        // `requireContract` de arriba NO bloquea la fila -- dos transiciones
+        // concurrentes que parten del MISMO `fromStatus` podrían pasar
+        // ambas la validación en memoria (`checkTransition`) y, si el
+        // `UPDATE` no condicionara sobre el estado previo, ambas tendrían
+        // éxito (una pisando el historial de la otra). Se condiciona el
+        // `UPDATE` a `status = $fromStatus` (patrón ya usado en
+        // `company/routes.ts` para `approved_rates.approve/reject` y en
+        // `agents/routes.ts` para `tool_calls`): bajo READ COMMITTED,
+        // Postgres bloquea la fila mientras la otra transacción concurrente
+        // está en vuelo y, al liberarse, vuelve a evaluar el `WHERE` contra
+        // el valor YA COMMITTEADO -- si el estado cambió mientras tanto,
+        // esta actualización afecta 0 filas en vez de aplicar un cambio
+        // basado en un estado que ya no es el vigente.
         const updated = await tx.query<Record<string, unknown>>(
-          'update contracts set status = $1 where id = $2 and org_id = $3 returning *',
-          [toStatus, contract.id, orgId]
+          'update contracts set status = $1 where id = $2 and org_id = $3 and status = $4 returning *',
+          [toStatus, contract.id, orgId, fromStatus]
         );
+        if (updated.rows.length === 0) {
+          const current = await tx.query<{ status: string }>('select status from contracts where id = $1 and org_id = $2', [contract.id, orgId]);
+          const currentStatus = current.rows[0]?.status ?? fromStatus;
+          throw new ConflictError(
+            `El estado del contrato cambió mientras se procesaba esta transición (de "${fromStatus}" ya pasó a "${currentStatus}" por otra solicitud). Reintente la transición partiendo del estado actual.`,
+            { fromStatus, toStatus, currentStatus }
+          );
+        }
 
         await tx.query(
           `insert into contract_status_history (id, org_id, contract_id, from_status, to_status, reason, actor_id, evidence_ref, correlation_id)

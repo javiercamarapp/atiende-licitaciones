@@ -208,4 +208,45 @@ describe('expediente — máquina de estados del contrato (REQ-051)', () => {
     const attempt = await app.inject({ method: 'POST', url: `/expediente/tenders/${tenderId}/contract`, headers: viewerHeaders });
     expect(attempt.statusCode).toBe(403);
   });
+
+  it('R6-04: dos transiciones concurrentes del MISMO contrato partiendo del MISMO fromStatus -- exactamente una 200, la otra 409, y el historial nunca queda con dos filas para el mismo salto', async () => {
+    const owner = await registerAndLogin(app, 'c051-owner-6@example.com');
+    const org = await createOrgFor(app, owner, 'C051 Org 6', 'c051-org-6');
+    const tenderId = await createTender(app, org.id, 'c051-006');
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+    await app.inject({ method: 'POST', url: `/expediente/tenders/${tenderId}/contract`, headers });
+
+    // Antes de R6-04, el UPDATE de la transición no condicionaba sobre el
+    // `fromStatus` leído -- dos solicitudes concurrentes que parten del
+    // mismo estado ("adjudicado") podían ambas pasar la validación en
+    // memoria y ambas tener éxito (200), cada una insertando una fila de
+    // historial con un `from_status` que ya no correspondía al estado real
+    // inmediatamente anterior en la cadena.
+    const [first, second] = await Promise.all([
+      app.inject({
+        method: 'POST',
+        url: `/expediente/tenders/${tenderId}/contract/transition`,
+        headers,
+        payload: { toStatus: 'contrato_firmado_declarado', reason: 'Solicitud concurrente A.' },
+      }),
+      app.inject({
+        method: 'POST',
+        url: `/expediente/tenders/${tenderId}/contract/transition`,
+        headers,
+        payload: { toStatus: 'contrato_firmado_declarado', reason: 'Solicitud concurrente B.' },
+      }),
+    ]);
+    const codes = [first.statusCode, second.statusCode].sort();
+    expect(codes).toEqual([200, 409]);
+
+    const contract = await app.inject({ method: 'GET', url: `/expediente/tenders/${tenderId}/contract`, headers });
+    expect(contract.json().status).toBe('contrato_firmado_declarado');
+
+    // El historial tiene EXACTAMENTE una fila para el salto
+    // adjudicado -> contrato_firmado_declarado (la otra solicitud nunca
+    // escribió nada, gracias al UPDATE condicionado -- ver R6-04).
+    const history = await app.inject({ method: 'GET', url: `/expediente/tenders/${tenderId}/contract/history`, headers });
+    const jumps = history.json().filter((h: any) => h.fromStatus === 'adjudicado' && h.toStatus === 'contrato_firmado_declarado');
+    expect(jumps).toHaveLength(1);
+  });
 });
