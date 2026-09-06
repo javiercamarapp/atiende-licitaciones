@@ -11,10 +11,10 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import type { DbExecutor } from '@atiende/db';
 import { WRITE_ROLES } from '@atiende/db';
-import { PackageAssembler, type ChecklistReport, type PackageDocumentInput } from '@atiende/expediente';
+import { PackageAssembler, type ChecklistReport, type PackageDocumentInput, type PackageManifest } from '@atiende/expediente';
 import { requireOrgRole } from '../../lib/authorize.js';
 import { recordAudit } from '../../lib/audit.js';
-import { NotFoundError } from '../../lib/errors.js';
+import { ConflictError, NotFoundError } from '../../lib/errors.js';
 import { withTx, requireTender, requireProposal, collectUsedInputs } from '../../lib/expediente/context.js';
 import { loadApprovalEvents, replayWorkflow } from '../../lib/expediente/approval-store.pg.js';
 import { getCurrentSealedInputs } from '../../lib/expediente/inputs.js';
@@ -31,6 +31,55 @@ async function loadChecklistReport(tx: DbExecutor, orgId: string, proposalId: st
   const items = rows.map((r: Record<string, unknown>) => ({ dimension: r.dimension, status: r.result, detail: r.notes ?? '', evidence: (r.evidence_ref as string | null)?.split(', ').filter(Boolean) ?? [] })) as ChecklistReport['items'];
   const overallStatus = items.some((i) => i.status === 'rojo') ? 'rojo' : items.length === 0 ? 'rojo' : items.some((i) => i.status === 'ambar') ? 'ambar' : 'verde';
   return { items, overallStatus };
+}
+
+/**
+ * AE-14 (docs/auditoria-2/api-expediente-reverificacion.md, MEDIA):
+ * `GET /package/latest`/`/package/download` devolvían SIEMPRE el
+ * `status`/`manifest` guardado en la última fila de `package_manifests`
+ * -- si la aprobación vigente se invalidaba DESPUÉS de ensamblar (p. ej.
+ * por un cambio de perfil de empresa, AE-08, o de una sección, AE-02), el
+ * paquete seguía mostrándose "ready" indefinidamente hasta el próximo
+ * `POST /package/assemble` manual, sirviendo/anunciando un ZIP "listo"
+ * que ya no refleja el estado real del expediente.
+ *
+ * `deriveCurrentManifest` recalcula el `PackageManifest` REAL contra el
+ * estado vivo de la base de datos (mismo insumo que `PackageAssembler`
+ * usa en `/package/assemble`: checklist + aprobaciones + hash de insumos
+ * ACTUAL), sin volver a escribir el ZIP ni la fila de `package_manifests`
+ * -- una lectura (`GET`) nunca debe tener efectos secundarios de
+ * escritura. `GET /package/latest` reporta siempre este estado
+ * recién derivado (nunca el `status` guardado a secas); `GET
+ * /package/download` rechaza con 409 explícito si el paquete guardado
+ * ERA "ready" pero ya no lo es, en vez de servir el ZIP viejo.
+ */
+async function deriveCurrentManifest(
+  tx: DbExecutor,
+  params: { orgId: string; tenderId: string; proposalId: string }
+): Promise<PackageManifest> {
+  const { orgId, tenderId, proposalId } = params;
+  const sectionsRes = await tx.query<Record<string, unknown>>('select * from proposal_sections where org_id = $1 and proposal_id = $2 order by section_key asc', [orgId, proposalId]);
+  const documents: PackageDocumentInput[] = sectionsRes.rows.map((s) => {
+    const content = String(s.content);
+    const blocked = content.startsWith('PENDIENTE');
+    return { documentId: String(s.id), label: String(s.title), required: true, filename: `${s.section_key}.txt`, version: Number(s.version), content: blocked ? undefined : content };
+  });
+
+  const checklist = await loadChecklistReport(tx, orgId, proposalId);
+  const events = await loadApprovalEvents(tx, orgId, proposalId);
+  const workflow = replayWorkflow(events);
+  const { usedCompanyDocumentIds, usedRateConcepts } = await collectUsedInputs(tx, orgId, proposalId);
+  const sealed = await getCurrentSealedInputs(tx, { orgId, tenderId, usedCompanyDocumentIds, usedRateConcepts });
+
+  const assembler = new PackageAssembler();
+  const result = await assembler.assemble({
+    expedienteId: proposalId,
+    documents,
+    checklist,
+    approvals: workflow.listApprovals(),
+    currentInputsHash: sealed,
+  });
+  return result.manifest;
 }
 
 export async function expedientePackageRoutes(app: FastifyInstance): Promise<void> {
@@ -98,21 +147,49 @@ export async function expedientePackageRoutes(app: FastifyInstance): Promise<voi
     { preHandler: [app.authenticate, app.requireOrg], schema: { params: z.object({ tenderId: z.string().uuid() }), response: { 200: packageAssembleResponseSchema } } },
     async (request) => {
       const orgId = request.orgId!;
-      const row = await withTx(app.db, orgId, request.userId, async (tx) => {
+      const result = await withTx(app.db, orgId, request.userId, async (tx) => {
         await requireTender(tx, orgId, request.params.tenderId);
         const proposal = await requireProposal(tx, orgId, request.params.tenderId);
         const res = await tx.query<Record<string, unknown>>('select * from package_manifests where org_id = $1 and proposal_id = $2 order by generated_at desc limit 1', [orgId, proposal.id]);
-        return res.rows[0] ?? null;
+        const row = res.rows[0] ?? null;
+        if (!row) return null;
+        const storedManifest = row.manifest as { draftReasons?: string[]; missing?: string[]; notice?: string };
+        // AE-14: `row.status`/`row.manifest` reflejan el momento del ÚLTIMO
+        // `assemble`, no el estado ACTUAL. Solo importa re-derivar cuando
+        // el último assemble había quedado "ready" -- ahí es donde una
+        // aprobación invalidada DESPUÉS (AE-08/AE-02) podía seguir
+        // mostrándose "ready" indefinidamente. Un paquete que YA nació
+        // "draft" (nunca llegó a "ready") sigue reportando su propio
+        // draftReasons/missing guardados, sin cambios de comportamiento
+        // (A14: motivos explícitos del momento en que se ensambló).
+        if (row.status !== 'ready') {
+          return {
+            proposalId: proposal.id as string,
+            generatedAt: row.generated_at as string,
+            status: 'draft' as const,
+            draftReasons: storedManifest.draftReasons ?? [],
+            missing: storedManifest.missing ?? [],
+            notice: storedManifest.notice ?? '',
+          };
+        }
+        const fresh = await deriveCurrentManifest(tx, { orgId, tenderId: request.params.tenderId, proposalId: proposal.id as string });
+        return {
+          proposalId: proposal.id as string,
+          generatedAt: row.generated_at as string,
+          status: fresh.status,
+          draftReasons: fresh.draftReasons,
+          missing: fresh.missing,
+          notice: fresh.notice,
+        };
       });
-      if (!row) throw new NotFoundError('No se ha generado ningún paquete todavía para este expediente');
-      const manifest = row.manifest as { draftReasons?: string[]; missing?: string[]; notice?: string };
+      if (!result) throw new NotFoundError('No se ha generado ningún paquete todavía para este expediente');
       return {
-        id: row.proposal_id as string,
-        status: row.status as 'draft' | 'ready',
-        draftReasons: manifest.draftReasons ?? [],
-        missing: manifest.missing ?? [],
-        generatedAt: row.generated_at as string,
-        notice: manifest.notice ?? '',
+        id: result.proposalId,
+        status: result.status,
+        draftReasons: result.draftReasons,
+        missing: result.missing,
+        generatedAt: result.generatedAt,
+        notice: result.notice,
       };
     }
   );
@@ -122,16 +199,38 @@ export async function expedientePackageRoutes(app: FastifyInstance): Promise<voi
     { preHandler: [app.authenticate, app.requireOrg], schema: { params: z.object({ tenderId: z.string().uuid() }) } },
     async (request, reply) => {
       const orgId = request.orgId!;
-      const row = await withTx(app.db, orgId, request.userId, async (tx) => {
+      const result = await withTx(app.db, orgId, request.userId, async (tx) => {
         await requireTender(tx, orgId, request.params.tenderId);
         const proposal = await requireProposal(tx, orgId, request.params.tenderId);
         const res = await tx.query<Record<string, unknown>>('select * from package_manifests where org_id = $1 and proposal_id = $2 order by generated_at desc limit 1', [orgId, proposal.id]);
-        return res.rows[0] ?? null;
+        const row = res.rows[0] ?? null;
+        if (!row) return { kind: 'not_found' as const };
+        if (!row.storage_ref) return { kind: 'not_found' as const };
+        // AE-14: el ZIP guardado en disco (`storage_ref`) corresponde al
+        // último `assemble`. Un paquete que ya nació "draft" sigue siendo
+        // descargable tal cual (A14: el propio ZIP documenta sus motivos
+        // en manifiesto.json, sin cambios de comportamiento). El caso que
+        // SÍ se corrige aquí es el de un paquete que SÍ llegó a "ready" y
+        // cuya aprobación se invalidó DESPUÉS (AE-08/AE-02): nunca se sirve
+        // ese ZIP "ready" viejo como si siguiera vigente.
+        if (row.status === 'ready') {
+          const fresh = await deriveCurrentManifest(tx, { orgId, tenderId: request.params.tenderId, proposalId: proposal.id as string });
+          if (fresh.status !== 'ready') {
+            return { kind: 'stale' as const, manifest: fresh };
+          }
+        }
+        return { kind: 'ok' as const, proposalId: proposal.id as string, storageRef: row.storage_ref as string };
       });
-      if (!row || !row.storage_ref) throw new NotFoundError('No se ha generado ningún paquete descargable todavía');
-      const buffer = await readPackageZip(app.config.storageDir, row.storage_ref as string);
+      if (result.kind === 'not_found') throw new NotFoundError('No se ha generado ningún paquete descargable todavía');
+      if (result.kind === 'stale') {
+        throw new ConflictError(
+          'El paquete generado quedó desactualizado (la aprobación vigente ya no cubre el estado actual del expediente, o el checklist dejó de estar en verde). Vuelve a ejecutar POST /package/assemble.',
+          { draftReasons: result.manifest.draftReasons, missing: result.manifest.missing }
+        );
+      }
+      const buffer = await readPackageZip(app.config.storageDir, result.storageRef);
       reply.header('Content-Type', 'application/zip');
-      reply.header('Content-Disposition', `attachment; filename="expediente-${row.proposal_id}.zip"`);
+      reply.header('Content-Disposition', `attachment; filename="expediente-${result.proposalId}.zip"`);
       return reply.send(buffer);
     }
   );

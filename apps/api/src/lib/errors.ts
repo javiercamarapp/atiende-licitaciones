@@ -45,8 +45,8 @@ export class NotFoundError extends AppError {
 }
 
 export class ConflictError extends AppError {
-  constructor(message = 'Conflicto con el estado actual') {
-    super(409, 'https://atiende.example/errors/conflict', message);
+  constructor(message = 'Conflicto con el estado actual', detail?: unknown) {
+    super(409, 'https://atiende.example/errors/conflict', message, detail);
   }
 }
 
