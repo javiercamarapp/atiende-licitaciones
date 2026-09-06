@@ -44,6 +44,25 @@
  *    runtime — incluyendo un mensaje explícito de migración si lo que
  *    llega es un `string` plano (deprecado por inseguro, no silenciosamente
  *    aceptado).
+ *
+ * REVERIFY3-EXP-A (corrector, severidad BAJA/documental — mismo hilo que
+ * EX-EXP-17): la comprobación de (a) arriba usaba acceso de propiedad
+ * NORMAL (`value[SEALED_MARKER]`), que RECORRE LA CADENA DE PROTOTIPOS —
+ * `Object.create(unHashedInputsAjenoLegítimo)`, con `inputs`/`hash` PROPIOS
+ * auto-coherentes (un hash que sí recalcula correctamente), HEREDABA el
+ * símbolo del prototipo y pasaba la verificación sin haber invocado nunca
+ * `sealInputs`. No era una escalada de privilegio explotable (quien puede
+ * ejecutar ese ataque ya podía llamar `sealInputs`/`computeInputsHash`
+ * directamente, funciones públicas, con el mismo efecto), pero la
+ * afirmación "ningún código externo puede construir un objeto con esta
+ * clave" era imprecisa: un objeto que solo HEREDA la clave sí pasaba.
+ * Corregido con dos capas ahora en `isSealedHashedInputs`: (a)
+ * `Object.hasOwn(value, SEALED_MARKER)` en vez de acceso normal — exige que
+ * el símbolo sea propiedad PROPIA, nunca heredada — y (b) el `WeakSet`
+ * `sealedInstances`, que registra por IDENTIDAD de objeto (no por
+ * estructura) únicamente las instancias que `sealInputs` construyó y
+ * devolvió; un objeto forjado con `Object.create(...)` es una referencia
+ * NUEVA que jamás puede pertenecer a ese `WeakSet`.
  */
 import { isoNow, sha256Hex } from "./types.js";
 
@@ -51,14 +70,37 @@ import { isoNow, sha256Hex } from "./types.js";
  * Símbolo PRIVADO del módulo (nunca exportado): es la única forma de que un
  * objeto `HashedInputs` cuente como "sellado" por `sealInputs`/
  * `computeInputsHash`. Como los símbolos son valores únicos por identidad y
- * este NO se exporta, ningún código externo puede construir un objeto con
- * esta clave — ni siquiera con `Object.getOwnPropertySymbols` sobre una
- * instancia ajena podría reutilizarlo para fabricar un objeto nuevo con el
- * mismo símbolo salvo que copie la referencia real (que nunca sale de este
- * módulo). Esto es lo que hace la verificación "no falsificable desde fuera
- * del módulo" (EX-EXP-17).
+ * este NO se exporta, ningún código externo puede añadir esta clave como
+ * PROPIEDAD PROPIA de un objeto nuevo — ni siquiera con
+ * `Object.getOwnPropertySymbols` sobre una instancia ajena podría
+ * reutilizarlo para fabricar un objeto nuevo con el mismo símbolo salvo que
+ * copie la referencia real (que nunca sale de este módulo). Precisión
+ * añadida tras REVERIFY3-EXP-A: esto por sí solo NO bastaba, porque un
+ * objeto puede HEREDAR el símbolo vía `Object.create(objetoAjeno)` sin
+ * copiarlo como propiedad propia — de ahí que `isSealedHashedInputs` exija
+ * además `Object.hasOwn` (propiedad propia, no heredada) y pertenencia al
+ * `WeakSet` `sealedInstances` (identidad exacta de la instancia devuelta
+ * por `sealInputs`, ver más abajo). Con ambas capas, la verificación es "no
+ * falsificable desde fuera del módulo" en sentido estricto — ni copiando el
+ * símbolo (imposible, no se exporta) ni heredándolo (bloqueado por
+ * `hasOwn` + `WeakSet`) — (EX-EXP-17 / REVERIFY3-EXP-A).
  */
 const SEALED_MARKER: unique symbol = Symbol("expediente:HashedInputs");
+
+/**
+ * Segunda barrera, independiente del símbolo privado (REVERIFY3-EXP-A,
+ * corrector BAJA): `isSealedHashedInputs` originalmente leía
+ * `value[SEALED_MARKER]` con acceso de propiedad NORMAL, que recorre la
+ * cadena de prototipos — `Object.create(unHashedInputsLegitimoAjeno)` con
+ * `inputs`/`hash` PROPIOS y auto-coherentes HEREDA el símbolo del prototipo
+ * y pasaba la verificación sin haber pasado nunca por `sealInputs`. Este
+ * `WeakSet` registra, por IDENTIDAD de objeto (nunca por estructura ni por
+ * herencia), únicamente las instancias que `sealInputs` construyó y devolvió
+ * directamente: un objeto forjado con `Object.create(...)` es una referencia
+ * NUEVA que jamás puede estar aquí, sin importar qué propiedades propias
+ * declare o qué símbolos herede.
+ */
+const sealedInstances = new WeakSet<object>();
 
 /** Símbolo de marca (privado) usado solo a nivel de TIPOS para "brandear" `InputsHash`; nunca existe en runtime sobre un `string` (los primitivos no cargan propiedades), es puramente una técnica de nominal typing de TypeScript. */
 declare const INPUTS_HASH_BRAND: unique symbol;
@@ -100,11 +142,37 @@ interface SealedHashedInputs extends HashedInputs {
   readonly [SEALED_MARKER]: true;
 }
 
+/**
+ * Verifica que `value` sea un objeto `SealedHashedInputs` legítimo — es
+ * decir, la referencia EXACTA devuelta por `sealInputs` — nunca un objeto
+ * que meramente HEREDE el símbolo privado vía prototipo
+ * (`Object.create(selladoAjeno)`, REVERIFY3-EXP-A). Tres comprobaciones,
+ * las tres necesarias:
+ *  1. `Object.hasOwn(value, SEALED_MARKER)`: a diferencia del acceso de
+ *     propiedad normal (`value[SEALED_MARKER]`, que recorre la cadena de
+ *     prototipos), `Object.hasOwn` exige que el símbolo sea una propiedad
+ *     PROPIA del objeto — un objeto que solo lo heredó de su prototipo
+ *     falla aquí.
+ *  2. `inputs`/`hash` también deben ser propiedades PROPIAS: un objeto que
+ *     declare `inputs`/`hash` propios (auto-coherentes) pero herede
+ *     `SEALED_MARKER` ya falla en (1); esta comprobación es defensa
+ *     adicional por si en el futuro `SEALED_MARKER` dejara de ser
+ *     enumerable de la misma forma.
+ *  3. `sealedInstances.has(value)`: segunda barrera POR IDENTIDAD, no por
+ *     estructura — ni copiar el símbolo como propiedad propia (imposible
+ *     desde fuera, no se exporta) ni heredar el prototipo cambia que el
+ *     objeto forjado es una referencia NUEVA, jamás añadida por
+ *     `sealInputs`.
+ */
 function isSealedHashedInputs(value: unknown): value is SealedHashedInputs {
   return (
     value !== null &&
     typeof value === "object" &&
-    (value as Record<symbol, unknown>)[SEALED_MARKER] === true
+    Object.hasOwn(value, SEALED_MARKER) &&
+    (value as Record<symbol, unknown>)[SEALED_MARKER] === true &&
+    Object.hasOwn(value, "inputs") &&
+    Object.hasOwn(value, "hash") &&
+    sealedInstances.has(value)
   );
 }
 
@@ -123,6 +191,7 @@ export function sealInputs(inputs: ExpedienteInputs): HashedInputs {
     hash,
     [SEALED_MARKER]: true,
   };
+  sealedInstances.add(sealed);
   return sealed;
 }
 

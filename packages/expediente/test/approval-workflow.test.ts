@@ -262,6 +262,35 @@ describe("ApprovalWorkflow — EX-EXP-17: inputsHash exige un HashedInputs sella
     expect(result.ok).toBe(true);
     expect(wf.isFullyApprovedForCurrentHash(fakeHashedInputs("ok"))).toBe(true);
   });
+
+  /**
+   * REVERIFY3-EXP-A (corrector, BAJA — derivado de EX-EXP-17): antes,
+   * `isSealedHashedInputs` leía `value[SEALED_MARKER]` con acceso de
+   * propiedad NORMAL, que recorre la cadena de prototipos.
+   * `Object.create(unHashedInputsAjenoLegítimo)` con `inputs`/`hash` PROPIOS
+   * auto-coherentes (calculados con la función pública `computeInputsHash`,
+   * nunca desincronizados) HEREDABA el símbolo del prototipo y pasaba la
+   * verificación sin haber pasado nunca por `sealInputs()`. Corregido con
+   * `Object.hasOwn` (exige propiedad PROPIA, no heredada) + un `WeakSet`
+   * por identidad de instancia — ninguna de las dos barreras puede
+   * burlarse heredando de un objeto sellado ajeno.
+   */
+  it("approve() rechaza un objeto Object.create(hashedInputsAjeno) con inputs/hash PROPIOS auto-coherentes (el símbolo heredado ya no basta)", () => {
+    const legitFromAnotherCaller = fakeHashedInputs("ajeno-legitimo");
+    const ownInputs = fakeExpedienteInputs("propios-del-forjador");
+    const forged = Object.create(legitFromAnotherCaller, {
+      inputs: { value: ownInputs, enumerable: true },
+      hash: { value: sealInputs(ownInputs).hash, enumerable: true },
+    }) as import("../src/proposal-version.js").HashedInputs;
+
+    // El símbolo privado SÍ es visible vía acceso normal (heredado) — lo que
+    // ya no basta es que sea heredado en vez de propio.
+    const wf = new ApprovalWorkflow();
+    expect(() =>
+      wf.approve({ scope: "expediente", scopeRef: "expediente", actorId: "user-reviewer", actorRole: "reviewer", inputsHash: forged }),
+    ).toThrow(/InvalidInputsHashError|sello interno/);
+    expect(wf.listApprovals()).toHaveLength(0);
+  });
 });
 
 describe("ApprovalWorkflow — comentarios y trazabilidad", () => {

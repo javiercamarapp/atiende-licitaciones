@@ -66,6 +66,19 @@ Todos los módulos se re-exportan desde `src/index.ts`.
   distintos) o lanzaban (`BigInt`); ahora se serializan con un marcador de
   tipo explícito, con `Map`/`Set` ordenados canónicamente para que el orden
   de inserción no afecte el hash (EX-EXP-18).
+- **`stableStringify`/`sha256Hex` y `-0`/`NaN`/`Infinity` (EX-EXP-18
+  residual, corrector BAJA)**: `JSON.stringify(-0) === "0"` y
+  `JSON.stringify(NaN) === JSON.stringify(Infinity) === JSON.stringify(-Infinity)
+  === "null"` — dos colisiones reales que `sortKeysDeep` heredaba sin
+  normalizar. Decisión de diseño: un `number` no finito (`NaN`/`Infinity`/
+  `-Infinity`) nunca es un insumo de expediente legítimo — representa un
+  error de VALIDACIÓN aguas arriba (un cálculo fuera de rango), no un valor
+  que canonicalizar, así que `stableStringify`/`sha256Hex` **lanzan**
+  fail-closed ante cualquiera de los tres en vez de inventarles un marcador
+  de tipo. `-0`, en cambio, sí es un número finito legítimo (aunque
+  infrecuente en este dominio) y se preserva con el mismo patrón de
+  marcador de tipo que `Date`/`Map`/`Set`/`BigInt`, para que nunca colisione
+  con `0`.
 - **Nunca firma el sistema**: `IntegrityChecklist` solo lee
   `userConfirmedSigned` (provisto por el llamador); no existe método que lo
   ponga en `true` desde dentro del paquete.
@@ -93,12 +106,24 @@ que nada obligaba a usar. Esto ya NO es posible:
   `ProposalVersionRegistry.createVersion(inputs).hash`, que la usa
   internamente) devuelve un `HashedInputs` — `{ inputs, hash }` — **sellado
   con un símbolo privado no exportado**: ningún código fuera de
-  `proposal-version.ts` puede construir un objeto con ese símbolo, así que
-  ni siquiera reensamblar `{ inputs, hash }` a mano con un `InputsHash`
-  *legítimo* (obtenido de otra parte) pasa la verificación en runtime —
-  ver `test/approval-workflow.test.ts`/`test/package-assembler.test.ts`,
+  `proposal-version.ts` puede añadir ese símbolo como propiedad PROPIA de un
+  objeto nuevo, así que ni siquiera reensamblar `{ inputs, hash }` a mano con
+  un `InputsHash` *legítimo* (obtenido de otra parte) pasa la verificación en
+  runtime — ver `test/approval-workflow.test.ts`/`test/package-assembler.test.ts`,
   sección "EX-EXP-17", para el ataque exacto y por qué el tipo por sí solo
-  no basta.
+  no basta. **Precisión (REVERIFY3-EXP-A, corrector BAJA)**: la verificación
+  no es "no falsificable desde fuera del módulo" solo por el símbolo no
+  exportado — un objeto puede HEREDAR el símbolo sin copiarlo
+  (`Object.create(otroHashedInputsAjeno)` con `inputs`/`hash` propios
+  auto-coherentes). Por eso `isSealedHashedInputs` exige, además, que el
+  símbolo y los campos `inputs`/`hash` sean propiedades **propias**
+  (`Object.hasOwn`, que no recorre la cadena de prototipos) **y** que el
+  objeto sea, por identidad, uno de los que `sealInputs` construyó y devolvió
+  directamente (un `WeakSet` interno, segunda barrera independiente del
+  símbolo). Con ambas capas, ni copiar el símbolo (imposible, no se exporta)
+  ni heredarlo (bloqueado por `hasOwn` + el `WeakSet`) permite forjar un
+  `HashedInputs` sellado — eso es lo que hace la garantía "no falsificable
+  desde fuera del módulo" precisa en sentido estricto.
 - `ApprovalWorkflow.approve()`/`revalidateAgainstCurrentHash()`/
   `isFullyApprovedForCurrentHash()` y `PackageAssembler.buildManifest()`
   exigen un `HashedInputs` (nunca un `string`) y lo verifican con
