@@ -106,12 +106,42 @@ await withTenantContext(db, { orgId, userId }, async (tx) => {
 | 0011–0016 | Ampliación back office (ver `docs/AMPLIACION-BACKOFFICE.md`): perfil de empresa y procedencia por campo, versionado de convocatorias e invalidación de dependientes, `source_runs` (plataforma), catálogo de precios aprobados con enforcement por trigger, aprobaciones de propuesta y manifiesto de paquete final. |
 | 0017–0018 | Ronda 2 (apps/api): `refresh_tokens` + revocación real, `app.accept_invitation`, propuesta de tarifas por rol de escritura, columnas para persistencia de `packages/agents` sobre `agent_runs`/`tool_calls`, tabla `incidents` (E10), `app.source_freshness()` (frescura agregada para tenants). |
 | 0019–0025 | Correcciones de la auditoría `docs/auditoria-1/db-api.md` (DB-01 a DB-07, ver esa tabla para el detalle de cada una): alcance de funciones SECURITY DEFINER, vigencia/reaprobación de tarifas, invalidación automática por trigger de `tender_change_events`, cadena de hashes de `audit_log`, rol `reviewer` habilitado para Go/No-Go, función de resolución de contexto para la persistencia de `packages/agents`. |
-| 0026–0028 | Propuestas de `apps/worker` incorporadas (WK-04/07/08, `apps/worker/db-proposals/`): `source_run_status` ampliado (`rate_limited`/`not_configured`/`ingest_failed`), índice único de deduplicación de `jobs` activos + estado `cancelled`, rol `worker_role` (NOLOGIN, grants mínimos sobre jobs/source_runs/agent_runs, sujeto a RLS real vía políticas adicionales basadas en `current_user`). |
+| 0026–0028 | Propuestas de `apps/worker` incorporadas (WK-04/07/08, `apps/worker/db-proposals/`): `source_run_status` ampliado (`rate_limited`/`not_configured`/`ingest_failed`), índice único de deduplicación de `jobs` activos + estado `cancelled`, rol `worker_role` (NOLOGIN, grants mínimos sobre jobs/source_runs/agent_runs, sujeto a RLS real vía políticas adicionales basadas en `current_user`). `0026b` (entre 0026 y 0027 en orden alfabético, ver nota abajo) resuelve duplicados activos preexistentes ANTES de que 0027 cree su índice único, para que esa migración nunca falle por datos ya existentes en el entorno que la aplica. |
 
 El runner (`src/migrate.ts`) aplica los archivos en orden alfabético,
 registra cada uno en `schema_migrations` y **lanza un error explícito** si
 detecta que una migración ya aplicada cambió de contenido (protección contra
-editar una migración ya desplegada en vez de crear una nueva).
+editar una migración ya desplegada en vez de crear una nueva). Esta
+protección es la razón por la que `0026b_resolve_duplicate_active_jobs.sql`
+existe como archivo **intermedio** (nombre que ordena alfabéticamente entre
+`0026_...` y `0027_...`) en vez de editar `0027_jobs_dedupe_and_cancelled.sql`
+directamente cuando una reverificación posterior encontró que esa migración
+podía fallar sobre datos preexistentes: `0027` ya estaba commiteada, y la
+regla de este repo (reforzada tras incidentes reales de varios agentes
+escribiendo migraciones en paralelo) es que ninguna migración ya escrita se
+edita, solo se agregan migraciones nuevas.
+
+### `CREATE INDEX` bloquea la tabla viva (0027, límite operativo real)
+
+`ux_jobs_kind_jobkey_active` (0027) se crea con `create unique index`
+**simple** (no `concurrently`): toma un `SHARE` lock sobre `jobs` que
+bloquea escrituras (INSERT/UPDATE/DELETE) mientras se construye el índice.
+Para una tabla `jobs` pequeña (el caso de este proyecto hasta ahora) esto es
+instantáneo y no importa; para un despliegue real con una tabla `jobs`
+grande y en uso activo, esto **sí es una ventana de bloqueo real** y debe
+tratarse como tal (ventana de mantenimiento) al desplegar en producción.
+`create index concurrently` NO es una opción dentro de este runner de
+migraciones tal como está construido hoy: cada archivo `.sql` se ejecuta
+como una única transacción implícita (protocolo simple de Postgres con
+múltiples sentencias), y `CREATE INDEX CONCURRENTLY` **no puede ejecutarse
+dentro de un bloque de transacción** (restricción dura de Postgres, no de
+este proyecto) — intentarlo lanzaría `CREATE INDEX CONCURRENTLY cannot run
+inside a transaction block`. Si en el futuro `jobs` crece lo suficiente
+como para que este bloqueo importe en un despliegue real, la reconstrucción
+del índice con `CONCURRENTLY` debe hacerse como un paso de despliegue
+**separado y manual** (fuera del runner de `applyMigrations`, con su propia
+conexión sin transacción), nunca como parte de una migración numerada de
+este directorio.
 
 ## Límites conocidos de PGlite (verificados con pruebas reales, no supuestos)
 
