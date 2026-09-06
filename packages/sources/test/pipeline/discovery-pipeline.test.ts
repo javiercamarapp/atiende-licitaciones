@@ -314,6 +314,91 @@ describe("DiscoveryPipeline: salud explícita por fuente (ampliación §2 — nu
   });
 });
 
+describe("DiscoveryPipeline: SR-21 (ALTA) -- ningún registro se descarta en silencio, umbral de tasa de descarte configurable", () => {
+  function connectorReportingDrops(id: SourceId, validRecords: TenderRecord[], dropCount: number): SourceConnector {
+    return {
+      id,
+      termsNote: "test",
+      liveVerification: { verified: true, note: "fixture" },
+      async *discover(_params, ctx) {
+        for (let i = 0; i < dropCount; i += 1) {
+          ctx.reportDropped?.({ index: i, reason: `Registro sintético ${i} sin campo requerido`, fields: { i } });
+        }
+        for (const r of validRecords) yield r;
+      },
+      async fetchDetail() {
+        return null;
+      },
+    };
+  }
+
+  it("un descarte por debajo del umbral configurado (default 20%) mantiene health.state='ok' pero expone dropped[]/errors[]", async () => {
+    const validRecords = Array.from({ length: 9 }, (_, i) => makeRecord("dof", `V-${i}`));
+    const pipeline = new DiscoveryPipeline({
+      connectors: [connectorReportingDrops("dof", validRecords, 1)], // 1/10 = 10%
+      repository: new InMemoryTenderRepository(),
+      checkpoints: new InMemoryCheckpointStore(),
+      http: pausedHttp(),
+    });
+    const result = await pipeline.run();
+    expect(result.bySource.dof.health.state).toBe("ok");
+    expect(result.bySource.dof.dropped).toHaveLength(1);
+    expect(result.bySource.dof.errores.some((e) => /Registro descartado/i.test(e.message))).toBe(true);
+    expect(result.totalDropped).toBe(1);
+  });
+
+  it("un descarte por encima del umbral configurado reclasifica la corrida a interface_changed en vez de 'ok'", async () => {
+    const validRecords = [makeRecord("dof", "V-1")];
+    const pipeline = new DiscoveryPipeline({
+      connectors: [connectorReportingDrops("dof", validRecords, 4)], // 4/5 = 80%
+      repository: new InMemoryTenderRepository(),
+      checkpoints: new InMemoryCheckpointStore(),
+      http: pausedHttp(),
+    });
+    const result = await pipeline.run();
+    expect(result.bySource.dof.health.state).toBe("interface_changed");
+    expect(result.bySource.dof.health.state).not.toBe("ok");
+    expect(result.bySource.dof.dropped).toHaveLength(4);
+  });
+
+  it("dropRateThreshold es configurable: un umbral más estricto (5%) reclasifica una tasa que el default (20%) habría tolerado", async () => {
+    const validRecords = Array.from({ length: 9 }, (_, i) => makeRecord("dof", `V-${i}`));
+    const pipeline = new DiscoveryPipeline({
+      connectors: [connectorReportingDrops("dof", validRecords, 1)], // 10%
+      repository: new InMemoryTenderRepository(),
+      checkpoints: new InMemoryCheckpointStore(),
+      http: pausedHttp(),
+      dropRateThreshold: 0.05,
+    });
+    const result = await pipeline.run();
+    expect(result.bySource.dof.health.state).toBe("interface_changed");
+  });
+
+  it("sin ningún descarte, health.state='ok' se marca con coverage.emptyResult=false cuando hubo registros procesados", async () => {
+    const pipeline = new DiscoveryPipeline({
+      connectors: [fixedConnector("dof", [makeRecord("dof", "A-1")])],
+      repository: new InMemoryTenderRepository(),
+      checkpoints: new InMemoryCheckpointStore(),
+      http: pausedHttp(),
+    });
+    const result = await pipeline.run();
+    expect(result.bySource.dof.health.state).toBe("ok");
+    expect(result.bySource.dof.health.evidence.coverage).toEqual({ emptyResult: false });
+  });
+
+  it("SR-19: una corrida 'ok' sin ningún registro procesado marca coverage.emptyResult=true explícitamente", async () => {
+    const pipeline = new DiscoveryPipeline({
+      connectors: [fixedConnector("dof", [])],
+      repository: new InMemoryTenderRepository(),
+      checkpoints: new InMemoryCheckpointStore(),
+      http: pausedHttp(),
+    });
+    const result = await pipeline.run();
+    expect(result.bySource.dof.health.state).toBe("ok");
+    expect(result.bySource.dof.health.evidence.coverage).toEqual({ emptyResult: true });
+  });
+});
+
 describe("DiscoveryPipeline: eventos de trazabilidad y ChangeDetected", () => {
   it("emite record-processed y ChangeDetected cuando una convocatoria cambia entre corridas", async () => {
     const events: string[] = [];

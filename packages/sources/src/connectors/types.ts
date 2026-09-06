@@ -22,11 +22,44 @@ export const noopLogger: Logger = {
   error: () => {},
 };
 
+/**
+ * Descarte explícito de UN registro crudo dentro de un lote (SR-21, ronda 3
+ * de corrección): antes de esta ronda, `mapComprasMxApiRecordToTenderRecord`
+ * descartaba en silencio (`return null`, sin ningún error ni entrada en
+ * `errors[]`) un registro con datos incompletos/inválidos (p.ej.
+ * `titulo_expediente: null`) -- `DiscoveryPipeline` reportaba
+ * `health.state = "ok"` sin ningún rastro del descartado. Un conector que
+ * descarte un registro (a diferencia de filtrarlo por una regla de negocio
+ * legítima, p.ej. un release OCDS sin bloque `tender`) debe reportarlo vía
+ * `ConnectorContext.reportDropped()` con el índice/motivo/campos relevantes.
+ */
+export interface DroppedRecordInfo {
+  /** Índice (0-based) del registro dentro del lote/página donde se descartó, si el conector lo puede determinar. */
+  index?: number;
+  /** `externalId` del registro si se pudo determinar antes de descartarlo. */
+  externalId?: string;
+  /** Motivo legible del descarte (nunca solo "inválido"; debe explicar el campo/condición que falló). */
+  reason: string;
+  /** Campos crudos relevantes para depurar (nunca el payload crudo completo -- solo lo necesario para diagnosticar). */
+  fields?: Record<string, unknown>;
+}
+
 export interface ConnectorContext {
   http: HttpClient;
   logger?: Logger;
   /** Reloj inyectable para pruebas deterministas; por defecto `() => new Date()`. */
   now?: () => Date;
+  /**
+   * SR-21: canal explícito para que un conector reporte un registro
+   * descartado por datos incompletos/inválidos SIN abortar el resto del
+   * lote y SIN que quede en silencio. `DiscoveryPipeline` lo conecta a
+   * `SourceRunStats.dropped`/`errores` y lo usa para el umbral de tasa de
+   * descarte (`dropRateThreshold`). Opcional: un conector invocado fuera del
+   * pipeline (p.ej. `apps/worker`, que llama `connector.discover()`
+   * directamente) no lo provee, así que cada conector DEBE invocarlo como
+   * `ctx.reportDropped?.(...)` -- nunca asumir que está presente.
+   */
+  reportDropped?: (info: DroppedRecordInfo) => void;
 }
 
 /**

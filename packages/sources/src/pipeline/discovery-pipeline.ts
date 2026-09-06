@@ -1,5 +1,5 @@
 import type { HttpClient } from "../http/http-client.js";
-import type { SourceConnector, Logger } from "../connectors/types.js";
+import type { DroppedRecordInfo, SourceConnector, Logger } from "../connectors/types.js";
 import { noopLogger } from "../connectors/types.js";
 import type { SourceId, TenderRecord } from "../types/tender-record.js";
 import type { CheckpointStore } from "./checkpoint.js";
@@ -25,6 +25,14 @@ export interface SourceRunStats {
   actualizados: number;
   sinCambios: number;
   errores: DiscoveryError[];
+  /**
+   * SR-21 (ronda 3 de corrección): registros crudos descartados por el
+   * conector (datos incompletos/inválidos, ver `ConnectorContext.reportDropped`)
+   * durante esta corrida. Nunca vacío en silencio: cada entrada trae el
+   * motivo exacto. Distinto de `errores` (que incluye también fallos de
+   * `TenderRepository.upsert`/versión, no solo descartes de mapeo).
+   */
+  dropped: DroppedRecordInfo[];
   health: SourceHealth;
 }
 
@@ -32,6 +40,8 @@ export interface DiscoveryResult {
   bySource: Record<string, SourceRunStats>;
   totalNuevos: number;
   totalActualizados: number;
+  /** SR-21: suma de `SourceRunStats.dropped.length` de todas las fuentes de esta corrida. */
+  totalDropped: number;
   startedAt: Date;
   finishedAt: Date;
 }
@@ -56,6 +66,15 @@ export interface DiscoveryPipelineOptions {
   onEvent?: (event: DiscoveryEvent) => void;
   logger?: Logger;
   now?: () => Date;
+  /**
+   * SR-21: fracción (0-1) de registros descartados (`dropped.length` /
+   * intentados) por encima de la cual una corrida que de otra forma
+   * terminaría `"ok"` se reclasifica como `"interface_changed"` -- una tasa
+   * de descarte alta es en sí misma evidencia de que el mapeo dejó de
+   * coincidir con la forma real de la fuente, no ruido tolerable. Default
+   * 0.2 (20%).
+   */
+  dropRateThreshold?: number;
 }
 
 export interface RunParams {
@@ -91,6 +110,7 @@ export class DiscoveryPipeline {
   private readonly onEvent: (event: DiscoveryEvent) => void;
   private readonly logger: Logger;
   private readonly now: () => Date;
+  private readonly dropRateThreshold: number;
 
   constructor(options: DiscoveryPipelineOptions) {
     this.connectors = options.connectors;
@@ -103,6 +123,7 @@ export class DiscoveryPipeline {
     this.onEvent = options.onEvent ?? (() => {});
     this.logger = options.logger ?? noopLogger;
     this.now = options.now ?? (() => new Date());
+    this.dropRateThreshold = options.dropRateThreshold ?? 0.2;
   }
 
   async run(params: RunParams = {}): Promise<DiscoveryResult> {
@@ -112,13 +133,15 @@ export class DiscoveryPipeline {
     const bySource: Record<string, SourceRunStats> = {};
     let totalNuevos = 0;
     let totalActualizados = 0;
+    let totalDropped = 0;
     for (const stats of entries) {
       bySource[stats.source] = stats;
       totalNuevos += stats.nuevos;
       totalActualizados += stats.actualizados;
+      totalDropped += stats.dropped.length;
     }
 
-    return { bySource, totalNuevos, totalActualizados, startedAt, finishedAt: this.now() };
+    return { bySource, totalNuevos, totalActualizados, totalDropped, startedAt, finishedAt: this.now() };
   }
 
   private async runConnector(connector: SourceConnector, params: RunParams): Promise<SourceRunStats> {
@@ -132,6 +155,7 @@ export class DiscoveryPipeline {
       actualizados: 0,
       sinCambios: 0,
       errores: [],
+      dropped: [],
       health: {
         source: connector.id,
         state: "ok",
@@ -148,15 +172,27 @@ export class DiscoveryPipeline {
     let lastCursor = checkpoint?.cursor;
     let lastExternalId = checkpoint?.lastExternalId;
     let processedAny = false;
+    let recordCount = 0;
 
     try {
       const iterable = connector.discover(
         { since: params.since, cursor: checkpoint?.cursor, limit: params.limitPerSource },
-        { http: this.http, logger: this.logger, now: this.now },
+        {
+          http: this.http,
+          logger: this.logger,
+          now: this.now,
+          // SR-21: cualquier registro descartado por el conector (datos incompletos/inválidos) se acumula en
+          // `stats.dropped` Y en `stats.errores` -- nunca desaparece en silencio.
+          reportDropped: (info) => {
+            stats.dropped.push(info);
+            stats.errores.push({ message: `Registro descartado (${info.reason})`, externalId: info.externalId });
+          },
+        },
       );
 
       for await (const record of iterable) {
         processedAny = true;
+        recordCount += 1;
         await this.processRecord(connector.id, record, stats);
         lastExternalId = record.externalId;
         if (record.sourceCursor !== undefined) {
@@ -166,10 +202,33 @@ export class DiscoveryPipeline {
         }
       }
 
-      stats.health.state = "ok";
-      stats.health.lastSuccessAt = now;
-      stats.health.consecutiveFailures = 0;
-      stats.health.evidence = { message: processedAny ? "Corrida exitosa con registros procesados." : "Corrida exitosa sin registros nuevos de la fuente." };
+      // SR-21: una tasa de descarte alta es en sí misma evidencia de que el mapeo dejó de coincidir con la forma
+      // real de la fuente -- se reclasifica como `interface_changed` EN VEZ de "ok", nunca se agrega en silencio
+      // a `errores` sin cambiar el estado visible de la fuente.
+      const totalAttempted = recordCount + stats.dropped.length;
+      const dropRate = totalAttempted > 0 ? stats.dropped.length / totalAttempted : 0;
+      if (stats.dropped.length > 0 && dropRate > this.dropRateThreshold) {
+        stats.health.state = "interface_changed";
+        stats.health.lastSuccessAt = previousHealth?.lastSuccessAt;
+        stats.health.consecutiveFailures += 1;
+        stats.health.evidence = {
+          message:
+            `Tasa de descarte de registros (${(dropRate * 100).toFixed(1)}%, ${stats.dropped.length}/${totalAttempted}) ` +
+            `supera el umbral configurado (${(this.dropRateThreshold * 100).toFixed(0)}%): probable cambio de forma de ` +
+            "la fuente en vez de datos incompletos aislados. Ver errors[]/dropped para el detalle por registro.",
+        };
+      } else {
+        stats.health.state = "ok";
+        stats.health.lastSuccessAt = now;
+        stats.health.consecutiveFailures = 0;
+        stats.health.evidence = {
+          message: processedAny ? "Corrida exitosa con registros procesados." : "Corrida exitosa sin registros nuevos de la fuente.",
+          // SR-19: "ok" con 0 registros procesados se marca explícitamente como resultado vacío -- nunca un "0"
+          // mudo indistinguible de "nadie revisó si la fuente cambió de forma" (la forma ya fue validada por el
+          // conector antes de llegar aquí: `assertLegitimateResponseBody`/esquemas sin `.default([])`).
+          coverage: { emptyResult: !processedAny },
+        };
+      }
       await this.checkpoints.set(connector.id, { cursor: lastCursor, lastRunAt: now.toISOString(), lastExternalId });
     } catch (error) {
       const classification = classifySourceFailure(error);

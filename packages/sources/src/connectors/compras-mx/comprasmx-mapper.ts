@@ -2,6 +2,7 @@ import { hashRawPayload } from "../../util/hash.js";
 import { parseCsv, type CsvRowError } from "../../util/csv.js";
 import { fromMexicoCityNaive } from "../../util/timezone.js";
 import { parseTenderRecord, type TenderRecord } from "../../types/tender-record.js";
+import type { DroppedRecordInfo } from "../types.js";
 import { ComprasMxApiRecordSchema, ComprasMxHistoricoCsvRowSchema, type ComprasMxApiRecord } from "./comprasmx-types.js";
 
 /**
@@ -103,14 +104,69 @@ function mapStatus(raw: string | undefined): TenderRecord["status"] {
   return "unknown";
 }
 
-/** Función usada por `createOcdsConnector`-style consumers necesita array plano; helper de paginación simple para el fixture del API inferido. */
-export function mapComprasMxApiRecords(rawRecords: unknown[], options: ComprasMxMapOptions): TenderRecord[] {
-  const out: TenderRecord[] = [];
-  for (const raw of rawRecords) {
+/**
+ * SR-21 (ronda 3 de corrección): un registro que `mapComprasMxApiRecordToTenderRecord`
+ * descarta (esquema inválido, o `codigo_expediente`/`titulo_expediente` ausentes) ya NO
+ * desaparece en silencio -- se acumula aquí con su índice (0-based dentro del lote),
+ * `externalId` (si se pudo determinar) y el motivo exacto. `createComprasMxConnector`
+ * reenvía cada entrada a `ctx.reportDropped()` para que `DiscoveryPipeline` la registre en
+ * `errores`/`dropped` y aplique el umbral de tasa de descarte (`dropRateThreshold`).
+ */
+export interface ComprasMxApiRecordsMapResult {
+  records: TenderRecord[];
+  dropped: DroppedRecordInfo[];
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function mapComprasMxApiRecords(rawRecords: unknown[], options: ComprasMxMapOptions): ComprasMxApiRecordsMapResult {
+  const records: TenderRecord[] = [];
+  const dropped: DroppedRecordInfo[] = [];
+
+  rawRecords.forEach((raw, index) => {
+    let parsed: ComprasMxApiRecord;
+    try {
+      parsed = ComprasMxApiRecordSchema.parse(raw);
+    } catch (error) {
+      dropped.push({
+        index,
+        reason: `Registro no cumple el esquema esperado: ${error instanceof Error ? error.message : String(error)}`,
+        fields: isPlainObject(raw) ? raw : undefined,
+      });
+      return;
+    }
+
+    const externalId = parsed.codigo_expediente ?? parsed.cod_expediente ?? (parsed.id_proceso ? String(parsed.id_proceso) : undefined);
+    if (!externalId || !parsed.titulo_expediente) {
+      dropped.push({
+        index,
+        externalId,
+        reason: !externalId
+          ? "Registro sin identificador (codigo_expediente/cod_expediente/id_proceso ausentes o null)"
+          : "Registro sin título (titulo_expediente ausente/null): campo requerido en TenderRecord.title (SR-13/SR-21)",
+        fields: {
+          codigo_expediente: parsed.codigo_expediente,
+          cod_expediente: parsed.cod_expediente,
+          id_proceso: parsed.id_proceso,
+          titulo_expediente: parsed.titulo_expediente,
+        },
+      });
+      return;
+    }
+
     const mapped = mapComprasMxApiRecordToTenderRecord(raw, options);
-    if (mapped) out.push(mapped);
-  }
-  return out;
+    if (!mapped) {
+      // Defensivo: no debería ocurrir dado que ya se validaron las mismas condiciones arriba, pero se reporta
+      // igual en vez de descartar en silencio si `mapComprasMxApiRecordToTenderRecord` cambiara su criterio.
+      dropped.push({ index, externalId, reason: "Registro descartado por mapComprasMxApiRecordToTenderRecord (motivo no determinado por el llamador)" });
+      return;
+    }
+    records.push(mapped);
+  });
+
+  return { records, dropped };
 }
 
 export interface ComprasMxHistoricoCsvParseResult {

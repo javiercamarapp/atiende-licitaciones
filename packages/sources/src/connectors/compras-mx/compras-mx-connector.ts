@@ -87,7 +87,11 @@ export function createComprasMxConnector(config: ComprasMxConnectorConfig = {}):
       const parsed = ComprasMxApiResponseSchema.parse(json);
       const rawRecords = parsed.data[0]?.registros ?? [];
       const fetchedAt = ctx.now?.() ?? new Date();
-      const records = mapComprasMxApiRecords(rawRecords, { sourceUrl: url, fetchedAt, httpStatus: response.status });
+      const { records, dropped } = mapComprasMxApiRecords(rawRecords, { sourceUrl: url, fetchedAt, httpStatus: response.status });
+      // SR-21: ningún registro descartado (esquema inválido, identificador/título ausente) desaparece en
+      // silencio -- se reenvía al pipeline vía `ctx.reportDropped` para que quede en `errores`/`dropped` y
+      // cuente hacia el umbral de tasa de descarte.
+      for (const info of dropped) ctx.reportDropped?.(info);
 
       let yielded = 0;
       for (let i = 0; i < records.length; i += 1) {
@@ -110,8 +114,9 @@ export function createComprasMxConnector(config: ComprasMxConnectorConfig = {}):
       assertLegitimateResponseBody(bodyText, { url, expected: "json" });
       const json = JSON.parse(bodyText);
       const fetchedAt = ctx.now?.() ?? new Date();
-      const [record] = mapComprasMxApiRecords([json], { sourceUrl: url, fetchedAt, httpStatus: response.status });
-      return record ?? null;
+      const { records, dropped } = mapComprasMxApiRecords([json], { sourceUrl: url, fetchedAt, httpStatus: response.status });
+      for (const info of dropped) ctx.reportDropped?.(info);
+      return records[0] ?? null;
     },
   };
 }

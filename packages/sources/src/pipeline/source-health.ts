@@ -37,6 +37,15 @@ export interface SourceHealthEvidence {
   /** sha256 del cuerpo de respuesta que disparó la clasificación (si estaba disponible), para comparar entre corridas. */
   responseHash?: string;
   message: string;
+  /**
+   * SR-19 (ronda 3 de corrección): cuando la corrida termina `state: "ok"`
+   * SIN ningún registro procesado, `coverage.emptyResult = true` lo marca
+   * explícitamente (con la fuente/forma de respuesta ya validada por el
+   * conector -- ver `assertLegitimateResponseBody`/esquemas sin
+   * `.default([])`) -- nunca un "0" mudo indistinguible de "nadie revisó si
+   * la fuente cambió de forma".
+   */
+  coverage?: { emptyResult: boolean };
 }
 
 export interface SourceHealth {
