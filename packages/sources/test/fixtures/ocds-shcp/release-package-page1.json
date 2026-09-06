@@ -1,0 +1,74 @@
+{
+  "uri": "https://example.gob.mx/ocds/releases?page=1",
+  "version": "1.1",
+  "publishedDate": "2026-08-15T09:00:00Z",
+  "publisher": { "name": "Secretaría de Hacienda y Crédito Público (fixture)" },
+  "license": "https://creativecommons.org/licenses/by/4.0/",
+  "links": { "next": "https://example.gob.mx/ocds/releases?page=2" },
+  "releases": [
+    {
+      "ocid": "ocds-mx01-000001",
+      "id": "ocds-mx01-000001-01",
+      "date": "2026-08-15T09:00:00Z",
+      "tag": ["tender"],
+      "initiationType": "tender",
+      "parties": [
+        {
+          "id": "MX-DEP-001",
+          "name": "Instituto Mexicano del Seguro Social",
+          "roles": ["buyer", "procuringEntity"],
+          "address": { "region": "Ciudad de México" }
+        }
+      ],
+      "buyer": { "id": "MX-DEP-001", "name": "Instituto Mexicano del Seguro Social" },
+      "tender": {
+        "id": "LA-050GYN003-E1-2026",
+        "title": "Adquisición de insumos de curación para hospitales de segundo nivel",
+        "description": "Contratación plurianual de insumos de curación.",
+        "status": "active",
+        "procurementMethod": "open",
+        "procurementMethodDetails": "Licitación Pública Nacional",
+        "mainProcurementCategory": "goods",
+        "value": { "amount": 18500000, "currency": "MXN" },
+        "tenderPeriod": { "startDate": "2026-08-15T09:00:00Z", "endDate": "2026-09-10T13:00:00Z" },
+        "enquiryPeriod": { "startDate": "2026-08-15T09:00:00Z", "endDate": "2026-08-25T13:00:00Z" },
+        "items": [
+          { "id": "1", "description": "Gasa estéril", "classification": { "scheme": "UNSPSC", "id": "42311500", "description": "Apósitos" } },
+          { "id": "2", "description": "Guantes de látex", "classification": { "scheme": "CUCoP", "id": "25101500", "description": "Guantes médicos" } }
+        ],
+        "documents": [
+          { "id": "doc-1", "documentType": "biddingDocuments", "title": "Bases de licitación", "url": "https://example.gob.mx/docs/LA-050GYN003-E1-2026/bases.pdf", "format": "application/pdf" }
+        ]
+      }
+    },
+    {
+      "ocid": "ocds-mx01-000002",
+      "id": "ocds-mx01-000002-01",
+      "date": "2026-08-16T10:00:00Z",
+      "tag": ["tender"],
+      "initiationType": "tender",
+      "parties": [
+        { "id": "MX-DEP-002", "name": "Secretaría de Comunicaciones y Transportes", "roles": ["buyer"], "address": { "region": "Jalisco" } }
+      ],
+      "buyer": { "id": "MX-DEP-002", "name": "Secretaría de Comunicaciones y Transportes" },
+      "tender": {
+        "id": "IA-009000999-E2-2026",
+        "title": "Mantenimiento de señalización carretera en Jalisco",
+        "status": "planned",
+        "procurementMethod": "selective",
+        "mainProcurementCategory": "works",
+        "value": { "amount": 4200000, "currency": "MXN" },
+        "tenderPeriod": { "endDate": "2026-09-05T13:00:00Z" },
+        "items": [{ "id": "1", "classification": { "scheme": "CPV", "id": "45233290", "description": "Señalización vial" } }]
+      }
+    },
+    {
+      "ocid": "ocds-mx01-000003",
+      "id": "ocds-mx01-000003-contract",
+      "date": "2026-08-17T10:00:00Z",
+      "tag": ["contract"],
+      "initiationType": "tender",
+      "awards": [{ "id": "award-1", "date": "2026-08-17T10:00:00Z", "status": "active" }]
+    }
+  ]
+}

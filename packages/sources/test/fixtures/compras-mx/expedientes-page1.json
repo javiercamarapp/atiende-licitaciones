@@ -1,0 +1,42 @@
+{
+  "_comment": "Fixture con esquema INFERIDO (no confirmado con una respuesta 200 real; ver README §ComprasMX). Los nombres de campo vienen de las plantillas Angular compiladas de la SPA pública real de ComprasMX, no de un payload de API observado.",
+  "data": [
+    {
+      "registros": [
+        {
+          "codigo_expediente": "E-2026-001234",
+          "titulo_expediente": "Servicio integral de limpieza para oficinas centrales",
+          "tipo_expediente": "Adquisiciones",
+          "tipo_contratacion": "Licitación Pública",
+          "entidad_federativa_contratacion": "Ciudad de México",
+          "dependencia_entidad": "Secretaría de Bienestar",
+          "unidad_compradora": "Dirección General de Recursos Materiales",
+          "caracter": "Nacional",
+          "fecha_publicacion": "2026-08-20T00:00:00Z",
+          "fecha_junta_aclaraciones": "2026-08-27T00:00:00Z",
+          "fecha_apertura_proposiciones": "2026-09-05T00:00:00Z",
+          "fecha_fallo": "2026-09-12T00:00:00Z",
+          "monto_estimado": 3200000,
+          "moneda": "MXN",
+          "estatus": "Publicada",
+          "id_proceso": 987654
+        },
+        {
+          "codigo_expediente": "E-2026-001235",
+          "titulo_expediente": "Adquisición de mobiliario escolar para el ciclo 2026-2027",
+          "tipo_expediente": "Adquisiciones",
+          "tipo_contratacion": "Invitación a Cuando Menos Tres Personas",
+          "entidad_federativa_contratacion": "Puebla",
+          "dependencia_entidad": "Secretaría de Educación Pública",
+          "fecha_publicacion": "2026-08-21T00:00:00Z",
+          "fecha_apertura_proposiciones": "2026-09-01T00:00:00Z",
+          "monto_estimado": 1500000,
+          "moneda": "MXN",
+          "estatus": "Vigente",
+          "id_proceso": 987655
+        }
+      ]
+    }
+  ],
+  "total": 2
+}

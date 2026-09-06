@@ -1,0 +1,90 @@
+import { ZodError } from "zod";
+import { HostPausedError, HttpError } from "../http/http-client.js";
+import type { SourceId } from "../types/tender-record.js";
+
+/**
+ * Estados explícitos de salud de una fuente (ampliación docs/AMPLIACION-BACKOFFICE.md
+ * §2-3). El pipeline NUNCA debe interpretar el silencio de una fuente caída
+ * como "cero oportunidades": cuando `state !== "ok"`, los contadores de la
+ * corrida deben leerse como "no evaluado" para esa fuente, no como "no hay
+ * nada nuevo".
+ */
+export type SourceHealthState =
+  | "ok"
+  | "down"
+  | "captcha_detected"
+  | "interface_changed"
+  | "permission_missing"
+  | "rate_limited";
+
+export interface SourceHealthEvidence {
+  httpStatus?: number;
+  /** sha256 del cuerpo de respuesta que disparó la clasificación (si estaba disponible), para comparar entre corridas. */
+  responseHash?: string;
+  message: string;
+}
+
+export interface SourceHealth {
+  source: SourceId;
+  state: SourceHealthState;
+  lastAttemptAt: Date;
+  lastSuccessAt?: Date;
+  /** Intentos acumulados históricos (no solo de esta corrida). */
+  attempts: number;
+  consecutiveFailures: number;
+  /** Milisegundos desde el último éxito conocido; `undefined` si nunca hubo uno. Es la métrica de "frescura/obsolescencia". */
+  staleForMs?: number;
+  evidence: SourceHealthEvidence;
+}
+
+/** Almacén de salud por fuente, persistente entre corridas del pipeline (en memoria aquí; DB en `apps/api`). */
+export interface SourceHealthStore {
+  get(source: SourceId): Promise<SourceHealth | undefined>;
+  set(source: SourceId, health: SourceHealth): Promise<void>;
+}
+
+export class InMemorySourceHealthStore implements SourceHealthStore {
+  private readonly byId = new Map<SourceId, SourceHealth>();
+
+  async get(source: SourceId): Promise<SourceHealth | undefined> {
+    return this.byId.get(source);
+  }
+
+  async set(source: SourceId, health: SourceHealth): Promise<void> {
+    this.byId.set(source, health);
+  }
+}
+
+/**
+ * Clasifica un error de conector en un `SourceHealthState` explícito. La
+ * heurística de CAPTCHA busca menciones de "captcha"/"recaptcha" en el
+ * mensaje (los conectores que topan con reCAPTCHA, p.ej. ComprasMX, deben
+ * incluir esa palabra en el error que lanzan) y complementa la detección de
+ * 401/403 (`permission_missing`), 429/`HostPausedError` (`rate_limited` /
+ * `permission_missing`), 5xx/red (`down`) y errores de esquema `ZodError`
+ * (`interface_changed`: el parser no reconoce la estructura recibida).
+ */
+export function classifySourceFailure(error: unknown): { state: SourceHealthState; message: string; httpStatus?: number } {
+  const message = error instanceof Error ? error.message : String(error);
+
+  if (/captcha/i.test(message)) {
+    return { state: "captcha_detected", message };
+  }
+  if (error instanceof HostPausedError) {
+    return { state: "permission_missing", message };
+  }
+  if (error instanceof HttpError) {
+    if (error.status === 429) return { state: "rate_limited", message, httpStatus: error.status };
+    if (error.status === 401 || error.status === 403) return { state: "permission_missing", message, httpStatus: error.status };
+    return { state: "down", message, httpStatus: error.status };
+  }
+  if (error instanceof ZodError) {
+    return { state: "interface_changed", message: `El parser no reconoce la estructura recibida: ${message}` };
+  }
+  return { state: "down", message };
+}
+
+export function computeStaleForMs(lastSuccessAt: Date | undefined, now: Date): number | undefined {
+  if (!lastSuccessAt) return undefined;
+  return Math.max(0, now.getTime() - lastSuccessAt.getTime());
+}

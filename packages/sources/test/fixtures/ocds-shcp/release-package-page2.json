@@ -1,0 +1,23 @@
+{
+  "uri": "https://example.gob.mx/ocds/releases?page=2",
+  "version": "1.1",
+  "publishedDate": "2026-08-18T09:00:00Z",
+  "releases": [
+    {
+      "ocid": "ocds-mx01-000004",
+      "id": "ocds-mx01-000004-01",
+      "date": "2026-08-18T09:00:00Z",
+      "tag": ["tender"],
+      "buyer": { "id": "MX-DEP-003", "name": "Comisión Federal de Electricidad" },
+      "tender": {
+        "id": "LA-018TOQ001-E3-2026",
+        "title": "Suministro de transformadores de distribución",
+        "status": "active",
+        "procurementMethod": "open",
+        "value": { "amount": 9800000, "currency": "MXN" },
+        "tenderPeriod": { "endDate": "2026-09-20T13:00:00Z" },
+        "items": [{ "id": "1", "classification": { "scheme": "UNSPSC", "id": "39121000", "description": "Transformadores" } }]
+      }
+    }
+  ]
+}

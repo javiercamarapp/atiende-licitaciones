@@ -1,0 +1,42 @@
+{
+  "uri": "https://example.gob.mx/ocds/releases?page=1",
+  "version": "1.1",
+  "publishedDate": "2026-08-20T09:00:00Z",
+  "releases": [
+    {
+      "ocid": "ocds-mx01-000001",
+      "id": "ocds-mx01-000001-02",
+      "date": "2026-08-20T09:00:00Z",
+      "tag": ["tenderUpdate"],
+      "parties": [
+        {
+          "id": "MX-DEP-001",
+          "name": "Instituto Mexicano del Seguro Social",
+          "roles": ["buyer", "procuringEntity"],
+          "address": { "region": "Ciudad de México" }
+        }
+      ],
+      "buyer": { "id": "MX-DEP-001", "name": "Instituto Mexicano del Seguro Social" },
+      "tender": {
+        "id": "LA-050GYN003-E1-2026",
+        "title": "Adquisición de insumos de curación para hospitales de segundo nivel",
+        "description": "Contratación plurianual de insumos de curación. Se adelanta fecha límite por instrucción de la Junta de Gobierno.",
+        "status": "active",
+        "procurementMethod": "open",
+        "procurementMethodDetails": "Licitación Pública Nacional",
+        "mainProcurementCategory": "goods",
+        "value": { "amount": 18500000, "currency": "MXN" },
+        "tenderPeriod": { "startDate": "2026-08-15T09:00:00Z", "endDate": "2026-09-01T13:00:00Z" },
+        "enquiryPeriod": { "startDate": "2026-08-15T09:00:00Z", "endDate": "2026-08-20T13:00:00Z" },
+        "items": [
+          { "id": "1", "description": "Gasa estéril", "classification": { "scheme": "UNSPSC", "id": "42311500", "description": "Apósitos" } },
+          { "id": "2", "description": "Guantes de látex", "classification": { "scheme": "CUCoP", "id": "25101500", "description": "Guantes médicos" } }
+        ],
+        "documents": [
+          { "id": "doc-1", "documentType": "biddingDocuments", "title": "Bases de licitación", "url": "https://example.gob.mx/docs/LA-050GYN003-E1-2026/bases.pdf", "format": "application/pdf" },
+          { "id": "doc-2", "documentType": "clarifications", "title": "Acta de junta de aclaraciones (adelanto de plazo)", "url": "https://example.gob.mx/docs/LA-050GYN003-E1-2026/acta-aclaraciones.pdf", "format": "application/pdf" }
+        ]
+      }
+    }
+  ]
+}
