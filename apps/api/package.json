@@ -15,6 +15,7 @@
     "@atiende/agents": "*",
     "@atiende/db": "*",
     "@atiende/expediente": "*",
+    "@atiende/mail": "*",
     "@atiende/sources": "*",
     "@fastify/cors": "^11.3.0",
     "@fastify/helmet": "^13.1.1",
