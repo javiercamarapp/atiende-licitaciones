@@ -116,10 +116,16 @@ test.describe.serial("Ronda 3 — recorrido real contra apps/api", () => {
       const documentType = `constancia_situacion_fiscal_${Date.now()}`;
       await page.goto("/empresa/documentos-vigencias");
       await page.getByLabel("Tipo de documento").fill(documentType);
+      // WI-02: el `<input type="file">` ahora valida tipo/tamaño en cliente
+      // (ver validateDocumentFile.ts) antes de leer el archivo — un `.txt`
+      // ya no pasaría esa validación, así que este fixture usa un PDF
+      // mínimo pero estructuralmente válido (header %PDF- + marcador
+      // %%EOF, lo mismo que exige apps/api/src/lib/storage.ts del lado del
+      // servidor cuando un archivo se presenta como PDF).
       await page.locator("#document-file").setInputFiles({
-        name: "documento-e2e.txt",
-        mimeType: "text/plain",
-        buffer: Buffer.from("Contenido de prueba E2E ronda 3 — sin datos ficticios en producción."),
+        name: "documento-e2e.pdf",
+        mimeType: "application/pdf",
+        buffer: Buffer.from("%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF"),
       });
       await page.getByRole("button", { name: "Subir documento" }).click();
 
@@ -131,6 +137,28 @@ test.describe.serial("Ronda 3 — recorrido real contra apps/api", () => {
       // "vigente" por defecto sin fecha real) — ver
       // apps/api/src/lib/storage.ts computeDocumentStatus.
       await expect(row.getByText("Pendiente de verificación")).toBeVisible();
+    });
+
+    // WI-02 (docs/auditoria-2/web-integrado.md / REQ-098): antes de esta
+    // corrección, el cliente no rechazaba nada — el archivo se codificaba a
+    // base64 y se enviaba por red siempre, sin importar tipo/tamaño.
+    test("rechaza en el cliente un archivo de e.firma sin llegar a enviarlo por red (REQ-098)", async ({ page }) => {
+      await page.goto("/empresa/documentos-vigencias");
+      await page.getByLabel("Tipo de documento").fill(`efirma-rechazada_${Date.now()}`);
+
+      let uploadRequestSeen = false;
+      page.on("request", (request) => {
+        if (request.method() === "POST" && request.url().includes("/company/documents")) uploadRequestSeen = true;
+      });
+
+      await page.locator("#document-file").setInputFiles({
+        name: "llave-privada.key",
+        mimeType: "application/octet-stream",
+        buffer: Buffer.from("-----BEGIN PRIVATE KEY-----\nfalso-para-la-prueba\n-----END PRIVATE KEY-----"),
+      });
+
+      await expect(page.getByText(/REQ-098|e\.firma/)).toBeVisible({ timeout: 5_000 });
+      expect(uploadRequestSeen, "no debe llegar a enviarse POST /company/documents").toBe(false);
     });
   });
 

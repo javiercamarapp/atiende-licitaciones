@@ -19,6 +19,7 @@ import { useAuth, describeApiError } from "@/hooks/useAuth";
 import { useDocuments, useUploadDocument, useDeleteDocument } from "@/hooks/useCompany";
 import { MEMBERSHIP_ADMIN_ROLES, type CompanyDocument } from "@/lib/api/schemas";
 import { formatDateMx } from "@/lib/datetime";
+import { DOCUMENT_ACCEPT_ATTR, validateDocumentFile } from "@/lib/validateDocumentFile";
 
 // Semáforo de vigencia (REQ-023/REQ-149): el estado lo recalcula la API en
 // cada lectura contra la fecha actual (nunca un valor guardado que pudiera
@@ -60,6 +61,13 @@ function UploadForm() {
   const onSubmit = async (values: UploadValues) => {
     if (!selectedFile) {
       toast.error("Selecciona un archivo antes de subir el documento.");
+      return;
+    }
+    // WI-02: revalida en el envío (no solo en la selección) — defensa en
+    // profundidad barata por si `selectedFile` llegó aquí por otra vía.
+    const validation = validateDocumentFile(selectedFile);
+    if (!validation.ok) {
+      toast.error(validation.message ?? "Archivo no admitido.");
       return;
     }
     try {
@@ -114,7 +122,28 @@ function UploadForm() {
             id="document-file"
             ref={fileInputRef}
             type="file"
-            onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+            accept={DOCUMENT_ACCEPT_ATTR}
+            onChange={(event) => {
+              const file = event.target.files?.[0] ?? null;
+              if (!file) {
+                setSelectedFile(null);
+                return;
+              }
+              // WI-02 (docs/auditoria-2/web-integrado.md / REQ-098): mensaje
+              // honesto INMEDIATO (tipo/tamaño) antes de leer el archivo
+              // completo a base64 y enviarlo por red — antes de esta
+              // corrección, un archivo inválido o de 22MB+ solo se
+              // descubría después de que el navegador ya lo hubiera
+              // codificado y enviado.
+              const validation = validateDocumentFile(file);
+              if (!validation.ok) {
+                toast.error(validation.message ?? "Archivo no admitido.");
+                setSelectedFile(null);
+                event.target.value = "";
+                return;
+              }
+              setSelectedFile(file);
+            }}
             className="text-sm text-muted-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary-foreground"
           />
         </div>
