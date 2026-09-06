@@ -212,3 +212,6 @@ Formato por entrada: requisito · acción · archivos/commit · prueba · result
 
 ## ci-local segunda corrida (2026-09-06 05:0x)
 - **Acción:** Fable ejecutó `scripts/ci-local.sh --skip-install` con el árbol limpio y sin agentes escribiendo código (docs/logs/ci-local-2.log). **Resultado real:** 28/28 combinaciones de workspaces OK (typecheck/lint/test+cobertura/build de apps/api, apps/web, apps/worker, packages/agents, packages/db, packages/expediente, packages/sources); `npm audit` OK; **`check-secrets` FALLÓ** por 2 falsos positivos: fixtures de prueba con PEM falsa en `apps/api/test/security-api11-file-magic-bytes.test.ts:50` y `apps/web/e2e/ronda3-flujo-real.spec.ts:157`. Los 2 timeouts de la primera corrida no reaparecen. **Siguiente:** micro-corrección #68 (marcador de fixture solo en tests + prueba negativa) y ci-local 3.
+
+## ci-local tercera corrida (2026-09-06 05:1x)
+- **Acción:** agente #68, commit `c210db4`: marcador `check-secrets:allow-fixture` por línea y solo en archivos de test/e2e; prueba negativa (PEM fuera de tests → falla) ejecutada y eliminada; `*.log` excluidos del escaneo (autorreferencia). **Resultado real (docs/logs/ci-local-3.log):** 28/28 workspaces OK, `npm audit` OK, `check-secrets` OK. **Pipeline local completo en verde.** Pendiente externo: job Postgres real solo en GitHub Actions (B-03).
