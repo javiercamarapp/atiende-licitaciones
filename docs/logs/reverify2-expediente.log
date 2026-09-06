@@ -1,0 +1,294 @@
+# Log reverificación adversarial ronda 2 — packages/expediente
+# Fecha: 2026-09-05 20:59 -0600
+# Worktree: git worktree add <scratchpad>/reverify2-exp HEAD (HEAD=f76a71d al iniciar; commits de packages/expediente sin cambios desde entonces, último 9845ecf)
+# Commits reverificados: f5991f5 1dc9026 284db62 5dfae17 9845ecf fdf17e4 587d4a2 b19ced8
+
+======================================================================
+1) npm install (worktree nuevo)
+======================================================================
+added 677 packages, and audited 685 packages in 4s (OK)
+
+======================================================================
+2) typecheck / lint / test / build (npm run -w packages/expediente ...)
+======================================================================
+=== typecheck ===
+
+> @atiende/expediente@0.1.0 typecheck
+> tsc --noEmit
+
+=== lint ===
+
+> @atiende/expediente@0.1.0 lint
+> eslint src test
+
+=== test ===
+
+> @atiende/expediente@0.1.0 test
+> vitest run
+
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify2-exp/packages/expediente[39m
+
+ [32m✓[39m test/requirement-matrix.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/integrity-checklist.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/technical-proposal-property.test.ts [2m([22m[2m200 tests[22m[2m)[22m[90m 18[2mms[22m[39m
+ [32m✓[39m test/approval-workflow.test.ts [2m([22m[2m15 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+ [32m✓[39m test/technical-proposal.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 24[2mms[22m[39m
+ [32m✓[39m test/proposal-invalidation.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 29[2mms[22m[39m
+ [32m✓[39m test/expediente-flow.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 49[2mms[22m[39m
+ [32m✓[39m test/package-assembler.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 68[2mms[22m[39m
+ [32m✓[39m test/economic-proposal.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 15[2mms[22m[39m
+ [32m✓[39m test/company-data.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/number-to-words.test.ts [2m([22m[2m42 tests[22m[2m)[22m[90m 9[2mms[22m[39m
+ [32m✓[39m test/types.test.ts [2m([22m[2m16 tests[22m[2m)[22m[90m 9[2mms[22m[39m
+ [32m✓[39m test/api-surface.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 9[2mms[22m[39m
+ [32m✓[39m test/money.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m test/llm-extractor.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/timezone-determinism.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 2697[2mms[22m[39m
+   [33m[2m✓[22m[39m isPast — determinismo ante el TZ del proceso (EX-EXP-04, REQ-160 vigencias)[2m > [22muna fecha CON offset explícito produce EXACTAMENTE el mismo veredicto bajo TZ=UTC, America/Mexico_City y Asia/Tokyo [33m592[2mms[22m[39m
+   [33m[2m✓[22m[39m isPast — determinismo ante el TZ del proceso (EX-EXP-04, REQ-160 vigencias)[2m > [22mREPRODUCCIÓN EXACTA del hallazgo: una fecha SIN offset (naive) ya NO produce veredictos distintos por TZ — ahora se rechaza siempre con el mismo error [33m517[2mms[22m[39m
+   [33m[2m✓[22m[39m isPast — determinismo ante el TZ del proceso (EX-EXP-04, REQ-160 vigencias)[2m > [22muna fecha límite naive combinada con un asOfIso naive también se rechaza de forma consistente en las 3 zonas [33m450[2mms[22m[39m
+   [33m[2m✓[22m[39m isPast — determinismo ante el TZ del proceso (EX-EXP-04, REQ-160 vigencias)[2m > [22mEX-EXP-13: un offset numéricamente imposible ('+99:00') se RECHAZA en las 3 zonas, NUNCA se evalúa como 'no vencido' [33m362[2mms[22m[39m
+   [33m[2m✓[22m[39m isPast — determinismo ante el TZ del proceso (EX-EXP-04, REQ-160 vigencias)[2m > [22mEX-EXP-13: una fecha calendáricamente inexistente ('2026-02-30') se RECHAZA en las 3 zonas, no se reinterpreta en silencio [33m372[2mms[22m[39m
+   [33m[2m✓[22m[39m isPast — determinismo ante el TZ del proceso (EX-EXP-04, REQ-160 vigencias)[2m > [22mEX-EXP-13: cadena vacía como fecha límite se rechaza consistentemente en las 3 zonas [33m402[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m16 passed[39m[22m[90m (16)[39m
+[2m      Tests [22m [1m[32m364 passed[39m[22m[90m (364)[39m
+[2m   Start at [22m 20:48:38
+[2m   Duration [22m 3.06s[2m (transform 391ms, setup 0ms, collect 1.20s, tests 2.96s, environment 5ms, prepare 1.35s)[22m
+
+=== build ===
+
+> @atiende/expediente@0.1.0 build
+> tsc -p tsconfig.build.json
+
+
+======================================================================
+3) npx vitest run --coverage (packages/expediente)
+======================================================================
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify2-exp/packages/expediente[39m
+      [2mCoverage enabled with [22m[33mv8[39m
+
+ [32m✓[39m test/requirement-matrix.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/approval-workflow.test.ts [2m([22m[2m15 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/integrity-checklist.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/technical-proposal.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/technical-proposal-property.test.ts [2m([22m[2m200 tests[22m[2m)[22m[90m 24[2mms[22m[39m
+ [32m✓[39m test/package-assembler.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 45[2mms[22m[39m
+ [32m✓[39m test/proposal-invalidation.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 25[2mms[22m[39m
+ [32m✓[39m test/expediente-flow.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 38[2mms[22m[39m
+ [32m✓[39m test/economic-proposal.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+ [32m✓[39m test/company-data.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/number-to-words.test.ts [2m([22m[2m42 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+ [32m✓[39m test/types.test.ts [2m([22m[2m16 tests[22m[2m)[22m[90m 10[2mms[22m[39m
+ [32m✓[39m test/llm-extractor.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m test/_attack_ex01_bypass.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 14[2mms[22m[39m
+ [32m✓[39m test/money.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/api-surface.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+[90mstdout[2m | test/_attack_ex04_dates.test.ts[2m > [22m[2mreverify2: EX-EXP-04/13 casos límite de offset y calendario[2m > [22m[2mhora "24:00:00" (fuera de 00-23) -- ¿se rechaza o Date la reinterpreta en silencio?
+[22m[39m24:00:00Z threw? [33mfalse[39m Date.parse: [33m1781568000000[39m
+
+[90mstdout[2m | test/_attack_ex04_dates.test.ts[2m > [22m[2mreverify2: EX-EXP-04/13 casos límite de offset y calendario[2m > [22m[2maño 1899 (antes de época razonable) se acepta si tiene offset válido -- ¿debería?
+[22m[39myear 1899 threw? [33mfalse[39m
+
+[90mstdout[2m | test/_attack_ex04_dates.test.ts[2m > [22m[2mreverify2: EX-EXP-04/13 casos límite de offset y calendario[2m > [22m[2maño 10000 (5 dígitos, fuera del patrón AAAA de 4 dígitos) -- ¿se detecta como inválida o pasa sin verificar calendario?
+[22m[39myear 10000 threw? [33mtrue[39m getTime: [90mundefined[39m isNaN: [33mfalse[39m
+
+ [32m✓[39m test/_attack_ex03_dup_and_visibility.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/_attack_ex04_dates.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+ [32m✓[39m test/_attack_ex02_scoperef.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/_attack_stablestringify.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 11[2mms[22m[39m
+ [32m✓[39m test/_attack_ex05_numbers.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m test/_attack_proto.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 12[2mms[22m[39m
+ [32m✓[39m test/timezone-determinism.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 1928[2mms[22m[39m
+   [33m[2m✓[22m[39m isPast — determinismo ante el TZ del proceso (EX-EXP-04, REQ-160 vigencias)[2m > [22muna fecha CON offset explícito produce EXACTAMENTE el mismo veredicto bajo TZ=UTC, America/Mexico_City y Asia/Tokyo [33m451[2mms[22m[39m
+   [33m[2m✓[22m[39m isPast — determinismo ante el TZ del proceso (EX-EXP-04, REQ-160 vigencias)[2m > [22mREPRODUCCIÓN EXACTA del hallazgo: una fecha SIN offset (naive) ya NO produce veredictos distintos por TZ — ahora se rechaza siempre con el mismo error [33m361[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m23 passed[39m[22m[90m (23)[39m
+[2m      Tests [22m [1m[32m399 passed[39m[22m[90m (399)[39m
+[2m   Start at [22m 20:58:36
+[2m   Duration [22m 2.31s[2m (transform 336ms, setup 0ms, collect 919ms, tests 2.18s, environment 2ms, prepare 1.31s)[22m
+
+[34m % [39m[2mCoverage report from [22m[33mv8[39m
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-------------------|---------|----------|---------|---------|-------------------
+[32;1mAll files         [0m | [32;1m  93.15[0m | [32;1m   90.24[0m | [32;1m  93.69[0m | [32;1m  93.15[0m | [31;1m                 [0m 
+[32;1m src              [0m | [32;1m     93[0m | [32;1m   90.32[0m | [32;1m  93.45[0m | [32;1m     93[0m | [31;1m                 [0m 
+[32;1m  ...l-workflow.ts[0m | [32;1m    100[0m | [32;1m   97.87[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m112              [0m 
+[33;1m  company-data.ts [0m | [33;1m  71.11[0m | [32;1m   84.61[0m | [33;1m  64.28[0m | [33;1m  71.11[0m | [31;1m...15-222,225-232[0m 
+[32;1m  ...c-proposal.ts[0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  index.ts        [0m | [32;1m    100[0m | [32;1m     100[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  ...-checklist.ts[0m | [32;1m  89.92[0m | [32;1m   87.09[0m | [32;1m    100[0m | [32;1m  89.92[0m | [31;1m...73-179,181-182[0m 
+[32;1m  money.ts        [0m | [32;1m   93.1[0m | [33;1m      64[0m | [32;1m   87.5[0m | [32;1m   93.1[0m | [31;1m86-89            [0m 
+[32;1m  ...r-to-words.ts[0m | [32;1m  95.42[0m | [32;1m   86.88[0m | [32;1m    100[0m | [32;1m  95.42[0m | [31;1m...85,201-202,216[0m 
+[32;1m  ...-assembler.ts[0m | [32;1m    100[0m | [32;1m      95[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m101,178          [0m 
+[32;1m  ...al-version.ts[0m | [32;1m  95.69[0m | [32;1m   94.11[0m | [32;1m    100[0m | [32;1m  95.69[0m | [31;1m83-84,111-112    [0m 
+[32;1m  ...ent-matrix.ts[0m | [32;1m  93.16[0m | [32;1m   91.22[0m | [32;1m    100[0m | [32;1m  93.16[0m | [31;1m...31-333,430-438[0m 
+[32;1m  ...l-proposal.ts[0m | [32;1m  96.26[0m | [32;1m   90.69[0m | [32;1m    100[0m | [32;1m  96.26[0m | [31;1m187,209,213,215  [0m 
+[32;1m  types.ts        [0m | [32;1m  84.44[0m | [32;1m   97.72[0m | [32;1m     90[0m | [32;1m  84.44[0m | [31;1m26-35,114-117    [0m 
+[32;1m src/llm          [0m | [32;1m    100[0m | [32;1m   83.33[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m                 [0m 
+[32;1m  extractor.ts    [0m | [32;1m    100[0m | [32;1m   83.33[0m | [32;1m    100[0m | [32;1m    100[0m | [33;1m67               [0m 
+-------------------|---------|----------|---------|---------|-------------------
+
+======================================================================
+4) npm run -w apps/api typecheck (regresión en consumidores)
+======================================================================
+> @atiende/api@0.1.0 typecheck
+> tsc --noEmit
+(exit 0, sin errores; confirma sin regresión — apps/api sigue sin importar @atiende/expediente)
+
+======================================================================
+5) grep de consumidores reales de @atiende/expediente
+======================================================================
+$ grep -rln "@atiende/expediente" apps/ packages/ --include="*.ts" --include="*.tsx" --include="package.json" | grep -v "packages/expediente/"
+(sin coincidencias — ningún consumidor real todavía, igual que ronda 1)
+
+======================================================================
+6) 35 pruebas adversariales propias (vitest, worktree, NO commiteadas)
+   archivos temporales: test/_attack_ex01_bypass.test.ts,
+   test/_attack_stablestringify.test.ts, test/_attack_ex05_numbers.test.ts,
+   test/_attack_ex02_scoperef.test.ts, test/_attack_ex04_dates.test.ts,
+   test/_attack_ex03_dup_and_visibility.test.ts, test/_attack_proto.test.ts
+   (eliminados antes de destruir el worktree; ver hallazgos EX-EXP-17..20
+   en el reporte para el detalle de cada ataque y su resultado)
+======================================================================
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/reverify2-exp/packages/expediente[39m
+
+ [32m✓[39m test/integrity-checklist.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+ [32m✓[39m test/requirement-matrix.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 13[2mms[22m[39m
+ [32m✓[39m test/approval-workflow.test.ts [2m([22m[2m15 tests[22m[2m)[22m[90m 15[2mms[22m[39m
+ [32m✓[39m test/technical-proposal.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+ [32m✓[39m test/technical-proposal-property.test.ts [2m([22m[2m200 tests[22m[2m)[22m[90m 27[2mms[22m[39m
+ [32m✓[39m test/package-assembler.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 59[2mms[22m[39m
+ [32m✓[39m test/expediente-flow.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 29[2mms[22m[39m
+ [32m✓[39m test/proposal-invalidation.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 47[2mms[22m[39m
+ [32m✓[39m test/economic-proposal.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 17[2mms[22m[39m
+ [32m✓[39m test/company-data.test.ts [2m([22m[2m7 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m test/number-to-words.test.ts [2m([22m[2m42 tests[22m[2m)[22m[90m 9[2mms[22m[39m
+ [32m✓[39m test/_attack_ex01_bypass.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 10[2mms[22m[39m
+ [32m✓[39m test/llm-extractor.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m test/types.test.ts [2m([22m[2m16 tests[22m[2m)[22m[90m 47[2mms[22m[39m
+ [32m✓[39m test/api-surface.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/money.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m test/_attack_ex03_dup_and_visibility.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+[90mstdout[2m | test/_attack_ex04_dates.test.ts[2m > [22m[2mreverify2: EX-EXP-04/13 casos límite de offset y calendario[2m > [22m[2mhora "24:00:00" (fuera de 00-23) -- ¿se rechaza o Date la reinterpreta en silencio?
+[22m[39m24:00:00Z threw? [33mfalse[39m Date.parse: [33m1781568000000[39m
+
+[90mstdout[2m | test/_attack_ex04_dates.test.ts[2m > [22m[2mreverify2: EX-EXP-04/13 casos límite de offset y calendario[2m > [22m[2maño 1899 (antes de época razonable) se acepta si tiene offset válido -- ¿debería?
+[22m[39myear 1899 threw? [33mfalse[39m
+
+[90mstdout[2m | test/_attack_ex04_dates.test.ts[2m > [22m[2mreverify2: EX-EXP-04/13 casos límite de offset y calendario[2m > [22m[2maño 10000 (5 dígitos, fuera del patrón AAAA de 4 dígitos) -- ¿se detecta como inválida o pasa sin verificar calendario?
+[22m[39myear 10000 threw? [33mtrue[39m getTime: [90mundefined[39m isNaN: [33mfalse[39m
+
+ [32m✓[39m test/_attack_ex04_dates.test.ts [2m([22m[2m9 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+ [32m✓[39m test/_attack_ex02_scoperef.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m test/_attack_stablestringify.test.ts [2m([22m[2m5 tests[22m[2m)[22m[90m 23[2mms[22m[39m
+ [32m✓[39m test/_attack_ex05_numbers.test.ts [2m([22m[2m10 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m test/_attack_proto.test.ts [2m([22m[2m1 test[22m[2m)[22m[90m 17[2mms[22m[39m
+ [32m✓[39m test/timezone-determinism.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 2099[2mms[22m[39m
+   [33m[2m✓[22m[39m isPast — determinismo ante el TZ del proceso (EX-EXP-04, REQ-160 vigencias)[2m > [22muna fecha CON offset explícito produce EXACTAMENTE el mismo veredicto bajo TZ=UTC, America/Mexico_City y Asia/Tokyo [33m650[2mms[22m[39m
+   [33m[2m✓[22m[39m isPast — determinismo ante el TZ del proceso (EX-EXP-04, REQ-160 vigencias)[2m > [22mREPRODUCCIÓN EXACTA del hallazgo: una fecha SIN offset (naive) ya NO produce veredictos distintos por TZ — ahora se rechaza siempre con el mismo error [33m351[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m23 passed[39m[22m[90m (23)[39m
+[2m      Tests [22m [1m[32m399 passed[39m[22m[90m (399)[39m
+[2m   Start at [22m 20:58:33
+[2m   Duration [22m 2.47s[2m (transform 503ms, setup 0ms, collect 1.22s, tests 2.46s, environment 4ms, prepare 1.26s)[22m
+
+
+======================================================================
+7) git show --stat / git merge-base --is-ancestor por commit
+======================================================================
+--- f5991f5 ---
+ancestro de HEAD: SI
+commit f5991f5d1d8fe31a3f57136981053071488de743
+Author: Javier Cámara Porte Petit <javiercamaraportepetit@Mac-mini-de-Javier.local>
+Date:   Sat Sep 5 20:27:52 2026 -0600
+
+    fix(expediente): EX-EXP-01/EX-EXP-11 hash de insumos cerrado y obligatorio (computeInputsHash)
+    
+    `ProposalVersionRegistry.createVersion` aceptaba cualquier
+    `Record<string, unknown>` arbitrario: el llamador podía "olvidar" incluir
+
+--- 1dc9026 ---
+ancestro de HEAD: SI
+commit 1dc90261ad7612393621d3cac873084c20455482
+Author: Javier Cámara Porte Petit <javiercamaraportepetit@Mac-mini-de-Javier.local>
+Date:   Sat Sep 5 20:32:05 2026 -0600
+
+    fix(expediente): EX-EXP-03/EX-EXP-12 requisito condicional que aplica ya no desaparece en silencio
+    
+    El fix de la ronda anterior de EX-EXP-03 protegía exactamente
+    `obligatoriedad === "obligatorio"` pero dejaba `"condicional"` agrupado
+
+--- 284db62 ---
+ancestro de HEAD: SI
+commit 284db62cd4327524a09441d27c3f799dbb1be679
+Author: Javier Cámara Porte Petit <javiercamaraportepetit@Mac-mini-de-Javier.local>
+Date:   Sat Sep 5 20:34:09 2026 -0600
+
+    fix(expediente): EX-EXP-05/EX-EXP-12 apócope 'veintiún' fusionado al final de centenas/millares/millones
+    
+    El fix de la ronda anterior solo cubría "veintiuno" AISLADO (21,
+    21,000,000) porque `apocopeUno` comparaba el sufijo `" uno"` (con
+
+--- 5dfae17 ---
+ancestro de HEAD: SI
+commit 5dfae174a14465cb04d0ba64ffac5c4564b78285
+Author: Javier Cámara Porte Petit <javiercamaraportepetit@Mac-mini-de-Javier.local>
+Date:   Sat Sep 5 20:36:58 2026 -0600
+
+    fix(expediente): EX-EXP-04/EX-EXP-13 rango de offset y validez calendárica (fail-closed)
+    
+    `assertExplicitOffset` validaba solo el FORMATO del offset (`±HH:MM`), no
+    su rango numérico ni la validez calendárica de la fecha. Un offset
+
+--- 9845ecf ---
+ancestro de HEAD: SI
+commit 9845ecf8e40632424d795ef3282ed6efb91e7fe8
+Author: Javier Cámara Porte Petit <javiercamaraportepetit@Mac-mini-de-Javier.local>
+Date:   Sat Sep 5 20:45:34 2026 -0600
+
+    test(expediente): EX-EXP-04/EX-EXP-13 cobertura de la defensa final NaN en assertExplicitOffset
+    
+    Añade un caso que ejercita la última línea de defensa de
+    assertExplicitOffset (Number.isNaN tras pasar formato/rango/calendario):
+
+--- fdf17e4 ---
+ancestro de HEAD: SI
+commit fdf17e40e8ee7c9a1d0c7a5bc9e2dfb523bef3ee
+Author: Javier Cámara Porte Petit <javiercamaraportepetit@Mac-mini-de-Javier.local>
+Date:   Sat Sep 5 20:39:22 2026 -0600
+
+    fix(expediente): EX-EXP-02/EX-EXP-14 scope 'expediente' exige scopeRef == 'expediente'
+    
+    Ni `ApprovalWorkflow.approve()` ni `PackageAssembler.buildManifest`
+    validaban la consistencia entre `scope` y `scopeRef`: una aprobación
+
+--- 587d4a2 ---
+ancestro de HEAD: SI
+commit 587d4a2da0b1202a7effaff562e6a60c9996be26
+Author: Javier Cámara Porte Petit <javiercamaraportepetit@Mac-mini-de-Javier.local>
+Date:   Sat Sep 5 20:41:30 2026 -0600
+
+    docs(agents): reverificación 2 de AG-17..20 (971feea, 861aea4); AG-21/AG-22 nuevos
+    
+    Confirma que 971feea (AG-17) y 861aea4 (AG-18) son ancestros de HEAD y tocan
+    lo declarado. Reproduce los 33 tests nuevos (215/215 en verde), typecheck/
+
+--- b19ced8 ---
+ancestro de HEAD: SI
+commit b19ced8b7b9cbb242e94a5bd0bc199821f930e8a
+Author: Javier Cámara Porte Petit <javiercamaraportepetit@Mac-mini-de-Javier.local>
+Date:   Sat Sep 5 20:43:49 2026 -0600
+
+    docs(expediente): EX-EXP-16 docstring de expediente-flow.test.ts no sobreestima A6-A15
+    
+    El docstring de test/expediente-flow.test.ts afirmaba "Cubre A6-A15 de
+    docs/ACEPTACION.md ejercitando el flujo completo, no helpers aislados ni
+
+======================================================================
+8) Worktree eliminado al finalizar (git worktree remove --force)
+======================================================================
