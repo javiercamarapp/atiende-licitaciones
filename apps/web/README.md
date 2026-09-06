@@ -1,11 +1,84 @@
 # @atiende/web
 
 Frontend del back office de **Atiende Licitaciones** (marca Atiende, plataforma
-de IA para gestión de licitaciones públicas). Conectado a `apps/api` real (sin
-mocks en producción — MSW solo en pruebas de componente, ver `src/test/msw.ts`).
-Toda pantalla que todavía no tiene un endpoint real detrás sigue mostrando un
-estado honesto (vacío, error con `request_id`, o "endpoint pendiente en
-apps/api") en vez de datos ficticios.
+de IA para gestión de licitaciones públicas), más una landing pública, una
+demo de solo lectura y un wizard de onboarding (ronda 7). Conectado a
+`apps/api` real (sin mocks en producción — MSW solo en pruebas de componente
+y, desde ronda 7, en la ruta aislada `/demo`, ver `src/test/msw.ts` y
+`src/mocks/`). Toda pantalla que todavía no tiene un endpoint real detrás
+sigue mostrando un estado honesto (vacío, error con `request_id`, o "endpoint
+pendiente en apps/api") en vez de datos ficticios.
+
+## Ronda 7 — landing pública, términos, onboarding, dashboard real y demo
+
+Cuatro pantallas nuevas y una reescrita, todas con datos reales de `apps/api`
+existente (ningún endpoint nuevo: ver "Endpoints que esta ronda necesitó y no
+existen" más abajo) y estados honestos donde la API no alcanza:
+
+- **Landing pública (`/`)** — `src/pages/LandingPage.tsx`: hero, cómo
+  funciona (descubrimiento→matching→expediente→presentación por el usuario),
+  seguridad y reglas de no actuación (nunca envía, firma ni contacta en tu
+  nombre), casos por perfil de empresa, planes "próximamente" (sin precios ni
+  checkout — B-04 sigue pendiente, ver `docs/BACKLOG.md`), FAQ accesible
+  (`<details>/<summary>` nativo, sin dependencia de acordeón) y "Solicitar
+  demo": sin endpoint de contacto en `apps/api`, el formulario queda
+  deshabilitado con una nota honesta y un correo real como alternativa. SEO
+  básico por ruta vía `src/hooks/useDocumentMeta.ts` (title/description/Open
+  Graph/robots); sin ningún script de analítica.
+- **Términos de servicio (`/legal/terminos`)** — `src/pages/TermsPage.tsx`:
+  a diferencia del aviso de privacidad, `apps/api` no expone ningún endpoint
+  equivalente, así que el contenido vive en `src/lib/legal/termsContent.ts`
+  como constante local, con cada apartado que exige criterio jurídico
+  marcado explícitamente `FaltaDato` y el mismo aviso de "borrador pendiente
+  de validación jurídica" que `/privacidad`.
+- **Onboarding (`/onboarding`)** — `src/pages/onboarding/OnboardingPage.tsx`:
+  wizard de 5 pasos tras el primer login (crear organización → perfil
+  esencial → invitar equipo (opcional) → primer documento con vigencia
+  (opcional) → listo), cada paso contra un endpoint real ya existente.
+  `components/auth/RequireAuth.tsx` exporta `RequireOrganization`, que manda
+  aquí a cualquier cuenta autenticada sin ninguna organización todavía, en
+  vez de dejarla en un panel vacío sin explicación.
+- **Panel/Dashboard real (`/panel`, REQ-169)** —
+  `src/pages/PanelPage.tsx` + `src/hooks/useDashboard.ts` +
+  `src/hooks/useActivationChecklist.ts`: reemplaza el `createModulePage`
+  stub anterior por KPIs reales (convocatorias nuevas 7/30 días, matches
+  elegibles, tarifas por aprobar, vencimientos próximos/vencidos, plazos de
+  pago en curso, expedientes por estado), actividad reciente (audit-log,
+  incluido un 403 honesto con `request_id` si el rol no tiene acceso),
+  alertas post-adjudicación y una checklist de activación que lee hechos
+  reales (perfil completo, documento vigente, tarifa aprobada, convocatoria
+  disponible, 2FA activo). Skeletons por widget, nunca un spinner de página
+  completa.
+- **Demo de solo lectura (`/demo`)** — `src/pages/DemoPage.tsx` +
+  `src/mocks/`: el mismo panel con una organización de ejemplo CLARAMENTE
+  etiquetada ("Datos de ejemplo"), servida por `msw/browser` SOLO en esta
+  ruta (namespace propio `/demo-api/*`, cargado con `import()` dinámico y
+  arrancado/detenido con el ciclo de vida del componente) — nunca se mezcla
+  con el cliente real (`lib/api/client.ts`). Si el navegador no soporta
+  Service Workers se muestra un estado honesto en vez de fingir datos
+  (cubierto por la suite unitaria, que corre en jsdom sin ese soporte; el
+  camino feliz con el worker real lo cubre `e2e/demo.spec.ts`). `msw` pasa
+  de devDependency a dependency (ahora es código de producción real para
+  esta ruta); `public/mockServiceWorker.js` se generó con `npx msw init`.
+
+### Endpoints que esta ronda necesitó y no existen (fuera de alcance: solo apps/web)
+
+- **Contacto/solicitud de demo**: ningún `POST /contact/...` en `apps/api` —
+  el formulario de la landing queda deshabilitado con una nota honesta.
+- **Vista de convocatoria**: no hay forma de registrar que un usuario "vio"
+  una convocatoria concreta — el ítem de checklist correspondiente usa el
+  hecho real más cercano que sí expone la API (que el descubrimiento ya haya
+  mostrado al menos una convocatoria), documentado en
+  `hooks/useActivationChecklist.ts`.
+- **Perfil de empresa**: `companyProfileSchema` no persiste ubicación ni
+  códigos CPV detallados — el paso 2 del onboarding solo captura razón
+  social, RFC y giro/sector (los campos que la API sí guarda), con una nota
+  visible sobre la limitación en vez de un campo que no se guardaría.
+- **Seguimiento post-adjudicación agregado**: `GET
+  /expediente/post-award-alerts` solo devuelve hitos con alerta activa
+  (`vencido`/`proximo`), no todo el universo de seguimientos por
+  organización — "Plazos de pago en curso" en el panel refleja por tanto
+  solo los que además están alertando, documentado en `hooks/useDashboard.ts`.
 
 ## Ronda 5 — expediente de participación completo + back office restante
 
