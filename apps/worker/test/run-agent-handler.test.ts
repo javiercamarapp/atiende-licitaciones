@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { DbClient } from '@atiende/db';
 import { FakeProvider } from '@atiende/agents';
 import { createRunAgentHandler } from '../src/handlers/run-agent.js';
+import { applyProposal06 } from './proposal-06-helper.js';
 import { createMigratedDb, seedOrgAndUser, silentLogger } from './helpers.js';
 import type { Job, JobHandlerContext } from '../src/queue/types.js';
 
@@ -382,5 +383,97 @@ describe('run_agent handler (esqueleto)', () => {
     };
     // riskLevel "read" está dentro del techo de "consultor_externo" (también "read"): debe completar.
     await expect(handler(job, makeCtx())).resolves.toBeUndefined();
+  });
+
+  /**
+   * WK6-02 (docs/auditoria-2/worker-agentes.md, ALTA): antes de esta ronda,
+   * `run.correlationId`/`ToolCallTrace.correlationId` (el identificador de
+   * NEGOCIO, p. ej. `tenderId`) se calculaba en memoria pero nunca se
+   * reflejaba en `agent_runs.output` ni en el log del job — se perdía al
+   * terminar la corrida, haciendo imposible el criterio de REQ-171
+   * ("consulta de auditoría reconstruye la cadena completa... a partir de
+   * un solo correlation_id") con una sola consulta. Este test corre TRES
+   * corridas de agentes nombrados distintos (analista_convocatorias,
+   * analista_bases, redactor_borrador) que representan, en la vida real,
+   * los pasos sucesivos de UN MISMO expediente (convocatoria -> matriz de
+   * requisitos -> borrador de propuesta), todas con el MISMO
+   * `correlationId` de negocio (`tenderId`), y confirma que una única
+   * consulta SQL por ese `correlation_id` (`output->>'correlationId'`, sin
+   * columna nueva -- el esquema JSONB ya existente de `agent_runs.output`)
+   * reconstruye la cadena completa en el orden correcto.
+   */
+  it('WK6-02: correlationId de negocio persiste en agent_runs.output (y en cada tool_call) — una sola consulta reconstruye convocatoria -> matriz -> propuesta', async () => {
+    const { orgId, userId } = await seedOrgAndUser(db, 'wk602-trace');
+    await applyProposal06(db);
+
+    // Datos reales de UN expediente: convocatoria + perfil + bases + experiencia.
+    const tenderRow = await db.query<{ id: string }>(
+      `insert into tenders (org_id, source, external_id, title, contracting_body) values ($1, 'dof', 'wk602', 'Obra civil de pavimentación', 'Municipio X') returning id`,
+      [orgId],
+    );
+    const tenderId = tenderRow.rows[0].id;
+    await db.query(`insert into capabilities (org_id, name) values ($1, 'obra civil')`, [orgId]);
+    await db.query(`insert into company_profiles (org_id, legal_name) values ($1, 'Empresa de prueba SA de CV')`, [orgId]);
+    await db.query(
+      `insert into tender_documents (org_id, tender_id, document_type, storage_ref, extracted_text) values ($1, $2, 'bases', 'ref', 'El proveedor deberá entregar certificación ISO 9001 vigente.')`,
+      [orgId, tenderId],
+    );
+    await db.query(`insert into experience_records (org_id, title, evidence_ref) values ($1, 'Construcción de puente', 'doc-1')`, [orgId]);
+
+    const handler = createRunAgentHandler({ db, buildProvider: () => new FakeProvider() });
+
+    async function runNamedAgent(agentName: string, context: Record<string, unknown>): Promise<void> {
+      const { rows } = await db.query<{ id: string }>(
+        `insert into agent_runs (org_id, agent_name, input, status, started_by) values ($1, $2, '{}'::jsonb, 'running', $3) returning id`,
+        [orgId, agentName, userId],
+      );
+      const agentRunId = rows[0].id;
+      const job = {
+        id: `job-wk602-${agentName}`,
+        orgId,
+        kind: 'run_agent',
+        payload: {
+          agentRunId,
+          organizationId: orgId,
+          actorId: userId,
+          actorRole: 'licitador' as const,
+          agentName,
+          context,
+          // REQ-171: el identificador de NEGOCIO (no `job.id`) que enlaza
+          // esta corrida con el resto del expediente.
+          correlationId: tenderId,
+        },
+        status: 'running' as const,
+        attempts: 1,
+        maxAttempts: 5,
+        nextRunAt: new Date(),
+        lockedAt: new Date(),
+        lockedBy: 'worker-test',
+        lastError: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      await handler(job, makeCtx());
+    }
+
+    await runNamedAgent('analista_convocatorias', { tenderId });
+    await runNamedAgent('analista_bases', { tenderId });
+    await runNamedAgent('redactor_borrador', { tenderId, sectionKeys: ['experiencia'] });
+
+    // El criterio verificable de REQ-171: UNA sola consulta por correlation_id
+    // reconstruye la cadena completa, en orden.
+    const { rows: chain } = await db.query<{
+      agent_name: string;
+      output: { correlationId: string | null; richStatus: string; toolCalls: { correlationId: string | null }[] };
+    }>(`select agent_name, output from agent_runs where output->>'correlationId' = $1 order by created_at asc`, [tenderId]);
+
+    expect(chain.map((r) => r.agent_name)).toEqual(['analista_convocatorias', 'analista_bases', 'redactor_borrador']);
+    expect(chain.every((r) => r.output.correlationId === tenderId)).toBe(true);
+    expect(chain.every((r) => r.output.richStatus === 'completed')).toBe(true);
+    // Cada tool_call individual dentro de cada corrida también lleva el
+    // mismo correlationId de negocio (no solo la corrida completa).
+    const toolCallCorrelationIds = chain.flatMap((r) => r.output.toolCalls.map((t) => t.correlationId));
+    expect(toolCallCorrelationIds.length).toBeGreaterThan(0);
+    expect(toolCallCorrelationIds.every((c) => c === tenderId)).toBe(true);
   });
 });

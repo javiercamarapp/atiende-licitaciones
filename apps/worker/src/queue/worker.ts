@@ -23,6 +23,32 @@ function describeError(error: unknown): string {
 }
 
 /**
+ * WK6-02 (docs/auditoria-2/worker-agentes.md, ALTA): antes de esta ronda el
+ * campo `correlation_id` de cada línea de log del job era literalmente
+ * `job.id` — el identificador INTERNO de la cola (distinto en cada
+ * job/intento) — nunca el identificador de NEGOCIO (`correlationId`, p. ej.
+ * el `tenderId` de la convocatoria de origen, ver
+ * `RunAgentPayload.correlationId` en `handlers/run-agent.ts`) que
+ * permitiría, con una sola búsqueda en los logs, agrupar todas las líneas
+ * de todos los jobs relacionados con la misma convocatoria/expediente
+ * (REQ-171). `Worker` es genérico sobre CUALQUIER tipo de job (no solo
+ * `run_agent`), así que este helper solo usa el `correlationId` de negocio
+ * cuando el payload del job realmente lo trae (string no vacío) — igual
+ * convención que ya aplica `run-agent.ts` internamente
+ * (`job.payload.correlationId ?? job.id`); para cualquier otro tipo de job
+ * sin ese campo, se conserva el comportamiento anterior (`job.id`) para no
+ * perder correlación alguna. `job_id` sigue siempre presente por separado
+ * como identificador técnico de la cola (fencing, reintentos, etc.).
+ */
+function businessCorrelationId(payload: unknown): string | null {
+  if (payload && typeof payload === 'object' && 'correlationId' in payload) {
+    const value = (payload as { correlationId?: unknown }).correlationId;
+    if (typeof value === 'string' && value.length > 0) return value;
+  }
+  return null;
+}
+
+/**
  * Bucle de un worker: reclama un job a la vez (`maxConcurrentJobs` real de
  * más de uno queda fuera de esta ronda: cada proceso `apps/worker` corre un
  * solo `Worker`; escalar horizontalmente se hace levantando más procesos,
@@ -96,7 +122,7 @@ export class Worker {
     const { queue, handlers, workerId, logger } = this.options;
     const childLogger = logger.child({
       job_id: job.id,
-      correlation_id: job.id,
+      correlation_id: businessCorrelationId(job.payload) ?? job.id,
       kind: job.kind,
       attempts: job.attempts,
       worker_id: workerId,

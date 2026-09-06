@@ -210,7 +210,12 @@ ejecución real de `typecheck`/`lint`/`test`/`test:coverage` de esa ronda
 Reclama un job a la vez, ejecuta el handler correspondiente con heartbeat
 periódico, y aplica `complete()`/`fail()` según el resultado. Cada línea de
 log del job lleva `job_id`/`correlation_id`/`kind`/`attempts` (pino `child`
-logger, ver `src/logger.ts`).
+logger, ver `src/logger.ts`), donde los dos identificadores son **distintos
+a propósito** (ver WK6-02 más abajo): `job_id` es el identificador TÉCNICO
+de la cola (fencing, reintentos), y `correlation_id` es el identificador de
+NEGOCIO del payload (`payload.correlationId`, p. ej. el `tenderId`) cuando
+el job lo trae; solo si el payload no declara ninguno se cae de vuelta a
+`job.id`.
 
 **Cierre ordenado (SIGTERM/SIGINT, ver `src/index.ts`)**: `Worker.stop()`
 deja de reclamar jobs nuevos de inmediato (incluso si estaba dormido
@@ -689,6 +694,60 @@ reporta `OK: la suite FALLÓ bajo la mutación`.
 negativo directo, pero el script no muta sus consultas una por una; un
 script de mutación exhaustivo sobre las 8 lecturas queda fuera de esta
 ronda.
+
+### WK6-02: el `correlationId` de negocio (REQ-171) ahora es durable y consultable
+
+Antes de esta ronda, `RunAgentPayload.correlationId` (el identificador de
+NEGOCIO — el `tenderId` que `enqueueAgentRun` fija desde
+`discover-tenders.ts`/`deadline-reminders.ts`) llegaba correctamente a
+`AgentRun.correlationId` y a cada `ToolCallTrace.correlationId` **en
+memoria**, pero **se perdía al terminar el job**:
+
+- `updateAgentRunRow()` no lo incluía en el JSON de `agent_runs.output`, y
+  la tabla `agent_runs` (`packages/db/migrations/0004_agents.sql`) no tiene
+  columna dedicada `correlation_id`.
+- El campo `correlation_id` de cada línea de log era literalmente `job.id`
+  — el identificador interno de la cola, distinto en cada job — nunca el de
+  negocio.
+
+Resultado: el criterio verificable de REQ-171 ("una consulta de auditoría
+reconstruye la cadena completa a partir de un solo `correlation_id`") no
+era alcanzable.
+
+Qué cambió:
+
+- **`src/handlers/run-agent.ts`**: `updateAgentRunRow()` persiste
+  `correlationId` en `agent_runs.output`, y `summarizeToolCalls()` lo
+  persiste además en cada entrada de `toolCalls`. Se usa el esquema JSONB
+  **ya existente** — no requiere migración nueva (fuera de este ámbito). La
+  consulta de auditoría es
+  `select ... from agent_runs where output->>'correlationId' = $1`.
+- **`src/queue/worker.ts`**: el logger hijo del job usa
+  `correlation_id = payload.correlationId` cuando el payload lo trae (string
+  no vacío) y `job.id` en cualquier otro caso; `job_id` sigue siempre
+  presente por separado. `Worker` es genérico sobre cualquier `kind` de job,
+  por eso el helper `businessCorrelationId()` no asume la forma de
+  `RunAgentPayload`.
+- **`test/run-agent-handler.test.ts`**: test nuevo que corre TRES agentes
+  nombrados (`analista_convocatorias` → `analista_bases` →
+  `redactor_borrador`) sobre el MISMO `tenderId` — los pasos reales de un
+  expediente (convocatoria → matriz → propuesta) — y confirma que **una sola
+  consulta SQL** por `output->>'correlationId'` los reconstruye en orden, y
+  que cada `tool_call` individual lleva el mismo identificador de negocio.
+- **`test/worker-log-correlation.test.ts`** (nuevo): afirma sobre las LÍNEAS
+  REALES emitidas por pino (logger real escribiendo a un buffer, no un doble
+  artesanal) — con `correlationId` de negocio en el payload cada línea lo
+  lleva en `correlation_id` con el `job_id` de cola separado; dos jobs
+  distintos del mismo expediente comparten `correlation_id`; y un job sin
+  `correlationId` (o con cadena vacía / tipo equivocado) cae de vuelta a
+  `job.id`, nunca queda sin correlación.
+
+**Límite honesto**: sin columna dedicada, la consulta va contra el JSONB
+(`output->>'correlationId'`) y **no hay índice** para ella; con volumen
+alto conviene una migración que añada `agent_runs.correlation_id` indexado
+(fuera del ámbito de `apps/worker`, requiere `packages/db`). Las corridas
+abiertas por un humano vía `apps/api` solo llevarán este identificador si
+ese sistema fija `correlationId` en el payload del job.
 
 ## Pendientes / fuera de alcance de esta ronda
 

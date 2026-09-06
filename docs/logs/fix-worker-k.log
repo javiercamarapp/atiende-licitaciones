@@ -142,3 +142,45 @@ null
 [wk6-01] OK: la suite FALLÓ bajo la mutación (exit=1) -- la regresión de aislamiento por organización SÍ se detecta.
 [wk6-01] limpiando worktree temporal: /var/folders/7l/lhfhb62s0831p83p7d0v3s6h0000gn/T//wk6-01-mutation-v7f23c
 SCRIPT_EXIT=0
+
+================================================================
+== WK6-02 — correlationId de negocio persistido y consultable ==
+================================================================
+
+$ npx vitest run test/run-agent-handler.test.ts   (dentro de apps/worker)
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/worker[39m
+
+ [32m✓[39m test/run-agent-handler.test.ts [2m([22m[2m10 tests[22m[2m)[22m[33m 6626[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mejecuta con FakeProvider por defecto (sin OPENAI_API_KEY) y refleja el resultado en agent_runs [33m963[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22msin agentRunId en el payload, igual ejecuta el AgentRunner sin fallar (uso "fire and forget") [33m645[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mWK-08: un job run_agent con organizationId de otro tenant nunca actualiza la fila real (falla explícito, no-op silencioso) [33m674[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mWK-16: organizationId null con agentRunId presente falla permanente ("org requerida"), agent_runs NUNCA se toca [33m620[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mWK-16: organizationId undefined con agentRunId presente falla permanente ("org requerida"), agent_runs NUNCA se toca [33m624[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mWK-16: organizationId string vacío con agentRunId presente falla permanente ("org requerida"), agent_runs NUNCA se toca [33m605[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mWK-23: organizationId correcto pero actorId sin membresía en esa organización — RLS bajo worker_role bloquea el update legítimo en apariencia [33m586[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mWK-23: actorId con formato inválido (no UUID) falla permanente y explícito, agent_runs NUNCA se toca [33m580[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mun rol sin permiso para el riesgo de la herramienta hace que la corrida termine "denied" -> el job falla explícitamente [33m686[2mms[22m[39m
+   [33m[2m✓[22m[39m run_agent handler (esqueleto)[2m > [22mWK6-02: correlationId de negocio persiste en agent_runs.output (y en cada tool_call) — una sola consulta reconstruye convocatoria -> matriz -> propuesta [33m641[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m10 passed[39m[22m[90m (10)[39m
+[2m   Start at [22m 15:36:24
+[2m   Duration [22m 7.02s[2m (transform 103ms, setup 0ms, collect 148ms, tests 6.63s, environment 0ms, prepare 46ms)[22m
+
+
+$ npx vitest run test/worker-log-correlation.test.ts   (dentro de apps/worker)
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/worker[39m
+
+ [32m✓[39m test/worker-log-correlation.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 16580[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: correlation_id de NEGOCIO en el log estructurado (WK6-02)[2m > [22mcuando el payload trae correlationId de negocio, cada línea lleva ese valor en correlation_id y el id de cola SEPARADO en job_id [33m5453[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: correlation_id de NEGOCIO en el log estructurado (WK6-02)[2m > [22mdos jobs distintos del MISMO expediente comparten correlation_id (una sola búsqueda en los logs agrupa toda la cadena) con job_id distinto cada uno [33m3667[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: correlation_id de NEGOCIO en el log estructurado (WK6-02)[2m > [22mun job SIN correlationId de negocio (cualquier otro kind) conserva el comportamiento anterior: correlation_id = job.id, nunca queda vacío [33m4257[2mms[22m[39m
+   [33m[2m✓[22m[39m Worker: correlation_id de NEGOCIO en el log estructurado (WK6-02)[2m > [22mun correlationId presente pero no utilizable (cadena vacía o tipo equivocado) NO deja el log sin correlación: cae de vuelta a job.id [33m3201[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m4 passed[39m[22m[90m (4)[39m
+[2m   Start at [22m 15:37:58
+[2m   Duration [22m 17.58s[2m (transform 228ms, setup 0ms, collect 331ms, tests 16.58s, environment 0ms, prepare 210ms)[22m
+

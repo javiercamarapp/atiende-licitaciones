@@ -257,6 +257,15 @@ function summarizeToolCalls(toolCalls: ToolCallTrace[]): unknown[] {
     inputHash: t.inputHash,
     outputHash: t.outputHash ?? null,
     attempts: t.attempts,
+    // WK6-02 (docs/auditoria-2/worker-agentes.md, ALTA): cada `ToolCallTrace`
+    // YA trae su propio `correlationId` (packages/agents/src/stores.ts,
+    // heredado de `AgentRunRequest.correlationId`) — se incluye aquí para
+    // que una consulta de auditoría por `correlation_id` (REQ-171) pueda
+    // reconstruir, dentro de `agent_runs.output`, qué tool_call específico
+    // corresponde a qué convocatoria/expediente, sin depender solo del
+    // `correlationId` a nivel de corrida (ver `correlationId` más abajo en
+    // `updateAgentRunRow`).
+    correlationId: t.correlationId ?? null,
   }));
 }
 
@@ -284,6 +293,23 @@ async function updateAgentRunRow(
     error: run.error ?? null,
     completedSteps: run.completedSteps,
     totalSteps: run.totalSteps,
+    // WK6-02 (docs/auditoria-2/worker-agentes.md, ALTA): antes de esta ronda
+    // `run.correlationId` (el identificador de NEGOCIO, p. ej. `tenderId` —
+    // ver `RunAgentPayload.correlationId`) se calculaba y se guardaba en
+    // memoria (`AgentRun.correlationId`/`ToolCallTrace.correlationId`,
+    // packages/agents) pero nunca se reflejaba en ningún lugar durable de
+    // este worker: se perdía al terminar el job. `agent_runs` (packages/db/
+    // migrations/0004_agents.sql) no tiene una columna dedicada
+    // `correlation_id` — persistirlo aquí, en `output` (esquema JSONB YA
+    // EXISTENTE, sin requerir una migración nueva fuera de este ámbito),
+    // es lo mínimo para que una consulta de auditoría por `correlation_id`
+    // (REQ-171: "reconstruye la cadena completa... a partir de un solo
+    // correlation_id") pueda encontrar esta corrida con
+    // `agent_runs.output->>'correlationId' = $1`, en vez de tener que
+    // adivinar a partir de `input.context.tenderId` (que, como documenta el
+    // hallazgo, solo existe para corridas abiertas por el propio worker vía
+    // `enqueueAgentRun`, nunca para las de un humano vía apps/api).
+    correlationId: run.correlationId ?? null,
     // Ronda 6: persistencia de "propuesta para revisión" usando el esquema
     // YA EXISTENTE (agent_runs.output jsonb) — sin requerir el grant de
     // INSERT/columnas nuevas de `tool_calls` (PROPOSAL-06 solo pide select
