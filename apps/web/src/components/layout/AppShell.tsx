@@ -42,7 +42,16 @@ export function AppShell() {
               <span className="sr-only">Menú de navegación</span>
             </SheetTitle>
           </SheetHeader>
-          <SidebarNav onNavigate={() => setMobileNavOpen(false)} className="flex-1 pb-2" />
+          {/* `overflow-y-auto` (como en la sidebar de escritorio, arriba): sin
+              esto, un flex item con `flex-1` no se recorta por contenido —
+              crece más allá de su caja (el drawer es `h-full`, altura fija)
+              y empuja el footer de tema (debajo) fuera del viewport visible.
+              Verificado con Playwright real: el radio "Tema oscuro" quedaba
+              con `boundingBox().y` más allá de la altura de pantalla —
+              "outside of the viewport" al intentar hacer click, aunque su
+              `x` (lo único que medía la prueba anterior) sí estuviera
+              dentro de rango. */}
+          <SidebarNav onNavigate={() => setMobileNavOpen(false)} className="flex-1 overflow-y-auto pb-2" />
           {/*
            * W-21 (docs/auditoria-1/web-reverificacion-2.md): en el header,
            * `ThemeSelector` quedaba fuera del viewport e intocable en todo

@@ -175,6 +175,12 @@ test.describe("Controles del header dentro del viewport (W-21)", () => {
       expect(themeBox, "ThemeSelector del drawer sin boundingBox").not.toBeNull();
       expect(themeBox!.x).toBeGreaterThanOrEqual(0);
       expect(themeBox!.x + themeBox!.width).toBeLessThanOrEqual(viewport.width);
+      // Eje Y también: un `SidebarNav` sin `overflow-y-auto` en el drawer no
+      // se recorta por contenido y empuja este footer más allá de la altura
+      // de pantalla (bug real encontrado con esta misma prueba — el `x` solo
+      // no lo detectaba, "outside of the viewport" venía del eje Y).
+      expect(themeBox!.y).toBeGreaterThanOrEqual(0);
+      expect(themeBox!.y + themeBox!.height).toBeLessThanOrEqual(viewport.height);
 
       // Clicable de verdad, no solo "presente en el DOM": cambia el tema.
       await dialog.getByRole("radio", { name: "Tema oscuro" }).click();
