@@ -23,7 +23,13 @@ export interface StoredFile {
   sizeBytes: number;
 }
 
-const MAX_BASE64_LENGTH = 30_000_000; // ~22MB decodificado, límite defensivo de esta ronda.
+// AE-15 (docs/auditoria-2/api-expediente-reverificacion.md, BAJA): exportada
+// (antes privada de este archivo) para que `app.ts` configure el `bodyLimit`
+// real de Fastify de forma COHERENTE con este límite -- antes, el
+// `bodyLimit` por defecto de Fastify (1 MiB) rechazaba con 413 cualquier
+// subida bastante antes de llegar aquí, muy por debajo del límite "~22MB"
+// que esta constante (y el README) documentan como soportado.
+export const MAX_BASE64_LENGTH = 30_000_000; // ~22MB decodificado, límite defensivo de esta ronda.
 
 export function decodeBase64Content(contentBase64: string): Buffer {
   if (contentBase64.length > MAX_BASE64_LENGTH) {

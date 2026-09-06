@@ -31,6 +31,7 @@ import { expedienteApprovalRoutes } from './modules/expediente/approval.routes.j
 import { expedientePackageRoutes } from './modules/expediente/package.routes.js';
 import { expedienteSubmissionRoutes } from './modules/expediente/submission.routes.js';
 import { expedientePostAwardRoutes } from './modules/expediente/post-award.routes.js';
+import { MAX_BASE64_LENGTH } from './lib/storage.js';
 import './types.js';
 
 export interface BuildAppOptions {
@@ -39,10 +40,23 @@ export interface BuildAppOptions {
   logger?: boolean;
 }
 
+// AE-15 (docs/auditoria-2/api-expediente-reverificacion.md, BAJA): el
+// `bodyLimit` por defecto de Fastify (1 MiB) es INCOHERENTE con el límite
+// de subida "~22MB" que `lib/storage.ts` (`MAX_BASE64_LENGTH`, base64) y el
+// README documentan como soportado -- cualquier subida por encima de 1 MiB
+// se rechazaba con 413 mucho antes de llegar al chequeo explícito de
+// `decodeBase64Content` (422 "Archivo demasiado grande"). Se fija el
+// `bodyLimit` real de Fastify por encima de `MAX_BASE64_LENGTH` (con margen
+// para el resto del JSON -- filename, metadatos, etc.) para que el límite
+// de verdad sea el documentado, con un mensaje explícito (422) en vez de
+// que Fastify corte antes con un 413 genérico para cargas legítimas.
+const BODY_LIMIT_BYTES = MAX_BASE64_LENGTH + 2_000_000;
+
 export async function buildApp(options: BuildAppOptions): Promise<FastifyInstance> {
   const app = Fastify({
     logger: options.logger ?? true,
     genReqId: (req) => (req.headers['x-request-id'] as string | undefined) ?? crypto.randomUUID(),
+    bodyLimit: BODY_LIMIT_BYTES,
   });
 
   app.decorate('db', options.db);
