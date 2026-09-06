@@ -5,6 +5,7 @@ import {
   AuthorizationPolicy,
   AntiCorruptionGuardrail,
   BudgetLedger,
+  DependencyInvalidationRegistry,
   FakeProvider,
   IdempotencyStore,
   InMemoryRunStore,
@@ -17,8 +18,13 @@ import {
   type LLMProvider,
   type ModelTier,
   type Role,
+  type ToolCallTrace,
 } from '@atiende/agents';
 import type { JobHandler } from '../queue/types.js';
+import { JobQueue } from '../queue/job-queue.js';
+import { buildBusinessToolRegistry } from '../agents/business-tools.js';
+import { NAMED_AGENTS, buildNamedAgentPlan, isNamedAgent } from '../agents/named-agents.js';
+import { assertAgentNotDisabled, parseDisabledAgents } from '../agents/kill-switch.js';
 
 export interface RunAgentPayload {
   /** Si se da, el resultado se refleja en la fila `agent_runs` correspondiente (packages/db/migrations/0004_agents.sql). */
@@ -36,16 +42,34 @@ export interface RunAgentPayload {
    */
   actorId: string;
   actorRole: Role;
+  /**
+   * Ronda 6 (docs/investigacion/paridad-producto.md "Ronda K"): si coincide
+   * con uno de `NAMED_AGENTS` (`src/agents/named-agents.ts`), el plan de
+   * tool_calls es FIJO y lo construye `buildNamedAgentPlan` a partir de
+   * `context` — el modelo nunca decide qué herramienta llamar. Cualquier
+   * otro valor sigue el camino de demostración original del esqueleto
+   * (`llm_complete` con `prompt`/`tier`), mantenido por compatibilidad.
+   */
   agentName: string;
-  /** Prompt de demostración para el esqueleto (ver README §Pendientes: sin herramientas de negocio reales todavía). */
-  prompt: string;
+  /** Datos de negocio del agente nombrado (p. ej. `{tenderId}`), validados por `buildNamedAgentPlan`. */
+  context?: Record<string, unknown>;
+  /** Prompt de demostración (solo para agentName fuera de NAMED_AGENTS, ver README §Pendientes del esqueleto original). */
+  prompt?: string;
   tier?: ModelTier;
+  /** Enlaza la corrida a la convocatoria/expediente de origen (ver AgentRunRequest.correlationId, packages/agents). Por defecto, job.id. */
+  correlationId?: string;
 }
 
 export interface RunAgentHandlerDeps {
   db: DbClient;
   /** Inyectable para pruebas; por defecto usa `buildLlmProvider()` (Fake salvo `OPENAI_API_KEY`). */
   buildProvider?: () => LLMProvider;
+  /** Inyectable para pruebas; por defecto una `JobQueue` nueva sobre el mismo `db` (usada por la herramienta `programar_alerta`). */
+  queue?: JobQueue;
+  /** Presupuesto máximo (USD) por organización, acumulado entre corridas de este proceso (REQ-128). Por defecto `WORKER_AGENT_BUDGET_USD_PER_ORG` o 5. */
+  budgetUsdPerOrg?: number;
+  /** Inyectable para pruebas de kill-switch (por defecto `process.env`). */
+  env?: NodeJS.ProcessEnv;
 }
 
 /**
@@ -211,12 +235,38 @@ class RunAgentInvalidActorError extends Error {
 
 const uuidSchema = z.string().uuid();
 
+/**
+ * Ronda 6: resumen REDACTADO de cada `ToolCallTrace` (nunca el `input`/
+ * `output` crudo — esos ya viven solo en memoria durante la vida del job,
+ * ver README §Pendientes "tool_calls no persiste en Postgres") para que la
+ * fila `agent_runs.output` sea una propuesta revisable por un humano:
+ * qué herramienta corrió, con qué resultado, y si quedó bloqueada por
+ * autorización/guardrail/no-fabricación — sin exponer datos potencialmente
+ * sensibles en texto plano. `inputHash`/`outputHash` (sha256,
+ * `packages/agents/src/tracing.ts`) permiten correlacionar con los logs del
+ * proceso si hiciera falta auditar el detalle completo.
+ */
+function summarizeToolCalls(toolCalls: ToolCallTrace[]): unknown[] {
+  return toolCalls.map((t) => ({
+    stepIndex: t.stepIndex,
+    toolName: t.toolName,
+    status: t.status,
+    authorizationDecision: t.authorizationDecision ?? null,
+    missingSourcedFields: t.missingSourcedFields ?? [],
+    error: t.error ?? null,
+    inputHash: t.inputHash,
+    outputHash: t.outputHash ?? null,
+    attempts: t.attempts,
+  }));
+}
+
 async function updateAgentRunRow(
   db: DbClient,
   agentRunId: string,
   organizationId: string,
   actorId: string,
   run: AgentRun,
+  toolCalls: ToolCallTrace[],
 ): Promise<void> {
   if (!uuidSchema.safeParse(organizationId).success) {
     throw new AgentRunOrgMismatchError(
@@ -234,6 +284,11 @@ async function updateAgentRunRow(
     error: run.error ?? null,
     completedSteps: run.completedSteps,
     totalSteps: run.totalSteps,
+    // Ronda 6: persistencia de "propuesta para revisión" usando el esquema
+    // YA EXISTENTE (agent_runs.output jsonb) — sin requerir el grant de
+    // INSERT/columnas nuevas de `tool_calls` (PROPOSAL-06 solo pide select
+    // de negocio + insert/update de agent_runs para corridas autónomas).
+    toolCalls: summarizeToolCalls(toolCalls),
   });
   const status = toDbAgentRunStatus(run.status);
   const finishedAt = run.finishedAt ?? new Date().toISOString();
@@ -275,18 +330,60 @@ async function updateAgentRunRow(
   });
 }
 
+/** Registro combinado: la herramienta de demostración original del esqueleto + las 8 herramientas de negocio (Ronda 6). */
+function buildFullToolRegistry(provider: LLMProvider, businessDeps: { db: DbClient; queue: JobQueue }): ToolRegistry {
+  const registry = buildDemoToolRegistry(provider);
+  const businessRegistry = buildBusinessToolRegistry({ db: businessDeps.db, queue: businessDeps.queue, provider });
+  for (const tool of businessRegistry.list()) registry.register(tool);
+  return registry;
+}
+
 /**
- * Handler ESQUELETO de `run_agent` (pedido explícitamente así en esta
- * ronda). Ejecuta un `AgentRunner` de `packages/agents` con almacenes en
- * memoria (ese paquete es una librería pura sin persistencia propia — ver
- * su README): cada corrida vive solo mientras dura el job. PENDIENTE (ver
- * README §Pendientes): persistir `RunStore`/`ToolCallStore` reales contra
- * Postgres (`agent_runs`/`tool_calls`) es responsabilidad de `apps/api`
- * (fuera de alcance de `packages/db` en esta ronda); aquí solo se refleja
- * el resultado FINAL en la fila `agent_runs` ya existente, si el job trae
- * `agentRunId`.
+ * Estados terminales de `AgentRun` que requieren acción HUMANA (aprobación,
+ * completar un dato faltante, revisar una convocatoria invalidada) o
+ * reflejan una prohibición dura — reintentar el job NUNCA los resuelve
+ * (WK-10, `src/queue/errors.ts`: mismo criterio que un error `permanent`).
+ * `failed`/`cancelled`/`timed_out` SÍ pueden ser transitorios (un error de
+ * red, una cancelación de cierre ordenado, un timeout de infraestructura)
+ * y siguen el ciclo normal de reintentos con backoff.
+ */
+const HUMAN_REVIEW_RUN_STATUSES = new Set<AgentRun['status']>(['denied', 'blocked', 'needs_approval', 'needs_data', 'invalidated']);
+
+/**
+ * Handler de `run_agent` (Ronda 6, docs/investigacion/paridad-producto.md
+ * "Ronda K": "completar run_agent con lógica real de negocio"). Ejecuta un
+ * `AgentRunner` de `packages/agents` con almacenes en memoria para el ciclo
+ * de vida DENTRO del job (esa librería es pura, sin persistencia propia —
+ * ver su README); el resultado FINAL (incluido un resumen redactado de cada
+ * tool_call, ver `summarizeToolCalls`) se refleja en la fila `agent_runs`
+ * ya existente si el job trae `agentRunId` (mismo mecanismo que el
+ * esqueleto original, `updateAgentRunRow`).
+ *
+ * Dos caminos según `agentName`:
+ *  - Uno de `NAMED_AGENTS` (`src/agents/named-agents.ts`): plan FIJO de
+ *    tool_calls de negocio (`src/agents/business-tools.ts`), construido en
+ *    CÓDIGO a partir de `job.payload.context` — el modelo nunca decide qué
+ *    herramienta ejecutar.
+ *  - Cualquier otro nombre: la herramienta de demostración original del
+ *    esqueleto (`llm_complete`), mantenida por compatibilidad con el uso
+ *    "prompt libre" documentado desde la ronda anterior.
+ *
+ * Presupuesto por organización (REQ-128): `BudgetLedger`/`IdempotencyStore`/
+ * `TokenBucketRateLimiter`/`DependencyInvalidationRegistry` se crean UNA
+ * VEZ por instancia de handler (persisten mientras dure el proceso, ver
+ * `apps/worker/src/index.ts`: `createRunAgentHandler` se llama una sola
+ * vez al arrancar) — antes de esta ronda se recreaban en cada job,
+ * vaciando en silencio cualquier límite "por organización" en cada corrida.
  */
 export function createRunAgentHandler(deps: RunAgentHandlerDeps): JobHandler<RunAgentPayload> {
+  const queue = deps.queue ?? new JobQueue({ db: deps.db });
+  const budgetLedger = new BudgetLedger();
+  const idempotencyStore = new IdempotencyStore();
+  const rateLimiter = new TokenBucketRateLimiter(60, 1);
+  const dependencyRegistry = new DependencyInvalidationRegistry();
+  const env = deps.env ?? process.env;
+  const budgetUsdPerOrg = deps.budgetUsdPerOrg ?? Number(env.WORKER_AGENT_BUDGET_USD_PER_ORG ?? '5');
+
   return async (job) => {
     // WK-16 (docs/auditoria-1/worker-reverificacion.md) + WK-19
     // (docs/auditoria-1/worker-cierre.md): fail-closed ANTES de correr
@@ -304,40 +401,72 @@ export function createRunAgentHandler(deps: RunAgentHandlerDeps): JobHandler<Run
       );
     }
 
+    // Ronda 6, tarea 4: kill-switch por agente (WORKER_DISABLED_AGENTS).
+    // Se evalúa ANTES de construir el registro/runner: ningún tool_call se
+    // ejecuta ni se reserva presupuesto para un agente deshabilitado.
+    assertAgentNotDisabled(job.payload.agentName, parseDisabledAgents(env));
+
     const provider = deps.buildProvider ? deps.buildProvider() : buildLlmProvider(process.env.OPENAI_API_KEY);
-    const registry = buildDemoToolRegistry(provider);
+    const registry = buildFullToolRegistry(provider, { db: deps.db, queue });
+    const toolCallStore = new InMemoryToolCallStore();
+
+    if (Number.isFinite(budgetUsdPerOrg)) {
+      budgetLedger.setLimit(job.payload.organizationId, budgetUsdPerOrg);
+    }
 
     const runner = new AgentRunner({
       registry,
       authorizationPolicy: new AuthorizationPolicy(),
       guardrail: new AntiCorruptionGuardrail(),
       runStore: new InMemoryRunStore(),
-      toolCallStore: new InMemoryToolCallStore(),
-      idempotencyStore: new IdempotencyStore(),
-      budgetLedger: new BudgetLedger(),
-      rateLimiter: new TokenBucketRateLimiter(60, 1),
+      toolCallStore,
+      idempotencyStore,
+      budgetLedger,
+      rateLimiter,
+      dependencyRegistry,
     });
+
+    const agentName = job.payload.agentName;
+    const steps = isNamedAgent(agentName)
+      ? buildNamedAgentPlan(agentName, job.payload.context ?? {})
+      : [{ toolName: 'llm_complete', input: { prompt: job.payload.prompt ?? '', tier: job.payload.tier ?? 'economico' } }];
 
     const request: AgentRunRequest = {
       organizationId: job.payload.organizationId,
       actorId: job.payload.actorId,
       actorRole: job.payload.actorRole,
-      agentName: job.payload.agentName,
-      steps: [{ toolName: 'llm_complete', input: { prompt: job.payload.prompt, tier: job.payload.tier ?? 'economico' } }],
-      correlationId: job.id,
+      agentName,
+      steps,
+      correlationId: job.payload.correlationId ?? job.id,
     };
 
     const run = await runner.run(request);
+    const toolCalls = await toolCallStore.listToolCalls(run.id);
 
     if (job.payload.agentRunId) {
       // El guard fail-closed de arriba (WK-16/WK-19) ya garantiza que, si
       // llegamos aquí con `agentRunId`, `organizationId` es un UUID válido.
       // `actorId` (WK-23) se valida dentro de `updateAgentRunRow`.
-      await updateAgentRunRow(deps.db, job.payload.agentRunId, job.payload.organizationId as string, job.payload.actorId, run);
+      await updateAgentRunRow(
+        deps.db,
+        job.payload.agentRunId,
+        job.payload.organizationId as string,
+        job.payload.actorId,
+        run,
+        toolCalls,
+      );
     }
 
     if (run.status !== 'completed') {
-      throw new Error(`run_agent: la corrida terminó en estado "${run.status}" (${run.error ?? 'sin detalle'})`);
+      const message = `run_agent: la corrida terminó en estado "${run.status}" (${run.error ?? 'sin detalle'})`;
+      if (HUMAN_REVIEW_RUN_STATUSES.has(run.status)) {
+        const error = new Error(message) as Error & { permanent: true };
+        error.permanent = true;
+        throw error;
+      }
+      throw new Error(message);
     }
   };
 }
+
+export { NAMED_AGENTS };

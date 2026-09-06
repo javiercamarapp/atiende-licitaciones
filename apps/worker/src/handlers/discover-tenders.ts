@@ -19,6 +19,9 @@ import { mapTenderRecordToIngestRecord } from '../ingest/ingest-mapper.js';
 import { recordSourceRun } from '../source-runs/source-runs-repository.js';
 import type { JobHandler, JobHandlerContext } from '../queue/types.js';
 import type { Job } from '../queue/types.js';
+import type { JobQueue } from '../queue/job-queue.js';
+import { enqueueAgentRun } from '../agents/enqueue-agent-run.js';
+import { SYSTEM_ACTOR_ID, SYSTEM_ACTOR_ROLE } from '../agents/system-actor.js';
 
 export interface DiscoverTendersPayload {
   sourceId: SourceId;
@@ -72,6 +75,56 @@ export interface DiscoverTendersHandlerDeps {
   ingestClient: TenderIngestClient;
   httpClient: HttpClient;
   now?: () => Date;
+  /**
+   * Ronda 6, tarea 4 ("run_agent encola por evento: ingest, versión,
+   * vencimiento"): si se provee, tras una ingesta exitosa se encola
+   * `analista_convocatorias` por cada convocatoria NUEVA (`action:
+   * 'created'`) y `vigilante_cambios` por cada convocatoria ACTUALIZADA
+   * (`action: 'updated'`) — nunca por `'unchanged'`. Opcional (por defecto
+   * `undefined`) para no romper el contrato existente de este handler ni
+   * los tests que lo construyen sin cola.
+   */
+  agentEventsQueue?: JobQueue;
+}
+
+/**
+ * Encola los agentes nombrados correspondientes a los resultados de una
+ * ingesta exitosa (Ronda 6, tarea 4). Deduplicado por
+ * `(agentName, source:externalId:versionId)` — reintentar/reingestar el
+ * MISMO resultado nunca encola una segunda corrida activa. Un fallo al
+ * encolar (p. ej. `PROPOSAL-06` aún no aplicada y algún otro error
+ * inesperado) se registra pero NO hace fallar la propia ingesta: el evento
+ * "convocatoria descubierta" ya se completó con éxito, el análisis
+ * automático es una mejora adicional, no una condición de éxito de
+ * `discover_tenders`.
+ */
+async function enqueueAgentEventsForIngestResults(
+  db: DbClient,
+  queue: JobQueue,
+  results: IngestTenderResponse['results'],
+  logger: Logger,
+): Promise<void> {
+  for (const result of results) {
+    if (result.action === 'unchanged') continue;
+    const eventKey = `${result.source}:${result.externalId}:${result.versionId ?? 'sin-version'}`;
+    const agentName = result.action === 'created' ? ('analista_convocatorias' as const) : ('vigilante_cambios' as const);
+    try {
+      await enqueueAgentRun(db, queue, {
+        agentName,
+        organizationId: result.organizationId,
+        actorId: SYSTEM_ACTOR_ID,
+        actorRole: SYSTEM_ACTOR_ROLE,
+        context: { tenderId: result.tenderId },
+        correlationId: result.tenderId,
+        eventKey: `ingest:${result.action}:${eventKey}`,
+      });
+    } catch (error) {
+      logger.warn(
+        { tender_id: result.tenderId, agent_name: agentName, err: error instanceof Error ? error.message : String(error) },
+        'run_agent: no se pudo encolar la corrida automática disparada por ingesta (la ingesta en sí ya se completó con éxito)',
+      );
+    }
+  }
 }
 
 /** Adapta el logger pino (job) a la interfaz `Logger` de `@atiende/sources` (`info(msg, meta)`). */
@@ -269,5 +322,11 @@ export function createDiscoverTendersHandler(deps: DiscoverTendersHandlerDeps): 
       // enviados/persistidos), nunca extracción parcial sin persistir.
       coverage: { expected: expectedTotal, expectedReason, obtained: tenders.length, ...(ingestResponse?.summary ?? {}) },
     });
+
+    // Ronda 6, tarea 4: run_agent por evento de ingesta (analista_convocatorias
+    // para convocatorias nuevas, vigilante_cambios para actualizadas).
+    if (deps.agentEventsQueue && ingestResponse && ingestResponse.results.length > 0) {
+      await enqueueAgentEventsForIngestResults(deps.db, deps.agentEventsQueue, ingestResponse.results, ctx.logger);
+    }
   };
 }

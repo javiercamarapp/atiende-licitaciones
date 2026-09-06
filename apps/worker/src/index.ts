@@ -11,7 +11,9 @@ import {
   createDiscoverTendersHandler,
 } from './handlers/discover-tenders.js';
 import { createRunAgentHandler } from './handlers/run-agent.js';
+import { createSendAgentAlertHandler } from './handlers/send-agent-alert.js';
 import { TenderIngestClient } from './ingest/ingest-client.js';
+import { enqueueUpcomingDeadlineReminders } from './scheduler/deadline-reminders.js';
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -35,8 +37,10 @@ async function main(): Promise<void> {
       registry: buildDefaultConnectorRegistry(),
       ingestClient,
       httpClient: buildDefaultHttpClient(),
+      agentEventsQueue: queue,
     }),
-    run_agent: createRunAgentHandler({ db }),
+    run_agent: createRunAgentHandler({ db, queue }),
+    send_agent_alert: createSendAgentAlertHandler(),
   };
 
   const worker = new Worker({
@@ -53,6 +57,22 @@ async function main(): Promise<void> {
   const scheduler = new Scheduler({ queue, schedules: loadScheduleConfig(), logger });
   const stopScheduler = scheduler.start(config.pollIntervalMs * 10);
 
+  // Ronda 6, tarea 4 ("run_agent encola por evento... de vencimiento"):
+  // escaneo periódico de convocatorias con vencimiento próximo. Un fallo
+  // aislado (p. ej. PROPOSAL-06 no aplicada aún, ver
+  // src/scheduler/deadline-reminders.ts) se registra y NO tumba el
+  // proceso -- es una mejora adicional sobre el flujo principal de
+  // descubrimiento/ejecución de jobs, no una condición de vida del worker.
+  const deadlineReminderTimer = setInterval(() => {
+    enqueueUpcomingDeadlineReminders(db, queue, logger).catch((error) => {
+      logger.warn(
+        { err: error instanceof Error ? error.message : String(error) },
+        'recordatorios: fallo al escanear vencimientos próximos (ver PROPOSAL-06-agent-business-tools-grants.sql)',
+      );
+    });
+  }, config.pollIntervalMs * 10);
+  deadlineReminderTimer.unref?.();
+
   worker.start();
   logger.info({ worker_id: config.workerId }, 'apps/worker arrancado');
 
@@ -62,6 +82,7 @@ async function main(): Promise<void> {
     shuttingDown = true;
     logger.info({ signal }, 'señal de apagado recibida: cierre ordenado en curso');
     stopScheduler();
+    clearInterval(deadlineReminderTimer);
     await worker.stop(config.shutdownTimeoutMs);
     await db.close();
     logger.info('apps/worker detenido de forma ordenada');
