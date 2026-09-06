@@ -70,3 +70,4 @@
 2026-09-06 01:52  INCIDENTE  429 del servidor cortó #60 (corrector api) al ir a commitear DB-13; reanudado por SendMessage; en curso #42,#59,#60.
 2026-09-06 02:22  INCIDENTE  tercer 429 del servidor cortó #60; duplicados « 2.ts» eliminados (INC-07); reanudaciones cuando el clasificador lo permite; en curso #42,#60.
 2026-09-06 02:39  DESPERTAR  cierre definitivo sources (#61): SR-24 cerrado, SR-25 residual aceptado; 4 paquetes cerrados; en curso #42,#60.
+2026-09-06 02:42  DESPERTAR  corrector api auditoría 2 (#60) 12 commits, 121+147 tests; reverificador #62 y micro-fix expediente #63 despachados; en curso #42.
