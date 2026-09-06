@@ -229,4 +229,118 @@ describe('discover_tenders handler — A1/A2: publicación nueva e idempotencia 
     const { rows } = await db.query<{ status: string }>(`select status from source_runs where source_id = 'dof'`);
     expect(rows[0].status).toBe('ok');
   });
+
+  it('WK-06: coverage.expected viene de payload.expectedTotal si se da; source_runs "ok" lo persiste', async () => {
+    const registry = new ConnectorRegistry().register(makeVerifiedFakeConnector({ records: [makeTender('EXP-EXPECTED')] }));
+    const ingestClient = new TenderIngestClient({ baseUrl: apiServer.baseUrl });
+    const handler = createDiscoverTendersHandler({ db, registry, ingestClient, httpClient: new HttpClient({ userAgent: 'test' }) });
+
+    const jobWithExpected = makeJob({ sourceId: 'dof' });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test necesita un campo extra (expectedTotal) que `makeJob` no modela.
+    (jobWithExpected as any).payload = { sourceId: 'dof', expectedTotal: 5 };
+    await handler(jobWithExpected, makeCtx());
+
+    const { rows } = await db.query<{ coverage: Record<string, unknown> }>(
+      `select coverage from source_runs where source_id = 'dof' order by started_at desc limit 1`,
+    );
+    expect(rows[0].coverage.expected).toBe(5);
+    expect(rows[0].coverage.expectedReason).toBeUndefined();
+  });
+});
+
+describe('discover_tenders handler — WK-03/WK-05/WK-06: honestidad de coverage y registro SIEMPRE de source_runs', () => {
+  let db: DbClient;
+
+  beforeEach(async () => {
+    db = await createMigratedDb();
+  });
+
+  afterEach(async () => {
+    await db.close();
+  });
+
+  /**
+   * WK-03 (docs/auditoria-1/worker.md): antes de esta ronda, si
+   * `ingestClient.ingest()` lanzaba DESPUÉS de un `discover()` exitoso, la
+   * excepción se propagaba sin registrar NINGUNA fila en `source_runs` —
+   * confirmado empíricamente por la auditoría (`0` filas tras una ingesta
+   * fallida con datos ya descubiertos), violando el contrato explícito del
+   * handler ("Registra SIEMPRE... incluso si el job termina en error").
+   */
+  it('si discover() tiene éxito pero el POST de ingesta falla, source_runs SIEMPRE se registra (ingest_failed)', async () => {
+    const registry = new ConnectorRegistry().register(makeVerifiedFakeConnector({ records: [makeTender('EXP-INGEST-FAIL')] }));
+    // Puerto cerrado a propósito: ingest() agota reintentos y lanza IngestApiError de red.
+    const ingestClient = new TenderIngestClient({ baseUrl: 'http://127.0.0.1:1', maxRetries: 0, timeoutMs: 300 });
+    const handler = createDiscoverTendersHandler({ db, registry, ingestClient, httpClient: new HttpClient({ userAgent: 'test' }) });
+
+    await expect(handler(makeJob({ sourceId: 'dof' }), makeCtx())).rejects.toThrow();
+
+    const { rows } = await db.query<{ status: string; evidence: Record<string, unknown>; coverage: Record<string, unknown> }>(
+      `select status, evidence, coverage from source_runs where source_id = 'dof' order by started_at desc limit 1`,
+    );
+    expect(rows).toHaveLength(1); // antes de la corrección: 0 filas
+    expect(rows[0].status).not.toBe('ok');
+    expect(rows[0].evidence.fineState).toBe('ingest_failed');
+    expect(rows[0].coverage.discoveredButNotIngested).toBe(1);
+    expect(rows[0].coverage.obtained).toBe(0); // WK-05: nunca "obtenido" > 0 si no se persistió
+  });
+
+  /**
+   * WK-05 (docs/auditoria-1/worker.md): cuando `discover()` falla a mitad de
+   * iteración, los registros ya extraídos ANTES del error nunca llegaron a
+   * `ingestClient.ingest()` ni a ningún otro lugar del sistema. Antes de
+   * esta ronda, `coverage.obtained` reportaba ese conteo parcial como si
+   * fuera "obtenido" real — engañoso para cualquier consumidor de
+   * `source_runs.coverage`.
+   */
+  it('si discover() falla a mitad de iteración, coverage.obtained es 0 (nunca cuenta lo descartado)', async () => {
+    async function* partial() {
+      yield makeTender('EXP-PARTIAL-1');
+      throw new Error('conector se cayó a mitad de iteración');
+    }
+    const registry = new ConnectorRegistry().register({
+      id: 'dof',
+      termsNote: 'fake',
+      liveVerification: { verified: true, note: 'test' },
+      discover: partial,
+      async fetchDetail() {
+        return null;
+      },
+    });
+    const ingestClient = new TenderIngestClient({ baseUrl: 'http://127.0.0.1:1' }); // nunca debe llamarse
+    const handler = createDiscoverTendersHandler({ db, registry, ingestClient, httpClient: new HttpClient({ userAgent: 'test' }) });
+
+    await expect(handler(makeJob({ sourceId: 'dof' }), makeCtx())).rejects.toThrow(/conector se cayó/);
+
+    const { rows } = await db.query<{ coverage: Record<string, unknown> }>(
+      `select coverage from source_runs where source_id = 'dof' order by started_at desc limit 1`,
+    );
+    expect(rows[0].coverage.obtained).toBe(0);
+    expect(rows[0].coverage.discardedAfterDiscoverFailure).toBe(1);
+  });
+
+  /**
+   * WK-06 (docs/auditoria-1/worker.md): `coverage.expected` era SIEMPRE
+   * `null` sin ninguna explicación en las 4 rutas de `recordSourceRun`. Sin
+   * un `expectedTotal` explícito en el payload, ahora se registra un motivo
+   * legible junto al `null` (nunca un `null` mudo).
+   */
+  it('sin payload.expectedTotal, coverage.expected es null CON un motivo explícito, en las 4 rutas', async () => {
+    const registryEmpty = new ConnectorRegistry();
+    const ingestClient = new TenderIngestClient({ baseUrl: 'http://127.0.0.1:1' });
+    const handlerNotConfigured = createDiscoverTendersHandler({
+      db,
+      registry: registryEmpty,
+      ingestClient,
+      httpClient: new HttpClient({ userAgent: 'test' }),
+    });
+    await expect(handlerNotConfigured(makeJob({ sourceId: 'dof' }), makeCtx())).rejects.toThrow();
+
+    const { rows } = await db.query<{ coverage: Record<string, unknown> }>(
+      `select coverage from source_runs where source_id = 'dof' order by started_at desc limit 1`,
+    );
+    expect(rows[0].coverage.expected).toBeNull();
+    expect(typeof rows[0].coverage.expectedReason).toBe('string');
+    expect((rows[0].coverage.expectedReason as string).length).toBeGreaterThan(0);
+  });
 });

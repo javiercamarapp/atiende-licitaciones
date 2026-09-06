@@ -24,7 +24,17 @@ export type SourceRunFineState =
   | 'interface_changed'
   | 'permission_missing'
   | 'rate_limited'
-  | 'not_configured';
+  | 'not_configured'
+  /**
+   * WK-03 (docs/auditoria-1/worker.md): el `discover()` del conector tuvo
+   * éxito (los `TenderRecord` se extrajeron correctamente) pero el envío
+   * posterior a `apps/api` (`TenderIngestClient.ingest()`) falló — un
+   * problema DISTINTO de que la fuente esté caída/con CAPTCHA/etc. Antes de
+   * esta ronda esta rama ni siquiera escribía una fila en `source_runs`
+   * (violaba el contrato "SIEMPRE registra, incluso si falla"); ahora
+   * `discover-tenders.ts` la registra explícitamente con este estado fino.
+   */
+  | 'ingest_failed';
 
 /** Estado de la columna real `source_runs.status` (packages/db, sin tocar en esta ronda). */
 export type SourceRunDbStatus = 'ok' | 'failed' | 'captcha' | 'interface_changed' | 'permission_missing' | 'down';
@@ -39,6 +49,7 @@ const FINE_TO_DB: Record<SourceRunFineState, SourceRunDbStatus> = {
   // (nunca como 'ok') y el detalle real vive en evidence.fineState/message.
   rate_limited: 'failed',
   not_configured: 'failed',
+  ingest_failed: 'failed',
 };
 
 export function toDbStatus(fineState: SourceRunFineState): SourceRunDbStatus {

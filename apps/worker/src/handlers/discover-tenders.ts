@@ -27,6 +27,15 @@ export interface DiscoverTendersPayload {
   since?: string;
   /** Si se omite, se ingiere a TODAS las organizaciones (ver internal-ingest.routes.ts de apps/api: convocatoria pública = visible para todo tenant). */
   organizationIds?: string[];
+  /**
+   * WK-06 (docs/auditoria-1/worker.md): total esperado de registros para
+   * esta corrida, cuando el llamador (scheduler/config de fuente) lo conoce
+   * de antemano (p. ej. una cabecera de paginación de una corrida previa).
+   * Ningún conector real de `packages/sources` reporta esto hoy; cuando se
+   * omite, `coverage.expected` se registra explícitamente como `null` CON
+   * un motivo (`coverage.expectedReason`), nunca como un `null` mudo.
+   */
+  expectedTotal?: number;
 }
 
 /**
@@ -97,7 +106,21 @@ export function buildDefaultHttpClient(): HttpClient {
   return new HttpClient({ userAgent: 'AtiendeLicitacionesBot/1.0 (+https://atiende.mx/bot)' });
 }
 
+function describeIngestError(error: unknown): string {
+  return error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+}
+
 class NotConfiguredError extends Error {
+  /**
+   * WK-10 (docs/auditoria-1/worker.md): fuente sin conector o sin
+   * `liveVerification.verified` es un error PERMANENTE — no cambia hasta
+   * que alguien registre el conector o lo verifique explícitamente; nunca
+   * "se arregla solo" con un reintento. `isPermanentJobError`
+   * (`queue/errors.ts`) usa esta propiedad para dead-letrar de inmediato en
+   * vez de gastar el ciclo completo de backoff hasta `max_attempts`.
+   */
+  readonly permanent = true as const;
+
   constructor(message: string) {
     super(message);
     this.name = 'NotConfiguredError';
@@ -111,6 +134,19 @@ export function createDiscoverTendersHandler(deps: DiscoverTendersHandlerDeps): 
     const sourceId = job.payload.sourceId;
     if (!sourceId) throw new Error('discover_tenders: payload.sourceId es requerido');
 
+    // WK-06 (docs/auditoria-1/worker.md): `coverage.expected` viene de la
+    // config de la fuente (`payload.expectedTotal`, si el scheduler/config
+    // lo conoce) o, si no hay ninguna forma de saberlo hoy (ningún conector
+    // real reporta un total esperado vía cabecera de paginación u otro
+    // medio), queda explícitamente `null` CON un motivo legible en
+    // `coverage.expectedReason` — nunca un `null` mudo indistinguible de "no
+    // se pensó en ello".
+    const expectedTotal = job.payload.expectedTotal ?? null;
+    const expectedReason =
+      expectedTotal === null
+        ? 'El conector de esta fuente no reporta hoy un total esperado (paginación/cabecera); pendiente hasta que un conector real lo exponga.'
+        : undefined;
+
     const connector = deps.registry.get(sourceId);
     if (!connector) {
       await recordSourceRun(deps.db, {
@@ -120,7 +156,7 @@ export function createDiscoverTendersHandler(deps: DiscoverTendersHandlerDeps): 
         finishedAt: now(),
         attempts: job.attempts,
         evidence: { message: `No hay conector registrado para la fuente "${sourceId}" (ver ConnectorRegistry).` },
-        coverage: { expected: null, obtained: 0 },
+        coverage: { expected: expectedTotal, expectedReason, obtained: 0 },
       });
       throw new NotConfiguredError(`fuente_no_configurada:${sourceId}`);
     }
@@ -137,7 +173,7 @@ export function createDiscoverTendersHandler(deps: DiscoverTendersHandlerDeps): 
             `Conector "${sourceId}" sin verificación puntual en vivo (REQ-150: liveVerification.verified=false). ` +
             connector.liveVerification.note,
         },
-        coverage: { expected: null, obtained: 0 },
+        coverage: { expected: expectedTotal, expectedReason, obtained: 0 },
       });
       throw new NotConfiguredError(`fuente_no_verificada:${sourceId}`);
     }
@@ -161,20 +197,58 @@ export function createDiscoverTendersHandler(deps: DiscoverTendersHandlerDeps): 
         finishedAt: now(),
         attempts: job.attempts,
         evidence: { message: classification.message, httpStatus: classification.httpStatus },
-        coverage: { expected: null, obtained: tenders.length },
+        // WK-05 (docs/auditoria-1/worker.md): `discover()` falló a mitad de
+        // iteración. Los `tenders.length` registros ya extraídos NUNCA
+        // llegaron a `ingestClient.ingest()` (esa llamada solo ocurre si el
+        // `try` de arriba completó sin excepción) ni a ningún otro lugar del
+        // sistema: reportarlos como "obtenido" sería engañoso (un consumidor
+        // de `source_runs.coverage` vería "obtenido: N>0" en una corrida
+        // marcada como fallida, sin que esos N registros existan en ningún
+        // lado). `obtained` se reporta en 0 (nada se persistió de verdad);
+        // el conteo de "extraído pero descartado por el fallo" se guarda
+        // aparte, en un campo con nombre explícito.
+        coverage: { expected: expectedTotal, expectedReason, obtained: 0, discardedAfterDiscoverFailure: tenders.length },
       });
       throw error;
     }
 
+    // WK-03 (docs/auditoria-1/worker.md): el `try/catch` original solo
+    // envolvía la iteración del conector; si `ingestClient.ingest()` lanzaba
+    // (5xx agotado, 401/403, timeout) DESPUÉS de un `discover()` exitoso, la
+    // excepción se propagaba sin registrar NINGUNA fila en `source_runs`
+    // para esa corrida — violaba el contrato explícito del propio handler
+    // ("Registra SIEMPRE... incluso si el job termina en error", REQ-147/
+    // 148/149). Ahora el envío también está cubierto: si falla, se registra
+    // un estado fino explícito `ingest_failed` (distinto de un fallo de la
+    // FUENTE: aquí la fuente sí respondió, lo que falló fue la entrega hacia
+    // apps/api) con el conteo de registros descubiertos pero no ingeridos,
+    // antes de volver a lanzar el error (para que `Worker`/reintentos sigan
+    // aplicando igual que antes).
     let ingestResponse: IngestTenderResponse | undefined;
     if (tenders.length > 0) {
-      ingestResponse = await deps.ingestClient.ingest(
-        {
-          records: tenders.map(mapTenderRecordToIngestRecord),
-          organizationIds: job.payload.organizationIds,
-        },
-        ctx.signal,
-      );
+      try {
+        ingestResponse = await deps.ingestClient.ingest(
+          {
+            records: tenders.map(mapTenderRecordToIngestRecord),
+            organizationIds: job.payload.organizationIds,
+          },
+          ctx.signal,
+        );
+      } catch (error) {
+        const message = describeIngestError(error);
+        await recordSourceRun(deps.db, {
+          sourceId,
+          fineState: 'ingest_failed',
+          startedAt,
+          finishedAt: now(),
+          attempts: job.attempts,
+          evidence: {
+            message: `discover() tuvo éxito (${tenders.length} registros) pero el envío a apps/api falló: ${message}`,
+          },
+          coverage: { expected: expectedTotal, expectedReason, obtained: 0, discoveredButNotIngested: tenders.length },
+        });
+        throw error;
+      }
     }
 
     await recordSourceRun(deps.db, {
@@ -191,7 +265,9 @@ export function createDiscoverTendersHandler(deps: DiscoverTendersHandlerDeps): 
             : 'Corrida exitosa sin registros nuevos de la fuente.',
         responseHash: tenders.length > 0 ? hashRawPayload(tenders) : undefined,
       },
-      coverage: { expected: null, obtained: tenders.length, ...(ingestResponse?.summary ?? {}) },
+      // WK-05: `obtained` solo refleja éxito (registros efectivamente
+      // enviados/persistidos), nunca extracción parcial sin persistir.
+      coverage: { expected: expectedTotal, expectedReason, obtained: tenders.length, ...(ingestResponse?.summary ?? {}) },
     });
   };
 }
