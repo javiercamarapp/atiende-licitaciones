@@ -6,7 +6,12 @@ import jsxA11y from "eslint-plugin-jsx-a11y";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist", "coverage", "eslint.config.js"] },
+  // public/mockServiceWorker.js: generado por `npx msw init` (ver
+  // package.json "msw.workerDirectory") -- código de terceros que este
+  // repo no edita a mano, con su propio estilo/comentarios (incluye un
+  // `eslint-disable` que este eslint.config.js no necesita, de ahí la
+  // advertencia "unused eslint-disable directive" si se lintea).
+  { ignores: ["dist", "coverage", "eslint.config.js", "public/mockServiceWorker.js"] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     // e2e/ se excluye de este bloque (ver el bloque dedicado abajo): las
