@@ -31,3 +31,4 @@
 2026-09-05 20:21  DESPERTAR  #29 CI/README/runbook completado (bb54a69; ci-local 27/29, 2 fallos por concurrencia a reverificar); en curso #14,#23,#24,#27,#28,#30,#31.
 2026-09-05 20:22  BLOQUEO  B-03 registrado (CI Postgres real requiere remoto GitHub autorizado por el usuario).
 2026-09-05 20:26  DESPERTAR  corrector sources (#23) 11 commits, 95/95; INC-03 resets ajenos (historial verificado, B-03 recommit); reverificador #32 despachado; en curso #14,#24,#27,#28,#30,#31.
+2026-09-05 20:28  DESPERTAR  corrector agents vuelta 2 (#27) 215/215; reverificador 2 (#33) despachado; en curso #14,#24,#28,#30,#31,#32.
