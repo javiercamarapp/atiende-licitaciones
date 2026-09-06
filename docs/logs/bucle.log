@@ -52,3 +52,4 @@
 2026-09-06 21:20  DESPERTAR  reverificación db-api (#41): DB-08 CRÍTICA (refresh tokens ajenos) + reabiertos; corrector seguridad #49 despachado; en curso #42,#43,#45,#47,#48,#49.
 2026-09-06 21:20  RONDA3  #50 refresco de BACKLOG despachado; en curso #42,#43,#45,#47,#48,#49.
 2026-09-06 21:25  DESPERTAR  backlog refrescado (#50, 976b6bd); en curso #42,#43,#45,#47,#48,#49.
+2026-09-06 21:31  DESPERTAR  corrector expediente vuelta 3 (#45) 391/391; reverificador de cierre (#51) despachado; en curso #42,#43,#47,#48,#49.
