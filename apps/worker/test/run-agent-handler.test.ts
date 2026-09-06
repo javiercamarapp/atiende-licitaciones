@@ -145,6 +145,75 @@ describe('run_agent handler (esqueleto)', () => {
     expect(after[0].output).toBeNull();
   });
 
+  /**
+   * WK-16 (docs/auditoria-1/worker-reverificacion.md, cierre de WK-08
+   * PARCIAL): antes de esta ronda, `organizationId: null` (un valor
+   * EXPLÍCITAMENTE válido según el tipo `RunAgentPayload.organizationId:
+   * string | null`) desactivaba por completo el `WHERE org_id = $5` de
+   * `updateAgentRunRow` (`$5::uuid is null or org_id = $5::uuid`),
+   * permitiendo que un job con `agentRunId` real de CUALQUIER tenant y
+   * `organizationId: null` sobrescribiera esa fila sin ningún error —
+   * exactamente el bypass que WK-08 decía haber cerrado. Ahora, cuando
+   * `agentRunId` viene presente, `organizationId` nulo/undefined/vacío
+   * hace fallar el job como PERMANENTE ("org requerida") ANTES de correr el
+   * `AgentRunner` o tocar `agent_runs` — nunca un `UPDATE` silencioso.
+   */
+  it.each([
+    ['null', null],
+    ['undefined', undefined],
+    ['string vacío', ''],
+  ])('WK-16: organizationId %s con agentRunId presente falla permanente ("org requerida"), agent_runs NUNCA se toca', async (_label, orgValue) => {
+    const { orgId: orgA, userId: userA } = await seedOrgAndUser(db, `org-wk16-${_label.replace(/[^a-z0-9]/gi, '')}`);
+    const { rows } = await db.query<{ id: string }>(
+      `insert into agent_runs (org_id, agent_name, input, status, started_by) values ($1, 'demo-agent', '{}'::jsonb, 'running', $2) returning id`,
+      [orgA, userA],
+    );
+    const agentRunId = rows[0].id;
+
+    const handler = createRunAgentHandler({ db, buildProvider: () => new FakeProvider() });
+    const job = {
+      id: `job-run-agent-wk16-${_label}`,
+      orgId: orgA,
+      kind: 'run_agent',
+      payload: {
+        agentRunId,
+        organizationId: orgValue,
+        actorId: 'attacker-or-bug',
+        actorRole: 'licitador' as const,
+        agentName: 'demo-agent',
+        prompt: 'intento con organizationId ausente',
+      },
+      status: 'running' as const,
+      attempts: 1,
+      maxAttempts: 5,
+      nextRunAt: new Date(),
+      lockedAt: new Date(),
+      lockedBy: 'worker-test',
+      lastError: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    let caught: unknown;
+    try {
+      await handler(job as never, makeCtx());
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).message).toMatch(/org requerida/);
+    // Fail-closed y PERMANENTE (WK-10): reintentar no arregla un payload sin org.
+    expect((caught as { permanent?: boolean }).permanent).toBe(true);
+
+    // La fila real de orgA NUNCA se tocó: ni siquiera se llegó a intentar el UPDATE.
+    const { rows: after } = await db.query<{ status: string; output: unknown }>(
+      `select status, output from agent_runs where id = $1`,
+      [agentRunId],
+    );
+    expect(after[0].status).toBe('running');
+    expect(after[0].output).toBeNull();
+  });
+
   it('un rol sin permiso para el riesgo de la herramienta hace que la corrida termine "denied" -> el job falla explícitamente', async () => {
     // "consultor_externo" tiene techo de riesgo "read" (packages/agents/src/authorization.ts);
     // la herramienta de demostración "llm_complete" es riskLevel "read", así que este caso

@@ -132,7 +132,33 @@ class AgentRunOrgMismatchError extends Error {
   }
 }
 
-async function updateAgentRunRow(db: DbClient, agentRunId: string, organizationId: string | null, run: AgentRun): Promise<void> {
+/**
+ * WK-16 (docs/auditoria-1/worker-reverificacion.md, cierre de WK-08
+ * PARCIAL): `organizationId: null` — un valor EXPLÍCITAMENTE válido según
+ * el tipo `RunAgentPayload.organizationId: string | null` — desactivaba por
+ * completo el `WHERE` de `updateAgentRunRow` (`$5::uuid is null or org_id =
+ * $5::uuid`), permitiendo que CUALQUIER job con `agentRunId` real de
+ * CUALQUIER tenant y `organizationId: null` sobrescribiera esa fila sin
+ * ningún error — exactamente el comportamiento PRE-WK-08 que esa corrección
+ * decía haber eliminado. Fail-closed: si el job trae `agentRunId` (indica
+ * que SÍ se debe reflejar el resultado en `agent_runs`), `organizationId`
+ * debe ser no nulo Y no vacío; si no, el job falla como error PERMANENTE
+ * ANTES de tocar la base de datos (nunca se llama `updateAgentRunRow`, ni
+ * siquiera se corre el `AgentRunner`), documentando explícitamente que "org
+ * requerida" para poder persistir. El único caso legítimo de
+ * `organizationId: null` ("fire and forget" sin persistencia, ver test
+ * oficial "sin agentRunId en el payload...") nunca pasa por aquí porque no
+ * trae `agentRunId`.
+ */
+class RunAgentMissingOrganizationError extends Error {
+  readonly permanent = true as const;
+  constructor(message: string) {
+    super(message);
+    this.name = 'RunAgentMissingOrganizationError';
+  }
+}
+
+async function updateAgentRunRow(db: DbClient, agentRunId: string, organizationId: string, run: AgentRun): Promise<void> {
   const output = JSON.stringify({
     richStatus: run.status,
     error: run.error ?? null,
@@ -143,12 +169,17 @@ async function updateAgentRunRow(db: DbClient, agentRunId: string, organizationI
   const finishedAt = run.finishedAt ?? new Date().toISOString();
 
   await db.transaction(async (tx) => {
-    await tx.query("select set_config('app.current_org_id', $1, true)", [organizationId ?? '']);
+    await tx.query("select set_config('app.current_org_id', $1, true)", [organizationId]);
 
+    // WK-16: el guard SIEMPRE compara contra la fila real — sin el
+    // escape `$5::uuid is null or ...` de antes, porque a este punto
+    // `organizationId` ya se validó no nulo/no vacío en el handler (ver
+    // `RunAgentMissingOrganizationError` arriba). `agentRunId` presente
+    // implica, ahora sí siempre, `organizationId` no nulo.
     const { rowCount } = await tx.query(
       `update agent_runs
        set status = $2, output = $3::jsonb, finished_at = $4
-       where id = $1 and ($5::uuid is null or org_id = $5::uuid)`,
+       where id = $1 and org_id = $5::uuid`,
       [agentRunId, status, output, finishedAt, organizationId],
     );
 
@@ -173,6 +204,18 @@ async function updateAgentRunRow(db: DbClient, agentRunId: string, organizationI
  */
 export function createRunAgentHandler(deps: RunAgentHandlerDeps): JobHandler<RunAgentPayload> {
   return async (job) => {
+    // WK-16 (docs/auditoria-1/worker-reverificacion.md): fail-closed ANTES
+    // de correr nada. `!organizationId` cubre `null`, `undefined` Y `''`
+    // (los 3 valores "sin org" que un payload mal construido podría traer).
+    // Nunca se llega a `updateAgentRunRow` ni se escribe una sola fila en
+    // `agent_runs` en este caso — el job muere permanente en el primer
+    // intento (WK-10: reintentar no arregla un payload inconsistente).
+    if (job.payload.agentRunId && !job.payload.organizationId) {
+      throw new RunAgentMissingOrganizationError(
+        `run_agent: agentRunId=${job.payload.agentRunId} viene con organizationId=${JSON.stringify(job.payload.organizationId)} — org requerida para persistir en agent_runs. Fail-closed (WK-16): ninguna escritura se realizó.`,
+      );
+    }
+
     const provider = deps.buildProvider ? deps.buildProvider() : buildLlmProvider(process.env.OPENAI_API_KEY);
     const registry = buildDemoToolRegistry(provider);
 
@@ -199,7 +242,9 @@ export function createRunAgentHandler(deps: RunAgentHandlerDeps): JobHandler<Run
     const run = await runner.run(request);
 
     if (job.payload.agentRunId) {
-      await updateAgentRunRow(deps.db, job.payload.agentRunId, job.payload.organizationId, run);
+      // El guard fail-closed de arriba (WK-16) ya garantiza que, si llegamos
+      // aquí con `agentRunId`, `organizationId` es no nulo/no vacío.
+      await updateAgentRunRow(deps.db, job.payload.agentRunId, job.payload.organizationId as string, run);
     }
 
     if (run.status !== 'completed') {
