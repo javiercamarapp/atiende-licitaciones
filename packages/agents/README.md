@@ -147,6 +147,44 @@ trate como de confianza sigue siendo una superficie a evitar cuando sea
 posible — el chequeo de runtime es una red de seguridad, no un sustituto de
 un esquema más específico.
 
+**AG-23 (MEDIA, cierre)**: tanto `findForbiddenFieldRecursive` (estático)
+como `findForbiddenKeyAtRuntime` (runtime, AG-22) comparaban la clave real
+contra `FORBIDDEN_INPUT_FIELDS` por **igualdad estricta** (`Array.includes`).
+Una clave con variación de mayúsculas (`ORG_ID`, `OrgId`), de separador
+(`org-id`, `"org id"`), sin separador (`orgid`) o incluso fullwidth Unicode
+(`ｏｒｇ＿ｉｄ`) no coincidía con ninguna de las 6 grafías canónicas y evadía
+ambos chequeos — mismo patrón de bug que motivó AG-02 para nombres de
+herramienta, y que `AuthorizationPolicy.normalizeToolName()` ya resolvía para
+ese problema análogo sin que el patrón se hubiera generalizado aquí. Ahora
+ambos puntos de comparación pasan por `isForbiddenFieldKey()`
+(`tool-registry.ts`), que:
+
+1. Normaliza la clave con NFKC + minúsculas + elimina todo carácter no
+   alfanumérico (mismo patrón que `normalizeToolName`, pero sin restringirse
+   a `_ - .` espacio — aquí no hay un `VALID_TOOL_NAME` previo que limite el
+   alfabeto de entrada).
+2. Compara por **igualdad exacta** contra los tokens canónicos normalizados
+   (`organizationid`, `tenantid`, `orgid`) — cubre `ORG_ID`, `org-id`,
+   `Org.Id`, `"org id"`, `ｏｒｇ＿ｉｄ`, `orgId`.
+3. Compara por **prefijo o sufijo** contra los tokens cortos `orgid` /
+   `tenantid` únicamente (no `organizationid`, ya suficientemente largo y
+   específico) — cubre variantes con ruido alrededor como `x_org_id`
+   (sufijo) u `org_id_override` (prefijo), ignorando además un sufijo
+   numérico final antes de la comparación de sufijo (`tenantId2` ->
+   `tenantid`).
+
+Deliberadamente **no** es una búsqueda de subcadena en cualquier posición
+(eso generaría falsos positivos): `organizacion_nombre`, `origin_id` y
+`tenderId` no son ni igualdad exacta ni empiezan/terminan en
+`orgid`/`tenantid`, así que no se bloquean. **Límite conocido aceptado**: un
+campo legítimo sin relación con el tenant del sistema cuyo nombre normalizado
+empiece o termine en `orgid`/`tenantid` (p. ej. un hipotético
+`partner_org_id` que identifique una organización *externa* de un socio,
+no la del tenant) también se rechazaría; se prefiere este falso positivo —
+renombrable sin ambigüedad (`partnerExternalRef`) — al falso negativo que
+dejaba abierto AG-23. Ver `docs/auditoria-1/agents-cierre.md` (hallazgo
+AG-23) y `docs/logs/fix-agents-ag23.log` para la evidencia de reparación.
+
 ### AuthorizationPolicy (REQ-044/REQ-046/REQ-068 + ampliación back office)
 
 `decide()` resuelve `auto | pending | denied` en este orden:

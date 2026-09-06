@@ -30,6 +30,13 @@ const VALID_TOOL_NAME = /^[a-z0-9_]+$/;
  * definitions del agente nunca exponen parámetros que decidan sobre el
  * tenant o el dinero"). Si un esquema los declara, `register()` rechaza el
  * registro completo.
+ *
+ * AG-23 (MEDIA): estas 6 grafías son solo la base canónica. Ninguna
+ * comparación en este módulo las usa por igualdad estricta directamente —
+ * siempre pasan por `isForbiddenFieldKey()`, que normaliza la clave real
+ * antes de comparar (ver esa función para la regla completa). Mantener esta
+ * lista como las grafías "de referencia" documenta la intención, pero la
+ * detección real cubre un espacio mucho mayor de variantes.
  */
 const FORBIDDEN_INPUT_FIELDS = [
   "organizationId",
@@ -39,6 +46,90 @@ const FORBIDDEN_INPUT_FIELDS = [
   "orgId",
   "org_id",
 ];
+
+/**
+ * AG-23 (MEDIA): normaliza una clave de campo para comparación robusta,
+ * replicando el patrón que `normalizeToolName()` (`authorization.ts`, AG-02)
+ * ya aplica a nombres de herramienta: NFKC (unifica fullwidth/formas de
+ * compatibilidad Unicode del MISMO carácter) + minúsculas + elimina TODOS
+ * los caracteres no alfanuméricos (no solo `_ - .` espacio, cualquier
+ * símbolo). Esto es deliberadamente más agresivo que `normalizeToolName`
+ * porque aquí no hay restricción previa de "ASCII snake_case obligatorio"
+ * (AG-02) sobre las claves de un objeto de datos — un `tool_call` puede
+ * traer cualquier clave JSON válida.
+ */
+function normalizeFieldKey(key: string): string {
+  return key.normalize("NFKC").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+/** Tokens canónicos ya normalizados, derivados de `FORBIDDEN_INPUT_FIELDS`. */
+const NORMALIZED_FORBIDDEN_FIELD_TOKENS = new Set(FORBIDDEN_INPUT_FIELDS.map(normalizeFieldKey));
+
+/**
+ * AG-23: tokens cortos para los que también se comprueba coincidencia de
+ * PREFIJO/SUFIJO (no solo igualdad exacta) tras normalizar. Deliberadamente
+ * NO incluye `organizationid`: ya es lo bastante largo y específico como
+ * para que un prefijo/sufijo suyo sea en la práctica el mismo campo con
+ * ruido alrededor, mientras que `orgid`/`tenantid` sí aparecen camuflados
+ * con prefijos/sufijos cortos (`x_org_id`, `org_id_override`, `tenantId2`).
+ */
+const FORBIDDEN_FIELD_AFFIX_TOKENS = ["orgid", "tenantid"] as const;
+
+/**
+ * AG-23 (MEDIA): sustituye toda comparación por igualdad estricta contra
+ * `FORBIDDEN_INPUT_FIELDS` (`Array.includes`) — el hallazgo confirmado: una
+ * clave con variación de mayúsculas (`ORG_ID`, `OrgId`), de separador
+ * (`org-id`, `"org id"`), sin separador (`orgid`) o incluso fullwidth
+ * Unicode (`ｏｒｇ＿ｉｄ`) no coincidía literalmente con ninguna de las 6
+ * cadenas de la lista y evadía tanto el chequeo estático
+ * (`findForbiddenFieldRecursive`) como el de runtime
+ * (`findForbiddenKeyAtRuntime`, AG-22). Mismo patrón de bug que motivó AG-02
+ * para nombres de herramienta.
+ *
+ * Regla (documentada también en README):
+ * 1. Se normaliza la clave con `normalizeFieldKey()` (NFKC + minúsculas +
+ *    solo alfanumérico).
+ * 2. Coincidencia EXACTA contra los tokens canónicos normalizados
+ *    (`organizationid`, `tenantid`, `orgid`) — cubre variantes de
+ *    mayúsculas/separadores/Unicode del mismo nombre (`ORG_ID`, `org-id`,
+ *    `Org.Id`, `"org id"`, `ｏｒｇ＿ｉｄ`, `orgId`).
+ * 3. Coincidencia de PREFIJO o SUFIJO contra los tokens cortos `orgid` /
+ *    `tenantid` (no `organizationid`, ver `FORBIDDEN_FIELD_AFFIX_TOKENS`) —
+ *    cubre variantes con ruido alrededor como `x_org_id` (sufijo `orgid`) u
+ *    `org_id_override` (prefijo `orgid`). Antes de comprobar el sufijo se
+ *    ignora además un sufijo numérico final (`tenantId2` -> `tenantid`) para
+ *    cubrir variantes versionadas del mismo campo.
+ *    Deliberadamente NO es una búsqueda de subcadena en cualquier posición:
+ *    eso produciría falsos positivos (p. ej. un hipotético campo que
+ *    contuviera "orgid" en medio sin ser prefijo/sufijo). Nombres legítimos
+ *    como `organizacion_nombre` (normaliza a "organizacionnombre", ni igual
+ *    ni empieza/termina en un token), `origin_id` ("originid", no contiene
+ *    "orgid" como prefijo/sufijo — "origin" y "org" no son la misma
+ *    secuencia de letras) o `tenderId` ("tenderid", no relacionado con
+ *    "tenantid") no coinciden con ninguna regla y NO se bloquean.
+ *
+ * Límite conocido (documentado en README): un campo legítimo cuyo nombre
+ * normalizado empiece o termine en `orgid`/`tenantid` sin relación real con
+ * el tenant del sistema (p. ej. un hipotético `partner_org_id` que
+ * identificara una organización EXTERNA de un socio de negocio, no la del
+ * tenant) también se rechazaría. Se acepta este falso positivo como
+ * preferible al falso negativo que dejaba abierto AG-23: el campo puede
+ * renombrarse sin ambigüedad (p. ej. `partnerExternalRef`).
+ */
+function isForbiddenFieldKey(key: string): boolean {
+  const normalized = normalizeFieldKey(key);
+  if (NORMALIZED_FORBIDDEN_FIELD_TOKENS.has(normalized)) return true;
+
+  const withoutTrailingDigits = normalized.replace(/[0-9]+$/, "");
+  if (withoutTrailingDigits !== normalized && NORMALIZED_FORBIDDEN_FIELD_TOKENS.has(withoutTrailingDigits)) {
+    return true;
+  }
+
+  return FORBIDDEN_FIELD_AFFIX_TOKENS.some(
+    (token) =>
+      normalized.startsWith(token) || normalized.endsWith(token) || withoutTrailingDigits.endsWith(token),
+  );
+}
 
 /**
  * AG-22 (MEDIA): profundidad máxima que `findForbiddenFieldRecursive`
@@ -285,17 +376,17 @@ function checkKeyTypeForForbiddenField(keyType: z.ZodTypeAny): string | undefine
 
   if (typeName === "ZodEnum") {
     const values = (def?.values as string[] | undefined) ?? [];
-    return values.find((value) => FORBIDDEN_INPUT_FIELDS.includes(value));
+    return values.find((value) => isForbiddenFieldKey(value));
   }
 
   if (typeName === "ZodNativeEnum") {
     const values = Object.values((def?.values as Record<string, string | number> | undefined) ?? {}).map(String);
-    return values.find((value) => FORBIDDEN_INPUT_FIELDS.includes(value));
+    return values.find((value) => isForbiddenFieldKey(value));
   }
 
   if (typeName === "ZodLiteral") {
     const value = def?.value;
-    return typeof value === "string" && FORBIDDEN_INPUT_FIELDS.includes(value) ? value : undefined;
+    return typeof value === "string" && isForbiddenFieldKey(value) ? value : undefined;
   }
 
   if (typeName === "ZodUnion") {
@@ -364,7 +455,7 @@ function findForbiddenFieldRecursive(
   const shape = getZodObjectShape(schema);
   if (shape) {
     for (const [field, fieldSchema] of Object.entries(shape)) {
-      if (FORBIDDEN_INPUT_FIELDS.includes(field)) return field;
+      if (isForbiddenFieldKey(field)) return field;
       const nested = recurse(fieldSchema as z.ZodTypeAny);
       if (nested) return nested;
     }
@@ -489,7 +580,7 @@ function findForbiddenKeyAtRuntime(
   if (value instanceof Map) {
     for (const [key, val] of value.entries()) {
       const keyStr = typeof key === "string" ? key : String(key);
-      if (FORBIDDEN_INPUT_FIELDS.includes(keyStr)) return { field: keyStr, path: `${path}.${keyStr}` };
+      if (isForbiddenFieldKey(keyStr)) return { field: keyStr, path: `${path}.${keyStr}` };
       const found = findForbiddenKeyAtRuntime(val, toolName, `${path}.${keyStr}`, depth + 1);
       if (found) return found;
     }
@@ -507,7 +598,7 @@ function findForbiddenKeyAtRuntime(
 
   if (value && typeof value === "object" && !(value instanceof Date)) {
     for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
-      if (FORBIDDEN_INPUT_FIELDS.includes(key)) return { field: key, path: `${path}.${key}` };
+      if (isForbiddenFieldKey(key)) return { field: key, path: `${path}.${key}` };
       const found = findForbiddenKeyAtRuntime(val, toolName, `${path}.${key}`, depth + 1);
       if (found) return found;
     }

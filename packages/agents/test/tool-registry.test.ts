@@ -511,6 +511,108 @@ describe("ToolRegistry", () => {
     expect(() => registry.register(makeTool())).not.toThrow();
   });
 
+  describe("AG-23 (MEDIA): normaliza la clave antes de comparar contra campos prohibidos (NFKC + minúsculas + sin separadores + prefijo/sufijo)", () => {
+    const POSITIVE_VARIANTS = [
+      "ORG_ID",
+      "org-id",
+      "Org.Id",
+      "org id",
+      "ｏｒｇ＿ｉｄ", // fullwidth (NFKC-normalizable)
+      "x_org_id", // sufijo deliberado
+      "orgId", // control: ya se detectaba por igualdad estricta antes de AG-23, debe seguir bloqueándose
+    ];
+
+    const NEGATIVE_VARIANTS = ["organizacion_nombre", "origin_id", "tenderId"];
+
+    it.each(POSITIVE_VARIANTS)(
+      "rechaza en el REGISTRO (chequeo estático) la variante de clave %j",
+      (variant) => {
+        const registry = new ToolRegistry();
+        expect(() =>
+          registry.register(
+            makeTool({
+              name: "ag23_static_tool",
+              inputSchema: z.object({ [variant]: z.string(), q: z.string() }),
+            }),
+          ),
+        ).toThrow(UnauthorizedToolInputError);
+      },
+    );
+
+    it.each(POSITIVE_VARIANTS)(
+      "rechaza en RUNTIME (validateInput, dentro de un z.record de clave genérica) la variante de clave %j",
+      (variant) => {
+        const registry = new ToolRegistry();
+        registry.register(
+          makeTool({
+            name: "ag23_runtime_tool",
+            inputSchema: z.object({ meta: z.record(z.string(), z.string()) }),
+          }),
+        );
+        expect(() => registry.validateInput("ag23_runtime_tool", { meta: { [variant]: "attacker-tenant" } })).toThrow(
+          ForbiddenRuntimeInputFieldError,
+        );
+      },
+    );
+
+    it.each(NEGATIVE_VARIANTS)(
+      "NO rechaza en el registro el nombre de campo legítimo %j (no debe haber falso positivo)",
+      (fieldName) => {
+        const registry = new ToolRegistry();
+        expect(() =>
+          registry.register(
+            makeTool({
+              name: "ag23_static_negative_tool",
+              inputSchema: z.object({ [fieldName]: z.string(), q: z.string() }),
+            }),
+          ),
+        ).not.toThrow();
+      },
+    );
+
+    it.each(NEGATIVE_VARIANTS)(
+      "NO rechaza en runtime el nombre de campo legítimo %j (no debe haber falso positivo)",
+      (fieldName) => {
+        const registry = new ToolRegistry();
+        registry.register(
+          makeTool({
+            name: "ag23_runtime_negative_tool",
+            inputSchema: z.object({ meta: z.record(z.string(), z.string()) }),
+          }),
+        );
+        expect(() =>
+          registry.validateInput("ag23_runtime_negative_tool", { meta: { [fieldName]: "valor-legitimo" } }),
+        ).not.toThrow();
+      },
+    );
+
+    it("rechaza org_id_override (prefijo orgid) y tenantId2 (tenantid + sufijo numérico) en runtime", () => {
+      const registry = new ToolRegistry();
+      registry.register(
+        makeTool({
+          name: "ag23_affix_tool",
+          inputSchema: z.object({ meta: z.record(z.string(), z.string()) }),
+        }),
+      );
+      expect(() =>
+        registry.validateInput("ag23_affix_tool", { meta: { org_id_override: "attacker-tenant" } }),
+      ).toThrow(ForbiddenRuntimeInputFieldError);
+      expect(() => registry.validateInput("ag23_affix_tool", { meta: { tenantId2: "attacker-tenant" } })).toThrow(
+        ForbiddenRuntimeInputFieldError,
+      );
+    });
+
+    it("sigue detectando las 6 grafías canónicas originales sin cambios de comportamiento", () => {
+      const registry = new ToolRegistry();
+      const canonicalFields = ["organizationId", "organization_id", "tenantId", "tenant_id", "orgId", "org_id"];
+      canonicalFields.forEach((field, index) => {
+        expect(() =>
+          registry.register(makeTool({ name: `canonical_tool_${index}`, inputSchema: z.object({ [field]: z.string() }) })),
+        ).toThrow(UnauthorizedToolInputError);
+      });
+    });
+  });
+
   describe("AG-01: actionKind obligatorio (REQ-165)", () => {
     it("rechaza el registro si la herramienta no declara actionKind", () => {
       const registry = new ToolRegistry();
