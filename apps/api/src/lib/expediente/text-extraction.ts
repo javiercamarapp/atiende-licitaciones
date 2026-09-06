@@ -15,6 +15,22 @@
  *    requisitos").
  *  - Cualquier otro formato (docx, imagen suelta, etc.): `"failed"` con
  *    detalle explícito; tampoco se inventa texto.
+ *
+ * AE-04 (docs/auditoria-2/api-expediente.md, MEDIA): el texto extraído
+ * (sobre todo por la rama de "texto plano", que no analiza estructura
+ * alguna) podía contener HTML/`<script>` sin ningún indicio de ser PDF,
+ * persistirse tal cual, y devolverse SIN escapar en
+ * `description`/`sourceExcerpt` de `GET /tenders/:id/matrix` -- un vector
+ * de XSS almacenado para cualquier frontend que renderizara esos campos
+ * sin escapar. Se sanea (`sanitizePlainText`) ANTES de persistir: se
+ * elimina el contenido de `<script>`/`<style>` por completo y se quita
+ * cualquier otra etiqueta HTML restante, dejando solo texto plano.
+ *
+ * AE-05 (anti "PDF bomb"): además del límite de tamaño de subida (~22MB,
+ * ver `lib/storage.ts`), se acota el número de páginas y el tamaño del
+ * texto extraído de un PDF -- un PDF con miles de páginas/objetos
+ * repetidos podría inflar el texto extraído en memoria mucho más allá del
+ * tamaño del archivo original.
  */
 // @ts-expect-error -- pdf-parse no publica tipos para el subpath interno; ver comentario arriba sobre por qué se evita el index.js del paquete.
 import pdfParseInternal from 'pdf-parse/lib/pdf-parse.js';
@@ -27,6 +43,10 @@ export interface TextExtractionResult {
   pageCount: number | null;
   detail?: string;
 }
+
+/** AE-05: límites anti "PDF bomb" -- un PDF real de licitación (bases + anexos) nunca debería acercarse a estos límites; existen para acotar el costo de procesar un archivo adversarial, no para restringir el uso normal. */
+const MAX_PDF_PAGES = 500;
+const MAX_EXTRACTED_TEXT_LENGTH = 5_000_000; // ~5MB de texto extraído.
 
 function looksLikePdf(buffer: Buffer): boolean {
   return buffer.subarray(0, 5).toString('latin1') === '%PDF-';
@@ -43,6 +63,22 @@ function looksLikePlainText(buffer: Buffer): string | null {
   }
   if (controlCount / text.length > 0.02) return null; // demasiados bytes no imprimibles: probablemente binario, no texto.
   return text;
+}
+
+/**
+ * AE-04: elimina por completo el contenido de `<script>`/`<style>` (nunca
+ * solo la etiqueta -- dejar el contenido visible como texto sería igual de
+ * indeseable para un documento que se supone es texto plano) y quita
+ * cualquier otra etiqueta HTML restante, conservando el texto entre ellas.
+ * El resultado se persiste como texto plano; nunca se decide aquí cómo
+ * escapar al renderizar (responsabilidad del consumidor), pero se elimina
+ * la posibilidad de que el propio contenido almacenado sea HTML ejecutable.
+ */
+function sanitizePlainText(text: string): string {
+  return text
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, '')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi, '')
+    .replace(/<[^>]+>/g, '');
 }
 
 export async function extractDocumentText(buffer: Buffer, opts: { mimeType?: string | null; filename?: string | null } = {}): Promise<TextExtractionResult> {
@@ -62,7 +98,25 @@ export async function extractDocumentText(buffer: Buffer, opts: { mimeType?: str
           detail: 'PDF sin capa de texto extraíble (probablemente escaneado). Requiere OCR, no soportado en esta ronda.',
         };
       }
-      return { status: 'extracted', text, pageCount };
+      // AE-05 (anti "PDF bomb"): rechazar ANTES de persistir un texto
+      // desproporcionadamente grande o un PDF con demasiadas páginas.
+      if (pageCount !== null && pageCount > MAX_PDF_PAGES) {
+        return {
+          status: 'failed',
+          text: null,
+          pageCount,
+          detail: `PDF con demasiadas páginas (${pageCount} > límite de ${MAX_PDF_PAGES} de esta ronda) -- rechazado como medida anti "PDF bomb".`,
+        };
+      }
+      if (text.length > MAX_EXTRACTED_TEXT_LENGTH) {
+        return {
+          status: 'failed',
+          text: null,
+          pageCount,
+          detail: `Texto extraído del PDF excede el límite de esta ronda (${text.length} > ${MAX_EXTRACTED_TEXT_LENGTH} caracteres) -- rechazado como medida anti "PDF bomb".`,
+        };
+      }
+      return { status: 'extracted', text: sanitizePlainText(text), pageCount };
     } catch (err) {
       return {
         status: 'failed',
@@ -80,7 +134,15 @@ export async function extractDocumentText(buffer: Buffer, opts: { mimeType?: str
     if (text.trim().length === 0) {
       return { status: 'failed', text: null, pageCount: null, detail: 'Archivo de texto vacío.' };
     }
-    return { status: 'extracted', text, pageCount: null };
+    // AE-04: sanitizar ANTES de persistir -- ver docstring del módulo. Si
+    // el contenido era ÍNTEGRAMENTE HTML/script (nada de texto real fuera
+    // de las etiquetas), el resultado queda vacío -- se marca "failed"
+    // explícito, nunca "extracted" con texto vacío (REQ-166).
+    const sanitized = sanitizePlainText(text);
+    if (sanitized.trim().length === 0) {
+      return { status: 'failed', text: null, pageCount: null, detail: 'El contenido quedó vacío después de sanitizar HTML/script embebido (AE-04); no se persiste como "extracted" un texto vacío.' };
+    }
+    return { status: 'extracted', text: sanitized, pageCount: null };
   }
 
   return {
