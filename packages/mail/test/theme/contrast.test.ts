@@ -45,4 +45,17 @@ describe("contraste básico de la paleta de correo", () => {
   it("el rótulo de tono de urgencia (danger) sobre la tarjeta es legible (>=3:1, texto grande/negrita)", () => {
     expect(contrastRatio(colors.danger, colors.surface)).toBeGreaterThanOrEqual(3);
   });
+
+  // ML-04: `faint` se usa en EmailLayout para texto normal (10-11.5px, ni
+  // grande ni negrita) — el motivo de envío, el enlace de baja y el de
+  // administrar preferencias. Eso exige el umbral COMPLETO de WCAG AA para
+  // texto normal (>=4.5:1), no el relajado de 3:1 que solo aplica a texto
+  // grande/negrita.
+  it("ML-04: el texto discreto del pie (faint) sobre la tarjeta cumple WCAG AA de texto normal (>=4.5:1)", () => {
+    expect(contrastRatio(colors.faint, colors.surface)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("ML-04: el texto discreto del pie (faint) sobre el lienzo cumple WCAG AA de texto normal (>=4.5:1)", () => {
+    expect(contrastRatio(colors.faint, colors.canvas)).toBeGreaterThanOrEqual(4.5);
+  });
 });

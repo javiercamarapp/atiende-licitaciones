@@ -24,8 +24,16 @@ export const colors = {
   body: "#3f4a5c",
   /** --muted-foreground: texto secundario (pie, etiquetas). */
   muted: "#5b6b82",
-  /** Un peldaño más tenue que `muted`, para el texto más discreto del pie. */
-  faint: "#8291a3",
+  /**
+   * Un peldaño más tenue que `muted`, para el texto más discreto del pie
+   * (motivo de envío, enlace de baja, administrar preferencias). Antes
+   * `#8291a3` (ML-04): 3.22:1 sobre `surface` y 3.05:1 sobre `canvas`, por
+   * debajo del 4.5:1 que exige WCAG AA para texto normal (no es texto
+   * grande ni negrita) — se oscureció a `#637283` (4.92:1 / 4.67:1) para
+   * cumplir el umbral completo en ambos fondos, verificado en
+   * `test/theme/contrast.test.ts`.
+   */
+  faint: "#637283",
   /** --border / --input: líneas y separadores. */
   line: "#e2e8f0",
   /** --muted: fondos de reposo (bloque de código, callouts neutros). */
