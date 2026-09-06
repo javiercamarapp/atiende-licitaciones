@@ -252,6 +252,43 @@ describe("AgentRunner: idempotencia", () => {
 
     expect(handler).toHaveBeenCalledTimes(1);
   });
+
+  it("AG-13 (BAJA): condición de carrera REAL vía Promise.all a nivel de AgentRunner.run() con la misma idempotencyKey nunca duplica el efecto", async () => {
+    const deps = makeDeps();
+    let inFlight = 0;
+    let maxConcurrent = 0;
+    const handler = vi.fn(async () => {
+      inFlight++;
+      maxConcurrent = Math.max(maxConcurrent, inFlight);
+      // Cede el control del microtask/macrotask antes de resolver, para
+      // maximizar la ventana de una posible condición de carrera real.
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      inFlight--;
+      return { count: 42 };
+    });
+    deps.registry.register(readTool({ handler }));
+    const runner = new AgentRunner(deps);
+
+    const requestA = baseRequest({
+      actorId: "user-a",
+      steps: [{ toolName: "list_tenders", input: { q: "x" }, idempotencyKey: "race-job-1" }],
+    });
+    const requestB = baseRequest({
+      actorId: "user-b",
+      steps: [{ toolName: "list_tenders", input: { q: "x" }, idempotencyKey: "race-job-1" }],
+    });
+
+    const [runA, runB] = await Promise.all([runner.run(requestA), runner.run(requestB)]);
+
+    // El handler se invoca una sola vez sin importar cuál corrida "gana" la carrera.
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(maxConcurrent).toBe(1);
+    // Ambas corridas terminan en un estado terminal válido: la que ejecutó
+    // completa "completed"; la otra recibe el error de "en curso" y falla,
+    // pero ninguna de las dos queda colgada ni duplica el efecto.
+    const statuses = [runA.status, runB.status].sort();
+    expect(statuses).toContain("completed");
+  });
 });
 
 describe("AgentRunner: reintentos con backoff", () => {
