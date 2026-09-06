@@ -205,4 +205,105 @@ describe("NoFabricationPolicy", () => {
       expect(findings.some((f) => f.kind === "precio")).toBe(true);
     });
   });
+
+  describe("AG-21 (MEDIA): cierre de los 2 bypasses estructurales de AG-19 (Array de nivel superior, truncamiento de binarios) + base64", () => {
+    it("detecta texto libre sensible como elemento DIRECTO de un Array de nivel superior (bypass original)", () => {
+      const findings = scanForUnsourcedSensitiveData({
+        notas: ["hay que pagar un costo de $999,999 sin certificar aun"],
+      });
+      expect(findings.some((f) => f.kind === "texto_libre")).toBe(true);
+    });
+
+    it("detecta texto libre sensible en un Array de nivel superior sin envoltura de objeto", () => {
+      const findings = scanForUnsourcedSensitiveData(["el precio final es de $1500 sin fuente"]);
+      expect(findings.some((f) => f.kind === "texto_libre")).toBe(true);
+    });
+
+    it("detecta texto libre sensible en cualquier combinación de contenedores anidados (Array > Set > Map > Array)", () => {
+      const findings = scanForUnsourcedSensitiveData({
+        raiz: new Map([["datos", new Set([["el costo final es de $50000 pendiente"]])]]),
+      });
+      expect(findings.some((f) => f.kind === "texto_libre")).toBe(true);
+    });
+
+    it("no genera falso positivo para un elemento de Array sin palabra clave sensible", () => {
+      const findings = scanForUnsourcedSensitiveData({ notas: ["la convocatoria cierra el 2026-12-31"] });
+      expect(findings).toEqual([]);
+    });
+
+    it("detecta un JSON sensible en un Buffer colocado DESPUÉS del offset 8192 (bypass original: antes se truncaba en silencio)", () => {
+      const json = JSON.stringify({ precio: 999999 });
+      const buffer = bufferWithEmbeddedJsonAt(9000, json, 12_000);
+      const findings = scanForUnsourcedSensitiveData({ adjunto: buffer });
+      expect(findings.some((f) => f.kind === "precio")).toBe(true);
+    });
+
+    it("detecta un JSON sensible que cae exactamente a caballo entre dos ventanas de decodificación", () => {
+      // La ventana 1 cubre bytes [0, 8192): el JSON empieza en 8100 y termina
+      // después de 8192, así que la ventana 1 lo trunca (JSON inválido). La
+      // ventana 2 (offset 7680, solape de 512 bytes) lo cubre completo.
+      const json = JSON.stringify({ precio: 999999 });
+      const buffer = bufferWithEmbeddedJsonAt(8100, json, 12_000);
+      const findings = scanForUnsourcedSensitiveData({ adjunto: buffer });
+      expect(findings.some((f) => f.kind === "precio")).toBe(true);
+    });
+
+    it("un Buffer que excede el límite total configurable produce 'no_evaluable' en vez de dejarlo pasar sin examinar", () => {
+      const big = Buffer.alloc(1000, 0x41);
+      const findings = scanForUnsourcedSensitiveData({ adjunto: big }, { maxBinaryTotalBytes: 500 });
+      expect(findings).toEqual([{ path: "$.adjunto", fieldName: "adjunto", kind: "no_evaluable" }]);
+    });
+
+    it("un Buffer dentro del límite total configurable se escanea con normalidad (no 'no_evaluable')", () => {
+      const json = JSON.stringify({ precio: 999999 });
+      const buffer = bufferWithEmbeddedJsonAt(100, json, 2000);
+      const findings = scanForUnsourcedSensitiveData({ adjunto: buffer }, { maxBinaryTotalBytes: 5000 });
+      expect(findings.some((f) => f.kind === "precio")).toBe(true);
+      expect(findings.some((f) => f.kind === "no_evaluable")).toBe(false);
+    });
+
+    it("detecta un JSON sensible codificado en base64 como string plano (heurística de base64)", () => {
+      const json = JSON.stringify({ precio: 999999, vigencia: "2026-01-01" });
+      const encoded = Buffer.from(json, "utf-8").toString("base64");
+      const findings = scanForUnsourcedSensitiveData({ payload: encoded });
+      expect(findings.some((f) => f.kind === "precio")).toBe(true);
+    });
+
+    it("un string base64 que decodifica a texto plano SIN forma de JSON no genera un hallazgo (evita falsos positivos)", () => {
+      const encoded = Buffer.from(
+        "hola mundo esto es un texto normal sin nada sensible ni forma de json",
+        "utf-8",
+      ).toString("base64");
+      const findings = scanForUnsourcedSensitiveData({ payload: encoded });
+      expect(findings).toEqual([]);
+    });
+
+    it("un string corto que 'parece' base64 por alfabeto no se trata como candidato (evita falsos positivos triviales)", () => {
+      expect(() => scanForUnsourcedSensitiveData({ id: "abcd" })).not.toThrow();
+      expect(scanForUnsourcedSensitiveData({ id: "abcd" })).toEqual([]);
+    });
+
+    it("un string base64 sintácticamente válido pero cuyos bytes no son UTF-8 válido no genera un hallazgo ni lanza", () => {
+      const garbage = Buffer.from([0xff, 0xfe, 0x00, 0x01, 0x02, 0x03, 0xfd, 0xfc, 0x10, 0x20, 0x30, 0x40]).toString(
+        "base64",
+      );
+      expect(() => scanForUnsourcedSensitiveData({ id: garbage })).not.toThrow();
+      expect(scanForUnsourcedSensitiveData({ id: garbage })).toEqual([]);
+    });
+  });
 });
+
+/**
+ * Construye un Buffer de `totalLength` bytes, relleno con 'A' (sin llaves ni
+ * corchetes, para no interferir con `findJsonCandidates`), con el JSON dado
+ * copiado a partir de `offset`.
+ */
+function bufferWithEmbeddedJsonAt(offset: number, json: string, totalLength: number): Buffer {
+  const jsonBytes = Buffer.from(json, "utf-8");
+  if (offset + jsonBytes.length > totalLength) {
+    throw new Error("bufferWithEmbeddedJsonAt: totalLength insuficiente para offset + json");
+  }
+  const buffer = Buffer.alloc(totalLength, 0x41); // 'A'
+  jsonBytes.copy(buffer, offset);
+  return buffer;
+}

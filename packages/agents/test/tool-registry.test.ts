@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { ToolRegistry, type ToolDefinition } from "../src/tool-registry.js";
 import {
+  ForbiddenRuntimeInputFieldError,
   InvalidDeclaredEffectsError,
   InvalidToolNameError,
   MissingActionKindError,
+  RuntimeArgsTooDeepError,
+  SchemaTooDeepError,
   ToolNotFoundError,
   ToolValidationError,
   UnauthorizedToolInputError,
@@ -300,6 +303,206 @@ describe("ToolRegistry", () => {
           }),
         ),
       ).toThrow(UnauthorizedToolInputError);
+    });
+  });
+
+  describe("AG-22 (MEDIA): ZodPipeline/ZodBranded, keyType de ZodRecord/ZodMap, guarda de profundidad, verificación de runtime", () => {
+    it("rechaza organizationId detrás de .pipe() (ZodPipeline)", () => {
+      const registry = new ToolRegistry();
+      expect(() =>
+        registry.register(
+          makeTool({
+            name: "pipeline_leaky",
+            inputSchema: z.object({ organizationId: z.string() }).pipe(z.object({ organizationId: z.string() })),
+          }),
+        ),
+      ).toThrow(UnauthorizedToolInputError);
+    });
+
+    it("rechaza organizationId detrás de .brand() (ZodBranded)", () => {
+      const registry = new ToolRegistry();
+      expect(() =>
+        registry.register(
+          makeTool({
+            name: "branded_leaky",
+            inputSchema: z.object({ organizationId: z.string() }).brand<"Foo">(),
+          }),
+        ),
+      ).toThrow(UnauthorizedToolInputError);
+    });
+
+    it("permite .pipe()/.brand() legítimos sin campos de tenant", () => {
+      const registry = new ToolRegistry();
+      expect(() =>
+        registry.register(
+          makeTool({
+            name: "pipeline_legit",
+            inputSchema: z.object({ q: z.string() }).pipe(z.object({ q: z.string() })),
+          }),
+        ),
+      ).not.toThrow();
+      expect(() =>
+        registry.register(
+          makeTool({
+            name: "branded_legit",
+            inputSchema: z.object({ q: z.string() }).brand<"Foo">(),
+          }),
+        ),
+      ).not.toThrow();
+    });
+
+    it("rechaza organizationId como miembro literal del keyType (z.enum) de un z.record", () => {
+      const registry = new ToolRegistry();
+      const Keys = z.enum(["organizationId", "otherKey"]);
+      expect(() =>
+        registry.register(
+          makeTool({
+            name: "record_enum_key_leaky",
+            inputSchema: z.record(Keys, z.string()),
+          }),
+        ),
+      ).toThrow(UnauthorizedToolInputError);
+    });
+
+    it("rechaza organizationId como miembro literal del keyType (z.nativeEnum) de un z.map", () => {
+      const registry = new ToolRegistry();
+      enum TenantKeys {
+        Forbidden = "organizationId",
+        Ok = "other",
+      }
+      expect(() =>
+        registry.register(
+          makeTool({
+            name: "map_native_enum_key_leaky",
+            inputSchema: z.object({ config: z.map(z.nativeEnum(TenantKeys), z.string()) }),
+          }),
+        ),
+      ).toThrow(UnauthorizedToolInputError);
+    });
+
+    it("rechaza organizationId como z.literal keyType de un z.record", () => {
+      const registry = new ToolRegistry();
+      expect(() =>
+        registry.register(
+          makeTool({
+            name: "record_literal_key_leaky",
+            inputSchema: z.record(z.literal("organizationId"), z.string()),
+          }),
+        ),
+      ).toThrow(UnauthorizedToolInputError);
+    });
+
+    it("permite z.record/z.map con keyType enum legítimo (ningún miembro es un campo prohibido)", () => {
+      const registry = new ToolRegistry();
+      const Keys = z.enum(["foo", "bar"]);
+      expect(() =>
+        registry.register(
+          makeTool({
+            name: "record_enum_key_legit",
+            inputSchema: z.record(Keys, z.string()),
+          }),
+        ),
+      ).not.toThrow();
+    });
+
+    it("límite arquitectónico documentado: z.record(z.string(), ...) de clave genérica NO se rechaza en el registro (nada que declarar estáticamente)", () => {
+      const registry = new ToolRegistry();
+      expect(() =>
+        registry.register(
+          makeTool({
+            name: "generic_key_record_registers_fine",
+            inputSchema: z.object({ meta: z.record(z.string(), z.string()) }),
+          }),
+        ),
+      ).not.toThrow();
+    });
+
+    it("rechaza el registro con SchemaTooDeepError (no RangeError) ante un esquema no cíclico de ~20 000 niveles", () => {
+      const registry = new ToolRegistry();
+      let schema: z.ZodTypeAny = z.object({ value: z.string() });
+      for (let i = 0; i < 20_000; i++) {
+        schema = z.object({ nested: schema });
+      }
+      try {
+        registry.register(makeTool({ name: "too_deep", inputSchema: schema }));
+        throw new Error("no debería llegar aquí: se esperaba SchemaTooDeepError");
+      } catch (error) {
+        expect(error).toBeInstanceOf(SchemaTooDeepError);
+        expect(error).not.toBeInstanceOf(RangeError);
+      }
+    });
+
+    it("z.lazy() cíclico real sigue funcionando sin disparar la guarda de profundidad (el Set 'seen' por identidad ya lo cubre)", () => {
+      const registry = new ToolRegistry();
+      type Node = { name: string; children?: Node[] };
+      const nodeSchema: z.ZodType<Node> = z.lazy(() =>
+        z.object({ name: z.string(), children: z.array(nodeSchema).optional() }),
+      );
+      expect(() =>
+        registry.register(makeTool({ name: "lazy_cyclic_control", inputSchema: z.object({ tree: nodeSchema }) })),
+      ).not.toThrow();
+    });
+
+    describe("verificación en TIEMPO DE EJECUCIÓN (validateInput) para z.record/z.map de clave genérica", () => {
+      it("rechaza en runtime argumentos cuya clave real (dentro de un z.record de clave genérica) sea organizationId", () => {
+        const registry = new ToolRegistry();
+        registry.register(
+          makeTool({
+            name: "generic_record_tool",
+            inputSchema: z.object({ meta: z.record(z.string(), z.string()) }),
+          }),
+        );
+        expect(() =>
+          registry.validateInput("generic_record_tool", { meta: { organizationId: "attacker-tenant" } }),
+        ).toThrow(ForbiddenRuntimeInputFieldError);
+      });
+
+      it("rechaza en runtime organizationId anidado en cualquier profundidad dentro de los argumentos reales", () => {
+        const registry = new ToolRegistry();
+        registry.register(
+          makeTool({
+            name: "generic_nested_tool",
+            inputSchema: z.object({ meta: z.record(z.string(), z.record(z.string(), z.string())) }),
+          }),
+        );
+        expect(() =>
+          registry.validateInput("generic_nested_tool", {
+            meta: { a: { organizationId: "attacker-tenant" } },
+          }),
+        ).toThrow(ForbiddenRuntimeInputFieldError);
+      });
+
+      it("permite argumentos legítimos sin claves prohibidas en un z.record de clave genérica", () => {
+        const registry = new ToolRegistry();
+        registry.register(
+          makeTool({
+            name: "generic_record_legit",
+            inputSchema: z.object({ meta: z.record(z.string(), z.string()) }),
+          }),
+        );
+        expect(() => registry.validateInput("generic_record_legit", { meta: { foo: "bar" } })).not.toThrow();
+      });
+
+      it("rechaza con RuntimeArgsTooDeepError (no RangeError) ante argumentos con anidamiento profundo patológico", () => {
+        const registry = new ToolRegistry();
+        registry.register(
+          makeTool({
+            name: "deep_args_tool",
+            inputSchema: z.object({ meta: z.record(z.string(), z.any()) }),
+          }),
+        );
+        let value: Record<string, unknown> = { leaf: true };
+        for (let i = 0; i < 500; i++) {
+          value = { nested: value };
+        }
+        try {
+          registry.validateInput("deep_args_tool", { meta: value });
+          throw new Error("no debería llegar aquí: se esperaba RuntimeArgsTooDeepError");
+        } catch (error) {
+          expect(error).toBeInstanceOf(RuntimeArgsTooDeepError);
+          expect(error).not.toBeInstanceOf(RangeError);
+        }
+      });
     });
   });
 

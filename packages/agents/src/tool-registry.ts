@@ -1,9 +1,12 @@
 import type { z } from "zod";
 import { ACTION_KINDS, EFFECT_KINDS, type ActionKind, type EffectKind, type Role, type RiskLevel } from "./types.js";
 import {
+  ForbiddenRuntimeInputFieldError,
   InvalidDeclaredEffectsError,
   InvalidToolNameError,
   MissingActionKindError,
+  RuntimeArgsTooDeepError,
+  SchemaTooDeepError,
   ToolNotFoundError,
   ToolValidationError,
   UnauthorizedToolInputError,
@@ -36,6 +39,27 @@ const FORBIDDEN_INPUT_FIELDS = [
   "orgId",
   "org_id",
 ];
+
+/**
+ * AG-22 (MEDIA): profundidad máxima que `findForbiddenFieldRecursive`
+ * atraviesa antes de rechazar el registro con `SchemaTooDeepError` en vez
+ * de arriesgar un `RangeError` de pila no controlado. Un `inputSchema` lo
+ * define el equipo desarrollador en código fuente, no un `tool_call` del
+ * modelo ni un usuario final en runtime — el riesgo práctico de explotación
+ * externa es bajo — pero un esquema patológico escrito por error (o
+ * generado programáticamente) no debería tumbar el proceso con un error
+ * críptico de V8.
+ */
+const MAX_SCHEMA_RECURSION_DEPTH = 256;
+
+/**
+ * AG-22 (MEDIA): profundidad máxima que `findForbiddenKeyAtRuntime`
+ * atraviesa sobre los DATOS ya parseados de un `tool_call` antes de
+ * rechazar con `RuntimeArgsTooDeepError`. Aquí sí hay una superficie de
+ * ataque real (el modelo controla el JSON de los argumentos), así que el
+ * límite es defensivo también contra un payload deliberadamente profundo.
+ */
+const MAX_RUNTIME_ARGS_DEPTH = 256;
 
 export interface ToolExecutionContext {
   /** Inyectado siempre por el runtime; el modelo nunca lo elige. */
@@ -157,7 +181,7 @@ export class ToolRegistry {
    * README.
    */
   private assertNoForbiddenFields(tool: AnyToolDefinition): void {
-    const field = findForbiddenFieldRecursive(tool.inputSchema);
+    const field = findForbiddenFieldRecursive(tool.inputSchema, tool.name);
     if (field) {
       throw new UnauthorizedToolInputError(tool.name, field);
     }
@@ -177,12 +201,29 @@ export class ToolRegistry {
     return Array.from(this.tools.values());
   }
 
-  /** Valida los argumentos de un tool_call contra su esquema. Rechaza si no validan. */
+  /**
+   * Valida los argumentos de un tool_call contra su esquema. Rechaza si no
+   * validan.
+   *
+   * AG-22 (MEDIA): además de la validación de esquema, revisa en TIEMPO DE
+   * EJECUCIÓN las claves reales de los datos ya parseados (recursivo, con
+   * guarda de profundidad) contra `FORBIDDEN_INPUT_FIELDS`. Esto complementa
+   * `assertNoForbiddenFields` (que solo puede rechazar lo que un esquema
+   * DECLARA estáticamente): un `z.record(z.string(), ...)`/`z.map(z.string(),
+   * ...)` de clave genérica nunca declara `organizationId`, pero sí puede
+   * ACEPTAR esa clave en los datos reales de un `tool_call` — límite
+   * arquitectónico documentado en el README. Esta verificación cierra esa
+   * vía en runtime, donde sí hay claves concretas que inspeccionar.
+   */
   validateInput<Input = unknown>(name: string, args: unknown): Input {
     const tool = this.get(name);
     const result = tool.inputSchema.safeParse(args);
     if (!result.success) {
       throw new ToolValidationError(name, result.error.issues, "input");
+    }
+    const forbidden = findForbiddenKeyAtRuntime(result.data, name);
+    if (forbidden) {
+      throw new ForbiddenRuntimeInputFieldError(name, forbidden.field, forbidden.path);
     }
     return result.data as Input;
   }
@@ -228,33 +269,103 @@ function getZodArrayElement(schema: z.ZodTypeAny): z.ZodTypeAny | undefined {
 }
 
 /**
- * AG-11/AG-20: busca RECURSIVAMENTE (sin límite de profundidad) un campo
- * prohibido en cualquier `ZodObject` anidado, atravesando envolturas
- * (`optional`/`nullable`/`default`/`effects`, vía `unwrapOneLayer`), arrays
- * de objetos, y — AG-20, MEDIA, cierre del hueco estructural que dejó
- * abierto AG-11 en combinadores de Zod distintos a objeto/array/wrapper —
- * también:
+ * AG-22 (MEDIA): revisa si un tipo de CLAVE estáticamente enumerable
+ * (`ZodEnum`/`ZodNativeEnum`/`ZodLiteral`, o una `ZodUnion` de esos) declara
+ * literalmente un valor prohibido — cierra el hueco de
+ * `z.record(z.nativeEnum({...}), ...)`/`z.map(z.enum([...]), ...)` donde el
+ * campo prohibido aparece como MIEMBRO del enum de clave, no como campo de
+ * un `ZodObject`. Deliberadamente NO cubre `z.record(z.string(), ...)` de
+ * clave genérica: ese caso no tiene nada estáticamente enumerable que
+ * revisar (ver límite arquitectónico documentado en el README) — se
+ * complementa con la verificación de runtime `findForbiddenKeyAtRuntime`.
+ */
+function checkKeyTypeForForbiddenField(keyType: z.ZodTypeAny): string | undefined {
+  const def = (keyType as unknown as { _def?: Record<string, unknown> })._def;
+  const typeName = def?.typeName as string | undefined;
+
+  if (typeName === "ZodEnum") {
+    const values = (def?.values as string[] | undefined) ?? [];
+    return values.find((value) => FORBIDDEN_INPUT_FIELDS.includes(value));
+  }
+
+  if (typeName === "ZodNativeEnum") {
+    const values = Object.values((def?.values as Record<string, string | number> | undefined) ?? {}).map(String);
+    return values.find((value) => FORBIDDEN_INPUT_FIELDS.includes(value));
+  }
+
+  if (typeName === "ZodLiteral") {
+    const value = def?.value;
+    return typeof value === "string" && FORBIDDEN_INPUT_FIELDS.includes(value) ? value : undefined;
+  }
+
+  if (typeName === "ZodUnion") {
+    const options = (def?.options as z.ZodTypeAny[] | undefined) ?? [];
+    for (const option of options) {
+      const found = checkKeyTypeForForbiddenField(option);
+      if (found) return found;
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * AG-11/AG-20/AG-22: busca RECURSIVAMENTE un campo prohibido en cualquier
+ * `ZodObject` anidado, atravesando envolturas (`optional`/`nullable`/
+ * `default`/`effects`/`catch`/`readonly`, vía `unwrapOneLayer`), arrays de
+ * objetos, y los combinadores de Zod:
  * - `ZodUnion`/`ZodDiscriminatedUnion`: CUALQUIER rama (`_def.options`)
  *   puede declarar el campo prohibido, así que se revisan todas.
  * - `ZodIntersection`: ambos operandos (`_def.left`/`_def.right`).
- * - `ZodRecord`/`ZodMap`: el tipo de VALOR (`_def.valueType`) — la clave
- *   nunca puede ser un objeto con el campo, pero el valor sí.
+ * - `ZodRecord`/`ZodMap`: el tipo de CLAVE (`_def.keyType`, AG-22 — si es
+ *   estáticamente enumerable, vía `checkKeyTypeForForbiddenField`) y el
+ *   tipo de VALOR (`_def.valueType`).
  * - `ZodTuple`: cada item posicional (`_def.items`) y el elemento variádico
  *   `rest`, si existe.
  * - `ZodLazy`: resuelve el esquema real vía `_def.getter()` — necesario
  *   para esquemas auto-referenciados/recursivos declarados con `z.lazy()`.
+ * - `ZodPipeline` (AG-22, `.pipe()`): ambos lados (`_def.in`/`_def.out`) —
+ *   ninguno de los dos coincide con `schema`/`innerType`, así que
+ *   `unwrapOneLayer` no los alcanzaba.
+ * - `ZodBranded` (AG-22, `.brand()`): el esquema envuelto (`_def.type`) —
+ *   tampoco coincide con `schema`/`innerType`.
+ *
+ * AG-22 (guarda de profundidad): un esquema con miles de niveles de
+ * anidamiento REAL (no cíclico — el `seen` por identidad de objeto solo
+ * protege contra ciclos) agotaba el stack de V8 con un `RangeError` crudo.
+ * Ahora se lanza `SchemaTooDeepError` explícito al superar
+ * `MAX_SCHEMA_RECURSION_DEPTH`.
+ *
+ * Límite arquitectónico irreducible, documentado en el README: un
+ * `z.record(z.string(), ...)`/`z.map(z.string(), ...)` de clave GENÉRICA
+ * (no enumerable) siempre acepta `organizationId` como clave en runtime, y
+ * ningún recorrido estático de la definición del esquema puede detectarlo
+ * — no hay nada que "declare" el campo, solo datos que un llamador podría
+ * enviar. Ver `findForbiddenKeyAtRuntime` para la mitigación en runtime.
+ *
  * Retorna el primer nombre de campo prohibido encontrado, o `undefined` si
  * el esquema completo está limpio.
  */
-function findForbiddenFieldRecursive(schema: z.ZodTypeAny, seen: Set<z.ZodTypeAny> = new Set()): string | undefined {
+function findForbiddenFieldRecursive(
+  schema: z.ZodTypeAny,
+  toolName: string,
+  seen: Set<z.ZodTypeAny> = new Set(),
+  depth = 0,
+): string | undefined {
+  if (depth > MAX_SCHEMA_RECURSION_DEPTH) {
+    throw new SchemaTooDeepError(toolName, depth, MAX_SCHEMA_RECURSION_DEPTH);
+  }
   if (seen.has(schema)) return undefined; // evita ciclos en esquemas recursivos (p. ej. z.lazy() auto-referenciado).
   seen.add(schema);
+
+  const recurse = (next: z.ZodTypeAny): string | undefined =>
+    findForbiddenFieldRecursive(next, toolName, seen, depth + 1);
 
   const shape = getZodObjectShape(schema);
   if (shape) {
     for (const [field, fieldSchema] of Object.entries(shape)) {
       if (FORBIDDEN_INPUT_FIELDS.includes(field)) return field;
-      const nested = findForbiddenFieldRecursive(fieldSchema as z.ZodTypeAny, seen);
+      const nested = recurse(fieldSchema as z.ZodTypeAny);
       if (nested) return nested;
     }
     return undefined;
@@ -262,61 +373,145 @@ function findForbiddenFieldRecursive(schema: z.ZodTypeAny, seen: Set<z.ZodTypeAn
 
   const arrayElement = getZodArrayElement(schema);
   if (arrayElement) {
-    return findForbiddenFieldRecursive(arrayElement, seen);
+    return recurse(arrayElement);
   }
 
   const def = (schema as unknown as { _def?: Record<string, unknown> })._def;
   const typeName = def?.typeName as string | undefined;
 
-  // AG-20: ZodUnion/ZodDiscriminatedUnion — cualquier rama puede traer el campo prohibido.
+  // ZodUnion/ZodDiscriminatedUnion — cualquier rama puede traer el campo prohibido.
   if (typeName === "ZodUnion" || typeName === "ZodDiscriminatedUnion") {
     const options = def?.options as z.ZodTypeAny[] | undefined;
     if (Array.isArray(options)) {
       for (const option of options) {
-        const nested = findForbiddenFieldRecursive(option, seen);
+        const nested = recurse(option);
         if (nested) return nested;
       }
     }
     return undefined;
   }
 
-  // AG-20: ZodIntersection — ambos operandos pueden declararlo.
+  // ZodIntersection — ambos operandos pueden declararlo.
   if (typeName === "ZodIntersection") {
     for (const operand of [def?.left, def?.right] as Array<z.ZodTypeAny | undefined>) {
       if (operand) {
-        const nested = findForbiddenFieldRecursive(operand, seen);
+        const nested = recurse(operand);
         if (nested) return nested;
       }
     }
     return undefined;
   }
 
-  // AG-20: ZodRecord/ZodMap — el tipo de valor puede ser (u contener) un objeto con el campo.
+  // ZodRecord/ZodMap — AG-22: la clave (si es estáticamente enumerable) y el valor.
   if (typeName === "ZodRecord" || typeName === "ZodMap") {
+    const keyType = def?.keyType as z.ZodTypeAny | undefined;
+    if (keyType) {
+      const forbiddenKey = checkKeyTypeForForbiddenField(keyType);
+      if (forbiddenKey) return forbiddenKey;
+    }
     const valueType = def?.valueType as z.ZodTypeAny | undefined;
-    return valueType ? findForbiddenFieldRecursive(valueType, seen) : undefined;
+    return valueType ? recurse(valueType) : undefined;
   }
 
-  // AG-20: ZodTuple — cualquier item posicional o el elemento variádico "rest".
+  // ZodTuple — cualquier item posicional o el elemento variádico "rest".
   if (typeName === "ZodTuple") {
     const items = (def?.items as z.ZodTypeAny[] | undefined) ?? [];
     for (const item of items) {
-      const nested = findForbiddenFieldRecursive(item, seen);
+      const nested = recurse(item);
       if (nested) return nested;
     }
     const rest = def?.rest as z.ZodTypeAny | undefined;
-    return rest ? findForbiddenFieldRecursive(rest, seen) : undefined;
+    return rest ? recurse(rest) : undefined;
   }
 
-  // AG-20: ZodLazy — resuelve el esquema real (esquemas auto-referenciados/recursivos).
+  // ZodLazy — resuelve el esquema real (esquemas auto-referenciados/recursivos).
   if (typeName === "ZodLazy") {
     const getter = def?.getter as (() => z.ZodTypeAny) | undefined;
-    return typeof getter === "function" ? findForbiddenFieldRecursive(getter(), seen) : undefined;
+    return typeof getter === "function" ? recurse(getter()) : undefined;
+  }
+
+  // AG-22: ZodPipeline (.pipe()) — ni `_def.in` ni `_def.out` coinciden con
+  // `schema`/`innerType`, así que unwrapOneLayer no los alcanza.
+  if (typeName === "ZodPipeline") {
+    for (const side of [def?.in, def?.out] as Array<z.ZodTypeAny | undefined>) {
+      if (side) {
+        const nested = recurse(side);
+        if (nested) return nested;
+      }
+    }
+    return undefined;
+  }
+
+  // AG-22: ZodBranded (.brand()) — el esquema envuelto vive en `_def.type`.
+  if (typeName === "ZodBranded") {
+    const inner = def?.type as z.ZodTypeAny | undefined;
+    return inner ? recurse(inner) : undefined;
   }
 
   const unwrapped = unwrapOneLayer(schema);
   if (unwrapped !== schema) {
-    return findForbiddenFieldRecursive(unwrapped, seen);
+    return recurse(unwrapped);
+  }
+
+  return undefined;
+}
+
+/**
+ * AG-22 (MEDIA, verificación en tiempo de ejecución): recorre
+ * recursivamente las claves REALES de un valor ya validado por zod (objetos
+ * planos, arrays, y `Map`s — un `z.map()` valida a una instancia real de
+ * `Map`) buscando un campo prohibido. A diferencia de
+ * `findForbiddenFieldRecursive` (que inspecciona la DEFINICIÓN del
+ * esquema), esto inspecciona los DATOS reales entregados por un
+ * `tool_call` — la única forma de detectar `organizationId` colado a
+ * través de un `z.record(z.string(), ...)`/`z.map(z.string(), ...)` de
+ * clave genérica, que ningún recorrido estático puede ver (ver límite
+ * arquitectónico documentado en el README).
+ */
+function findForbiddenKeyAtRuntime(
+  value: unknown,
+  toolName: string,
+  path = "$",
+  depth = 0,
+): { field: string; path: string } | undefined {
+  if (depth > MAX_RUNTIME_ARGS_DEPTH) {
+    throw new RuntimeArgsTooDeepError(toolName, depth, MAX_RUNTIME_ARGS_DEPTH);
+  }
+
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index += 1) {
+      const found = findForbiddenKeyAtRuntime(value[index], toolName, `${path}[${index}]`, depth + 1);
+      if (found) return found;
+    }
+    return undefined;
+  }
+
+  if (value instanceof Map) {
+    for (const [key, val] of value.entries()) {
+      const keyStr = typeof key === "string" ? key : String(key);
+      if (FORBIDDEN_INPUT_FIELDS.includes(keyStr)) return { field: keyStr, path: `${path}.${keyStr}` };
+      const found = findForbiddenKeyAtRuntime(val, toolName, `${path}.${keyStr}`, depth + 1);
+      if (found) return found;
+    }
+    return undefined;
+  }
+
+  if (value instanceof Set) {
+    let index = 0;
+    for (const item of value.values()) {
+      const found = findForbiddenKeyAtRuntime(item, toolName, `${path}<${index++}>`, depth + 1);
+      if (found) return found;
+    }
+    return undefined;
+  }
+
+  if (value && typeof value === "object" && !(value instanceof Date)) {
+    for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
+      if (FORBIDDEN_INPUT_FIELDS.includes(key)) return { field: key, path: `${path}.${key}` };
+      const found = findForbiddenKeyAtRuntime(val, toolName, `${path}.${key}`, depth + 1);
+      if (found) return found;
+    }
+    return undefined;
   }
 
   return undefined;

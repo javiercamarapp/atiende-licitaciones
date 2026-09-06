@@ -215,14 +215,14 @@ las propias correcciones (AG-19/AG-20), documentados en AG-21/AG-22 arriba.
 
 ## 6. Conteo de veredictos de esta ronda
 
-| Hallazgo | Veredicto ronda 2 |
-|---|---|
-| AG-17 | **CERRADO** |
-| AG-18 | **CERRADO** |
-| AG-19 | **PARCIAL** (bypass original cerrado; 2 bypasses nuevos → AG-21) |
-| AG-20 | **PARCIAL** (6 combinadores originales cerrados; 3 bypasses/gaps nuevos → AG-22) |
-| AG-21 (nuevo) | Abierto, MEDIA |
-| AG-22 (nuevo) | Abierto, MEDIA |
+| Hallazgo | Veredicto ronda 2 | Estado reparación (ronda 3, `docs/logs/fix-agents-ronda3.log`) |
+|---|---|---|
+| AG-17 | **CERRADO** | N/A — fuera del ámbito de la ronda 3 (ya CERRADO, sin bypasses pendientes) |
+| AG-18 | **CERRADO** | N/A — fuera del ámbito de la ronda 3 (ya CERRADO, sin bypasses pendientes) |
+| AG-19 | **PARCIAL** (bypass original cerrado; 2 bypasses nuevos → AG-21) | **CERRADO** vía AG-21 (ver esa fila) |
+| AG-20 | **PARCIAL** (6 combinadores originales cerrados; 3 bypasses/gaps nuevos → AG-22) | **CERRADO** vía AG-22 (ver esa fila) |
+| AG-21 (nuevo) | Abierto, MEDIA | **CORREGIDO.** (a) `no-fabrication.ts`: la rama `Array.isArray(value)` de `walk()` ahora aplica `looksLikeUnsourcedSensitiveText` a elementos string directos, igual que ya hacía la rama `Set` — probado con Array de nivel superior y con combinaciones arbitrarias Array/Set/Map anidadas. (b) `decodeBinaryAsUtf8` (subarray fijo a 8192 bytes) se reemplazó por `decodeBinaryWindows` (ventanas solapadas de 8192 bytes con solape de 512, sobre el `Buffer`/`TypedArray` COMPLETO) más un límite TOTAL configurable (`maxBinaryTotalBytes`, por defecto 5 MiB, segundo argumento opcional de `scanForUnsourcedSensitiveData`) que produce un hallazgo explícito `kind: "no_evaluable"` en vez de dejar pasar el payload sin examinar al superarse. Probado con el valor sensible después del offset 8192, a caballo entre dos ventanas, y con un Buffer que excede el límite total. (c) heurística de base64 (`tryDecodeBase64Json`: longitud múltiplo de 4, alfabeto estricto, longitud mínima, decodificación UTF-8 estricta y verificación de que el resultado "parezca" JSON) con test positivo (JSON sensible en base64) y negativo (base64 de texto plano sin forma de JSON, y base64 sintácticamente válido pero no-UTF-8). Límite residual (compresión/cifrado) documentado en `packages/agents/README.md`. 12 tests nuevos en `test/no-fabrication.test.ts` (describe "AG-21"), los 39 tests del archivo pasan. |
+| AG-22 (nuevo) | Abierto, MEDIA | **CORREGIDO.** (a) `findForbiddenFieldRecursive` (`tool-registry.ts`) gana ramas dedicadas para `ZodPipeline` (revisa `_def.in`/`_def.out`) y `ZodBranded` (revisa `_def.type`), ninguno de los cuales coincidía con el patrón `_def.schema`/`_def.innerType` de `unwrapOneLayer`. (b) `checkKeyTypeForForbiddenField` revisa el `keyType` de `ZodRecord`/`ZodMap` cuando es estáticamente enumerable (`ZodEnum`/`ZodNativeEnum`/`ZodLiteral`, o `ZodUnion` de esos) — cierra el caso `z.record(z.nativeEnum({A: "organizationId"}), ...)`. (c) límite arquitectónico de `z.record(z.string(), ...)`/`z.map(z.string(), ...)` de clave genérica documentado explícitamente en el README como irreducible en el registro, y mitigado con una verificación NUEVA en tiempo de ejecución: `ToolRegistry.validateInput` ahora llama a `findForbiddenKeyAtRuntime`, que recorre recursivamente las claves reales de los argumentos ya parseados (objetos/arrays/Map/Set) y lanza `ForbiddenRuntimeInputFieldError` si alguna coincide con `organizationId`/`organization_id`/`tenantId`/`tenant_id`/`orgId`/`org_id` — probado con `z.record(z.string(), ...)` conteniendo `organizationId` a distintas profundidades. (d) guarda de profundidad explícita (`MAX_SCHEMA_RECURSION_DEPTH` = 256 en `findForbiddenFieldRecursive`, lanzando `SchemaTooDeepError`; `MAX_RUNTIME_ARGS_DEPTH` = 256 en `findForbiddenKeyAtRuntime`, lanzando `RuntimeArgsTooDeepError`) — ambos verificados explícitamente como error controlado y NO `RangeError`, probado con un esquema de ~20 000 niveles no cíclicos (registro) y con argumentos de 500 niveles (runtime); el control de `z.lazy()` cíclico real (protegido por el `seen` de identidad ya existente) se re-verificó y sigue sin lanzar. 14 tests nuevos en `test/tool-registry.test.ts` (describe "AG-22"), los 46 tests del archivo pasan. |
 
 **Conteo**: 2 CERRADO · 2 PARCIAL · 0 NO CERRADO · 2 hallazgos nuevos (ambos
 MEDIA). Ningún ataque logró bypasear AG-17/AG-18 de forma completa dentro de
@@ -284,6 +284,37 @@ sección "Pendientes".
 **Total de hallazgos con código pendiente de corrección en
 `packages/agents` al cierre de esta ronda: 4** (AG-19, AG-20 en su forma
 residual = AG-21, AG-22; ninguno de severidad ALTA/CRÍTICA).
+
+---
+
+## 8. Nota de cierre — ronda 3 de corrección (posterior a esta reverificación)
+
+Nota añadida por el agente corrector de la ronda 3, sin reescribir los
+veredictos originales de las secciones 1-7 (mismo criterio de honestidad que
+el resto de este documento): los 4 hallazgos abiertos al cierre de la
+sección 7 (AG-19, AG-20 en su forma residual = AG-21, AG-22) fueron
+corregidos en esa ronda posterior. Ver la columna "Estado reparación (ronda
+3, `docs/logs/fix-agents-ronda3.log`)" añadida a la tabla de la sección 6
+para el detalle exacto por hallazgo, y `packages/agents/README.md`
+(secciones de `ToolRegistry`/AG-22 y `NoFabricationPolicy`/AG-21) para la
+documentación de la reparación y de los límites residuales reconocidos
+(compresión/cifrado no detectables por escaneo heurístico; `z.record`/
+`z.map` de clave genérica como límite arquitectónico del registro estático,
+mitigado con verificación de runtime).
+
+Con esta ronda, el total de hallazgos con código pendiente de corrección en
+`packages/agents` (contando desde `docs/auditoria-1/agents.md` en adelante)
+queda en **0** de severidad ALTA/CRÍTICA/MEDIA con bypass confirmado — el
+único punto "PARCIAL, límite arquitectónico reconocido" que persiste es
+AG-05 (documentado en la sección 7, sin cambios: un handler que miente
+simultáneamente en `riskLevel`/`actionKind`/`declaredEffects` no es
+detectable por ningún mecanismo basado en metadatos declarados por el
+propio autor de la herramienta), y el riesgo residual de producto de AG-12
+(clasificador semántico pendiente, fuera de este paquete puro). Esta nota
+NO sustituye una reverificación adversarial independiente de la ronda 3
+(que, de existir, debería documentarse en un archivo `agents-reverificacion-3.md`
+separado, siguiendo el mismo patrón de independencia usado para esta
+ronda 2 respecto de la ronda 1).
 
 ---
 

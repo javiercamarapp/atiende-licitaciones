@@ -135,13 +135,50 @@ const SENSITIVE_TEXT_KEYWORDS: readonly string[] = Array.from(
 const NUMBER_OR_DATE_IN_TEXT = /(\$\s?\d[\d,.]*\d?|\b\d+([.,]\d+)?\s?(usd|mxn|pesos)\b|\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}\/\d{1,2}\/\d{2,4}\b)/i;
 
 /**
- * AG-19 (MEDIA): límite defensivo de bytes decodificados de un `Buffer`/
- * `TypedArray` como texto UTF-8. No se decodifica el binario completo sin
- * límite: solo se usa para detectar heurísticamente un payload de texto/JSON
- * pequeño embebido (p. ej. `Buffer.from(JSON.stringify({...}))`), nunca para
- * tratar binarios grandes/reales (imágenes, PDFs) como texto.
+ * AG-21 (MEDIA, cierre de bypass de AG-19): tamaño de cada VENTANA de
+ * decodificación UTF-8 de un `Buffer`/`TypedArray`. A diferencia del diseño
+ * original de AG-19 (un único `subarray(0, MAX_BINARY_DECODE_BYTES)` que
+ * descartaba silenciosamente todo lo que empezara después del byte 8192),
+ * ahora se decodifica el `Buffer` COMPLETO en ventanas de este tamaño — ver
+ * `decodeBinaryWindows` — hasta el límite total configurable
+ * `DEFAULT_MAX_BINARY_TOTAL_BYTES`.
  */
-const MAX_BINARY_DECODE_BYTES = 8192;
+const BINARY_SCAN_WINDOW_BYTES = 8192;
+
+/**
+ * AG-21: solape entre ventanas consecutivas, para no perder un patrón
+ * (JSON embebido o texto libre sospechoso) que caiga justo en el borde de
+ * una ventana — un valor colocado a caballo entre dos ventanas queda
+ * completo dentro de la ventana siguiente mientras su longitud no supere
+ * este solape.
+ */
+const BINARY_SCAN_WINDOW_OVERLAP_BYTES = 512;
+
+/**
+ * AG-21: límite defensivo de tamaño TOTAL de un `Buffer`/`TypedArray` que
+ * se acepta escanear completo (en ventanas). Es configurable vía el
+ * segundo argumento de `scanForUnsourcedSensitiveData`. Un binario más
+ * grande que esto (imagen/PDF real de varios MB) ya no es plausible que
+ * sea un JSON/texto pequeño embebido, y decodificarlo completo en ventanas
+ * sería costoso sin beneficio real de detección. A diferencia del
+ * comportamiento anterior (truncar en silencio y dejar pasar la corrida
+ * como si no hubiera nada sensible), superar este límite produce un
+ * hallazgo explícito `kind: "no_evaluable"` — la corrida se detiene como
+ * `needs_data` en vez de completarse sin haber podido verificar el
+ * contenido. Ver README, sección "Límite conocido (AG-19/AG-21)".
+ */
+const DEFAULT_MAX_BINARY_TOTAL_BYTES = 5 * 1024 * 1024; // 5 MiB
+
+/**
+ * AG-21: longitud mínima para siquiera considerar un string como candidato
+ * base64 — evita marcar strings cortos que "casualmente" matchean el
+ * alfabeto base64 (p. ej. "abcd", "Test", que son válidos por forma pero
+ * casi con certeza no son base64 real).
+ */
+const MIN_BASE64_CANDIDATE_LENGTH = 16;
+
+/** Alfabeto base64 estándar con padding opcional (`=`/`==`) al final. */
+const BASE64_PATTERN = /^[A-Za-z0-9+/]+={0,2}$/;
 
 function normalizeKey(key: string): string {
   return key.normalize("NFKC").toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -178,7 +215,25 @@ export interface UnsourcedFinding {
   path: string;
   /** Nombre de campo "desnudo" (última clave, sin índices de arreglo) — se cruza con `fieldName` de `extractSensitiveValues`. */
   fieldName: string;
-  kind: SensitiveFieldKind | "texto_libre";
+  /**
+   * "no_evaluable" (AG-21): el contenido no pudo escanearse de forma
+   * completa y segura (p. ej. un binario que excede
+   * `DEFAULT_MAX_BINARY_TOTAL_BYTES`) — se trata como un hallazgo que
+   * bloquea la corrida, nunca como "no había nada sensible".
+   */
+  kind: SensitiveFieldKind | "texto_libre" | "no_evaluable";
+}
+
+/** Opciones de `scanForUnsourcedSensitiveData` (AG-21). */
+export interface ScanForUnsourcedSensitiveDataOptions {
+  /**
+   * Límite defensivo de tamaño TOTAL (bytes) de un `Buffer`/`TypedArray`
+   * que se acepta escanear completo en ventanas. Por defecto
+   * `DEFAULT_MAX_BINARY_TOTAL_BYTES` (5 MiB). Superarlo produce un
+   * hallazgo `kind: "no_evaluable"` en vez de dejar pasar el payload sin
+   * examinar.
+   */
+  maxBinaryTotalBytes?: number;
 }
 
 /** Extrae la última clave "desnuda" de un path tipo "$.items[0].costo" o "$.a<0>" para reportarla como fieldName. */
@@ -199,16 +254,76 @@ function toUint8Array(value: Buffer | ArrayBufferView): Uint8Array {
 }
 
 /**
- * AG-19: decodifica un `Buffer`/`TypedArray` como UTF-8 con un límite
- * defensivo de bytes (`MAX_BINARY_DECODE_BYTES`) — nunca binarios completos
- * sin límite. Es una heurística best-effort para detectar un payload de
- * texto/JSON pequeño embebido (p. ej. `Buffer.from(JSON.stringify(...))`);
+ * AG-21 (cierre de bypass de AG-19): decodifica un `Buffer`/`TypedArray`
+ * COMPLETO como UTF-8, en ventanas solapadas de `BINARY_SCAN_WINDOW_BYTES`
+ * bytes (solape `BINARY_SCAN_WINDOW_OVERLAP_BYTES`) — nunca un único
+ * `subarray(0, N)` que descarte silenciosamente el resto del buffer. Un
+ * valor sensible colocado después del byte 8192 (el límite original de
+ * AG-19), o justo a caballo entre dos ventanas, queda dentro de al menos
+ * una ventana completa mientras su longitud no supere el solape. Es una
+ * heurística best-effort para detectar un payload de texto/JSON embebido;
  * un binario real (imagen, PDF) decodifica a basura que no matchea ningún
- * patrón de palabra clave ni JSON válido, así que no genera falsos positivos.
+ * patrón de palabra clave ni JSON válido, así que no genera falsos
+ * positivos. El llamador es responsable de aplicar el límite TOTAL de
+ * tamaño (`DEFAULT_MAX_BINARY_TOTAL_BYTES`/`maxBinaryTotalBytes`) antes de
+ * invocar esta función.
  */
-function decodeBinaryAsUtf8(value: Buffer | ArrayBufferView): string {
-  const bytes = toUint8Array(value).subarray(0, MAX_BINARY_DECODE_BYTES);
-  return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+function decodeBinaryWindows(value: Buffer | ArrayBufferView): string[] {
+  const bytes = toUint8Array(value);
+  const decoder = new TextDecoder("utf-8", { fatal: false });
+  if (bytes.byteLength <= BINARY_SCAN_WINDOW_BYTES) {
+    return [decoder.decode(bytes)];
+  }
+
+  const windows: string[] = [];
+  const step = BINARY_SCAN_WINDOW_BYTES - BINARY_SCAN_WINDOW_OVERLAP_BYTES;
+  for (let offset = 0; offset < bytes.byteLength; offset += step) {
+    const end = Math.min(offset + BINARY_SCAN_WINDOW_BYTES, bytes.byteLength);
+    windows.push(decoder.decode(bytes.subarray(offset, end)));
+    if (end >= bytes.byteLength) break;
+  }
+  return windows;
+}
+
+/**
+ * AG-21: heurística de detección de base64 embebido en un string de texto
+ * libre. Deliberadamente conservadora para minimizar falsos positivos
+ * (muchos strings legítimos — IDs, hashes, tokens — "parecen" base64):
+ * exige (a) longitud mínima razonable, (b) longitud múltiplo de 4, (c)
+ * alfabeto base64 estricto con padding opcional, y — el filtro más
+ * importante — (d) que el resultado decodificado sea UTF-8 VÁLIDO (decode
+ * estricto, `fatal: true`) Y contenga al menos uno de `{`/`[`, es decir,
+ * que PAREZCA JSON. No se decodifica base64 automáticamente sobre
+ * CUALQUIER string (ver límite documentado en README): solo sobre
+ * candidatos que ya parecen base64 por forma, y solo se actúa sobre el
+ * resultado si además parece JSON.
+ */
+function tryDecodeBase64Json(text: string): string | undefined {
+  const trimmed = text.trim();
+  if (trimmed.length < MIN_BASE64_CANDIDATE_LENGTH) return undefined;
+  if (trimmed.length % 4 !== 0) return undefined;
+  if (!BASE64_PATTERN.test(trimmed)) return undefined;
+  if (typeof Buffer === "undefined") return undefined;
+
+  let decodedBytes: Buffer;
+  try {
+    decodedBytes = Buffer.from(trimmed, "base64");
+  } catch {
+    return undefined;
+  }
+  if (decodedBytes.length === 0) return undefined;
+  // Node no lanza con "base64 basura": hay que reconfirmar que el
+  // texto decodificado sea realmente UTF-8 válido (defensa adicional
+  // contra falsos positivos de binarios reales que casualmente matchean
+  // el alfabeto base64).
+  let decoded: string;
+  try {
+    decoded = new TextDecoder("utf-8", { fatal: true }).decode(decodedBytes);
+  } catch {
+    return undefined;
+  }
+  if (!/[{[]/.test(decoded)) return undefined;
+  return decoded;
 }
 
 /**
@@ -247,11 +362,35 @@ function findJsonCandidates(text: string): string[] {
  * límite, buscando JSON embebido o texto libre sospechoso) y strings que
  * contengan JSON serializado embebido. `Date` se trata como hoja inerte
  * (una fecha por sí sola no es un contenedor de datos sensibles).
+ *
+ * AG-21 (MEDIA, cierre de bypass estructural de AG-19):
+ * - Un string de texto libre sensible como elemento DIRECTO de un `Array`
+ *   (no solo de un `Set`) ahora también se evalúa con
+ *   `looksLikeUnsourcedSensitiveText`.
+ * - Un `Buffer`/`TypedArray` se escanea COMPLETO en ventanas solapadas
+ *   (`decodeBinaryWindows`), no truncado a un único límite fijo; si el
+ *   tamaño TOTAL supera `maxBinaryTotalBytes` (configurable, por defecto
+ *   `DEFAULT_MAX_BINARY_TOTAL_BYTES`), se reporta un hallazgo explícito
+ *   `kind: "no_evaluable"` en vez de dejarlo pasar sin examinar.
+ * - Un string que "parece" base64 se decodifica heurísticamente
+ *   (`tryDecodeBase64Json`) y, si el resultado parece JSON, se recorre
+ *   igual que cualquier otro JSON embebido.
+ *
+ * Límite conocido residual (documentado también en README): esta es una
+ * capa de heurísticas sobre representaciones TEXTO/JSON/base64 de los
+ * datos. No decodifica compresión (gzip/deflate) ni contenido cifrado — un
+ * valor sensible dentro de un payload comprimido o cifrado antes de llegar
+ * al `output` de la herramienta no es detectable por este escaneo (haría
+ * falta que la propia herramienta lo declare vía `extractSensitiveValues`).
  */
-export function scanForUnsourcedSensitiveData(output: unknown): UnsourcedFinding[] {
+export function scanForUnsourcedSensitiveData(
+  output: unknown,
+  options: ScanForUnsourcedSensitiveDataOptions = {},
+): UnsourcedFinding[] {
+  const maxBinaryTotalBytes = options.maxBinaryTotalBytes ?? DEFAULT_MAX_BINARY_TOTAL_BYTES;
   const findings: UnsourcedFinding[] = [];
   walk(output, "$", false);
-  return findings;
+  return dedupeFindings(findings);
 
   function hasApprovedSourceRefSibling(obj: Record<string, unknown>): boolean {
     return Object.entries(obj).some(([key, val]) => isApprovedSourceRefKey(key) && isValidApprovedSourceRef(val));
@@ -304,7 +443,16 @@ export function scanForUnsourcedSensitiveData(output: unknown): UnsourcedFinding
 
   function walk(value: unknown, path: string, ancestorSourced: boolean): void {
     if (Array.isArray(value)) {
-      value.forEach((item, index) => walk(item, `${path}[${index}]`, ancestorSourced));
+      value.forEach((item, index) => {
+        const childPath = `${path}[${index}]`;
+        // AG-21: mismo chequeo de texto libre que ya existía para `Set` —
+        // antes un string sensible como elemento directo de un Array de
+        // nivel superior nunca se evaluaba con esta heurística.
+        if (typeof item === "string" && !ancestorSourced && looksLikeUnsourcedSensitiveText(item)) {
+          findings.push({ path: childPath, fieldName: lastFieldName(path), kind: "texto_libre" });
+        }
+        walk(item, childPath, ancestorSourced);
+      });
       return;
     }
 
@@ -337,8 +485,18 @@ export function scanForUnsourcedSensitiveData(output: unknown): UnsourcedFinding
     }
 
     if (isBinaryContainer(value)) {
-      const decoded = decodeBinaryAsUtf8(value);
-      if (decoded) {
+      const bytes = toUint8Array(value);
+      // AG-21: en vez de truncar en silencio (comportamiento original de
+      // AG-19) y dejar que la corrida termine `completed` como si no
+      // hubiera nada sensible, un binario que excede el límite total
+      // configurable se marca explícitamente como "no_evaluable" — la
+      // corrida se detiene igual que si faltara una fuente aprobada.
+      if (bytes.byteLength > maxBinaryTotalBytes) {
+        findings.push({ path, fieldName: lastFieldName(path), kind: "no_evaluable" });
+        return;
+      }
+      for (const decoded of decodeBinaryWindows(value)) {
+        if (!decoded) continue;
         if (!ancestorSourced && looksLikeUnsourcedSensitiveText(decoded)) {
           findings.push({ path, fieldName: lastFieldName(path), kind: "texto_libre" });
         }
@@ -349,6 +507,12 @@ export function scanForUnsourcedSensitiveData(output: unknown): UnsourcedFinding
 
     if (typeof value === "string") {
       walkEmbeddedJson(value, path, ancestorSourced);
+      // AG-21: heurística de base64 — si el string parece base64 Y decodifica
+      // a algo que parece JSON, se recorre igual que cualquier JSON embebido.
+      const base64Decoded = tryDecodeBase64Json(value);
+      if (base64Decoded) {
+        walkEmbeddedJson(base64Decoded, path, ancestorSourced);
+      }
       return;
     }
 
@@ -357,4 +521,25 @@ export function scanForUnsourcedSensitiveData(output: unknown): UnsourcedFinding
       return;
     }
   }
+}
+
+/**
+ * AG-21: las ventanas solapadas de `decodeBinaryWindows` y los candidatos
+ * de `findJsonCandidates` pueden generar el mismo hallazgo más de una vez
+ * (p. ej. un JSON embebido que cae completo dentro de dos ventanas
+ * consecutivas por el solape). Se deduplica por (path, fieldName, kind)
+ * antes de devolver el resultado — no cambia qué se detecta, solo evita
+ * reportar el mismo hallazgo repetido.
+ */
+function dedupeFindings(findings: UnsourcedFinding[]): UnsourcedFinding[] {
+  const seen = new Set<string>();
+  const result: UnsourcedFinding[] = [];
+  for (const finding of findings) {
+    const key = `${finding.path} ${finding.fieldName} ${finding.kind}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push(finding);
+    }
+  }
+  return result;
 }

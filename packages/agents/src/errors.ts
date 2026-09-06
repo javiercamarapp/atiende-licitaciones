@@ -84,6 +84,75 @@ export class UnauthorizedToolInputError extends AgentsError {
   }
 }
 
+/**
+ * AG-22 (MEDIA): `findForbiddenFieldRecursive` recorre esquemas Zod sin
+ * límite de profundidad explícito — un `ToolDefinition.inputSchema`
+ * patológico (miles de niveles de anidamiento real, no cíclico) provocaba
+ * antes un `RangeError` crudo del stack de V8 en vez de un error de
+ * validación controlado. Se lanza esta excepción explícita al superar
+ * `MAX_SCHEMA_RECURSION_DEPTH` niveles.
+ */
+export class SchemaTooDeepError extends AgentsError {
+  constructor(
+    readonly toolName: string,
+    readonly depth: number,
+    readonly maxDepth: number,
+  ) {
+    super(
+      `El esquema de entrada de "${toolName}" supera la profundidad máxima permitida ` +
+        `(${depth} > ${maxDepth} niveles) al buscar campos prohibidos (AG-22): se rechaza el ` +
+        "registro en vez de arriesgar un RangeError de pila no controlado",
+      false,
+    );
+  }
+}
+
+/**
+ * AG-22 (MEDIA, verificación en tiempo de ejecución): complementa la
+ * validación estática de `findForbiddenFieldRecursive` para el límite
+ * arquitectónico irreducible de `z.record(z.string(), ...)`/`z.map(z.string(),
+ * ...)` de clave genérica — un esquema así nunca "declara" organizationId
+ * estáticamente, pero sí puede ACEPTAR esa clave en los datos reales de un
+ * `tool_call`. `ToolRegistry.validateInput` rechaza en runtime cualquier
+ * argumento ya validado por zod cuyas claves reales (recorridas
+ * recursivamente) contengan un campo prohibido.
+ */
+export class ForbiddenRuntimeInputFieldError extends AgentsError {
+  constructor(
+    readonly toolName: string,
+    readonly field: string,
+    readonly path: string,
+  ) {
+    super(
+      `Los argumentos de "${toolName}" contienen la clave prohibida "${field}" en ${path}: ` +
+        "el tenant/organización lo inyecta siempre el runtime, nunca el modelo (AG-22, verificación " +
+        "de runtime que complementa la del esquema estático para records/maps de clave genérica)",
+      false,
+    );
+  }
+}
+
+/**
+ * AG-22: guarda de profundidad para el recorrido recursivo en runtime de
+ * `ToolRegistry.validateInput` (`findForbiddenKeyAtRuntime`), análoga a
+ * `SchemaTooDeepError` pero sobre los DATOS ya parseados de un `tool_call`,
+ * no sobre la definición del esquema.
+ */
+export class RuntimeArgsTooDeepError extends AgentsError {
+  constructor(
+    readonly toolName: string,
+    readonly depth: number,
+    readonly maxDepth: number,
+  ) {
+    super(
+      `Los argumentos de "${toolName}" superan la profundidad máxima permitida ` +
+        `(${depth} > ${maxDepth} niveles) al buscar claves prohibidas (AG-22): se rechaza en vez de ` +
+        "arriesgar un RangeError de pila no controlado",
+      false,
+    );
+  }
+}
+
 export class GuardrailBlockedError extends AgentsError {
   constructor(readonly matchedPatterns: string[]) {
     super(`Guardrail anticorrupción bloqueó la solicitud (${matchedPatterns.join(", ")})`, false);

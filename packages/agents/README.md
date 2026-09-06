@@ -82,7 +82,10 @@ objetos, no solo el nivel raíz): el tenant lo inyecta siempre el runtime en
 vacías a propósito" de Likida (`docs/investigacion/likida-arquitectura.md`,
 patrón #4).
 `validateInput`/`validateOutput` rechazan cualquier `tool_call` cuyos
-argumentos no validen contra el esquema.
+argumentos no validen contra el esquema. **AG-22 (MEDIA)**: `validateInput`
+además revisa en TIEMPO DE EJECUCIÓN las claves reales de los argumentos ya
+parseados (recursivo, con guarda de profundidad) contra la misma lista de
+campos prohibidos — ver detalle más abajo.
 
 **AG-20 (MEDIA, cierre de PARCIAL AG-11)**: `findForbiddenFieldRecursive`
 descendía en `ZodObject`/`ZodArray`/wrappers de una capa
@@ -97,6 +100,52 @@ operandos de `ZodIntersection` (`_def.left`/`_def.right`), el tipo de valor
 de `ZodRecord`/`ZodMap` (`_def.valueType`), los items (+ `rest` variádico)
 de `ZodTuple`, y resuelve `ZodLazy` vía `_def.getter()` (con protección de
 ciclos ya existente para esquemas auto-referenciados).
+
+**AG-22 (MEDIA, cierre de PARCIAL AG-20)**: la reverificación adversarial
+encontró 3 huecos residuales en la propia extensión de AG-20:
+
+1. **`ZodPipeline` (`.pipe()`) y `ZodBranded` (`.brand()`) no se
+   desenvolvían.** Ninguno de los dos coincide con el patrón `_def.schema`/
+   `_def.innerType` que usa `unwrapOneLayer()` (`ZodPipeline._def` tiene
+   `{in, out}`; `ZodBranded._def` tiene `{type}`), así que un
+   `organizationId` detrás de cualquiera de los dos se registraba sin
+   lanzar. `findForbiddenFieldRecursive` ahora tiene ramas dedicadas para
+   ambos (revisa `_def.in`/`_def.out` en `ZodPipeline`, `_def.type` en
+   `ZodBranded`).
+2. **El `keyType` de `ZodRecord`/`ZodMap` nunca se revisaba**, solo el
+   `valueType` — un `z.record(z.nativeEnum(Keys), ...)`/
+   `z.map(z.enum([...]), ...)` con un miembro de enum literalmente
+   `"organizationId"` se registraba sin lanzar, aun siendo un tipo de clave
+   **estáticamente enumerable** (no genérico). Ahora
+   `checkKeyTypeForForbiddenField` revisa `ZodEnum`/`ZodNativeEnum`/
+   `ZodLiteral` (y `ZodUnion` de esos) como tipo de clave.
+3. **Guarda de profundidad**: un esquema con miles de niveles de anidamiento
+   REAL (no cíclico — el `seen` por identidad de objeto solo protege contra
+   ciclos como `z.lazy()` auto-referenciado) agotaba el stack de V8 con un
+   `RangeError` crudo. `findForbiddenFieldRecursive` ahora lanza
+   `SchemaTooDeepError` explícito al superar `MAX_SCHEMA_RECURSION_DEPTH`
+   (256) niveles, probado con un esquema de ~20 000 niveles.
+
+**Límite arquitectónico irreducible (no un bug de recursión, documentado
+para diseño de `ToolDefinition`s futuras)**: `z.record(z.string(), ...)`/
+`z.map(z.string(), ...)` de clave **genérica** (no enumerable) siempre
+acepta `organizationId` como clave válida en runtime, y ningún recorrido
+estático de la definición del esquema puede detectarlo — un record de clave
+libre no "declara" ningún campo en particular, cualquier string es válido
+por diseño de Zod. La garantía de `register()` ("rechaza cualquier esquema
+que **declare** organizationId...") se mantiene literalmente cierta, pero
+no cubre este caso. **Mitigación en tiempo de ejecución**: `validateInput`
+recorre recursivamente las claves REALES de los argumentos ya validados
+(objetos, arrays, `Map`s, `Set`s, con guarda de profundidad
+`MAX_RUNTIME_ARGS_DEPTH` = 256 que lanza `RuntimeArgsTooDeepError` en vez de
+un `RangeError`) y lanza `ForbiddenRuntimeInputFieldError` si cualquier
+clave real coincide con `organizationId`/`organization_id`/`tenantId`/
+`tenant_id`/`orgId`/`org_id`, sin importar cuán genérico sea el esquema que
+la aceptó. Quien diseñe una `ToolDefinition` nueva debe saber que un record
+de clave completamente libre en el nivel superior de datos que el handler
+trate como de confianza sigue siendo una superficie a evitar cuando sea
+posible — el chequeo de runtime es una red de seguridad, no un sustituto de
+un esquema más específico.
 
 ### AuthorizationPolicy (REQ-044/REQ-046/REQ-068 + ampliación back office)
 
@@ -252,6 +301,61 @@ recorre igual que el resto del `output` — así un
 `JSON.stringify({precio: 999999})` guardado como string no se escapa del
 escaneo solo por estar serializado. `Date` se trata como hoja inerte (una
 fecha por sí sola no es un contenedor de datos sensibles).
+
+**AG-21 (MEDIA, cierre de PARCIAL AG-19)**: la reverificación adversarial
+encontró 2 bypasses estructurales nuevos en la propia extensión de AG-19,
+más un gap de detección documentado:
+
+1. **Texto libre sensible como elemento DIRECTO de un `Array`.** La
+   heurística `looksLikeUnsourcedSensitiveText` solo se invocaba para
+   propiedades de objeto (`walkKeyedEntries`) y para elementos de `Set`
+   (agregado por AG-19), pero la rama `Array.isArray(value)` solo hacía
+   `forEach` recursivo sin ese chequeo — el mismo string puesto en un
+   `Array` en vez de un `Set` no se detectaba. `walk()` ahora aplica el
+   mismo chequeo a elementos directos de `Array`, en cualquier combinación
+   de anidamiento con `Map`/`Set`/objetos.
+2. **Truncamiento silencioso de `Buffer`/`TypedArray` a 8192 bytes.**
+   `decodeBinaryAsUtf8()` hacía un único `subarray(0, 8192)`: cualquier
+   contenido que empezara después de ese offset (o que cayera a caballo
+   entre el offset y el final del buffer) nunca se examinaba, dejando pasar
+   la corrida como `completed`. Ahora `decodeBinaryWindows()` decodifica el
+   `Buffer`/`TypedArray` **completo** en ventanas solapadas
+   (`BINARY_SCAN_WINDOW_BYTES` = 8192, solape
+   `BINARY_SCAN_WINDOW_OVERLAP_BYTES` = 512 — el solape asegura que un valor
+   a caballo entre dos ventanas quede completo dentro de al menos una,
+   mientras su longitud no supere el solape), hasta un límite TOTAL
+   configurable (`maxBinaryTotalBytes`, por defecto
+   `DEFAULT_MAX_BINARY_TOTAL_BYTES` = 5 MiB — segundo argumento opcional de
+   `scanForUnsourcedSensitiveData`). Superar ese límite total ya **no deja
+   pasar el payload sin examinar**: produce un hallazgo explícito
+   `kind: "no_evaluable"` (semántica "no_evaluable: payload demasiado
+   grande") que detiene la corrida como `needs_data`, igual que cualquier
+   otro dato sin fuente aprobada — nunca se asume "no había nada sensible"
+   solo porque no se pudo verificar.
+3. **Base64 de JSON como string plano**: ahora se detecta con una
+   heurística deliberadamente conservadora (`tryDecodeBase64Json`): el
+   string debe tener longitud mínima razonable, longitud múltiplo de 4,
+   alfabeto base64 estricto con padding opcional, Y el resultado decodificado
+   debe ser UTF-8 **válido** (decode estricto) que además contenga `{`/`[`
+   (es decir, que PAREZCA JSON). No se decodifica base64 sobre *cualquier*
+   string — muchos strings legítimos (IDs, hashes, tokens) "parecen" base64
+   por forma; el filtro de "debe parecer JSON tras decodificar" es lo que
+   mantiene bajo el riesgo de falsos positivos.
+
+**Límite conocido residual (AG-19/AG-21, no resuelto ni resoluble solo con
+más recorrido)**: `scanForUnsourcedSensitiveData` es una capa de
+heurísticas sobre representaciones **texto/JSON/base64** de los datos. No
+decodifica **compresión** (gzip/deflate/brotli) ni contenido **cifrado** —
+un valor sensible dentro de un payload comprimido o cifrado antes de llegar
+al `output` de la herramienta no es detectable por este escaneo genérico
+(la propia herramienta debería declararlo vía `extractSensitiveValues` si
+produce ese tipo de payload). Tampoco es una garantía de tolerancia cero
+para binarios reales arbitrariamente grandes: el límite total configurable
+(`maxBinaryTotalBytes`) es una decisión consciente de costo/beneficio —
+decodificar en ventanas un binario real de varios cientos de MB (imagen,
+PDF) sería costoso sin beneficio de detección real, así que se prefiere
+fallar de forma explícita (`no_evaluable`) a intentar escanearlo completo
+sin límite.
 
 ### DependencyInvalidationRegistry (ampliación back office §3/§7)
 
