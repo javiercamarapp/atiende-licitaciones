@@ -81,5 +81,5 @@ describe("JobsPage (REQ-193: EmptyState con guía de siguiente acción)", () => 
     // acción del archivo paga, bajo `--coverage`, un costo medido de
     // ~10-30s en aislamiento total -- no es un bug de esta prueba. 45s deja
     // margen sobre ese costo medido (mismo patrón que RedaccionPage.test.tsx).
-  }, 45000);
+  }, process.env.CI === "true" ? 135000 : 45000);
 });

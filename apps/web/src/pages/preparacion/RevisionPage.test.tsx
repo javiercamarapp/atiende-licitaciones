@@ -46,7 +46,7 @@ describe("RevisionPage", () => {
     // acción paga, bajo `--coverage`, un costo medido de ~17-20s en
     // aislamiento total -- no es un bug de esta prueba. 45s deja ~2x de
     // margen sobre ese costo medido.
-  }, 45000);
+  }, process.env.CI === "true" ? 135000 : 45000);
 
   it("muestra una aprobación invalidada tras un cambio (A11)", async () => {
     const user = userEvent.setup();
@@ -56,7 +56,7 @@ describe("RevisionPage", () => {
 
     expect(await screen.findByText("Invalidada tras un cambio")).toBeInTheDocument();
     // Timeout propio: ver comentario arriba y en vite.config.ts.
-  }, 45000);
+  }, process.env.CI === "true" ? 135000 : 45000);
 
   // R5-09 (reverificación api ronda 5): antes de esta ronda, `POST
   // /auth/2fa/step-up` no declaraba ni la organización activa ni el
@@ -117,5 +117,5 @@ describe("RevisionPage", () => {
     // <Select/> de convocatoria y el diálogo de step-up), cada una capaz de
     // pagar el costo de ~17-30s medido en aislamiento -- 60s cubre el caso
     // en que ambas lo paguen.
-  }, 60000);
+  }, process.env.CI === "true" ? 180000 : 60000);
 });

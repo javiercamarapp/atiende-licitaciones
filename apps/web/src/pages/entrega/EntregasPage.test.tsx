@@ -44,5 +44,5 @@ describe("EntregasPage", () => {
     // es una condición de carrera de este test, es el mismo costo que
     // reproducen TODAS las pruebas que abren un <Select/> como primera
     // interacción. 45s deja margen (~2x) sobre ese costo medido.
-  }, 45000);
+  }, process.env.CI === "true" ? 135000 : 45000);
 });

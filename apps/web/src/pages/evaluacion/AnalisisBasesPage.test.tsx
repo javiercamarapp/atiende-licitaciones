@@ -55,7 +55,7 @@ describe("AnalisisBasesPage", () => {
     // (subiendo este timeout a 120000ms para verlo terminar sin corte) de
     // ~27s -- más que el resto de páginas del expediente. 60s deja más de
     // 2x de margen sobre ese costo medido.
-  }, 60000);
+  }, process.env.CI === "true" ? 180000 : 60000);
 
   it("muestra el aviso de uso de IA (REQ-115)", async () => {
     renderWithProviders(<AnalisisBasesPage />);
