@@ -955,19 +955,61 @@ decir cuál de los tres), 409 ante un reenvío exacto ya procesado, 202 en el
 resto. Un rebote (`email.bounced`) o una queja (`email.complained`) suprime
 la dirección automáticamente.
 
+### Canal adicional de WhatsApp (`tender_matches` / `submission`)
+
+Además del correo, `sendNewTenderMatchEmail`/`sendTenderMatchDigestEmail`
+(categoría `tender_matches`) y `sendSubmissionPackageReadyEmail` (categoría
+`submission`) — las tres en `src/lib/mail/triggers.ts` — mandan, DESPUÉS del
+correo y nunca en su lugar, un aviso corto por **WhatsApp** vía
+`@atiende/whatsapp` (`app.whatsapp`, decorado en `src/app.ts` igual que
+`app.mail`; ver `src/lib/mail/whatsapp-channel.ts`).
+
+- **Misma preferencia que el correo, nunca una separada**: `sendWhatsAppSideChannel`
+  se gatea con la MISMA `NotificationPreferences` ya cargada para decidir el
+  correo (`isCategoryEnabled`) — apagar `tender_matches`/`submission` apaga
+  los dos canales.
+- **Requiere número guardado**: `users.whatsapp_phone_e164`
+  (`packages/db/migrations/0090`, E.164, nullable, sin backfill). Sin él,
+  simplemente no se manda nada por este canal — no es un error.
+- **Un fallo de WhatsApp nunca toca el correo ni la operación de negocio**:
+  `not_configured` (sin credenciales reales de Meta — el estado de hoy) o
+  cualquier otro resultado/excepción del proveedor se registra en el log y
+  se descarta; el `SendOutcome` devuelto es siempre el del correo. Ver
+  `test/whatsapp-side-channel.test.ts`.
+- **Sin credenciales reales todavía**: `app.whatsapp` degrada a
+  `CaptureProvider` de `@atiende/whatsapp` (simulado, en memoria, nunca sale
+  a la red) hasta que Javier configure `WHATSAPP_PROVIDER=meta` +
+  `WHATSAPP_ACCESS_TOKEN`/`WHATSAPP_PHONE_NUMBER_ID` reales — mismo criterio
+  que `MAIL_PROVIDER`/`CaptureProvider` de correo.
+- **Disparador de negocio, pendiente** (ver bullet de abajo): las tres
+  funciones están listas para llamarse (correo + WhatsApp, preferencias,
+  idempotencia) pero ningún caller real las invoca todavía — mismo patrón ya
+  usado en este archivo para `sendWelcomeOnboardingEmail`/
+  `sendTwoFactorEnabledEmail`, que tampoco tienen un caller real hoy.
+
 ### Pendiente de este bloque
 
 - **Credenciales de un proveedor real** (dominio verificado con SPF/DKIM en
   Resend/Postmark, o un SMTP transaccional) — BLOQUEO EXTERNO del usuario.
   Los tres adaptadores están completos y probados con mocks de red en
   `packages/mail`.
+- **Credenciales reales de Meta** (`WHATSAPP_ACCESS_TOKEN`/
+  `WHATSAPP_PHONE_NUMBER_ID`) para el canal adicional de WhatsApp de arriba —
+  BLOQUEO EXTERNO del usuario, igual que el proveedor de correo. El adaptador
+  de Meta (`@atiende/whatsapp`) está completo y probado con `fetchImpl`
+  mockeado, pero nunca se ha llamado a la Cloud API real.
 - El handler `mail_retry` de `apps/worker` (contrato documentado en
   `src/lib/mail/send-transactional.ts`): hoy `apps/api` encola el job cuando
   `MailService` agota sus reintentos, pero `apps/worker` está fuera del
   alcance de este cambio y todavía no lo consume.
 - Las plantillas operativas del catálogo (avisos de convocatoria, plazos,
   resumen semanal) existen en `packages/mail` y ya respetan preferencias y
-  supresión, pero quien las dispara sería `apps/worker`, no esta API.
+  supresión, pero quien las dispara sería `apps/worker`, no esta API — salvo
+  `new-tender-match`/`tender-match-digest`/`submission-package-ready`, que ya
+  tienen su trigger function lista en `apps/api` (con su canal adicional de
+  WhatsApp, ver arriba) a falta de que el motor de matching real / el
+  ensamblado de paquete (`modules/matching/routes.ts`,
+  `modules/expediente/package.routes.ts`) las invoque.
 
 ## Pendiente / fuera de alcance de esta ronda
 

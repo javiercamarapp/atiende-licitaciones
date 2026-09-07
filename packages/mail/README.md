@@ -103,24 +103,47 @@ Cubre el REQ-181 de `docs/investigacion/salida-promocion-referencias.md`
 del catálogo pedido en `docs/AMPLIACION-2-SALIDA.md` §2 (bienvenida/onboarding
 y contacto interno, que REQ-181 no cubre pero sí la ampliación).
 
-| id | REQ-181 | Categoría | Obligatoria |
-|---|---|---|---|
-| `email-verification` | 1 | `account_security` | sí |
-| `organization-invite` | 2 | `account_security` | sí |
-| `password-reset` | 3 | `account_security` | sí |
-| `two-factor-enabled` | 4 (activación) | `account_security` | sí |
-| `backup-codes-generated` | 4 (códigos) | `account_security` | sí |
-| `new-tender-match` | 5 (nueva) | `tender_matches` | no |
-| `tender-change` | 5 (cambio) | `tender_changes` | no |
-| `tender-match-digest` | 6 (digesto de varias) | `tender_matches` | no |
-| `pending-approval` | 7 | `approvals` | no |
-| `submission-package-ready` | 8 | `submission` | no |
-| `deadline-reminder` | 9 (plazo de presentación) | `deadlines` | no |
-| `document-expiration` | 9 (documento de expediente) | `document_expiration` | no |
-| `post-award-alert` | 9 (pago/garantía) | `post_award` | no |
-| `weekly-summary` | 10 (diario/semanal) | `weekly_summary` | no |
-| `welcome-onboarding` | — (ampliación 2 §2) | `account_security` | sí |
-| `contact-received` | — (ampliación 2 §2, interno) | `internal` | sí |
+| id | REQ-181 | Categoría | Obligatoria | Canal adicional |
+|---|---|---|---|---|
+| `email-verification` | 1 | `account_security` | sí | — |
+| `organization-invite` | 2 | `account_security` | sí | — |
+| `password-reset` | 3 | `account_security` | sí | — |
+| `two-factor-enabled` | 4 (activación) | `account_security` | sí | — |
+| `backup-codes-generated` | 4 (códigos) | `account_security` | sí | — |
+| `new-tender-match` | 5 (nueva) | `tender_matches` | no | WhatsApp |
+| `tender-change` | 5 (cambio) | `tender_changes` | no | — |
+| `tender-match-digest` | 6 (digesto de varias) | `tender_matches` | no | WhatsApp |
+| `pending-approval` | 7 | `approvals` | no | — |
+| `submission-package-ready` | 8 | `submission` | no | WhatsApp |
+| `deadline-reminder` | 9 (plazo de presentación) | `deadlines` | no | — |
+| `document-expiration` | 9 (documento de expediente) | `document_expiration` | no | — |
+| `post-award-alert` | 9 (pago/garantía) | `post_award` | no | — |
+| `weekly-summary` | 10 (diario/semanal) | `weekly_summary` | no | — |
+| `welcome-onboarding` | — (ampliación 2 §2) | `account_security` | sí | — |
+| `contact-received` | — (ampliación 2 §2, interno) | `internal` | sí | — |
+
+### Canal adicional de WhatsApp (`tender_matches` / `submission`)
+
+`new-tender-match`, `tender-match-digest` (categoría `tender_matches`) y
+`submission-package-ready` (categoría `submission`) mandan, además del
+correo, un aviso corto por WhatsApp vía **`@atiende/whatsapp`** (Meta
+WhatsApp Business Cloud API) -- un canal **ADICIONAL**, nunca en
+reemplazo del correo. El wiring vive en `apps/api`
+(`src/lib/mail/triggers.ts` + `src/lib/mail/whatsapp-channel.ts`), no en
+este paquete -- mismo criterio que el resto de la integración real
+(outbox, preferencias) que tampoco vive aquí. Reglas:
+
+- Se manda **después** de que el correo ya se procesó, nunca antes ni en
+  su lugar; un fallo de WhatsApp nunca revierte ni bloquea el correo.
+- Reusa la **misma** preferencia de notificación que ya decide el correo
+  (`isCategoryEnabled` con las mismas `NotificationPreferences`) -- no
+  existe una preferencia separada de "solo WhatsApp".
+- Requiere que la persona tenga un número guardado en formato E.164
+  (`users.whatsapp_phone_e164`, `packages/db/migrations/0090`); sin él,
+  simplemente no se manda nada por este canal.
+- Hasta que Javier configure `WHATSAPP_ACCESS_TOKEN`/`WHATSAPP_PHONE_NUMBER_ID`
+  reales, el adaptador es el `CaptureProvider` de `@atiende/whatsapp`
+  (simulado, en memoria) -- ver `packages/whatsapp/README.md`.
 
 Cada plantilla exporta: su esquema zod de variables, `sampleData` (marcado
 "(ejemplo)" en el propio texto), y `render(vars) => Promise<{subject, html,

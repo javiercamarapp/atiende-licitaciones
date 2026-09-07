@@ -1,6 +1,7 @@
 import type { DbClient } from '@atiende/db';
 import type { OrgRole } from '@atiende/db';
 import type { MailProvider, MailService } from '@atiende/mail';
+import type { WhatsAppProvider } from '@atiende/whatsapp';
 import type { AppConfig } from './config.js';
 import type { PendingMailTracker } from './lib/mail/pending.js';
 import type { RateLimitSettings } from './lib/rate-limit-settings.js';
@@ -13,6 +14,8 @@ declare module 'fastify' {
     mail: MailService;
     /** REQ-181..195: el `MailProvider` que quedó configurado -- ver `BuiltMailService.provider`. */
     mailProvider: MailProvider;
+    /** Canal ADICIONAL de WhatsApp (`lib/mail/whatsapp-channel.ts`), decorado en `src/app.ts` -- ver ese archivo para el porqué de "adicional, nunca en reemplazo del correo". */
+    whatsapp: WhatsAppProvider;
     /** REQ-181..195: envíos disparados sin `await` (`lib/mail/pending.ts`). */
     pendingMail: PendingMailTracker;
     /** REQ-181..195: espera a que terminen los envíos en segundo plano (cierre ordenado y pruebas de integración). */
