@@ -74,7 +74,7 @@ export default function FuentesFrescuraPage() {
         <EmptyState
           icon={Wifi}
           title="Aún no hay fuentes configuradas"
-          description="Configura al menos una fuente oficial (por ejemplo, CompraNet) para ver aquí su estado, última consulta exitosa y cobertura real."
+          description="Los conectores de ingesta (por ejemplo, CompraNet) los configura el equipo de operaciones, no esta pantalla. En cuanto haya al menos una fuente activa, aquí aparecerá su estado, última consulta exitosa y cobertura real."
         />
       )}
       {!isLoading && !isError && freshness && freshness.length > 0 && (

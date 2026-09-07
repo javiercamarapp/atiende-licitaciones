@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { PenLine, Plus, Trash2, Sparkles, Save } from "lucide-react";
 
 import { AiDisclosureNote } from "@/components/AiDisclosureNote";
@@ -58,6 +59,7 @@ interface EconomicBlockedLineItem {
 }
 
 function TechnicalGenerationForm({ tenderId }: { tenderId: string }) {
+  const navigate = useNavigate();
   const { data: matrix } = useRequirementMatrix(tenderId);
   const { data: capabilities } = useCapabilities();
   const { data: experience } = useExperience();
@@ -102,6 +104,8 @@ function TechnicalGenerationForm({ tenderId }: { tenderId: string }) {
         icon={PenLine}
         title="Sin requisitos activos"
         description="Extrae primero la matriz de requisitos en Análisis de bases para poder mapear cada requisito a un dato real de la empresa."
+        actionLabel="Ir a Análisis de bases"
+        onAction={() => navigate("/evaluacion/analisis-bases")}
       />
     );
   }
