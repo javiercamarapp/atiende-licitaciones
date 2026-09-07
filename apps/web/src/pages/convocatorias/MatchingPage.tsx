@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { Target, AlertTriangle } from "lucide-react";
 
 import { SectionHeader } from "@/components/layout/SectionHeader";
@@ -23,6 +24,7 @@ const MISSING_FIELD_LABELS: Record<string, string> = {
 };
 
 export default function MatchingPage() {
+  const navigate = useNavigate();
   const { currentOrgId } = useAuth();
   const { data: matches, isLoading, isError, error, refetch } = useTenderMatches();
   const { data: tendersPage } = useTenders({ limit: 50 });
@@ -43,7 +45,13 @@ export default function MatchingPage() {
           {isLoading && <LoadingState label="Calculando matching…" />}
           {isError && <ErrorState message={describeApiError(error)} onRetry={() => refetch()} />}
           {!isLoading && !isError && (!matches || matches.length === 0) && (
-            <EmptyState icon={Target} title="Sin convocatorias para calcular matching" description="Esta organización no tiene convocatorias ingeridas todavía." />
+            <EmptyState
+              icon={Target}
+              title="Sin convocatorias para calcular matching"
+              description="Esta organización no tiene convocatorias ingeridas todavía."
+              actionLabel="Ir a Descubrimiento"
+              onAction={() => navigate("/convocatorias/descubrimiento")}
+            />
           )}
           <div className="space-y-4">
             {matches?.map((match) => {

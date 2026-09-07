@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -29,6 +30,7 @@ const decisionSchema = z.object({
 type DecisionValues = z.infer<typeof decisionSchema>;
 
 export default function GoNoGoPage() {
+  const navigate = useNavigate();
   const { currentOrgId, currentMembership } = useAuth();
   const { data: tendersPage, isLoading: loadingTenders, isError: tendersError, error: tendersErr, refetch: refetchTenders } = useTenders({ limit: 50 });
   const [selectedTenderId, setSelectedTenderId] = useState<string | null>(null);
@@ -68,7 +70,13 @@ export default function GoNoGoPage() {
           {loadingTenders && <LoadingState label="Cargando convocatorias…" rows={2} />}
           {tendersError && <ErrorState message={describeApiError(tendersErr)} onRetry={() => refetchTenders()} />}
           {!loadingTenders && !tendersError && (!tendersPage || tendersPage.items.length === 0) && (
-            <EmptyState icon={Scale} title="Sin convocatorias" description="No hay convocatorias todavía para decidir Go/No-Go." />
+            <EmptyState
+              icon={Scale}
+              title="Sin convocatorias"
+              description="No hay convocatorias todavía para decidir Go/No-Go."
+              actionLabel="Ir a Descubrimiento"
+              onAction={() => navigate("/convocatorias/descubrimiento")}
+            />
           )}
           {!loadingTenders && !tendersError && tendersPage && tendersPage.items.length > 0 && (
             <Select value={selectedTenderId ?? undefined} onValueChange={setSelectedTenderId}>

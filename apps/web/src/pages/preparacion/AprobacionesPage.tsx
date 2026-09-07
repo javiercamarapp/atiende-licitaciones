@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ShieldCheck, ArrowRight } from "lucide-react";
 
 import { SectionHeader } from "@/components/layout/SectionHeader";
@@ -53,6 +53,7 @@ function TenderApprovalRow({ tender }: { tender: Tender }) {
 }
 
 export default function AprobacionesPage() {
+  const navigate = useNavigate();
   const { currentOrgId } = useAuth();
   const { data: tendersPage, isLoading, isError, error, refetch } = useTenders({ limit: 50 });
 
@@ -71,7 +72,13 @@ export default function AprobacionesPage() {
           {isLoading && <LoadingState label="Cargando convocatorias…" />}
           {isError && <ErrorState message={describeApiError(error)} onRetry={() => refetch()} />}
           {!isLoading && !isError && (!tendersPage || tendersPage.items.length === 0) && (
-            <EmptyState icon={ShieldCheck} title="Sin convocatorias" description="No hay convocatorias todavía para mostrar su estado de aprobación." />
+            <EmptyState
+              icon={ShieldCheck}
+              title="Sin convocatorias"
+              description="No hay convocatorias todavía para mostrar su estado de aprobación."
+              actionLabel="Ir a Descubrimiento"
+              onAction={() => navigate("/convocatorias/descubrimiento")}
+            />
           )}
           {!isLoading && !isError && tendersPage && tendersPage.items.length > 0 && (
             <Card>
