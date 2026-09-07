@@ -5,9 +5,23 @@ name: Quality
 # servicio `db-postgres`, sin llamadas salientes a APIs de terceros que
 # requieran API key — OpenAI/WhatsApp/etc. siguen fuera de CI, ver
 # docs/OPERACION.md "Límites conocidos").
+#
+# paths-ignore: docs/** se excluye a propósito. El bucle de auditoría hace
+# commits "docs: ..." muy frecuentes que sólo tocan docs/AGENTES.md,
+# docs/BACKLOG.md, docs/PROGRESO.md, docs/logs/bucle.log (verificado contra
+# el historial real antes de este cambio, no asumido) — nunca código. Esos
+# commits no tienen nada que probar, y dispararles el pipeline completo
+# (10 jobs) fue lo que agotó el presupuesto de GitHub Actions de la cuenta.
+# Si algún commit alguna vez mezcla docs/ con código real, ese código
+# también cuenta como "path" fuera de docs/** y el push sigue disparando CI
+# con normalidad — esto no debilita ninguna compuerta de código.
 on:
   push:
+    paths-ignore:
+      - "docs/**"
   pull_request:
+    paths-ignore:
+      - "docs/**"
 
 concurrency:
   group: quality-${{ github.workflow }}-${{ github.ref }}
@@ -191,7 +205,19 @@ jobs:
             exit 1
           fi
 
+      - name: Cachear navegadores de Playwright
+        # Clave atada al lockfile raíz (workspaces npm): cualquier cambio de
+        # versión de @playwright/test cambia package-lock.json y por lo
+        # tanto la clave, sin depender de resolver la ruta hoisted real de
+        # node_modules (que puede variar entre root y apps/web).
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
       - name: Instalar navegador Chromium de Playwright
+        # Con cache hit sólo faltan las libs de sistema (--with-deps sigue
+        # revisando apt, pero no vuelve a descargar el binario del navegador).
         run: npx --prefix apps/web playwright install --with-deps chromium
 
       - name: Build + Playwright + axe-core (test:e2e)
