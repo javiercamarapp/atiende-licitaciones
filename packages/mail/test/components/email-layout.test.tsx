@@ -79,4 +79,57 @@ describe("EmailLayout", () => {
     );
     expect(html).not.toContain("javascript:alert");
   });
+
+  describe("ML-09: respaldo real de modo oscuro (no solo el meta tag)", () => {
+    it("declara soporte de modo oscuro en los meta tags (ya no 'light only')", async () => {
+      const html = await render(
+        <EmailLayout {...BASE_PROPS}>
+          <Paragraph>Cuerpo</Paragraph>
+        </EmailLayout>,
+      );
+      expect(html).toContain('name="color-scheme" content="light dark"');
+      expect(html).toContain('name="supported-color-schemes" content="light dark"');
+      expect(html).not.toContain("light only");
+    });
+
+    it("inyecta un <style> real con la media query prefers-color-scheme: dark (no solo el meta tag)", async () => {
+      const html = await render(
+        <EmailLayout {...BASE_PROPS}>
+          <Paragraph>Cuerpo</Paragraph>
+        </EmailLayout>,
+      );
+      expect(html).toMatch(/<style[^>]*>[\s\S]*@media \(prefers-color-scheme:\s*dark\)[\s\S]*<\/style>/);
+      // También cubre el recoloreado automático de Gmail (apps iOS/Android),
+      // que ignora `prefers-color-scheme` y usa sus propios atributos.
+      expect(html).toContain("[data-ogsc]");
+    });
+
+    it("el fondo, la tarjeta, los bordes y el texto llevan las clases am-* que el <style> oscuro pisa", async () => {
+      const html = await render(
+        <EmailLayout {...BASE_PROPS} preferencesUrl="https://app.atiende.mx/preferencias" unsubscribeUrl="https://app.atiende.mx/baja">
+          <Paragraph>Cuerpo</Paragraph>
+        </EmailLayout>,
+      );
+      expect(html).toContain("am-canvas");
+      expect(html).toContain("am-card");
+      expect(html).toContain("am-muted");
+      expect(html).toContain("am-faint");
+    });
+
+    it("cada tono con rótulo lleva su propia clase am-tone-* (warning/danger/success pierden contraste sobre tarjeta oscura)", async () => {
+      const urgente = await render(
+        <EmailLayout {...BASE_PROPS} tone="urgente">
+          <Paragraph>Cuerpo</Paragraph>
+        </EmailLayout>,
+      );
+      expect(urgente).toContain("am-tone-urgente");
+
+      const exito = await render(
+        <EmailLayout {...BASE_PROPS} tone="exito">
+          <Paragraph>Cuerpo</Paragraph>
+        </EmailLayout>,
+      );
+      expect(exito).toContain("am-tone-exito");
+    });
+  });
 });

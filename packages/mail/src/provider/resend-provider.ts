@@ -1,4 +1,4 @@
-import { classifyHttpStatus, type MailProvider, type OutboundEmail, type SendResult } from "./types";
+import { classifyHttpStatus, DEFAULT_PROVIDER_TIMEOUT_MS, type MailProvider, type OutboundEmail, type SendResult } from "./types";
 
 export interface ResendProviderOptions {
   apiKey: string | undefined;
@@ -20,7 +20,7 @@ const API = "https://api.resend.com/emails";
  * `MailService`, que sabe cuántas veces ya se intentó un `messageKey`.
  */
 export function createResendProvider(options: ResendProviderOptions): MailProvider {
-  const timeoutMs = options.timeoutMs ?? 5_000;
+  const timeoutMs = options.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS;
   const fetchImpl = options.fetchImpl ?? fetch;
 
   return {

@@ -106,6 +106,96 @@ describe("MailService.send", () => {
     expect((await store.get("verificacion:concurrente-u1"))?.status).toBe("sent");
   });
 
+  it("ML-08: el perdedor espera lo suficiente para ver el resultado real aunque el proveedor tarde más que los 200 ms fijos de antes", async () => {
+    // Antes de ML-08, `waitForReservedRecord` esperaba como máximo 40 × 5 ms
+    // = 200 ms, sin relación con cuánto puede tardar el proveedor real (cuyo
+    // propio timeout de red por defecto es de varios SEGUNDOS —
+    // `DEFAULT_PROVIDER_TIMEOUT_MS`). Este proveedor tarda 260 ms — más que
+    // esos 200 ms fijos — para demostrar que el perdedor YA NO se rinde
+    // antes de tiempo: sigue esperando (presupuesto por defecto,
+    // `DEFAULT_PROVIDER_TIMEOUT_MS + 200 ms` ≈ 5.2 s) y devuelve el
+    // resultado real, `providerMessageId` incluido, en vez de un
+    // "already_sent" ambiguo sin id.
+    let providerCalls = 0;
+    const provider: MailProvider = {
+      name: "fake",
+      async send() {
+        providerCalls++;
+        await new Promise((resolve) => setTimeout(resolve, 260));
+        return { ok: true, providerMessageId: "p-lento" };
+      },
+    };
+    const store = new InMemorySendRecordStore();
+    const service = new MailService({
+      provider,
+      store,
+      retryPolicy: { maxAttempts: 3, baseDelayMs: 1, maxDelayMs: 5, jitterRatio: 0 },
+      random: () => 0.5,
+    });
+
+    const input = {
+      to: RECIPIENT,
+      templateId: emailVerificationTemplate.id,
+      variables: VALID_VARS,
+      messageKey: "verificacion:lento-u1",
+    };
+
+    const outcomes = await Promise.all(Array.from({ length: 5 }, () => service.send(input)));
+
+    expect(providerCalls).toBe(1);
+    expect(outcomes.filter((o) => o.status === "sent")).toHaveLength(1);
+    const losers = outcomes.filter((o) => o.status === "already_sent");
+    expect(losers).toHaveLength(4);
+    // La parte que ML-08 arregla: TODOS los perdedores ven el resultado real
+    // (con providerMessageId), ninguno se rinde a medias camino.
+    for (const loser of losers) {
+      expect(loser).toMatchObject({ status: "already_sent", providerMessageId: "p-lento" });
+    }
+  });
+
+  it("ML-08: el presupuesto de espera del perdedor es configurable (providerTimeoutMs) y sigue siendo acotado, nunca indefinido", async () => {
+    // Con un `providerTimeoutMs` deliberadamente corto (10 ms → presupuesto
+    // total de 210 ms) y un proveedor que tarda más que eso (400 ms), el
+    // perdedor SÍ se rinde dentro de su presupuesto — la espera nunca es
+    // indefinida — y lo declara como "already_sent" sin providerMessageId,
+    // el mismo contrato documentado en `waitForReservedRecord`.
+    const provider: MailProvider = {
+      name: "fake",
+      async send() {
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        return { ok: true, providerMessageId: "p-tardio" };
+      },
+    };
+    const store = new InMemorySendRecordStore();
+    const service = new MailService({
+      provider,
+      store,
+      providerTimeoutMs: 10,
+      retryPolicy: { maxAttempts: 3, baseDelayMs: 1, maxDelayMs: 5, jitterRatio: 0 },
+      random: () => 0.5,
+    });
+
+    const input = {
+      to: RECIPIENT,
+      templateId: emailVerificationTemplate.id,
+      variables: VALID_VARS,
+      messageKey: "verificacion:tardio-u1",
+    };
+
+    const started = Date.now();
+    // Se mide el momento en que CADA llamada resuelve por separado (no
+    // `Promise.all` de golpe) porque este esperaría a la más lenta de las
+    // tres — el ganador, que sí tarda los 400 ms completos del proveedor. Lo
+    // que ML-08 acota es la espera del PERDEDOR, no la del ganador.
+    const timedOutcomes = await Promise.all(
+      Array.from({ length: 3 }, () => service.send(input).then((outcome) => ({ outcome, elapsedMs: Date.now() - started }))),
+    );
+
+    const loserEntry = timedOutcomes.find((t) => t.outcome.status === "already_sent");
+    expect(loserEntry?.outcome).toEqual({ status: "already_sent", messageKey: "verificacion:tardio-u1" });
+    expect(loserEntry?.elapsedMs).toBeLessThan(400);
+  });
+
   it("reintenta ante 429/5xx y termina en éxito (backoff)", async () => {
     const { provider } = fakeProvider([
       { ok: false, kind: "retryable", statusCode: 429, detail: "rate limited" },

@@ -12,8 +12,17 @@ import { safeUrl } from "../security/safe-url";
 export function ToneBadge({ tone }: { tone?: ToneKey }): React.ReactElement | null {
   const t = TONE_LABEL[tone ?? "neutral"];
   if (!t.label) return null;
+  // ML-09: llegados aquí, `t.label` ya garantizó que el tono NO es
+  // "neutral" (el único con `label: null`, que ya salió por el `if` de
+  // arriba) — así que es seguro angostar a las tres claves con rótulo.
+  // Cada una tiene su propia clase `am-tone-*` en `DARK_MODE_STYLE`
+  // (theme.ts) porque, a diferencia del resto de la paleta,
+  // `warning`/`danger`/`success` SÍ pierden contraste suficiente sobre una
+  // tarjeta oscura (ver el comentario de `darkColors`).
+  const toneClassName = `am-tone-${tone as "atencion" | "urgente" | "exito"}`;
   return (
     <Text
+      className={toneClassName}
       style={{
         margin: "0 0 14px 0",
         fontFamily: fonts.sans,
@@ -25,7 +34,7 @@ export function ToneBadge({ tone }: { tone?: ToneKey }): React.ReactElement | nu
         color: t.color,
       }}
     >
-      <span style={{ color: t.color }}>&#9679;</span>&nbsp;&nbsp;{t.label}
+      <span className={toneClassName} style={{ color: t.color }}>&#9679;</span>&nbsp;&nbsp;{t.label}
     </Text>
   );
 }
@@ -34,6 +43,7 @@ export function Title({ children }: { children: React.ReactNode }): React.ReactE
   return (
     <Heading
       as="h1"
+      className="am-ink"
       style={{
         margin: "0 0 18px 0",
         fontFamily: fonts.display,
@@ -52,6 +62,7 @@ export function Title({ children }: { children: React.ReactNode }): React.ReactE
 export function Paragraph({ children }: { children: React.ReactNode }): React.ReactElement {
   return (
     <Text
+      className="am-body-text"
       style={{
         margin: "0 0 16px 0",
         fontFamily: fonts.sans,
@@ -86,6 +97,7 @@ export function DataTable({ rows }: { rows: DataRowItem[] }): React.ReactElement
         {rows.map((row) => (
           <tr key={row.label}>
             <td
+              className="am-faint am-line"
               style={{
                 padding: "13px 0",
                 borderTop: `1px solid ${colors.line}`,
@@ -102,6 +114,7 @@ export function DataTable({ rows }: { rows: DataRowItem[] }): React.ReactElement
             </td>
             <td
               align="right"
+              className="am-ink am-line"
               style={{
                 padding: "13px 0",
                 borderTop: `1px solid ${colors.line}`,
@@ -117,7 +130,7 @@ export function DataTable({ rows }: { rows: DataRowItem[] }): React.ReactElement
           </tr>
         ))}
         <tr>
-          <td colSpan={2} style={{ borderTop: `1px solid ${colors.line}`, fontSize: 0, lineHeight: 0 }}>
+          <td className="am-line" colSpan={2} style={{ borderTop: `1px solid ${colors.line}`, fontSize: 0, lineHeight: 0 }}>
             &nbsp;
           </td>
         </tr>
@@ -167,6 +180,7 @@ export function CtaButton({ label, href, appUrl, showLiteralLink }: CtaButtonPro
       </Section>
       {showLiteralLink ? (
         <Text
+          className="am-faint"
           style={{
             margin: "22px 0 0 0",
             fontFamily: fonts.sans,
@@ -193,6 +207,7 @@ export function CodeBlock({ code, label = "Código de un solo uso" }: { code: st
   return (
     <Section style={{ margin: "28px 0 4px 0" }}>
       <Text
+        className="am-faint"
         style={{
           margin: "0 0 9px 0",
           fontFamily: fonts.sans,
@@ -211,6 +226,7 @@ export function CodeBlock({ code, label = "Código de un solo uso" }: { code: st
           <tr>
             <td
               align="center"
+              className="am-well am-ink"
               style={{
                 backgroundColor: colors.well,
                 padding: "17px 30px",
@@ -247,6 +263,7 @@ export function BackupCodesGrid({ codes }: { codes: string[] }): React.ReactElem
             {pair.map((c, j) => (
               <td
                 key={c}
+                className="am-well am-ink"
                 style={{
                   padding: "10px 12px",
                   backgroundColor: colors.well,
@@ -276,6 +293,7 @@ export function BackupCodesGrid({ codes }: { codes: string[] }): React.ReactElem
 export function Callout({ children }: { children: React.ReactNode }): React.ReactElement {
   return (
     <Section
+      className="am-canvas am-line"
       style={{
         margin: "26px 0 0 0",
         backgroundColor: colors.canvas,
@@ -284,7 +302,7 @@ export function Callout({ children }: { children: React.ReactNode }): React.Reac
         padding: "15px 18px",
       }}
     >
-      <Text style={{ margin: 0, fontFamily: fonts.sans, fontSize: 12, lineHeight: "19px", color: colors.muted }}>
+      <Text className="am-muted" style={{ margin: 0, fontFamily: fonts.sans, fontSize: 12, lineHeight: "19px", color: colors.muted }}>
         {children}
       </Text>
     </Section>
@@ -292,5 +310,5 @@ export function Callout({ children }: { children: React.ReactNode }): React.Reac
 }
 
 export function Divider(): React.ReactElement {
-  return <Hr style={{ borderColor: colors.line, margin: "26px 0" }} />;
+  return <Hr className="am-line" style={{ borderColor: colors.line, margin: "26px 0" }} />;
 }

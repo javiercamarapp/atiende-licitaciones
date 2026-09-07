@@ -1,4 +1,4 @@
-import type { MailProvider } from "../provider/types";
+import { DEFAULT_PROVIDER_TIMEOUT_MS, type MailProvider } from "../provider/types";
 import { isCategoryEnabled } from "../preferences/filter";
 import type { NotificationPreferences } from "../preferences/types";
 import { assertRegisteredRecipient, type RegisteredRecipient } from "../recipients/types";
@@ -46,9 +46,34 @@ export interface MailServiceOptions {
   now?: () => Date;
   sleep?: (ms: number) => Promise<void>;
   random?: () => number;
+  /**
+   * ML-08: cuánto puede tardar el `MailProvider` real en responder una sola
+   * llamada — el mismo `timeoutMs` con el que se configuró el adaptador
+   * (`createResendProvider`/`createPostmarkProvider`, por defecto
+   * `DEFAULT_PROVIDER_TIMEOUT_MS`). El "perdedor" de `reserve()` (ver
+   * `waitForReservedRecord`) usa este valor para saber cuánto esperar antes
+   * de rendirse — nunca menos de lo que el ganador puede tardar en llegar a
+   * un resultado final, para no devolver un "ya en curso" ambiguo mientras
+   * la llamada HTTP del ganador sigue perfectamente viva.
+   */
+  providerTimeoutMs?: number;
 }
 
 const defaultSleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Intervalo de sondeo de `waitForReservedRecord` — fino frente al
+ *  presupuesto total (`providerTimeoutMs + RESERVATION_WAIT_BUFFER_MS`) para
+ *  no añadir una espera perceptible una vez que el ganador ya escribió. */
+const RESERVATION_POLL_INTERVAL_MS = 25;
+
+/**
+ * Colchón sobre el timeout del proveedor: además del tiempo que el
+ * `MailProvider` puede tardar en responder (o en que su propio
+ * `AbortSignal.timeout` dispare), se le da un margen para que el ganador
+ * termine su `store.save()` (o `release()`) — E/S que, aunque rápida, no es
+ * instantánea. +200 ms es el margen que ML-08 pide explícitamente.
+ */
+const RESERVATION_WAIT_BUFFER_MS = 200;
 
 /**
  * El punto único de envío de correo de Atiende Licitaciones. Reúne lo que
@@ -72,6 +97,7 @@ export class MailService {
   private readonly now: () => Date;
   private readonly sleep: (ms: number) => Promise<void>;
   private readonly random: () => number;
+  private readonly providerTimeoutMs: number;
 
   constructor(options: MailServiceOptions) {
     this.provider = options.provider;
@@ -83,6 +109,7 @@ export class MailService {
     this.now = options.now ?? (() => new Date());
     this.sleep = options.sleep ?? defaultSleep;
     this.random = options.random ?? Math.random;
+    this.providerTimeoutMs = options.providerTimeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS;
   }
 
   /** Delega en el `LinkSigner` inyectado. Lanza si el servicio no se
@@ -266,15 +293,28 @@ export class MailService {
    * escribir el registro final (`save()`), en vez de asumir cualquier
    * resultado a ciegas — así una llamada concurrente que pierde la carrera
    * puede devolver el `providerMessageId` real del envío que sí se hizo.
+   *
+   * ML-08: el presupuesto de espera está atado a `providerTimeoutMs`
+   * (`DEFAULT_PROVIDER_TIMEOUT_MS` si no se configuró uno distinto) — es
+   * decir, a lo que el `MailProvider` real puede tardar en dar un resultado
+   * — más `RESERVATION_WAIT_BUFFER_MS` (+200 ms) de margen para el
+   * `store.save()`/`release()` del ganador. Antes era un valor fijo
+   * (40 × 5 ms = 200 ms) sin relación con el proveedor: bastaba con que el
+   * envío real tardara más de esos 200 ms (nada raro en una llamada HTTP
+   * real, cuyo propio timeout por defecto es de varios segundos) para que
+   * el perdedor se rindiera y devolviera "ya en curso" sin saber si el
+   * envío en verdad tuvo éxito, falló o murió — un resultado ambiguo.
    * Espera acotada (nunca indefinida): si nadie escribe un registro dentro
    * del presupuesto, `send()` trata la llave como "ya en curso" y no
    * reintenta por su cuenta (ver el llamador).
    */
-  private async waitForReservedRecord(messageKey: string, maxAttempts = 40): Promise<SendRecord | undefined> {
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+  private async waitForReservedRecord(messageKey: string): Promise<SendRecord | undefined> {
+    const budgetMs = this.providerTimeoutMs + RESERVATION_WAIT_BUFFER_MS;
+    const attempts = Math.max(1, Math.ceil(budgetMs / RESERVATION_POLL_INTERVAL_MS));
+    for (let attempt = 0; attempt < attempts; attempt++) {
       const record = await this.store.get(messageKey);
       if (record) return record;
-      await this.sleep(5);
+      await this.sleep(RESERVATION_POLL_INTERVAL_MS);
     }
     return this.store.get(messageKey);
   }

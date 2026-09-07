@@ -1,4 +1,4 @@
-import { classifyHttpStatus, type MailProvider, type OutboundEmail, type SendResult } from "./types";
+import { classifyHttpStatus, DEFAULT_PROVIDER_TIMEOUT_MS, type MailProvider, type OutboundEmail, type SendResult } from "./types";
 
 export interface PostmarkProviderOptions {
   serverToken: string | undefined;
@@ -11,7 +11,7 @@ export interface PostmarkProviderOptions {
 const API = "https://api.postmarkapp.com/email";
 
 export function createPostmarkProvider(options: PostmarkProviderOptions): MailProvider {
-  const timeoutMs = options.timeoutMs ?? 5_000;
+  const timeoutMs = options.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS;
   const fetchImpl = options.fetchImpl ?? fetch;
 
   return {
