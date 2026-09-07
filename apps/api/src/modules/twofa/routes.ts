@@ -29,8 +29,17 @@ import {
   assertSixDigitCode,
   assertStepUpOrgId,
   assertStepUpPurpose,
+  requireStepUp,
 } from '../../lib/step-up.js';
-import { enrollResponseSchema, totpCodeSchema, verifyEnrollmentResponseSchema, stepUpResponseSchema, stepUpStatusResponseSchema } from './schemas.js';
+import {
+  enrollResponseSchema,
+  totpCodeSchema,
+  verifyEnrollmentResponseSchema,
+  stepUpResponseSchema,
+  stepUpStatusResponseSchema,
+  disableResponseSchema,
+  regenerateBackupCodesResponseSchema,
+} from './schemas.js';
 
 /** Un código de respaldo tiene forma "XXXX-XXXX"; cualquier otra cosa se intenta como TOTP de 6 dígitos. */
 function looksLikeBackupCode(code: string): boolean {
@@ -349,6 +358,120 @@ export async function twofaRoutes(app: FastifyInstance): Promise<void> {
       });
       reply.code(201);
       return result;
+    }
+  );
+
+  // -------------------------------------------------------------------
+  // E21 (docs/BACKLOG.md): desactivar 2FA de la cuenta propia y regenerar
+  // los códigos de respaldo -- ambas exigen step-up (mismo `requireStepUp`
+  // que el resto de `apps/api`, ver lib/step-up.ts). Como el resto de este
+  // módulo, son endpoints de USUARIO (sin `app.requireOrg`): el `X-Org-Id`
+  // que exige `requireStepUp` para emparejar la sesión es el mismo que se
+  // usó para PEDIR el `stepUpToken` (`POST /2fa/step-up`/`verify-enrollment`
+  // con `purpose: 'twofa.disable'`/`'twofa.backup_codes_regenerate'`), no
+  // una organización "dueña" de la acción -- no existe tal cosa para un
+  // secreto TOTP, que es de cuenta.
+  // -------------------------------------------------------------------
+
+  server.post(
+    '/2fa/disable',
+    { preHandler: [app.authenticate], schema: { response: { 200: disableResponseSchema } } },
+    async (request) => {
+      const userId = request.userId!;
+      const orgId = assertStepUpOrgId(request.headers['x-org-id']);
+
+      const result = await withUserTx(app, userId, async (tx) => {
+        await requireStepUp(tx, { userId, stepUpHeader: request.headers['x-step-up'], orgId, purpose: 'twofa.disable' });
+
+        // Regla de negocio explícita (E21): nunca dejar la cuenta sin
+        // NINGÚN método de acceso. Desactivar 2FA es seguro solo si a la
+        // cuenta le queda al menos otro método propio para reautenticarse
+        // -- contraseña (users.password_hash) o una identidad de Google
+        // vinculada (user_identities, REQ-172). Se comprueba DESPUÉS de
+        // `requireStepUp` (nunca antes: un rechazo por esta regla no debe
+        // filtrar información a quien no probó posesión del 2FA) pero, si
+        // se rechaza, el `stepUpToken` se consume igual (mismo patrón que
+        // `company/routes.ts#rates/:id/approve` con una tarifa ya
+        // decidida) -- se devuelve un marcador y se lanza el error FUERA
+        // de la transacción, así el consumo del step-up sí se confirma.
+        const userRow = await tx.query<{ password_hash: string | null }>('select password_hash from users where id = $1', [userId]);
+        const hasPassword = (userRow.rows[0]?.password_hash ?? null) !== null;
+        const identityRow = await tx.query<{ id: string }>('select id from user_identities where user_id = $1 limit 1', [userId]);
+        const hasGoogleLinked = identityRow.rows.length > 0;
+        if (!hasPassword && !hasGoogleLinked) {
+          return { kind: 'no_other_access_method' as const };
+        }
+
+        await tx.query('delete from user_totp_secrets where user_id = $1', [userId]);
+        await tx.query('delete from user_backup_codes where user_id = $1', [userId]);
+
+        await recordSecurityAudit(tx, {
+          actorId: userId,
+          action: 'twofa.disabled',
+          entity: 'user_totp_secrets',
+          entityId: userId,
+          after: { disabled: true },
+          requestId: request.id,
+          correlationId: request.correlationId,
+        });
+
+        return { kind: 'ok' as const };
+      });
+
+      if (result.kind === 'no_other_access_method') {
+        throw new ConflictError(
+          'No se puede desactivar la verificación en dos pasos: esta cuenta no tiene contraseña ni una cuenta de Google vinculada, y quedaría sin ningún método de acceso. Configure una contraseña o vincule una cuenta de Google antes de desactivar 2FA.'
+        );
+      }
+      return { disabled: true as const };
+    }
+  );
+
+  server.post(
+    '/2fa/backup-codes/regenerate',
+    {
+      preHandler: [app.authenticate],
+      // R5-02: mismo límite específico anti-fuerza-bruta que el resto del módulo.
+      config: { rateLimit: { max: app.rateLimitSettings.twoFactor.max, timeWindow: app.rateLimitSettings.twoFactor.timeWindow } },
+      schema: { response: { 201: regenerateBackupCodesResponseSchema } },
+    },
+    async (request, reply) => {
+      const userId = request.userId!;
+      const orgId = assertStepUpOrgId(request.headers['x-org-id']);
+
+      const backupCodes = await withUserTx(app, userId, async (tx) => {
+        // requireStepUp ya exige un secreto TOTP enrolado y VERIFICADO
+        // (verified_at not null) antes de siquiera mirar el encabezado
+        // X-Step-Up -- si esto no lanza, el usuario sigue teniendo 2FA
+        // activo, así que regenerar sus códigos de respaldo es seguro.
+        await requireStepUp(tx, { userId, stepUpHeader: request.headers['x-step-up'], orgId, purpose: 'twofa.backup_codes_regenerate' });
+
+        // Se REEMPLAZAN por completo (mismo patrón que /2fa/enroll): los
+        // códigos anteriores dejan de existir en la tabla, así que
+        // cualquier intento posterior de usarlos (p.ej. como código de
+        // /2fa/step-up) se rechaza de inmediato por no encontrar fila --
+        // invalidación real, no solo "ocultos" en el cliente.
+        await tx.query('delete from user_backup_codes where user_id = $1', [userId]);
+        const codes = generateBackupCodes(10);
+        for (const code of codes) {
+          await tx.query('insert into user_backup_codes (id, user_id, code_hash) values ($1, $2, $3)', [randomUUID(), userId, hashBackupCode(code)]);
+        }
+
+        await recordSecurityAudit(tx, {
+          actorId: userId,
+          action: 'twofa.backup_codes_regenerated',
+          entity: 'user_backup_codes',
+          entityId: userId,
+          after: { backupCodesIssued: codes.length },
+          requestId: request.id,
+          correlationId: request.correlationId,
+        });
+
+        return codes;
+      });
+
+      reply.code(201);
+      return { backupCodes };
     }
   );
 }

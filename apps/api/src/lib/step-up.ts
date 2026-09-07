@@ -41,6 +41,11 @@ export const STEP_UP_PURPOSES = [
   // y marcar un borrador de inconformidad como revisado por abogado.
   'expediente.contract_transition',
   'expediente.inconformidad_review',
+  // E21 (docs/BACKLOG.md, migración 0091): acciones de cuenta sobre el
+  // propio 2FA -- desactivarlo por completo, o regenerar (invalidando las
+  // anteriores) las claves de respaldo. Ver `modules/twofa/routes.ts`.
+  'twofa.disable',
+  'twofa.backup_codes_regenerate',
 ] as const;
 export type StepUpPurpose = (typeof STEP_UP_PURPOSES)[number];
 

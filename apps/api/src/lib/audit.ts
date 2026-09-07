@@ -109,12 +109,17 @@ export type SecurityAuditAction =
   // R5-03: fallos de verificación (código inválido, replay, backup code ya
   // usado, o cuenta bloqueada) -- ver `lib/twofa-lockout.ts` y 0059.
   | 'twofa.verification_failed'
-  | 'twofa.step_up_denied';
+  | 'twofa.step_up_denied'
+  // E21 (docs/BACKLOG.md, migración 0091): desactivar 2FA de la cuenta
+  // propia, o regenerar (invalidando las anteriores) sus códigos de
+  // respaldo -- ver `modules/twofa/routes.ts`.
+  | 'twofa.disabled'
+  | 'twofa.backup_codes_regenerated';
 
 export interface SecurityAuditEntry {
   action: SecurityAuditAction;
   actorId: string;
-  entity: 'user_totp_secrets' | 'step_up_sessions';
+  entity: 'user_totp_secrets' | 'step_up_sessions' | 'user_backup_codes';
   entityId: string;
   after?: unknown;
   requestId?: string | null;

@@ -107,7 +107,9 @@ export type TestStepUpPurpose =
   | 'tool_call.approval'
   | 'admin.action'
   | 'expediente.contract_transition'
-  | 'expediente.inconformidad_review';
+  | 'expediente.inconformidad_review'
+  | 'twofa.disable'
+  | 'twofa.backup_codes_regenerate';
 
 export interface StepUpScope {
   orgId: string;
