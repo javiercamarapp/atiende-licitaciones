@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { FileSearch } from "lucide-react";
 
 import { EmptyState } from "@/components/ui/empty-state";
@@ -24,6 +25,7 @@ export interface TenderSelectProps {
 }
 
 export function TenderSelect({ value, onChange, emptyDescription }: TenderSelectProps) {
+  const navigate = useNavigate();
   const { data: tendersPage, isLoading, isError, error, refetch } = useTenders({ limit: 50 });
 
   if (isLoading) return <LoadingState label="Cargando convocatorias…" rows={2} />;
@@ -34,6 +36,8 @@ export function TenderSelect({ value, onChange, emptyDescription }: TenderSelect
         icon={FileSearch}
         title="Sin convocatorias"
         description={emptyDescription ?? "No hay convocatorias todavía. Descúbrelas primero desde Convocatorias › Descubrimiento."}
+        actionLabel="Ir a Descubrimiento"
+        onAction={() => navigate("/convocatorias/descubrimiento")}
       />
     );
   }
