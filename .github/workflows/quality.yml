@@ -53,6 +53,7 @@ jobs:
           - packages/agents
           - packages/expediente
           - packages/sources
+          - packages/whatsapp
     steps:
       - uses: actions/checkout@v4
 
@@ -88,7 +89,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-${{ matrix.workspace == 'apps/api' && 'apps-api' || matrix.workspace == 'apps/web' && 'apps-web' || matrix.workspace == 'apps/worker' && 'apps-worker' || matrix.workspace == 'packages/db' && 'packages-db' || matrix.workspace == 'packages/agents' && 'packages-agents' || matrix.workspace == 'packages/expediente' && 'packages-expediente' || 'packages-sources' }}
+          name: coverage-${{ matrix.workspace == 'apps/api' && 'apps-api' || matrix.workspace == 'apps/web' && 'apps-web' || matrix.workspace == 'apps/worker' && 'apps-worker' || matrix.workspace == 'packages/db' && 'packages-db' || matrix.workspace == 'packages/agents' && 'packages-agents' || matrix.workspace == 'packages/expediente' && 'packages-expediente' || matrix.workspace == 'packages/sources' && 'packages-sources' || 'packages-whatsapp' }}
           path: ${{ matrix.workspace }}/coverage/**
           if-no-files-found: ignore
           retention-days: 14
