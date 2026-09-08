@@ -57,6 +57,9 @@ export type AuthAuditAction =
   // rechazo de identidad de Google -- ver `modules/auth/google/routes.ts`.
   | 'auth.google_login'
   | 'auth.google_linked'
+  // E19/E21 (docs/BACKLOG.md, migración 0093): desvincular la identidad de
+  // Google de la propia cuenta -- ver `modules/auth/google/unlink.routes.ts`.
+  | 'auth.google_unlinked'
   | 'auth.google_rejected'
   // REQ-181..195 (0084_req_email_verification_and_password_reset.sql):
   // verificación de correo y restablecimiento de contraseña. Los dos

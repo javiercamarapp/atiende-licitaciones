@@ -17,6 +17,7 @@ import { metricsPlugin } from './plugins/metrics.plugin.js';
 import { healthRoutes } from './modules/health/routes.js';
 import { authRoutes } from './modules/auth/routes.js';
 import { googleAuthRoutes } from './modules/auth/google/routes.js';
+import { googleUnlinkRoutes } from './modules/auth/google/unlink.routes.js';
 import { authMailRoutes } from './modules/auth/mail.routes.js';
 import { sessionsRoutes } from './modules/auth/sessions.routes.js';
 import { authPasswordRoutes } from './modules/auth/password.routes.js';
@@ -252,6 +253,11 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   // REQ-172..180: login/registro con Google (OIDC), junto al método
   // email+contraseña existente, sin reemplazarlo.
   await app.register(googleAuthRoutes, { prefix: '/auth/google' });
+  // E19/E21 (docs/BACKLOG.md): desvincular la identidad de Google de la
+  // propia cuenta -- registrada aparte de googleAuthRoutes porque exige
+  // sesión autenticada (app.authenticate), a diferencia de start/callback/
+  // verify-2fa (login), que son anónimas.
+  await app.register(googleUnlinkRoutes, { prefix: '/auth/google' });
   // REQ-181..195: verificación de correo y recuperación de contraseña
   // (rutas ANÓNIMAS, ver modules/auth/mail.routes.ts).
   await app.register(authMailRoutes, { prefix: '/auth' });

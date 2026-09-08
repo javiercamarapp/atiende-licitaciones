@@ -4,7 +4,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useAuth } from "@/hooks/useAuth";
-import { getTwoFactorStatus, enrollTwoFactor, verifyTwoFactorEnrollment, verifyStepUp } from "@/lib/api/twofa";
+import { getTwoFactorStatus, enrollTwoFactor, verifyTwoFactorEnrollment, verifyStepUp, disableTwoFactor, regenerateBackupCodes } from "@/lib/api/twofa";
 
 /**
  * `enabled: status === "authenticated"` (mismo patrón que hooks/useAdmin.ts,
@@ -67,6 +67,36 @@ export function useVerifyStepUp() {
       const targetOrgId = orgId ?? currentOrgId;
       if (!targetOrgId) throw new Error("No hay una organización activa para pedir el step-up.");
       return verifyStepUp(code, targetOrgId, purpose);
+    },
+  });
+}
+
+/**
+ * E21 (docs/BACKLOG.md): desactivar 2FA de la cuenta propia -- exige un
+ * `stepUpToken` ya verificado (purpose `twofa.disable`, ver StepUpDialog en
+ * ConfiguracionPage). apps/api rechaza con 409 si la cuenta se quedaría sin
+ * ningún método de acceso (sin contraseña ni Google) -- ese rechazo llega
+ * tal cual como `ApiError`, la pantalla lo muestra con `describeApiError`.
+ */
+export function useDisableTwoFactor() {
+  const { currentOrgId } = useAuth();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (stepUpToken: string) => {
+      if (!currentOrgId) throw new Error("Necesitas una organización activa para desactivar 2FA.");
+      return disableTwoFactor(currentOrgId, stepUpToken);
+    },
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["auth", "2fa", "status"] }),
+  });
+}
+
+/** E21: regenerar códigos de respaldo -- reemplaza por completo los anteriores (invalidación real en DB). */
+export function useRegenerateBackupCodes() {
+  const { currentOrgId } = useAuth();
+  return useMutation({
+    mutationFn: (stepUpToken: string) => {
+      if (!currentOrgId) throw new Error("Necesitas una organización activa para regenerar tus códigos de respaldo.");
+      return regenerateBackupCodes(currentOrgId, stepUpToken);
     },
   });
 }

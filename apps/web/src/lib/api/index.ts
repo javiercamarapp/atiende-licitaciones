@@ -7,6 +7,8 @@ export * from "./session";
 export * from "./client";
 export * from "./schemas";
 export * from "./auth";
+export * from "./auth-sessions";
+export * from "./password";
 export * from "./mail";
 export * from "./public";
 export * from "./google";

@@ -49,6 +49,9 @@ export const STEP_UP_PURPOSES = [
   // E21 (docs/BACKLOG.md, migración 0092): cambiar la contraseña de la
   // propia cuenta -- ver `modules/auth/password.routes.ts`.
   'auth.password_change',
+  // E19/E21 (docs/BACKLOG.md, migración 0093): desvincular la identidad de
+  // Google de la propia cuenta -- ver `modules/auth/google/unlink.routes.ts`.
+  'auth.google_unlink',
 ] as const;
 export type StepUpPurpose = (typeof STEP_UP_PURPOSES)[number];
 
