@@ -47,6 +47,7 @@ import { expedienteApprovalRoutes } from './modules/expediente/approval.routes.j
 import { expedientePackageRoutes } from './modules/expediente/package.routes.js';
 import { expedienteSubmissionRoutes } from './modules/expediente/submission.routes.js';
 import { expedientePostAwardRoutes } from './modules/expediente/post-award.routes.js';
+import { expedienteCollectionRoutes } from './modules/expediente/collection.routes.js';
 import { expedienteContractRoutes } from './modules/expediente/contract.routes.js';
 import { expedienteInconformidadRoutes } from './modules/expediente/inconformidad.routes.js';
 import { expedienteFalloAutopsyRoutes } from './modules/expediente/fallo-autopsy.routes.js';
@@ -301,6 +302,10 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   await app.register(expedientePackageRoutes, { prefix: '/expediente' });
   await app.register(expedienteSubmissionRoutes, { prefix: '/expediente' });
   await app.register(expedientePostAwardRoutes, { prefix: '/expediente' });
+  // REQ-051 (máquina de estados de COBRANZA para post_award_followups de
+  // kind='facturacion'/'pago' -- distinta de la máquina de estados del
+  // CONTRATO completo, ver expedienteContractRoutes más abajo).
+  await app.register(expedienteCollectionRoutes, { prefix: '/expediente' });
   // Ronda 6: REQ-051 (máquina de estados del contrato) + REQ-052 (extracción
   // del contrato firmado), REQ-053 (redactor de inconformidades, borrador),
   // REQ-054 (autopsia del fallo), REQ-055 (radar de renovaciones).

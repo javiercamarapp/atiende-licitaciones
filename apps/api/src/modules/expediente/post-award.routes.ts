@@ -19,6 +19,7 @@ import { NotFoundError, ValidationAppError } from '../../lib/errors.js';
 import { withTx, requireTender } from '../../lib/expediente/context.js';
 import { computePaymentDeadline } from '../../lib/expediente/business-days.js';
 import { timestampToIso } from '../../lib/expediente/dates.js';
+import { COLLECTION_INITIAL_STATUS, COLLECTION_ALERT_STATES, type CollectionStatus } from '../../lib/expediente/collection-lifecycle.js';
 import { followupCreateSchema, followupUpdateSchema, followupSchema } from './schemas.js';
 
 /** Normaliza una columna `date` del driver (Date u "YYYY-MM-DD") a "YYYY-MM-DD" -- el driver (pg/PGlite) puede devolver un `Date` (medianoche LOCAL del proceso, no UTC), así que nunca se usa directamente `String(date)`. */
@@ -33,8 +34,35 @@ function toDateOnlyString(value: string | Date | null | undefined): string | nul
   return String(value).slice(0, 10);
 }
 
-/** REQ-056: alerta binaria por día (ver `alertLevel` en schemas.ts). Nunca marca alerta para un seguimiento ya cerrado (done/cancelled). */
-function computeAlertLevel(dueDate: string | Date | null | undefined, status: string, reminderLeadDays: number, nowIso = new Date().toISOString()): 'vencido' | 'proximo' | null {
+/**
+ * REQ-056/REQ-051: alerta binaria por día (ver `alertLevel` en schemas.ts).
+ * Nunca marca alerta para un seguimiento ya cerrado (done/cancelled).
+ *
+ * REQ-051 (máquina de estados de cobranza): para kind='facturacion'/'pago'
+ * con `collectionStatus` ya definido, la cobranza manda sobre el cómputo
+ * por fecha -- reusa este MISMO mecanismo de alerta (nunca uno nuevo, ver
+ * `GET /post-award-alerts`) en vez de duplicarlo:
+ *  - 'pagada' (estado terminal): sin alerta, sin importar `dueDate`
+ *    (cobrado, cerrado -- alertar aquí sería ruido).
+ *  - 'vencida_sin_pago'/'en_disputa' (`COLLECTION_ALERT_STATES`): SIEMPRE
+ *    'vencido' -- una cobranza en esos estados exige atención inmediata
+ *    aunque `dueDate` esté lejos todavía o incluso sin definir.
+ *  - cualquier otro estado de cobranza (emitida/enviada/en_revision/
+ *    aprobada_para_pago): cae al mismo cómputo por fecha que el resto de
+ *    `kind`s -- sigue siendo útil saber que se acerca/pasó el vencimiento
+ *    aunque la cobranza todavía no se haya marcado explícitamente como
+ *    vencida.
+ */
+function computeAlertLevel(
+  dueDate: string | Date | null | undefined,
+  status: string,
+  reminderLeadDays: number,
+  collectionStatus: string | null = null,
+  nowIso = new Date().toISOString()
+): 'vencido' | 'proximo' | null {
+  if (collectionStatus === 'pagada') return null;
+  if (collectionStatus !== null && (COLLECTION_ALERT_STATES as readonly string[]).includes(collectionStatus)) return 'vencido';
+
   const dueDateOnly = toDateOnlyString(dueDate);
   if (!dueDateOnly || status === 'done' || status === 'cancelled') return null;
   const due = new Date(`${dueDateOnly}T00:00:00Z`).getTime();
@@ -46,7 +74,7 @@ function computeAlertLevel(dueDate: string | Date | null | undefined, status: st
   return null;
 }
 
-function mapFollowupRow(r: Record<string, unknown>): any {
+export function mapFollowupRow(r: Record<string, unknown>): any {
   const metadata = (r.metadata as Record<string, unknown> | null) ?? {};
   return {
     id: r.id,
@@ -69,8 +97,32 @@ function mapFollowupRow(r: Record<string, unknown>): any {
     // AE-09: solo presentes para kind='pago'/'facturacion' (ver computePaymentDeadline).
     calendarNote: (metadata.calendarNote as string | undefined) ?? null,
     legalRegime: (metadata.legalRegime as Record<string, unknown> | undefined) ?? null,
-    alertLevel: computeAlertLevel(r.due_date as string | Date | null | undefined, String(r.status), Number(r.reminder_lead_days ?? 3)),
+    // REQ-051: solo presente para kind='facturacion'/'pago' (ver collection-lifecycle.ts).
+    collectionStatus: (r.collection_status as string | null | undefined) ?? null,
+    alertLevel: computeAlertLevel(
+      r.due_date as string | Date | null | undefined,
+      String(r.status),
+      Number(r.reminder_lead_days ?? 3),
+      (r.collection_status as string | null | undefined) ?? null
+    ),
   };
+}
+
+/**
+ * Resuelve un `post_award_followup` anidado bajo su convocatoria (mismo
+ * anidamiento real que `requireContract` en `contract.routes.ts` -- ver
+ * R6-05: siempre filtrado por `tenderId`, no solo por `org_id`), reusado
+ * por `collection.routes.ts` para no duplicar esta consulta.
+ */
+export async function requireFollowup(tx: DbExecutor, orgId: string, tenderId: string, followupId: string): Promise<Record<string, unknown>> {
+  const res = await tx.query<Record<string, unknown>>(
+    'select * from post_award_followups where id = $1 and org_id = $2 and tender_id = $3',
+    [followupId, orgId, tenderId]
+  );
+  if (res.rows.length === 0) {
+    throw new NotFoundError('Seguimiento post-adjudicación no encontrado');
+  }
+  return res.rows[0];
 }
 
 export async function expedientePostAwardRoutes(app: FastifyInstance): Promise<void> {
@@ -189,11 +241,18 @@ export async function expedientePostAwardRoutes(app: FastifyInstance): Promise<v
           );
         }
 
+        // REQ-051: kind='facturacion'/'pago' arrancan SIEMPRE con un ciclo
+        // de cobranza en 'emitida' (la factura/el pago acaba de registrarse)
+        // -- cualquier otro `kind` nunca tiene `collection_status` (CHECK a
+        // nivel de esquema, migración 0094).
+        const collectionStatus: CollectionStatus | null =
+          request.body.kind === 'facturacion' || request.body.kind === 'pago' ? COLLECTION_INITIAL_STATUS : null;
+
         const inserted = await tx.query<Record<string, unknown>>(
           `insert into post_award_followups
              (id, org_id, tender_id, kind, label, due_date, amount, notes, legal_reference, reminder_lead_days, job_id, metadata,
-              responsible_party, guarantee_type, cfdi_reference, acceptance_date, modification_reference)
-           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14, $15, $16, $17) returning *`,
+              responsible_party, guarantee_type, cfdi_reference, acceptance_date, modification_reference, collection_status)
+           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14, $15, $16, $17, $18) returning *`,
           [
             id,
             orgId,
@@ -212,9 +271,19 @@ export async function expedientePostAwardRoutes(app: FastifyInstance): Promise<v
             request.body.cfdiReference ?? null,
             request.body.kind === 'facturacion' ? (request.body.acceptanceDate ?? null) : null,
             request.body.modificationReference ?? null,
+            collectionStatus,
           ]
         );
-        await recordAudit(tx, { orgId, actorId: userId, action: 'post_award_followup.create', entity: 'post_award_followups', entityId: id, after: { kind: request.body.kind, dueDate, legalReference }, requestId: request.id, correlationId: request.correlationId });
+
+        if (collectionStatus !== null) {
+          await tx.query(
+            `insert into collection_status_history (id, org_id, followup_id, from_status, to_status, reason, actor_id, correlation_id)
+             values ($1, $2, $3, null, $4, $5, $6, $7)`,
+            [randomUUID(), orgId, id, collectionStatus, `Alta de la cobranza al registrar el seguimiento (kind="${request.body.kind}").`, userId, request.correlationId ?? null]
+          );
+        }
+
+        await recordAudit(tx, { orgId, actorId: userId, action: 'post_award_followup.create', entity: 'post_award_followups', entityId: id, after: { kind: request.body.kind, dueDate, legalReference, collectionStatus }, requestId: request.id, correlationId: request.correlationId });
         return inserted.rows[0];
       });
 

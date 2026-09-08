@@ -321,6 +321,20 @@ export const legalRegimeSchema = z.object({
   reason: z.string(),
 });
 
+// ---------------------------------------------------------------------------
+// REQ-051: máquina de estados de COBRANZA (facturación/pago post-adjudicación).
+// Declarado ANTES de `followupSchema` porque este último la referencia.
+// ---------------------------------------------------------------------------
+export const COLLECTION_STATUS_ENUM = z.enum([
+  'emitida',
+  'enviada',
+  'en_revision',
+  'aprobada_para_pago',
+  'pagada',
+  'vencida_sin_pago',
+  'en_disputa',
+]);
+
 export const followupSchema = z.object({
   id: z.string().uuid(),
   tenderId: z.string().uuid(),
@@ -344,13 +358,45 @@ export const followupSchema = z.object({
   /** AE-09/REQ-050: solo para kind='pago'/'facturacion' -- régimen legal aplicado, versionado por fecha de convocatoria. */
   legalRegime: legalRegimeSchema.nullable(),
   /**
+   * REQ-051 (máquina de estados de cobranza): solo para kind='facturacion'/
+   * kind='pago' -- ciclo de cobro de ESTA factura/pago concreto, distinto
+   * del `status` genérico del seguimiento (pending/in_progress/done/...).
+   * `null` para cualquier otro `kind` (nunca aplica). Ver
+   * `lib/expediente/collection-lifecycle.ts`.
+   */
+  collectionStatus: COLLECTION_STATUS_ENUM.nullable(),
+  /**
    * Alerta de vencimiento (REQ-056, "recordatorios T-72/24/6h" -- alcance de
    * esta ronda: alerta binaria por día, no por hora): 'vencido' si
    * `dueDate` ya pasó y el seguimiento no está en un estado terminal
    * (done/cancelled); 'proximo' si vence dentro de `reminderLeadDays` días;
-   * `null` en cualquier otro caso (sin fecha, terminal, o lejano).
+   * `null` en cualquier otro caso (sin fecha, terminal, o lejano). REQ-051:
+   * para kind='facturacion'/'pago' con `collectionStatus` en
+   * `COLLECTION_ALERT_STATES` ('vencida_sin_pago'/'en_disputa'), siempre
+   * 'vencido' -- una cobranza vencida sin pago o en disputa activa exige
+   * atención inmediata sin importar cuánto falte/haya pasado desde
+   * `dueDate` (ver `computeAlertLevel` en `post-award.routes.ts`).
    */
   alertLevel: z.enum(['vencido', 'proximo']).nullable(),
+});
+
+export const collectionTransitionRequestSchema = z.object({
+  toStatus: COLLECTION_STATUS_ENUM,
+  /** Motivo obligatorio de la transición -- nunca se registra un cambio de estado de cobranza sin justificación. */
+  reason: z.string().min(1),
+  /** Referencia de evidencia (p. ej. folio de comprobante de pago, correo de aprobación) -- opcional. */
+  evidenceRef: z.string().optional(),
+});
+
+export const collectionStatusHistoryItemSchema = z.object({
+  id: z.string().uuid(),
+  followupId: z.string().uuid(),
+  fromStatus: COLLECTION_STATUS_ENUM.nullable(),
+  toStatus: COLLECTION_STATUS_ENUM,
+  reason: z.string(),
+  actorId: z.string().uuid().nullable(),
+  evidenceRef: z.string().nullable(),
+  createdAt: isoTimestamp,
 });
 
 // ---------------------------------------------------------------------------

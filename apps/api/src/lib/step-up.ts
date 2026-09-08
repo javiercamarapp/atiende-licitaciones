@@ -52,6 +52,13 @@ export const STEP_UP_PURPOSES = [
   // E19/E21 (docs/BACKLOG.md, migración 0093): desvincular la identidad de
   // Google de la propia cuenta -- ver `modules/auth/google/unlink.routes.ts`.
   'auth.google_unlink',
+  // REQ-051 (máquina de estados de cobranza, migración 0094): marcar una
+  // cobranza (post_award_followup de kind='facturacion'/'pago') como
+  // "pagada" es dinero real confirmado -- nunca se infiere ni se marca
+  // automáticamente, exige 2FA reciente igual que
+  // `expediente.contract_transition`. Ver
+  // `lib/expediente/collection-lifecycle.ts`/`modules/expediente/collection.routes.ts`.
+  'expediente.collection_transition',
 ] as const;
 export type StepUpPurpose = (typeof STEP_UP_PURPOSES)[number];
 
