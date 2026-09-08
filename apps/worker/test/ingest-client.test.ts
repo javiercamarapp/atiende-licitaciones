@@ -118,6 +118,16 @@ describe('TenderIngestClient contra un servidor HTTP real', () => {
     expect((fakeServer.received[0].body as { records: TenderIngestRecord[] }).records[0].source).toBe('dof');
   });
 
+  it('REQ-171: cuando se pasa correlationId en options, viaja como cabecera X-Correlation-Id; si se omite, no se manda la cabecera', async () => {
+    const client = new TenderIngestClient({ baseUrl: fakeServer.baseUrl });
+
+    await client.ingest({ records: [makeRecord('EXP-CORR')] }, { correlationId: '11111111-2222-4333-8444-555555555555' });
+    expect(fakeServer.received[0].headers['x-correlation-id']).toBe('11111111-2222-4333-8444-555555555555');
+
+    await client.ingest({ records: [makeRecord('EXP-SIN-CORR')] });
+    expect(fakeServer.received[1].headers['x-correlation-id']).toBeUndefined();
+  });
+
   it('reintenta ante 503 y termina en éxito (backoff transparente para el llamador)', async () => {
     fakeServer.behavior = 'fail-then-ok';
     const client = new TenderIngestClient({ baseUrl: fakeServer.baseUrl, retryBaseDelayMs: 10, maxRetries: 2 });

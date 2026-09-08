@@ -25,6 +25,7 @@ describe('PROPOSAL-01 (WK-07/WK-22): source_run_status ampliado a 8 estados fino
 
       const rateLimited = await recordSourceRun(db, {
         sourceId,
+        correlationId: 'test-correlation-rate-limited',
         fineState: 'rate_limited',
         startedAt: new Date('2026-01-01T00:00:00.000Z'),
         finishedAt: new Date('2026-01-01T00:00:05.000Z'),
@@ -37,6 +38,7 @@ describe('PROPOSAL-01 (WK-07/WK-22): source_run_status ampliado a 8 estados fino
       // (order by started_at desc) devuelva esta corrida sin ambigüedad.
       const notConfigured = await recordSourceRun(db, {
         sourceId,
+        correlationId: 'test-correlation-not-configured',
         fineState: 'not_configured',
         startedAt: new Date('2026-01-01T01:00:00.000Z'),
         finishedAt: new Date('2026-01-01T01:00:05.000Z'),
@@ -59,6 +61,7 @@ describe('PROPOSAL-01 (WK-07/WK-22): source_run_status ampliado a 8 estados fino
     try {
       const rows = await recordSourceRun(db, {
         sourceId: 'compras-mx',
+        correlationId: 'test-correlation-ingest-failed',
         fineState: 'ingest_failed',
         startedAt: new Date(),
         finishedAt: new Date(),

@@ -39,6 +39,21 @@ export interface DiscoverTendersPayload {
    * un motivo (`coverage.expectedReason`), nunca como un `null` mudo.
    */
   expectedTotal?: number;
+  /**
+   * Residual de REQ-171 (R5-04 cubrió `tenders`/`tender_versions`, pero dejó
+   * `source_runs` -- el eslabón que en realidad DISPARA esa cadena -- sin
+   * escribir la columna). Mismo patrón que `RunAgentPayload.correlationId`
+   * (`handlers/run-agent.ts`): si el llamador (scheduler/reintento) ya trae
+   * un id de negocio, se hereda; si no, nace aquí a partir de `job.id`
+   * (UUID real, ver `jobs.id uuid default gen_random_uuid()`) -- UNA sola vez
+   * por corrida, y se reutiliza en TODAS las filas de `source_runs` que
+   * produzca esta ejecución del handler (varias rutas de error registran más
+   * de una) y en la cabecera `X-Correlation-Id` hacia
+   * `POST /internal/tenders/ingest`, para que `tenders`/`tender_versions`
+   * (que ya persisten la cabecera desde 0060_r504_correlation_id_tenders.sql)
+   * terminen con el MISMO id que el `source_run` que los originó.
+   */
+  correlationId?: string;
 }
 
 /**
@@ -186,6 +201,11 @@ export function createDiscoverTendersHandler(deps: DiscoverTendersHandlerDeps): 
     const startedAt = now();
     const sourceId = job.payload.sourceId;
     if (!sourceId) throw new Error('discover_tenders: payload.sourceId es requerido');
+    // Un solo id para TODA esta ejecución del handler (ver JSDoc de
+    // `DiscoverTendersPayload.correlationId`): todas las filas de
+    // `source_runs` de esta corrida y la ingesta HTTP que dispare comparten
+    // este mismo valor.
+    const correlationId = job.payload.correlationId ?? job.id;
 
     // WK-06 (docs/auditoria-1/worker.md): `coverage.expected` viene de la
     // config de la fuente (`payload.expectedTotal`, si el scheduler/config
@@ -204,6 +224,7 @@ export function createDiscoverTendersHandler(deps: DiscoverTendersHandlerDeps): 
     if (!connector) {
       await recordSourceRun(deps.db, {
         sourceId,
+        correlationId,
         fineState: 'not_configured',
         startedAt,
         finishedAt: now(),
@@ -217,6 +238,7 @@ export function createDiscoverTendersHandler(deps: DiscoverTendersHandlerDeps): 
     if (!connector.liveVerification.verified) {
       await recordSourceRun(deps.db, {
         sourceId,
+        correlationId,
         fineState: 'not_configured',
         startedAt,
         finishedAt: now(),
@@ -245,6 +267,7 @@ export function createDiscoverTendersHandler(deps: DiscoverTendersHandlerDeps): 
       const classification = classifySourceFailure(error);
       await recordSourceRun(deps.db, {
         sourceId,
+        correlationId,
         fineState: classification.state,
         startedAt,
         finishedAt: now(),
@@ -285,12 +308,13 @@ export function createDiscoverTendersHandler(deps: DiscoverTendersHandlerDeps): 
             records: tenders.map(mapTenderRecordToIngestRecord),
             organizationIds: job.payload.organizationIds,
           },
-          ctx.signal,
+          { signal: ctx.signal, correlationId },
         );
       } catch (error) {
         const message = describeIngestError(error);
         await recordSourceRun(deps.db, {
           sourceId,
+          correlationId,
           fineState: 'ingest_failed',
           startedAt,
           finishedAt: now(),
@@ -306,6 +330,7 @@ export function createDiscoverTendersHandler(deps: DiscoverTendersHandlerDeps): 
 
     await recordSourceRun(deps.db, {
       sourceId,
+      correlationId,
       fineState: 'ok',
       startedAt,
       finishedAt: now(),
