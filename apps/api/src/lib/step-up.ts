@@ -46,6 +46,9 @@ export const STEP_UP_PURPOSES = [
   // anteriores) las claves de respaldo. Ver `modules/twofa/routes.ts`.
   'twofa.disable',
   'twofa.backup_codes_regenerate',
+  // E21 (docs/BACKLOG.md, migración 0092): cambiar la contraseña de la
+  // propia cuenta -- ver `modules/auth/password.routes.ts`.
+  'auth.password_change',
 ] as const;
 export type StepUpPurpose = (typeof STEP_UP_PURPOSES)[number];
 

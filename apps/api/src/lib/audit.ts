@@ -68,7 +68,14 @@ export type AuthAuditAction =
   | 'auth.email_verification_sent'
   | 'auth.email_verified'
   | 'auth.password_reset_requested'
-  | 'auth.password_reset_completed';
+  | 'auth.password_reset_completed'
+  // E21 (docs/BACKLOG.md, migración 0092): cambiar la contraseña propia
+  // (autenticado, con step-up) y gestión de sesiones activas propias --
+  // cerrar una sesión concreta, o todas menos la actual. Ver
+  // `modules/auth/password.routes.ts`/`modules/auth/sessions.routes.ts`.
+  | 'auth.password_changed'
+  | 'auth.session_revoked'
+  | 'auth.sessions_revoked_others';
 
 export interface AuthAuditEntry {
   actorId: string | null;

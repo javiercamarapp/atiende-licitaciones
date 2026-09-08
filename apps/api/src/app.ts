@@ -18,6 +18,8 @@ import { healthRoutes } from './modules/health/routes.js';
 import { authRoutes } from './modules/auth/routes.js';
 import { googleAuthRoutes } from './modules/auth/google/routes.js';
 import { authMailRoutes } from './modules/auth/mail.routes.js';
+import { sessionsRoutes } from './modules/auth/sessions.routes.js';
+import { authPasswordRoutes } from './modules/auth/password.routes.js';
 import { twofaRoutes } from './modules/twofa/routes.js';
 import { legalRoutes } from './modules/legal/routes.js';
 import { organizationRoutes } from './modules/organizations/routes.js';
@@ -254,6 +256,11 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   // (rutas ANÓNIMAS, ver modules/auth/mail.routes.ts).
   await app.register(authMailRoutes, { prefix: '/auth' });
   await app.register(twofaRoutes, { prefix: '/auth' });
+  // E21 (docs/BACKLOG.md, segunda mitad): sesiones activas propias
+  // (listar/cerrar una/cerrar todas menos la actual) y cambio de
+  // contraseña autenticado con step-up.
+  await app.register(sessionsRoutes, { prefix: '/auth' });
+  await app.register(authPasswordRoutes, { prefix: '/auth' });
   await app.register(organizationRoutes, { prefix: '/organizations' });
   await app.register(meRoutes);
   await app.register(companyRoutes, { prefix: '/company' });

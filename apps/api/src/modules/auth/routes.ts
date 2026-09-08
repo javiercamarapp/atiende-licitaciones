@@ -86,10 +86,17 @@ export async function issueTokenPair(
     // la MISMA transacción de `modules/auth/google/routes.ts`) -- nunca a
     // partir de un valor de entrada del cliente sin verificar.
     await tx.query("select set_config('app.current_user_id', $1, true)", [userId]);
-    await tx.query(`select app.create_refresh_token($1, $2, $3, now() + interval '${REFRESH_TTL_DAYS} days')`, [
+    // E21 (docs/BACKLOG.md, migración 0092): ip/user-agent se persisten
+    // junto con el refresh token -- son exactamente los mismos valores que
+    // ya se calculan aquí para `recordAuthAudit` (nunca un dato nuevo sin
+    // verificar), y permiten que `GET /auth/sessions` muestre algo más útil
+    // que un id opaco.
+    await tx.query(`select app.create_refresh_token($1, $2, $3, now() + interval '${REFRESH_TTL_DAYS} days', $4, $5)`, [
       randomUUID(),
       userId,
       hashToken(jti),
+      audit.ip,
+      audit.userAgent,
     ]);
     // API-13: login exitoso ahora deja rastro en audit_log (actor, ip,
     // user-agent, request_id -- nunca contraseña ni token).
@@ -299,8 +306,8 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       const ok = await app.db.transaction(async (tx) => {
         await tx.query('set local role app_role');
         const rotated = await tx.query<{ user_id: string }>(
-          `select * from app.rotate_refresh_token($1, $2, $3, now() + interval '${REFRESH_TTL_DAYS} days')`,
-          [hashToken(jti), randomUUID(), hashToken(newJti)]
+          `select * from app.rotate_refresh_token($1, $2, $3, now() + interval '${REFRESH_TTL_DAYS} days', $4, $5)`,
+          [hashToken(jti), randomUUID(), hashToken(newJti), audit.ip, audit.userAgent]
         );
         if (rotated.rows.length > 0) {
           // API-14 (docs/auditoria-2/api-expediente-reverificacion.md):

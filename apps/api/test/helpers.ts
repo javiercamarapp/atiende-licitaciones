@@ -109,7 +109,8 @@ export type TestStepUpPurpose =
   | 'expediente.contract_transition'
   | 'expediente.inconformidad_review'
   | 'twofa.disable'
-  | 'twofa.backup_codes_regenerate';
+  | 'twofa.backup_codes_regenerate'
+  | 'auth.password_change';
 
 export interface StepUpScope {
   orgId: string;
