@@ -56,6 +56,8 @@ function mapContractRow(r: Record<string, unknown>): any {
     status: r.status,
     endDate: r.end_date ?? null,
     contractNumber: r.contract_number ?? null,
+    hasRenewalOption: r.has_renewal_option ?? false,
+    renewalOptionNotes: r.renewal_option_notes ?? null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -211,9 +213,11 @@ export async function expedienteContractRoutes(app: FastifyInstance): Promise<vo
     }
   );
 
-  // REQ-055: metadatos administrativos (fecha de fin/número de contrato) --
-  // NO es una transición de estado (no pasa por el grafo ni genera fila de
-  // historial); es el insumo directo que consume el radar de renovaciones.
+  // REQ-055: metadatos administrativos (fecha de fin/número de contrato,
+  // opción de renovación) -- NO es una transición de estado (no pasa por el
+  // grafo ni genera fila de historial); es el insumo directo que consume el
+  // radar de renovaciones (`renewal-radar.ts`) y su endpoint de negocio
+  // (`GET /renewals/upcoming`).
   server.patch(
     '/tenders/:tenderId/contract',
     {
@@ -232,14 +236,27 @@ export async function expedienteContractRoutes(app: FastifyInstance): Promise<vo
         const updated = await tx.query<Record<string, unknown>>(
           `update contracts set
              end_date = case when $1::boolean then $2::date else end_date end,
-             contract_number = case when $3::boolean then $4 else contract_number end
-           where id = $5 and org_id = $6 returning *`,
-          ['endDate' in b, b.endDate ?? null, 'contractNumber' in b, b.contractNumber ?? null, contract.id, orgId]
+             contract_number = case when $3::boolean then $4 else contract_number end,
+             has_renewal_option = case when $5::boolean then $6::boolean else has_renewal_option end,
+             renewal_option_notes = case when $7::boolean then $8 else renewal_option_notes end
+           where id = $9 and org_id = $10 returning *`,
+          [
+            'endDate' in b,
+            b.endDate ?? null,
+            'contractNumber' in b,
+            b.contractNumber ?? null,
+            'hasRenewalOption' in b,
+            b.hasRenewalOption ?? null,
+            'renewalOptionNotes' in b,
+            b.renewalOptionNotes ?? null,
+            contract.id,
+            orgId,
+          ]
         );
         await recordAudit(tx, {
           orgId, actorId: userId, action: 'contract.update_metadata', entity: 'contracts', entityId: contract.id as string,
-          before: { endDate: contract.end_date, contractNumber: contract.contract_number },
-          after: { endDate: updated.rows[0].end_date, contractNumber: updated.rows[0].contract_number },
+          before: { endDate: contract.end_date, contractNumber: contract.contract_number, hasRenewalOption: contract.has_renewal_option, renewalOptionNotes: contract.renewal_option_notes },
+          after: { endDate: updated.rows[0].end_date, contractNumber: updated.rows[0].contract_number, hasRenewalOption: updated.rows[0].has_renewal_option, renewalOptionNotes: updated.rows[0].renewal_option_notes },
           requestId: request.id, correlationId: request.correlationId,
         });
         return updated.rows[0];

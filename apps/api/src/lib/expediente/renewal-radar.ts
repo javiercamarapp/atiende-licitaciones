@@ -35,7 +35,7 @@ export interface RenewalAlertCandidate {
   confidence: number;
 }
 
-function daysBetween(fromIsoDate: string, toIsoDate: string): number {
+export function daysBetween(fromIsoDate: string, toIsoDate: string): number {
   const from = new Date(`${fromIsoDate}T00:00:00Z`).getTime();
   const to = new Date(`${toIsoDate}T00:00:00Z`).getTime();
   return Math.round((to - from) / (24 * 60 * 60 * 1000));
@@ -80,4 +80,61 @@ export function computeRenewalAlertCandidates(
     }
   }
   return candidates;
+}
+
+// ---------------------------------------------------------------------------
+// REQ-055 (ronda 8) -- "cliente concreto" del radar: `GET /renewals/upcoming`
+// (`renewal-radar.routes.ts`) necesita, además de la lista plana de
+// candidatas que ya produce `computeRenewalAlertCandidates`, una forma
+// EXPLÍCITA de agrupar por urgencia para que un consumidor de negocio (no
+// un desarrollador leyendo `lead_days`) entienda de un vistazo qué tan
+// pronto actuar -- sin colapsar los tres umbrales en un solo `alertLevel`
+// binario como hace el mecanismo genérico (`post-award.routes.ts`,
+// `computeAlertLevel`).
+// ---------------------------------------------------------------------------
+export type RenewalUrgency = 'urgente' | 'proxima' | 'seguimiento';
+
+/**
+ * Traduce un umbral de antelación (en días) a una etiqueta de urgencia
+ * relativa a `sortedThresholds` (ascendente, sin duplicados): el umbral MÁS
+ * PEQUEÑO (el que se cruza más cerca del vencimiento real) es 'urgente', el
+ * MÁS GRANDE es 'seguimiento', y cualquiera intermedio es 'proxima'. Con un
+ * único umbral configurado, es 'urgente' (no hay "más" ni "menos" urgente
+ * que comparar). Puro y determinista -- la MISMA lista de umbrales siempre
+ * produce la MISMA etiqueta para el mismo valor.
+ */
+export function urgencyForLeadDays(leadDays: number, sortedThresholds: readonly number[]): RenewalUrgency {
+  const idx = sortedThresholds.indexOf(leadDays);
+  if (idx <= 0) return 'urgente';
+  if (idx === sortedThresholds.length - 1) return 'seguimiento';
+  return 'proxima';
+}
+
+export interface RenewalUpcomingCandidate extends RenewalAlertCandidate {
+  /** Días calendario restantes hasta `predictedDate` desde `todayIsoDate` -- SIEMPRE >= 0 (mismo filtro que `computeRenewalAlertCandidates`: un contrato ya vencido no es una "próxima" renovación). */
+  daysUntilEnd: number;
+  urgency: RenewalUrgency;
+}
+
+/**
+ * Igual que `computeRenewalAlertCandidates` (misma semántica: un contrato
+ * puede cruzar varios umbrales A LA VEZ y aparece una vez por cada uno,
+ * NUNCA deduplicado a "el más urgente") pero además calcula `daysUntilEnd`
+ * y `urgency` para consumo directo de un endpoint de negocio -- sin tocar
+ * base de datos ni tablas de alertas persistidas (`renewal_alerts`), a
+ * diferencia de `POST /renewals/scan`. Pura, sin I/O -- facilita probar de
+ * forma exhaustiva la agrupación por urgencia con fechas fijas.
+ */
+export function computeUpcomingRenewals(
+  contracts: readonly RenewalCandidateContract[],
+  todayIsoDate: string,
+  leadDaysThresholds: readonly number[] = DEFAULT_RENEWAL_LEAD_DAYS
+): RenewalUpcomingCandidate[] {
+  const sortedThresholds = [...new Set(leadDaysThresholds)].sort((a, b) => a - b);
+  const candidates = computeRenewalAlertCandidates(contracts, todayIsoDate, sortedThresholds);
+  return candidates.map((candidate) => ({
+    ...candidate,
+    daysUntilEnd: daysBetween(todayIsoDate, candidate.predictedDate),
+    urgency: urgencyForLeadDays(candidate.leadDays, sortedThresholds),
+  }));
 }

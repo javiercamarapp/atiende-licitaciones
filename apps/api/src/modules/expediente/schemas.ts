@@ -423,14 +423,19 @@ export const contractSchema = z.object({
   /** Fecha de fin/vigencia -- insumo directo del radar de renovaciones (REQ-055). */
   endDate: nullableIsoTimestamp,
   contractNumber: z.string().nullable(),
+  /** REQ-055 (ronda 8): true cuando el contrato tiene PACTADA una opción contractual de renovación (se puede extender el mismo contrato) -- distingue del caso genérico "el contrato simplemente termina y exigirá una convocatoria nueva". Metadata declarativa capturada por el usuario; nunca inferida del texto del contrato. */
+  hasRenewalOption: z.boolean(),
+  renewalOptionNotes: z.string().nullable(),
   createdAt: isoTimestamp,
   updatedAt: isoTimestamp,
 });
 
-/** REQ-055: metadatos administrativos del contrato (fecha de fin, número) -- NO es una transición de estado, no pasa por el grafo de `contract-lifecycle.ts`. */
+/** REQ-055: metadatos administrativos del contrato (fecha de fin, número, opción de renovación) -- NO es una transición de estado, no pasa por el grafo de `contract-lifecycle.ts`. */
 export const contractMetadataUpdateSchema = z.object({
   endDate: realCalendarDateString.nullable().optional(),
   contractNumber: z.string().min(1).nullable().optional(),
+  hasRenewalOption: z.boolean().optional(),
+  renewalOptionNotes: z.string().min(1).nullable().optional(),
 });
 
 export const contractTransitionRequestSchema = z.object({
@@ -758,4 +763,55 @@ export const renewalAlertsListQuerySchema = z.object({
 export const renewalAlertsListResponseSchema = z.object({
   items: z.array(renewalAlertSchema),
   nextCursor: z.string().nullable(),
+});
+
+// ---------------------------------------------------------------------------
+// REQ-055 (ronda 8) -- `GET /renewals/upcoming`: el cliente de negocio
+// concreto que exige el requisito. A diferencia de `POST /renewals/scan` +
+// `GET /renewals/alerts` (que persisten alertas/jobs como efecto
+// secundario, bajo demanda), este endpoint es de SOLO LECTURA: calcula en
+// vivo, a partir de `contracts.end_date`, los tres umbrales 90/60/30 (o los
+// que se pidan) de forma SIMULTÁNEA y EXPLÍCITA -- un mismo contrato puede
+// aparecer en más de un grupo de urgencia a la vez (p. ej. a 20 días del
+// vencimiento aparece en los tres) -- nunca colapsa a un solo `alertLevel`
+// binario como el mecanismo genérico de `post-award.routes.ts`.
+export const renewalUpcomingQuerySchema = z.object({
+  /** CSV de umbrales en días (p. ej. "90,60,30"); por defecto 90/60/30. Máximo 10 valores, mismo tope que `renewalScanRequestSchema`. */
+  thresholds: z.string().regex(/^\d+(,\d+)*$/, 'thresholds debe ser una lista de enteros separados por comas, p. ej. "90,60,30"').optional(),
+  /** Tope de contratos evaluados (los más próximos a vencer primero) -- ver `truncated` en la respuesta si se alcanza. */
+  limit: z.string().regex(/^\d+$/, 'limit debe ser un entero positivo').optional(),
+});
+
+export const RENEWAL_URGENCY_ENUM = z.enum(['urgente', 'proxima', 'seguimiento']);
+
+export const renewalUpcomingItemSchema = z.object({
+  contractId: z.string().uuid(),
+  tenderId: z.string().uuid(),
+  tenderTitle: z.string(),
+  contractingBody: z.string().nullable(),
+  contractNumber: z.string().nullable(),
+  /** REQ-055 (ronda 8): si este contrato tiene pactada una opción de renovación -- ver `contracts.has_renewal_option`. */
+  hasRenewalOption: z.boolean(),
+  renewalOptionNotes: z.string().nullable(),
+  endDate: isoTimestamp,
+  /** Días calendario restantes hasta `endDate`, calculados con la MISMA fecha de referencia (`asOfDate`) que el resto de la respuesta -- nunca recalculado por el cliente contra su propio reloj. */
+  daysUntilEnd: z.number().int(),
+  leadDays: z.number().int(),
+  confidence: z.number(),
+});
+
+export const renewalUpcomingGroupSchema = z.object({
+  urgency: RENEWAL_URGENCY_ENUM,
+  leadDays: z.number().int(),
+  items: z.array(renewalUpcomingItemSchema),
+});
+
+export const renewalUpcomingResponseSchema = z.object({
+  asOfDate: realCalendarDateString,
+  /** Umbrales efectivamente usados, ascendente (p. ej. [30, 60, 90]) -- un grupo por umbral, SIEMPRE presente aunque no tenga elementos. */
+  thresholds: z.array(z.number().int()),
+  totalContractsEvaluated: z.number().int(),
+  /** true si se alcanzó `limit` contratos evaluados (ordenados por vencimiento más próximo primero) -- puede haber más contratos con `end_date` futura sin evaluar todavía. Reintentar con un `limit` mayor si aplica. */
+  truncated: z.boolean(),
+  groups: z.array(renewalUpcomingGroupSchema),
 });

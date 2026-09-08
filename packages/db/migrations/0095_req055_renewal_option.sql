@@ -1,0 +1,44 @@
+-- 0095_req055_renewal_option.sql
+-- Ronda 8 (E11, apps/api), REQ-055: cliente concreto del radar de
+-- renovaciones (ronda 6 ya construyó el mecanismo genérico -- contratos con
+-- `end_date` conocida, tres umbrales simultáneos, ver
+-- `lib/expediente/renewal-radar.ts`). Esta migración agrega la ÚNICA pieza
+-- de esquema que faltaba para el "cliente concreto" que pide el requisito:
+-- distinguir, dentro del universo de contratos por vencer, cuáles tienen
+-- PACTADA una opción contractual de renovación (el operador puede optar por
+-- extender el MISMO contrato) de los que simplemente terminan y exigirán
+-- una convocatoria nueva.
+--
+-- DECISIÓN DE DISEÑO (documentada, no oculta): se agregan columnas a
+-- `contracts` -- NO se crea un nuevo `kind` en `post_award_followups` ni se
+-- reutiliza `kind='hito'`. Motivo revisado contra el esquema real antes de
+-- decidir:
+--   1. `post_award_followups` no tiene columna de fecha de fin de contrato
+--      (usa `due_date` genérico por seguimiento) ni una relación 1:1 con
+--      `contracts` -- duplicar `end_date` ahí para poder alertar exigiría
+--      mantener dos fuentes de verdad sincronizadas.
+--   2. El mecanismo de alerta de `post_award_followups` (`computeAlertLevel`
+--      en `post-award.routes.ts`) es BINARIO: un solo `reminderLeadDays` ->
+--      'vencido'/'proximo'. Ese es exactamente el mecanismo genérico que el
+--      backlog señala como "no es el cliente concreto que exige el
+--      requisito" -- reusarlo (vía `kind='hito'`) para renovaciones habría
+--      producido el mismo resultado insuficiente que el backlog ya
+--      descartó, no un cliente específico.
+--   3. El radar de ronda 6 (`renewal_alerts`/`computeRenewalAlertCandidates`)
+--      YA implementa los tres umbrales simultáneos y explícitos sobre
+--      `contracts.end_date` -- es la pieza dedicada correcta. Lo único que
+--      le faltaba era clasificar el contrato mismo por tipo de vencimiento
+--      (con opción de renovación vs. sin ella), no un mecanismo de alerta
+--      nuevo.
+--
+-- `has_renewal_option` NO filtra el escaneo existente (`POST
+-- /renewals/scan` sigue evaluando TODOS los contratos con `end_date`,
+-- comportamiento ya probado en `test/expediente-renewal-radar.test.ts` --
+-- cambiarlo habría sido una regresión silenciosa para organizaciones que
+-- todavía no clasificaron sus contratos). Es metadata ADITIVA que el nuevo
+-- endpoint de negocio (`GET /renewals/upcoming`) expone en cada elemento
+-- para que el cliente de negocio priorice: un contrato con opción de
+-- renovación puede resolverse extendiendo el mismo contrato; uno sin ella
+-- necesita una convocatoria nueva a tiempo.
+alter table contracts add column if not exists has_renewal_option boolean not null default false;
+alter table contracts add column if not exists renewal_option_notes text;

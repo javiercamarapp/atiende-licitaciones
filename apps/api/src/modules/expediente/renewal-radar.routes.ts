@@ -54,9 +54,17 @@ import { WRITE_ROLES } from '@atiende/db';
 import type { DbExecutor } from '@atiende/db';
 import { requireOrgRole } from '../../lib/authorize.js';
 import { recordAudit } from '../../lib/audit.js';
+import { ValidationAppError } from '../../lib/errors.js';
 import { withTx } from '../../lib/expediente/context.js';
 import { encodeCursor, decodeCursor, parsePageSize, toIsoString } from '../../lib/cursor.js';
-import { computeRenewalAlertCandidates, MAX_HISTORICAL_TENDERS, type RenewalCandidateContract } from '../../lib/expediente/renewal-radar.js';
+import {
+  computeRenewalAlertCandidates,
+  computeUpcomingRenewals,
+  urgencyForLeadDays,
+  DEFAULT_RENEWAL_LEAD_DAYS,
+  MAX_HISTORICAL_TENDERS,
+  type RenewalCandidateContract,
+} from '../../lib/expediente/renewal-radar.js';
 import {
   renewalScanRequestSchema,
   renewalRadarRunSchema,
@@ -64,6 +72,8 @@ import {
   renewalAlertsListResponseSchema,
   renewalScanEnqueueRequestSchema,
   renewalScanEnqueueResponseSchema,
+  renewalUpcomingQuerySchema,
+  renewalUpcomingResponseSchema,
 } from './schemas.js';
 
 const NO_ENTITY_LABEL = 'no disponible';
@@ -88,6 +98,31 @@ function toDateOnlyString(value: string | Date | null | undefined): string | nul
   if (value === null || value === undefined) return null;
   if (value instanceof Date) return value.toISOString().slice(0, 10);
   return String(value).slice(0, 10);
+}
+
+/**
+ * REQ-055 (ronda 8): parsea el CSV de `?thresholds=90,60,30` de
+ * `GET /renewals/upcoming` a una lista de enteros positivos, ascendente y
+ * sin duplicados. El formato ya lo validó `renewalUpcomingQuerySchema`
+ * (regex `^\d+(,\d+)*$`) -- aquí solo falta el límite de CANTIDAD (mismo
+ * tope de 10 que `renewalScanRequestSchema`, R6-14) que un regex de formato
+ * no puede expresar.
+ */
+function parseThresholdsCsv(csv: string | undefined): number[] {
+  // Bug real (ronda 8): sin este `.sort`, el caso por defecto devolvía
+  // `DEFAULT_RENEWAL_LEAD_DAYS` tal cual está declarado -- [90, 60, 30],
+  // DESCENDENTE -- rompiendo la garantía documentada arriba ("ascendente")
+  // y el contrato de `renewalUpcomingResponseSchema.thresholds` que el resto
+  // de esta función sí cumple (ver el `.sort` de la rama con CSV, abajo).
+  if (!csv) return [...DEFAULT_RENEWAL_LEAD_DAYS].sort((a, b) => a - b);
+  const values = [...new Set(csv.split(',').map((v) => Number.parseInt(v, 10)))];
+  if (values.length === 0 || values.some((v) => !Number.isFinite(v) || v <= 0)) {
+    throw new ValidationAppError({ thresholds: 'debe ser una lista de enteros positivos separados por comas' });
+  }
+  if (values.length > 10) {
+    throw new ValidationAppError({ thresholds: 'admite hasta 10 umbrales distintos' });
+  }
+  return values.sort((a, b) => a - b);
 }
 
 interface ContractPageRow {
@@ -413,6 +448,104 @@ export async function expedienteRenewalRadarRoutes(app: FastifyInstance): Promis
       const nextCursor = hasMore && last ? encodeCursor(toIsoString(last.predicted_date), String(last.id)) : null;
 
       return { items: page.map(mapAlertRow), nextCursor };
+    }
+  );
+
+  // ---------------------------------------------------------------------------
+  // REQ-055 (ronda 8) -- el "cliente concreto" que exige el requisito: "mis
+  // renovaciones próximas" agrupadas por urgencia, para consumo directo de
+  // un cliente de negocio (no requiere haber corrido antes `POST
+  // /renewals/scan`; calcula en vivo, de solo lectura, SIN persistir nada
+  // ni encolar jobs -- ese sigue siendo el trabajo de `/renewals/scan`).
+  //
+  // Los tres umbrales (90/60/30 por defecto, configurables) se calculan
+  // SIMULTÁNEA y EXPLÍCITAMENTE: un mismo contrato puede aparecer en más de
+  // un grupo de urgencia a la vez (p. ej. a 20 días del vencimiento aparece
+  // en 'urgente'/30, 'proxima'/60 Y 'seguimiento'/90) -- nunca se colapsa a
+  // un solo nivel "el más cercano gana", porque cada umbral cruzado es una
+  // obligación de negocio distinta (a 90 días: empezar a decidir renovar o
+  // convocar; a 60: preparar documentación; a 30: ya urgente). Semántica
+  // verificada en `test/expediente-renewal-radar.test.ts`.
+  //
+  // Acotado (sin paginación por cursor, a diferencia de `GET
+  // /renewals/alerts`): evalúa hasta `limit` contratos (por defecto 200,
+  // techo 2000 -- mismo orden de magnitud que `pageSize` de `/renewals/scan`),
+  // ordenados por `end_date` ascendente (los más próximos a vencer primero),
+  // así que un límite bajo nunca oculta el contrato más urgente. `truncated`
+  // indica honestamente si había más contratos con `end_date` futura sin
+  // evaluar.
+  server.get(
+    '/renewals/upcoming',
+    {
+      preHandler: [app.authenticate, app.requireOrg],
+      schema: { querystring: renewalUpcomingQuerySchema, response: { 200: renewalUpcomingResponseSchema } },
+    },
+    async (request) => {
+      const orgId = request.orgId!;
+      const thresholds = parseThresholdsCsv(request.query.thresholds);
+      const limit = parsePageSize(request.query.limit, 200, 2000);
+      const today = new Date().toISOString().slice(0, 10);
+
+      const rows = await withTx(app.db, orgId, request.userId, async (tx) =>
+        (
+          await tx.query<ContractPageRow & { contract_number: string | null; has_renewal_option: boolean; renewal_option_notes: string | null }>(
+            `select c.id as contract_id, c.tender_id, c.end_date, c.contract_number, c.has_renewal_option, c.renewal_option_notes,
+                    t.contracting_body, t.title
+               from contracts c join tenders t on t.id = c.tender_id and t.org_id = c.org_id
+              where c.org_id = $1 and c.end_date is not null and c.end_date >= current_date
+                and c.status not in ('cerrado', 'rescindido')
+              order by c.end_date asc
+              limit $2`,
+            [orgId, limit + 1]
+          )
+        ).rows
+      );
+
+      const truncated = rows.length > limit;
+      const page = truncated ? rows.slice(0, limit) : rows;
+      const contractById = new Map(page.map((r) => [r.contract_id, r]));
+      const candidates: RenewalCandidateContract[] = page
+        .map((r) => ({ contractId: r.contract_id, tenderId: r.tender_id, endDate: toDateOnlyString(r.end_date) as string }))
+        .filter((c) => c.endDate !== null);
+
+      const upcoming = computeUpcomingRenewals(candidates, today, thresholds);
+
+      const groups = thresholds.map((leadDays) => {
+        const items = upcoming
+          .filter((u) => u.leadDays === leadDays)
+          .sort((a, b) => a.daysUntilEnd - b.daysUntilEnd)
+          .map((u) => {
+            const row = contractById.get(u.contractId)!;
+            return {
+              contractId: u.contractId,
+              tenderId: u.tenderId,
+              tenderTitle: row.title,
+              contractingBody: row.contracting_body,
+              contractNumber: row.contract_number,
+              hasRenewalOption: row.has_renewal_option,
+              renewalOptionNotes: row.renewal_option_notes,
+              endDate: u.predictedDate,
+              daysUntilEnd: u.daysUntilEnd,
+              leadDays: u.leadDays,
+              confidence: u.confidence,
+            };
+          });
+        // `thresholds` ya viene ascendente (`parseThresholdsCsv`) -- se
+        // recalcula la urgencia aquí (en vez de leerla de `upcoming`, que
+        // puede no tener NINGÚN elemento para este `leadDays` si ningún
+        // contrato lo cruzó todavía) para que el grupo SIEMPRE aparezca,
+        // vacío o no, con su etiqueta correcta.
+        const urgency = urgencyForLeadDays(leadDays, thresholds);
+        return { urgency, leadDays, items };
+      });
+
+      return {
+        asOfDate: today,
+        thresholds,
+        totalContractsEvaluated: page.length,
+        truncated,
+        groups,
+      };
     }
   );
 }
