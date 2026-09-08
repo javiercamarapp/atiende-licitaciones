@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CompanyDataService, InMemoryCompanyDataResolver, isResolved, type ApprovedRate } from "../src/company-data.js";
+import { CompanyDataService, InMemoryCompanyDataResolver, isResolved, type ApprovedRate, type CompanyExperienceRecord } from "../src/company-data.js";
 
 const ASOF = "2026-10-20T12:00:00-06:00"; // fecha límite del acto (no "hoy")
 
@@ -140,5 +140,115 @@ describe("CompanyDataService — EX-EXP-07: aserción runtime de moneda (REQ-160
     const resolver = new InMemoryCompanyDataResolver({ rates: [rateWithWrongCurrency] });
     const service = new CompanyDataService(resolver);
     expect(() => service.resolveApprovedRate("empresa-1", "consultoria_hora", ASOF)).toThrow(/MXN/);
+  });
+});
+
+describe("CompanyDataService.resolveExperience — REQ-143: aserción runtime de evidenceDocId", () => {
+  it("resuelve OK cuando evidenceDocId apunta a un documento real y existente en la bóveda documental", () => {
+    const resolver = new InMemoryCompanyDataResolver({
+      documents: [
+        {
+          id: "doc-evidencia-1",
+          companyId: "empresa-1",
+          type: "contrato_cliente",
+          label: "Contrato con cliente X",
+          issuedAt: "2025-01-01T00:00:00-06:00",
+          expiresAt: null,
+          approvalStatus: "aprobado",
+        },
+      ],
+      experience: [
+        {
+          id: "exp-1",
+          companyId: "empresa-1",
+          description: "Mantenimiento industrial para cliente X",
+          evidenceDocId: "doc-evidencia-1",
+          approvalStatus: "aprobado",
+        },
+      ],
+    });
+    const service = new CompanyDataService(resolver);
+    const result = service.resolveExperience("empresa-1", "exp-1");
+    expect(result.status).toBe("ok");
+    if (isResolved(result)) {
+      expect(result.sourceRef.docId).toBe("doc-evidencia-1");
+    }
+  });
+
+  it("bloquea (no resuelve OK) una experiencia cuyo evidenceDocId no corresponde a ningún documento de la bóveda documental", () => {
+    // El documento referenciado nunca se cargó en el resolver (p. ej. se
+    // borró, o nunca existió) -- `evidenceDocId` sigue siendo un `string`
+    // válido a nivel de tipos, pero no hay evidencia REAL detrás.
+    const resolver = new InMemoryCompanyDataResolver({
+      documents: [],
+      experience: [
+        {
+          id: "exp-1",
+          companyId: "empresa-1",
+          description: "Mantenimiento industrial para cliente X",
+          evidenceDocId: "doc-que-no-existe",
+          approvalStatus: "aprobado",
+        },
+      ],
+    });
+    const service = new CompanyDataService(resolver);
+    const result = service.resolveExperience("empresa-1", "exp-1");
+    expect(result.status).toBe("blocked");
+    if (result.status === "blocked") {
+      expect(result.reason).toBe("evidencia_no_verificable");
+      expect(result.detail).toMatch(/doc-que-no-existe/);
+    }
+    expect(isResolved(result)).toBe(false);
+  });
+
+  it("bloquea una experiencia con evidenceDocId vacío colado por un payload que burla el tipo (as unknown as)", () => {
+    // `CompanyExperienceRecord.evidenceDocId` es `string` NO opcional a
+    // nivel de tipos -- pero un payload construido con un cast (el mismo
+    // escenario que un JSON no tipado de Postgres, o un cuerpo HTTP
+    // deserializado sin pasar por el schema de creación) puede colar una
+    // cadena vacía sin que el compilador lo note.
+    const experienceWithFabricatedEvidence = {
+      id: "exp-1",
+      companyId: "empresa-1",
+      description: "Mantenimiento industrial para cliente X",
+      evidenceDocId: "",
+      approvalStatus: "aprobado",
+    } as unknown as CompanyExperienceRecord;
+
+    const resolver = new InMemoryCompanyDataResolver({
+      documents: [],
+      experience: [experienceWithFabricatedEvidence],
+    });
+    const service = new CompanyDataService(resolver);
+    const result = service.resolveExperience("empresa-1", "exp-1");
+    expect(result.status).toBe("blocked");
+    if (result.status === "blocked") {
+      expect(result.reason).toBe("evidencia_no_verificable");
+    }
+    expect(isResolved(result)).toBe(false);
+  });
+
+  it("bloquea una experiencia con evidenceDocId ausente (undefined) colado por un payload sin tipar", () => {
+    const experienceWithMissingEvidence = {
+      id: "exp-1",
+      companyId: "empresa-1",
+      description: "Mantenimiento industrial para cliente X",
+      approvalStatus: "aprobado",
+      // evidenceDocId deliberadamente ausente: un `JSON.parse` de una fila
+      // de Postgres sin `evidence_ref`, o un objeto armado a mano, nunca
+      // pasaría el tipo en tiempo de compilación, pero SÍ puede llegar así
+      // en runtime.
+    } as unknown as CompanyExperienceRecord;
+
+    const resolver = new InMemoryCompanyDataResolver({
+      documents: [],
+      experience: [experienceWithMissingEvidence],
+    });
+    const service = new CompanyDataService(resolver);
+    const result = service.resolveExperience("empresa-1", "exp-1");
+    expect(result.status).toBe("blocked");
+    if (result.status === "blocked") {
+      expect(result.reason).toBe("evidencia_no_verificable");
+    }
   });
 });

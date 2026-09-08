@@ -100,13 +100,83 @@ describe('perfil de empresa (E2)', () => {
     });
     expect(withoutEvidence.json().verifiable).toBe(false);
 
+    const contentBase64 = Buffer.from('contrato de obra hidráulica, evidencia real').toString('base64');
+    const document = await app.inject({
+      method: 'POST',
+      url: '/company/documents',
+      headers: { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id },
+      payload: { documentType: 'contrato_cliente', contentBase64 },
+    });
+    expect(document.statusCode).toBe(201);
+    const documentId = document.json().id as string;
+
     const withEvidence = await app.inject({
       method: 'POST',
       url: '/company/experience',
       headers: { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id },
-      payload: { title: 'Contrato de obra hidráulica', evidenceRef: 'company-docs/contrato-2024.pdf' },
+      payload: { title: 'Contrato de obra hidráulica', evidenceRef: documentId },
     });
+    expect(withEvidence.statusCode).toBe(201);
     expect(withEvidence.json().verifiable).toBe(true);
+    expect(withEvidence.json().evidenceRef).toBe(documentId);
+  });
+
+  it('REQ-143: evidenceRef que no apunta a un documento real y existente de la bóveda documental se rechaza con 422 (creación y edición)', async () => {
+    const owner = await registerAndLogin(app, 'company-owner-3b@example.com');
+    const org = await createOrgFor(app, owner, 'Company Org 3B', 'company-org-3b');
+
+    // Payload que "burla" el contrato lógico: una ruta de archivo inventada,
+    // no el id de ningún documento real de la bóveda documental de la
+    // organización (el escenario exacto de REQ-143: evidenceDocId
+    // obligatorio solo a nivel de tipos, sin evidencia real detrás).
+    const fabricated = await app.inject({
+      method: 'POST',
+      url: '/company/experience',
+      headers: { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id },
+      payload: { title: 'Contrato inventado', evidenceRef: 'company-docs/no-existe.pdf' },
+    });
+    expect(fabricated.statusCode).toBe(422);
+    expect(fabricated.json().detail.evidenceRef).toMatch(/uuid|documento real/i);
+
+    // Un uuid con formato válido pero que no corresponde a ningún documento
+    // de esta organización tampoco puede colarse.
+    const nonExistentButValidUuid = await app.inject({
+      method: 'POST',
+      url: '/company/experience',
+      headers: { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id },
+      payload: { title: 'Contrato con uuid inexistente', evidenceRef: '00000000-0000-0000-0000-000000000000' },
+    });
+    expect(nonExistentButValidUuid.statusCode).toBe(422);
+    expect(nonExistentButValidUuid.json().detail.evidenceRef).toMatch(/no corresponde a ningún documento/);
+
+    // La misma regla aplica al editar (PATCH) un registro de experiencia ya
+    // existente: no puede "adjuntársele" evidencia fabricada después.
+    const created = await app.inject({
+      method: 'POST',
+      url: '/company/experience',
+      headers: { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id },
+      payload: { title: 'Experiencia sin evidencia aún' },
+    });
+    expect(created.statusCode).toBe(201);
+    const experienceId = created.json().id as string;
+
+    const patched = await app.inject({
+      method: 'PATCH',
+      url: `/company/experience/${experienceId}`,
+      headers: { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id },
+      payload: { evidenceRef: 'company-docs/fabricado.pdf' },
+    });
+    expect(patched.statusCode).toBe(422);
+
+    // El registro nunca quedó modificado por el intento rechazado.
+    const listAfter = await app.inject({
+      method: 'GET',
+      url: '/company/experience',
+      headers: { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id },
+    });
+    const stillUnverifiable = listAfter.json().find((e: any) => e.id === experienceId);
+    expect(stillUnverifiable.verifiable).toBe(false);
+    expect(stillUnverifiable.evidenceRef).toBeNull();
   });
 
   it('company_documents: documento vencido se refleja con status expired (REQ-023, A7)', async () => {

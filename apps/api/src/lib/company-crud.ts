@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import type { OrgRole } from '@atiende/db';
+import type { DbExecutor, OrgRole } from '@atiende/db';
 import { NotFoundError } from './errors.js';
 import { recordAudit } from './audit.js';
 import { requireOrgRole } from './authorize.js';
@@ -34,6 +34,16 @@ export interface SimpleCrudOptions<TCreate, TUpdate> {
   toColumns: (body: TCreate | TUpdate) => Record<string, unknown>;
   /** Convierte una fila de la base (snake_case) a la forma de respuesta (camelCase). */
   fromRow: (row: Record<string, unknown>) => Record<string, unknown>;
+  /**
+   * Validación adicional específica de la entidad (más allá del schema de
+   * Zod), corre DENTRO de la misma transacción -- ya con `set local role
+   * app_role`/contexto de tenant aplicado, así que puede consultar otras
+   * tablas de la organización con RLS real -- justo antes de insertar o
+   * actualizar. Debe lanzar un `AppError` (p. ej. `ValidationAppError`,
+   * 422) si el body no es válido; cualquier excepción aborta la
+   * transacción (ROLLBACK) y nunca llega a tocar la tabla.
+   */
+  validate?: (columns: Record<string, unknown>, ctx: { tx: DbExecutor; orgId: string }) => Promise<void>;
 }
 
 export function registerSimpleCrud<TCreate, TUpdate>(
@@ -89,6 +99,7 @@ export function registerSimpleCrud<TCreate, TUpdate>(
         await tx.query('set local role app_role');
         await tx.query("select set_config('app.current_org_id', $1, true)", [orgId]);
         await tx.query("select set_config('app.current_user_id', $1, true)", [userId]);
+        if (opts.validate) await opts.validate(columns, { tx, orgId });
         const inserted = await tx.query(
           `insert into ${opts.table} (${colNames.join(', ')}) values (${placeholders}) returning *`,
           values
@@ -142,6 +153,7 @@ export function registerSimpleCrud<TCreate, TUpdate>(
         await tx.query('set local role app_role');
         await tx.query("select set_config('app.current_org_id', $1, true)", [orgId]);
         await tx.query("select set_config('app.current_user_id', $1, true)", [userId]);
+        if (opts.validate) await opts.validate(columns, { tx, orgId });
         const before = await tx.query(`select * from ${opts.table} where id = $1 and org_id = $2`, [id, orgId]);
         const updated = await tx.query(
           `update ${opts.table} set ${setClause} where id = $1 and org_id = ${'$' + (values.length + 1)} returning *`,
