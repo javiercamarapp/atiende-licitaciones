@@ -58,6 +58,10 @@ PATTERNS=(
   # Dominio de Supabase (si el proyecto llegara a usarlo, no debe haber URLs
   # reales de proyecto commiteadas).
   '[a-z0-9-]+\.supabase\.co'
+  # Google OAuth client secret real (prefijo usado por Google Cloud Console
+  # desde 2021). Ancla al prefijo del VALOR, no al nombre de la variable, para
+  # no capturar "GOOGLE_CLIENT_SECRET=" vacío o con placeholder.
+  'GOCSPX-[A-Za-z0-9_-]{20,}'
 )
 
 echo "[check-secrets] buscando patrones de secretos en el árbol de trabajo (excluye node_modules, dist, coverage, .env.example)..."
