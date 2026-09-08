@@ -275,17 +275,21 @@ export async function sendContactReceivedEmail(
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// `tender_matches` / `submission` -- las dos categorías que además del
-// correo mandan el aviso ADICIONAL de WhatsApp (`whatsapp-channel.ts`, ver
-// también `packages/whatsapp/README.md`). Sin disparador de negocio
-// todavía cableado a un evento real (el motor de matching real y el
-// ensamblado de paquete -- `modules/matching/routes.ts`,
-// `modules/expediente/package.routes.ts` -- no llaman a ninguna de las tres
-// funciones de abajo hoy): mismo patrón que `sendWelcomeOnboardingEmail`/
-// `sendTwoFactorEnabledEmail` arriba, ya usado en este archivo, de dejar la
-// función de envío lista (correo + WhatsApp, preferencias, idempotencia)
-// para que un futuro caller solo tenga que invocarla con los datos del
-// evento real. Los tres siguen el MISMO patrón:
+// `tender_matches` / `submission` / `tender_changes` -- las categorías que
+// además del correo mandan el aviso ADICIONAL de WhatsApp
+// (`whatsapp-channel.ts`, ver también `packages/whatsapp/README.md`).
+// `tender_matches`/`submission` siguen SIN disparador de negocio cableado a
+// un evento real (el motor de matching real y el ensamblado de paquete --
+// `modules/matching/routes.ts`, `modules/expediente/package.routes.ts` -- no
+// llaman a ninguna de sus dos funciones hoy): mismo patrón que
+// `sendWelcomeOnboardingEmail`/`sendTwoFactorEnabledEmail` arriba, ya usado
+// en este archivo, de dejar la función de envío lista (correo + WhatsApp,
+// preferencias, idempotencia) para que un futuro caller solo tenga que
+// invocarla con los datos del evento real. `tender_changes`
+// (`sendTenderChangeEmail`) es la EXCEPCIÓN: REQ-155 la conecta a un evento
+// real desde `modules/tenders/internal-ingest.routes.ts`
+// (`notifyTenderChangeToResponsibles`, `lib/mail/tender-change-notify.ts`).
+// Las cuatro siguen el MISMO patrón:
 //
 //  1. Cargar preferencias UNA sola vez (`safeReadPreferences`).
 //  2. Mandar el correo (`sendTransactionalMail`, canal principal, como
@@ -410,6 +414,83 @@ export async function sendTenderMatchDigestEmail(
     templateParams: {
       '1': String(params.matches.length),
       '2': first ? first.title : '',
+    },
+  });
+
+  return outcome;
+}
+
+/**
+ * REQ-155/REQ-181 (plantilla `tender-change`, categoría `tender_changes`):
+ * una convocatoria que la organización ya sigue tuvo un cambio (nueva
+ * versión de bases, plazo, anexo, aclaración o cancelación) que invalidó en
+ * cascada sus dependientes (`proposals`/`requirement_items`/
+ * `compliance_items`/`proposal_approvals`, ver
+ * `app.invalidate_tender_dependents`, `packages/db/migrations/
+ * 0022_fix_db05_change_event_invalidation.sql`). Llamado desde
+ * `modules/tenders/internal-ingest.routes.ts` (`notifyTenderChangeToResponsibles`,
+ * `lib/mail/tender-change-notify.ts`) UNA VEZ POR MIEMBRO responsable,
+ * siempre DESPUÉS de que esa invalidación ya hizo commit -- ver la regla
+ * dura documentada ahí: un fallo de este aviso (correo o WhatsApp) nunca
+ * revierte ni bloquea la invalidación real, que ya es un hecho consumado.
+ *
+ * `messageKey` incluye `versionId` (no solo `tenderId`): cada cambio de la
+ * MISMA convocatoria crea una `tender_versions` nueva y debe generar un
+ * aviso distinto -- a diferencia de `sendNewTenderMatchEmail` (un match es
+ * un evento único por tender), aquí puede haber varios cambios reales sobre
+ * el mismo tender y cada uno merece su propio correo.
+ */
+export async function sendTenderChangeEmail(
+  app: FastifyInstance,
+  user: MinimalUserWithPhone,
+  params: {
+    organizationId: string;
+    tenderId: string;
+    /** Identifica ESTE cambio (`tender_versions.id`) -- ver el comentario de arriba sobre `messageKey`. */
+    versionId: string;
+    tenderTitle: string;
+    changeType: 'version' | 'plazo' | 'otro';
+    changeSummary: string;
+    previousDeadlineIso?: string;
+    newDeadlineIso?: string;
+    tenderUrl: string;
+  }
+): Promise<SendOutcome> {
+  const preferences = await safeReadPreferences(app, user.id);
+
+  const outcome = await sendTransactionalMail(app, {
+    to: registeredUserRecipient(user, params.organizationId),
+    templateId: 'tender-change',
+    orgId: params.organizationId,
+    messageKey: `tender-change:${user.id}:${params.tenderId}:${params.versionId}`,
+    preferences,
+    variables: {
+      recipientName: displayName(user),
+      appUrl: app.config.publicUrl,
+      supportEmail: app.config.supportEmail,
+      preferencesUrl: buildPreferencesUrl(app),
+      unsubscribeUrl: buildUnsubscribeUrl(app, user.id, 'tender_changes'),
+      tenderTitle: params.tenderTitle,
+      changeType: params.changeType,
+      changeSummary: params.changeSummary,
+      ...(params.previousDeadlineIso ? { previousDeadlineIso: params.previousDeadlineIso } : {}),
+      ...(params.newDeadlineIso ? { newDeadlineIso: params.newDeadlineIso } : {}),
+      tenderUrl: params.tenderUrl,
+    },
+  });
+
+  await sendWhatsAppSideChannel(app, {
+    userId: user.id,
+    phone: user.whatsappPhone,
+    category: 'tender_changes',
+    preferences,
+    // Nombre de plantilla pendiente de alta/aprobación real en el WhatsApp
+    // Manager de Meta -- ver packages/whatsapp/README.md. `{{1}}` = título de
+    // la convocatoria, `{{2}}` = resumen corto del cambio.
+    templateName: 'cambio_convocatoria',
+    templateParams: {
+      '1': params.tenderTitle,
+      '2': params.changeSummary,
     },
   });
 
