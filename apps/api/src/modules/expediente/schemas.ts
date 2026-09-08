@@ -533,9 +533,34 @@ export const inconformidadGenerateSchema = z.object({
   falloNotifiedOn: realCalendarDateString,
   /** Si el procedimiento es una licitación pública internacional bajo cobertura de tratados (Art. 95 LAASSP: 10 días hábiles en vez de 6). */
   bajoTratados: z.boolean().default(false),
-  hechos: z.array(z.string().min(1)).min(1),
+  /**
+   * Ronda 7 (REQ-053): capturados a mano por el usuario. Puede ir vacío
+   * SOLO si `sourceAutopsyId` aporta al menos un hecho derivado -- el
+   * conjunto final (manual + derivado) debe tener al menos uno, nunca un
+   * borrador sin ningún hecho (validado en la ruta, no aquí, porque
+   * depende de datos de base).
+   */
+  hechos: z.array(z.string().min(1)).default([]),
+  /**
+   * Los agravios (fundamento de la impugnación) SIEMPRE los redacta un
+   * humano -- nunca se derivan automáticamente de la matriz de requisitos
+   * ni de la autopsia: un hueco en el checklist propio es responsabilidad
+   * del cliente, no necesariamente una irregularidad de la convocante, y
+   * fabricar un "agravio" a partir de eso sería jurídicamente irresponsable
+   * (E9). Por eso este campo sigue siendo obligatorio y no admite derivación.
+   */
   agravios: z.array(z.string().min(1)).min(1),
   pruebas: z.array(z.string().min(1)).default([]),
+  /**
+   * Ronda 7 (REQ-053): vincula este borrador a una autopsia del fallo ya
+   * registrada (`fallo_autopsies`, REQ-054) -- si se declara, sus datos YA
+   * capturados (motivo de desechamiento, comparación de criterios, precio
+   * propio vs. ganador) se anexan a `hechos` como restatement factual
+   * (nunca se inventa nada nuevo, solo se repite lo que el usuario ya
+   * declaró en la autopsia). La autopsia debe pertenecer a la misma
+   * convocatoria y no puede tener `ownProposalStatus = 'ganadora'`.
+   */
+  sourceAutopsyId: z.string().uuid().optional(),
 });
 
 export const inconformidadDraftSchema = z.object({
@@ -611,6 +636,32 @@ export const falloAutopsiaSchema = z.object({
   lessons: z.array(z.string()),
   linkedToCompanyProfile: z.boolean(),
   createdAt: isoTimestamp,
+});
+
+// ---------------------------------------------------------------------------
+// REQ-054 (ronda 7): análisis automatizado de "posibles causas de no
+// adjudicación" -- compara la autopsia registrada contra la matriz de
+// requisitos (E6) de la convocatoria. Ver
+// `lib/expediente/fallo-analysis.ts` (función pura `analyzeFalloCauses`).
+// ---------------------------------------------------------------------------
+export const falloPossibleCauseSchema = z.object({
+  origin: z.enum(['fallo_declarado', 'requisito_pendiente', 'requisito_bloqueado']),
+  description: z.string(),
+  requirementItemId: z.string().uuid().nullable(),
+  category: z.string().nullable(),
+  sourcePage: z.number().nullable(),
+  clauseRef: z.string().nullable(),
+});
+
+export const falloAnalysisSchema = z.object({
+  tenderId: z.string().uuid(),
+  applicable: z.boolean(),
+  hasAutopsy: z.boolean(),
+  hasFalloReasonDeclared: z.boolean(),
+  hasRequirementMatrix: z.boolean(),
+  possibleCauses: z.array(falloPossibleCauseSchema),
+  missingDataNotes: z.array(z.string()),
+  disclaimer: z.string(),
 });
 
 // ---------------------------------------------------------------------------
