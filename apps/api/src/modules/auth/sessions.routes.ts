@@ -84,6 +84,7 @@ export async function sessionsRoutes(app: FastifyInstance): Promise<void> {
           action: 'auth.session_revoked',
           after: { sessionId: id, ...auditContext(request) },
           requestId: request.id,
+          correlationId: request.correlationId,
         });
         return true;
       });
@@ -122,6 +123,7 @@ export async function sessionsRoutes(app: FastifyInstance): Promise<void> {
             action: 'auth.sessions_revoked_others',
             after: { revokedCount: count, ...auditContext(request) },
             requestId: request.id,
+            correlationId: request.correlationId,
           });
           return count;
         });

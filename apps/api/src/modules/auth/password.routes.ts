@@ -81,7 +81,13 @@ export async function authPasswordRoutes(app: FastifyInstance): Promise<void> {
         // (0084) tras un restablecimiento por correo -- ver docstring.
         await tx.query('select app.revoke_all_refresh_tokens($1)', [userId]);
 
-        await recordAuthAudit(tx, { actorId: userId, action: 'auth.password_changed', after: auditContext(request), requestId: request.id });
+        await recordAuthAudit(tx, {
+          actorId: userId,
+          action: 'auth.password_changed',
+          after: auditContext(request),
+          requestId: request.id,
+          correlationId: request.correlationId,
+        });
 
         return { kind: 'ok' as const };
       });

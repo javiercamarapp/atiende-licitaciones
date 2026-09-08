@@ -86,6 +86,16 @@ export interface AuthAuditEntry {
   /** NUNCA debe incluir contraseñas ni tokens -- solo metadatos (ip, user-agent, email en login_failed). */
   after?: unknown;
   requestId?: string | null;
+  /**
+   * REQ-177: brecha honesta cerrada aquí -- id de correlación de negocio
+   * (mismo mecanismo que `AuditEntry.correlationId`, ver
+   * `plugins/correlation-id.plugin.ts`), antes NUNCA propagado hasta
+   * `app.record_auth_event`, así que `audit_log.correlation_id` quedaba
+   * NULL en todo evento de autenticación (login, refresh, logout, Google,
+   * verificación de correo, restablecimiento de contraseña) -- con
+   * paridad exacta entre Google y email+contraseña.
+   */
+  correlationId?: string | null;
 }
 
 /**
@@ -104,11 +114,12 @@ export interface AuthAuditEntry {
  * llamadora, igual que cualquier otra escritura de `apps/api`.
  */
 export async function recordAuthAudit(tx: DbExecutor, entry: AuthAuditEntry): Promise<void> {
-  await tx.query('select app.record_auth_event($1, $2, $3::jsonb, $4)', [
+  await tx.query('select app.record_auth_event($1, $2, $3::jsonb, $4, $5)', [
     entry.action,
     entry.actorId,
     entry.after !== undefined ? JSON.stringify(entry.after) : null,
     entry.requestId ?? null,
+    entry.correlationId ?? null,
   ]);
 }
 

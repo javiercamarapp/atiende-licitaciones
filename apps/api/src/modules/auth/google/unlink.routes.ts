@@ -103,6 +103,7 @@ export async function googleUnlinkRoutes(app: FastifyInstance): Promise<void> {
           action: 'auth.google_unlinked',
           after: auditContext(request),
           requestId: request.id,
+          correlationId: request.correlationId,
         });
 
         return { kind: 'ok' as const };
