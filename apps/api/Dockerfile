@@ -55,6 +55,8 @@ COPY packages/agents/package.json packages/agents/package.json
 COPY packages/db/package.json packages/db/package.json
 COPY packages/expediente/package.json packages/expediente/package.json
 COPY packages/sources/package.json packages/sources/package.json
+COPY packages/mail/package.json packages/mail/package.json
+COPY packages/whatsapp/package.json packages/whatsapp/package.json
 
 RUN npm ci
 
@@ -65,6 +67,19 @@ ENV NODE_ENV=production \
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
+# `npm ci` en la raíz NO siempre hoistea todo a node_modules/ raíz: en esta
+# resolución concreta del lockfile, @fastify/swagger (y sus dependencias
+# transitivas @fastify/json-schema-resolver, ajv-*, typescript) quedan
+# anidadas en apps/api/node_modules/ en vez de la raíz -- verificado
+# directamente (`docker run --entrypoint sh <imagen-deps> -c "ls
+# apps/api/node_modules"`) al diagnosticar un ERR_MODULE_NOT_FOUND real en
+# runtime que ninguna prueba de CI detecta (CI nunca ejecuta la imagen
+# Docker, solo `npm run test`, que sí ve el node_modules anidado porque
+# corre desde la raíz del repo con Node resolviendo hacia arriba). Sin esta
+# copia, la imagen arranca y crashea en bucle. Si una futura regeneración
+# de package-lock.json cambia esta decisión de hoisting, volver a verificar
+# con el mismo comando antes de asumir que esta línea sigue haciendo falta.
+COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules
 COPY package.json package-lock.json ./
 
 COPY apps/api/package.json apps/api/package.json
@@ -83,6 +98,12 @@ COPY packages/expediente/src packages/expediente/src
 
 COPY packages/sources/package.json packages/sources/package.json
 COPY packages/sources/src packages/sources/src
+
+COPY packages/mail/package.json packages/mail/package.json
+COPY packages/mail/src packages/mail/src
+
+COPY packages/whatsapp/package.json packages/whatsapp/package.json
+COPY packages/whatsapp/src packages/whatsapp/src
 
 # scripts/db-postgres-migrate.mjs: reutilizado por el servicio "migrate" de
 # un solo uso en infra/compose/docker-compose.prod.yml (misma imagen que la

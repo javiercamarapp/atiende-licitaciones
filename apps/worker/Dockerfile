@@ -35,6 +35,7 @@ COPY packages/agents/package.json packages/agents/package.json
 COPY packages/db/package.json packages/db/package.json
 COPY packages/expediente/package.json packages/expediente/package.json
 COPY packages/sources/package.json packages/sources/package.json
+COPY packages/mail/package.json packages/mail/package.json
 
 RUN npm ci
 
@@ -57,6 +58,9 @@ COPY packages/db/migrations packages/db/migrations
 
 COPY packages/sources/package.json packages/sources/package.json
 COPY packages/sources/src packages/sources/src
+
+COPY packages/mail/package.json packages/mail/package.json
+COPY packages/mail/src packages/mail/src
 
 RUN chown -R node:node /app
 
