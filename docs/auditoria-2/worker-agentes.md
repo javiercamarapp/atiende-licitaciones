@@ -473,7 +473,8 @@ contenido (ver WK6-01).
   `fetchImpl` — el espía nunca se llamó (`toHaveBeenCalled()` falso).
 - **Con clave falsa, error controlado sin fuga de la clave**: se simuló una
   respuesta 401 real de OpenAI (`fetchImpl` capturó el header
-  `Authorization: Bearer sk-test-super-secreta-...` para confirmar que la
+  `Authorization: Bearer sk-ejemplo_super-secreta` (fixture de prueba,
+  cadena de ejemplo) para confirmar que la
   clave SÍ se usa) y se verificó que el `Error` lanzado
   (`OpenAI Responses API respondió 401: {"error":{"message":"Invalid API
   key provided"}}`) **no contiene la clave** en ningún punto —

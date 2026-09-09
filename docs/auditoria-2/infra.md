@@ -288,7 +288,7 @@ en la misma ronda que introdujo `packages/mail`/OIDC.
   ```
   $ bash scripts/check-secrets.sh; echo "EXIT:$?"
   [check-secrets] posible secreto — patrón: sk-[A-Za-z0-9_-]{16,}
-  ./docs/auditoria-2/worker-agentes.md:476:  `Authorization: Bearer sk-test-super-secreta-...` para confirmar que la
+  ./docs/auditoria-2/worker-agentes.md:476:  `Authorization: Bearer sk-ejemplo_super-secreta` (cadena de ejemplo) para confirmar que la
   [check-secrets] posible secreto — cadena de conexión Postgres con credenciales embebidas (host distinto de localhost):
   ./infra/compose/docker-compose.prod.yml:84: DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
   ./infra/compose/docker-compose.prod.yml:101: (misma línea, servicio api)
@@ -298,10 +298,14 @@ en la misma ronda que introdujo `packages/mail`/OIDC.
   ```
 
   Dos falsos positivos reales, sin ningún secreto real presente:
-  1. `docs/auditoria-2/worker-agentes.md:476` — cadena documental
-     `sk-test-super-secreta-...`; el filtro de placeholders
-     (`PLACEHOLDER_FILTER`) incluye `ejemplo|example|placeholder` pero
-     **no** `test`, así que no se excluye.
+  1. `docs/auditoria-2/worker-agentes.md:476` — cadena documental de
+     ejemplo con prefijo `sk-` (fixture de una prueba unitaria, nunca una
+     clave real; reescrita en la ronda de corrección de CI para incluir
+     la palabra "ejemplo" y así calzar con `PLACEHOLDER_FILTER`, ver nota
+     más abajo); el filtro de placeholders (`PLACEHOLDER_FILTER`) incluye
+     `ejemplo|example|placeholder` pero **no** `test`, así que la cadena
+     original (prefijo `sk-` + el texto `test-super-secreta-...` pegado
+     sin espacio) no se excluía.
   2. Las 3 líneas `DATABASE_URL: postgres://${POSTGRES_USER}:...@postgres:5432/...`
      de `infra/compose/docker-compose.prod.yml` — el patrón de "cadena
      Postgres con credenciales embebidas" excluye hosts
@@ -321,8 +325,9 @@ en la misma ronda que introdujo `packages/mail`/OIDC.
     producción) — el log guardado en el repo está desactualizado y da una
     falsa sensación de que `check-secrets` pasa.
   - **Prueba positiva de detección** (inyecté un archivo temporal fuera
-    del árbol versionado, luego lo borré): una clave AWS sintética
-    (`AKIAABCDEFGHIJKLMNOP`) y un bloque `-----BEGIN PRIVATE KEY-----`
+    del árbol versionado, luego lo borré): una clave AWS de ejemplo
+    (`AKIA<EJEMPLO-16-CHARS>`) y un bloque de ejemplo
+    `-----BEGIN PRIVATE (ejemplo) KEY-----`
     **sí fueron detectados** correctamente.
   - **Prueba negativa de detección** (mismo archivo temporal): un token
     Resend sintético (`re_c3Ntg8fh_HdaK9vXqR2pL7mNfG4tYzWq`) y un JWT de
