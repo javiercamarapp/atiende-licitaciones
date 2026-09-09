@@ -13,6 +13,19 @@ export interface RecordSourceRunInput {
   evidence?: Record<string, unknown>;
   /** Cobertura esperado-vs-obtenido (REQ-147). */
   coverage?: Record<string, unknown>;
+  /**
+   * Residual de REQ-171 (R5-04 lo resolvió para `tenders`/`tender_versions`,
+   * pero `source_runs` -- el PRIMER eslabón real de la cadena "convocatoria ->
+   * matriz -> propuesta -> paquete -> archivo", ya que es lo que dispara la
+   * ingesta -- se quedó sin escribirlo pese a que la columna existe desde
+   * `0056_correlation_id_propagation.sql`). Mismo patrón que
+   * `apps/api/.../internal-ingest.routes.ts`: el llamador (aquí,
+   * `handlers/discover-tenders.ts`) decide/genera el id UNA vez por corrida y
+   * lo pasa explícitamente -- este repositorio nunca inventa uno por su
+   * cuenta, para que quien no lo pase note el hueco en vez de que quede
+   * enmascarado con un id nuevo en cada INSERT.
+   */
+  correlationId: string;
 }
 
 export interface SourceRunRow {
@@ -25,6 +38,7 @@ export interface SourceRunRow {
   last_success_at: string | null;
   evidence: Record<string, unknown>;
   coverage: Record<string, unknown>;
+  correlation_id: string | null;
   created_at: string;
 }
 
@@ -42,8 +56,8 @@ export async function recordSourceRun(db: DbClient, input: RecordSourceRunInput)
   const status = toDbStatus(input.fineState);
   const evidence = { fineState: input.fineState, ...input.evidence };
   const { rows } = await db.query<SourceRunRow>(
-    `insert into source_runs (source_id, status, started_at, finished_at, attempts, last_success_at, evidence, coverage)
-     values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb)
+    `insert into source_runs (source_id, status, started_at, finished_at, attempts, last_success_at, evidence, coverage, correlation_id)
+     values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9)
      returning *`,
     [
       input.sourceId,
@@ -54,6 +68,7 @@ export async function recordSourceRun(db: DbClient, input: RecordSourceRunInput)
       input.lastSuccessAt ? input.lastSuccessAt.toISOString() : null,
       JSON.stringify(evidence),
       JSON.stringify(input.coverage ?? {}),
+      input.correlationId,
     ],
   );
   return rows[0];

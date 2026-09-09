@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { DbClient, DbExecutor } from '@atiende/db';
 import { createTestApp, registerAndLogin, createOrgFor, TEST_PLATFORM_API_KEY } from './helpers.js';
+import { computeUpcomingRenewals, urgencyForLeadDays } from '../src/lib/expediente/renewal-radar.js';
 
 /**
  * REQ-055 — radar de renovaciones: a partir de contratos con fecha de fin y
@@ -74,6 +75,111 @@ function countTxQueries(db: DbClient, opts: { matchSql?: RegExp } = {}): { stop:
 
 /** R6-09: patrón único de la consulta de UNA página de contratos en `scanContractsPage` (`renewal-radar.routes.ts`) -- contar sus ejecuciones es contar páginas realmente recorridas. */
 const CONTRACT_PAGE_QUERY_PATTERN = /from contracts c join tenders t/;
+
+/**
+ * REQ-055 (ronda 8) -- `computeUpcomingRenewals`/`urgencyForLeadDays`
+ * (`lib/expediente/renewal-radar.ts`), la lógica pura que consume `GET
+ * /renewals/upcoming`: los tres umbrales 90/60/30 se calculan de forma
+ * SIMULTÁNEA y EXPLÍCITA (un contrato puede caer en varios grupos de
+ * urgencia a la vez, o solo en el más cercano si todavía no cruzó los
+ * otros dos) -- sin tocar base de datos, así que las fechas límite se
+ * verifican exactas con precisión de un día.
+ */
+describe('lib/expediente/renewal-radar — computeUpcomingRenewals/urgencyForLeadDays (REQ-055, ronda 8)', () => {
+  const TODAY = '2026-01-01';
+
+  it('urgencyForLeadDays: el umbral más pequeño es "urgente", el más grande "seguimiento", cualquiera intermedio "proxima"', () => {
+    const sorted = [30, 60, 90];
+    expect(urgencyForLeadDays(30, sorted)).toBe('urgente');
+    expect(urgencyForLeadDays(60, sorted)).toBe('proxima');
+    expect(urgencyForLeadDays(90, sorted)).toBe('seguimiento');
+    // Un único umbral configurado: no hay "más"/"menos" urgente que comparar -- 'urgente' por definición.
+    expect(urgencyForLeadDays(45, [45])).toBe('urgente');
+  });
+
+  // Semántica cumulativa (documentada arriba y en `renewal-radar.routes.ts`):
+  // un umbral se cruza cuando `daysUntilEnd <= leadDays`, así que un
+  // contrato SIEMPRE cruza también todo umbral MAYOR al más pequeño que ya
+  // cruzó (a exactamente 30 días cruza 30, 60 Y 90 -- nunca "solo 30"; ver
+  // el test de "20 días" más abajo, que ya cubre ese caso). Estos casos de
+  // borde verifican, umbral por umbral, la fecha límite EXACTA: el día
+  // exacto del umbral ya cuenta ("<=", no "<"), un día antes NO cruza ESE
+  // umbral concreto (pero sigue cruzando cualquiera mayor), un día después
+  // ya lo cruzó desde antes.
+  it.each([
+    [90, [90]],
+    [60, [60, 90]],
+    [30, [30, 60, 90]],
+  ] as const)('un contrato a exactamente %i días de vencer cruza justo los umbrales <= %i (%j), nunca uno menor que todavía no le toca', (exactDays, expectedLeadDays) => {
+    const endDate = new Date(`${TODAY}T00:00:00Z`);
+    endDate.setUTCDate(endDate.getUTCDate() + exactDays);
+    const contract = { contractId: 'c1', tenderId: 't1', endDate: endDate.toISOString().slice(0, 10) };
+    const at = computeUpcomingRenewals([contract], TODAY, [90, 60, 30]);
+    expect(at.map((c) => c.leadDays).sort((a, b) => a - b)).toEqual([...expectedLeadDays]);
+    expect(at.every((c) => c.daysUntilEnd === exactDays)).toBe(true);
+  });
+
+  it.each([90, 60, 30] as const)('un contrato a exactamente %i + 1 días de vencer (un día antes de cruzar ese umbral) todavía NO lo cruza, sin margen de un día', (threshold) => {
+    const endDate = new Date(`${TODAY}T00:00:00Z`);
+    endDate.setUTCDate(endDate.getUTCDate() + threshold + 1);
+    const contract = { contractId: 'c1', tenderId: 't1', endDate: endDate.toISOString().slice(0, 10) };
+    const at = computeUpcomingRenewals([contract], TODAY, [90, 60, 30]);
+    expect(at.map((c) => c.leadDays)).not.toContain(threshold);
+  });
+
+  it.each([90, 60, 30] as const)('un contrato a exactamente %i - 1 días de vencer (un día después de cruzar ese umbral) ya lo cruzó desde antes', (threshold) => {
+    const endDate = new Date(`${TODAY}T00:00:00Z`);
+    endDate.setUTCDate(endDate.getUTCDate() + threshold - 1);
+    const contract = { contractId: 'c1', tenderId: 't1', endDate: endDate.toISOString().slice(0, 10) };
+    const at = computeUpcomingRenewals([contract], TODAY, [90, 60, 30]);
+    expect(at.map((c) => c.leadDays)).toContain(threshold);
+  });
+
+  it('un contrato a 20 días de vencer cruza los TRES umbrales por defecto SIMULTÁNEAMENTE -- aparece una vez por cada uno, con la urgencia correcta en cada caso, nunca colapsado al más cercano', () => {
+    const contract = { contractId: 'c1', tenderId: 't1', endDate: '2026-01-21' }; // 20 días desde TODAY.
+    const upcoming = computeUpcomingRenewals([contract], TODAY);
+
+    expect(upcoming).toHaveLength(3);
+    const byLeadDays = new Map(upcoming.map((u) => [u.leadDays, u]));
+    expect([...byLeadDays.keys()].sort((a, b) => a - b)).toEqual([30, 60, 90]);
+    for (const u of upcoming) {
+      expect(u.daysUntilEnd).toBe(20); // MISMO contrato, MISMA fecha de fin -- daysUntilEnd es igual en los tres grupos.
+      expect(u.contractId).toBe('c1');
+    }
+    expect(byLeadDays.get(30)!.urgency).toBe('urgente');
+    expect(byLeadDays.get(60)!.urgency).toBe('proxima');
+    expect(byLeadDays.get(90)!.urgency).toBe('seguimiento');
+  });
+
+  it('un contrato a 45 días de vencer cruza SOLO 60 y 90 -- 30 todavía no, de forma independiente (no "el más cercano gana")', () => {
+    const contract = { contractId: 'c1', tenderId: 't1', endDate: '2026-02-15' }; // 45 días desde TODAY.
+    const upcoming = computeUpcomingRenewals([contract], TODAY);
+    expect(upcoming.map((u) => u.leadDays).sort((a, b) => a - b)).toEqual([60, 90]);
+    expect(upcoming.every((u) => u.daysUntilEnd === 45)).toBe(true);
+  });
+
+  it('un contrato ya vencido no aparece en ningún grupo (fuera de alcance de "próxima" renovación)', () => {
+    const contract = { contractId: 'c1', tenderId: 't1', endDate: '2025-12-31' }; // 1 día antes de TODAY.
+    expect(computeUpcomingRenewals([contract], TODAY)).toEqual([]);
+  });
+
+  it('varios contratos con distinta antelación se clasifican cada uno de forma independiente en el mismo cálculo', () => {
+    const contracts = [
+      { contractId: 'urgente-20d', tenderId: 't1', endDate: '2026-01-21' }, // 20 días -> 90/60/30.
+      { contractId: 'medio-45d', tenderId: 't2', endDate: '2026-02-15' }, // 45 días -> 90/60.
+      { contractId: 'lejano-80d', tenderId: 't3', endDate: '2026-03-22' }, // 80 días -> 90.
+      { contractId: 'fuera-100d', tenderId: 't4', endDate: '2026-04-11' }, // 100 días -> ninguno.
+    ];
+    const upcoming = computeUpcomingRenewals(contracts, TODAY);
+    const contractIdsByThreshold = (leadDays: number) =>
+      upcoming.filter((u) => u.leadDays === leadDays).map((u) => u.contractId).sort();
+
+    expect(contractIdsByThreshold(30)).toEqual(['urgente-20d']);
+    expect(contractIdsByThreshold(60)).toEqual(['medio-45d', 'urgente-20d']);
+    expect(contractIdsByThreshold(90)).toEqual(['lejano-80d', 'medio-45d', 'urgente-20d']);
+    expect(upcoming.some((u) => u.contractId === 'fuera-100d')).toBe(false);
+  });
+});
 
 describe('expediente — radar de renovaciones (REQ-055)', () => {
   let app: FastifyInstance;
@@ -436,5 +542,148 @@ describe('expediente — radar de renovaciones (REQ-055)', () => {
       payload: {},
     });
     expect(enqueueAttempt.statusCode).toBe(403);
+  });
+
+  it('REQ-055 (ronda 8): PATCH del contrato acepta/persiste hasRenewalOption y renewalOptionNotes de forma independiente de endDate/contractNumber', async () => {
+    const owner = await registerAndLogin(app, 'c055-owner-11@example.com');
+    const org = await createOrgFor(app, owner, 'C055 Org 11', 'c055-org-11');
+    const tenderId = await createTender(app, org.id, 'c055-011');
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+
+    const created = await app.inject({ method: 'POST', url: `/expediente/tenders/${tenderId}/contract`, headers });
+    expect(created.json().hasRenewalOption).toBe(false); // default -- ningún contrato nace con opción de renovación declarada.
+    expect(created.json().renewalOptionNotes).toBeNull();
+
+    const patched = await app.inject({
+      method: 'PATCH',
+      url: `/expediente/tenders/${tenderId}/contract`,
+      headers,
+      payload: { hasRenewalOption: true, renewalOptionNotes: 'Cláusula 12: renovable hasta por 1 año más, previa notificación 30 días antes.' },
+    });
+    expect(patched.statusCode).toBe(200);
+    expect(patched.json().hasRenewalOption).toBe(true);
+    expect(patched.json().renewalOptionNotes).toBe('Cláusula 12: renovable hasta por 1 año más, previa notificación 30 días antes.');
+    expect(patched.json().endDate).toBeNull(); // no se tocó -- el update es parcial (mismo patrón que endDate/contractNumber).
+
+    // Un segundo PATCH que solo toca endDate NO borra lo ya guardado de renovación.
+    const soon = new Date();
+    soon.setUTCDate(soon.getUTCDate() + 20);
+    const patchedEndDate = await app.inject({
+      method: 'PATCH',
+      url: `/expediente/tenders/${tenderId}/contract`,
+      headers,
+      payload: { endDate: toDateOnly(soon) },
+    });
+    expect(patchedEndDate.json().hasRenewalOption).toBe(true);
+    expect(patchedEndDate.json().renewalOptionNotes).toBe('Cláusula 12: renovable hasta por 1 año más, previa notificación 30 días antes.');
+  });
+
+  it('REQ-055 (ronda 8): GET /renewals/upcoming agrupa por urgencia en vivo, SIN requerir haber corrido /renewals/scan antes, y un contrato aparece en varios grupos simultáneamente si aplica', async () => {
+    const owner = await registerAndLogin(app, 'c055-owner-12@example.com');
+    const org = await createOrgFor(app, owner, 'C055 Org 12', 'c055-org-12');
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+
+    // Contrato a 20 días (cruza 90/60/30 simultáneamente), CON opción de renovación.
+    const urgentTenderId = await createTender(app, org.id, 'c055-012-urgente');
+    await app.inject({ method: 'POST', url: `/expediente/tenders/${urgentTenderId}/contract`, headers });
+    const soon = new Date();
+    soon.setUTCDate(soon.getUTCDate() + 20);
+    await app.inject({
+      method: 'PATCH',
+      url: `/expediente/tenders/${urgentTenderId}/contract`,
+      headers,
+      payload: { endDate: toDateOnly(soon), hasRenewalOption: true, renewalOptionNotes: 'Renovable un año más.' },
+    });
+
+    // Contrato a 45 días (cruza solo 60/90), SIN opción de renovación.
+    const midTenderId = await createTender(app, org.id, 'c055-012-medio');
+    await app.inject({ method: 'POST', url: `/expediente/tenders/${midTenderId}/contract`, headers });
+    const mid = new Date();
+    mid.setUTCDate(mid.getUTCDate() + 45);
+    await app.inject({ method: 'PATCH', url: `/expediente/tenders/${midTenderId}/contract`, headers, payload: { endDate: toDateOnly(mid) } });
+
+    // Contrato ya vencido: no debe aparecer en ningún grupo.
+    const pastTenderId = await createTender(app, org.id, 'c055-012-vencido');
+    await app.inject({ method: 'POST', url: `/expediente/tenders/${pastTenderId}/contract`, headers });
+    const past = new Date();
+    past.setUTCDate(past.getUTCDate() - 5);
+    await app.inject({ method: 'PATCH', url: `/expediente/tenders/${pastTenderId}/contract`, headers, payload: { endDate: toDateOnly(past) } });
+
+    // Nótese: NUNCA se llamó a POST /renewals/scan -- este endpoint calcula en vivo.
+    const res = await app.inject({ method: 'GET', url: '/expediente/renewals/upcoming', headers });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.thresholds).toEqual([30, 60, 90]);
+    expect(body.truncated).toBe(false);
+    expect(body.groups).toHaveLength(3);
+
+    const groupByLeadDays = new Map<number, any>(body.groups.map((g: any) => [g.leadDays, g]));
+    expect(groupByLeadDays.get(30).urgency).toBe('urgente');
+    expect(groupByLeadDays.get(60).urgency).toBe('proxima');
+    expect(groupByLeadDays.get(90).urgency).toBe('seguimiento');
+
+    // Grupo 'urgente' (30 días): SOLO el contrato a 20 días.
+    const urgentIds = groupByLeadDays.get(30).items.map((i: any) => i.tenderId);
+    expect(urgentIds).toEqual([urgentTenderId]);
+    const urgentItem = groupByLeadDays.get(30).items[0];
+    expect(urgentItem.daysUntilEnd).toBe(20);
+    expect(urgentItem.hasRenewalOption).toBe(true);
+    expect(urgentItem.renewalOptionNotes).toBe('Renovable un año más.');
+
+    // Grupo 'proxima' (60 días): el de 20 días Y el de 45 días -- ambos simultáneamente.
+    const midGroupIds = groupByLeadDays.get(60).items.map((i: any) => i.tenderId).sort();
+    expect(midGroupIds).toEqual([midTenderId, urgentTenderId].sort());
+    const midItem = groupByLeadDays.get(60).items.find((i: any) => i.tenderId === midTenderId);
+    expect(midItem.hasRenewalOption).toBe(false); // nunca se marcó -- distinción explícita del requisito.
+    expect(midItem.daysUntilEnd).toBe(45);
+
+    // Grupo 'seguimiento' (90 días): también ambos.
+    expect(groupByLeadDays.get(90).items.map((i: any) => i.tenderId).sort()).toEqual([midTenderId, urgentTenderId].sort());
+
+    // El contrato vencido no aparece en NINGÚN grupo.
+    for (const g of body.groups) {
+      expect(g.items.some((i: any) => i.tenderId === pastTenderId)).toBe(false);
+    }
+  });
+
+  it('REQ-055 (ronda 8): GET /renewals/upcoming acepta umbrales configurables por querystring y un viewer (rol de solo lectura) puede consultarlo', async () => {
+    const owner = await registerAndLogin(app, 'c055-owner-13@example.com');
+    const org = await createOrgFor(app, owner, 'C055 Org 13', 'c055-org-13');
+    const viewer = await registerAndLogin(app, 'c055-viewer-13@example.com');
+    await db.query("insert into memberships (org_id, user_id, role) values ($1, $2, 'viewer')", [org.id, viewer.id]);
+    const ownerHeaders = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+
+    const tenderId = await createTender(app, org.id, 'c055-013');
+    await app.inject({ method: 'POST', url: `/expediente/tenders/${tenderId}/contract`, headers: ownerHeaders });
+    const soon = new Date();
+    soon.setUTCDate(soon.getUTCDate() + 10);
+    await app.inject({ method: 'PATCH', url: `/expediente/tenders/${tenderId}/contract`, headers: ownerHeaders, payload: { endDate: toDateOnly(soon) } });
+
+    // Un umbral único y personalizado (15 días): el contrato a 10 días lo cruza.
+    const viewerHeaders = { authorization: `Bearer ${viewer.accessToken}`, 'x-org-id': org.id };
+    const res = await app.inject({ method: 'GET', url: '/expediente/renewals/upcoming?thresholds=15', headers: viewerHeaders });
+    expect(res.statusCode).toBe(200); // el viewer SÍ puede leer -- es un endpoint de consumo de negocio, no de escaneo/escritura.
+    const body = res.json();
+    expect(body.thresholds).toEqual([15]);
+    expect(body.groups).toHaveLength(1);
+    expect(body.groups[0].urgency).toBe('urgente');
+    expect(body.groups[0].items.map((i: any) => i.tenderId)).toEqual([tenderId]);
+    expect(body.groups[0].items[0].daysUntilEnd).toBe(10);
+  });
+
+  it('REQ-055 (ronda 8): GET /renewals/upcoming -- thresholds inválido (no numérico) responde 422, y un CSV con más de 10 valores también', async () => {
+    const owner = await registerAndLogin(app, 'c055-owner-14@example.com');
+    const org = await createOrgFor(app, owner, 'C055 Org 14', 'c055-org-14');
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+
+    const invalidFormat = await app.inject({ method: 'GET', url: '/expediente/renewals/upcoming?thresholds=abc', headers });
+    expect(invalidFormat.statusCode).toBe(422);
+
+    const tooMany = await app.inject({
+      method: 'GET',
+      url: `/expediente/renewals/upcoming?thresholds=${Array.from({ length: 11 }, (_, i) => i + 1).join(',')}`,
+      headers,
+    });
+    expect(tooMany.statusCode).toBe(422);
   });
 });

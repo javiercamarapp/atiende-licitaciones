@@ -6,7 +6,15 @@
 // todavía no existe), siempre por `rawRequest` directo, igual que
 // `login()`/`register()`.
 import { rawRequest } from "./http";
-import { googleAuthResultSchema, googleStartResponseSchema, type GoogleAuthResult, type GoogleStartResponse } from "./schemas";
+import { apiRequest } from "./client";
+import {
+  googleAuthResultSchema,
+  googleStartResponseSchema,
+  unlinkGoogleResponseSchema,
+  type GoogleAuthResult,
+  type GoogleStartResponse,
+  type UnlinkGoogleResponse,
+} from "./schemas";
 
 /**
  * `GET /auth/google/start`: genera PKCE/state/nonce del lado del servidor y
@@ -62,4 +70,18 @@ export async function verifyGoogleTwoFactor(pendingToken: string, code: string):
     body: JSON.stringify({ pendingToken, code }),
   });
   return googleAuthResultSchema.parse(raw);
+}
+
+/**
+ * E19/E21 (docs/BACKLOG.md): `POST /auth/google/unlink` -- a diferencia de
+ * los tres de arriba, exige sesión YA autenticada (pasa por `apiRequest`,
+ * no `rawRequest`) y un `stepUpToken` vigente (purpose `auth.google_unlink`)
+ * vía `X-Step-Up`. apps/api rechaza con 409 si desvincular dejaría la
+ * cuenta sin ningún método de acceso (sin contraseña propia) -- ese
+ * rechazo llega como `ApiError` normal, la UI lo muestra con
+ * `describeApiError`.
+ */
+export async function unlinkGoogle(orgId: string, stepUpToken: string): Promise<UnlinkGoogleResponse> {
+  const raw = await apiRequest<unknown>("/auth/google/unlink", { method: "POST", orgId, stepUpToken });
+  return unlinkGoogleResponseSchema.parse(raw);
 }

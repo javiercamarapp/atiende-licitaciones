@@ -14,10 +14,21 @@ export const authTokensSchema = z.object({
 });
 export type AuthTokens = z.infer<typeof authTokensSchema>;
 
+/**
+ * E19/E21 (docs/BACKLOG.md): `hasPassword`/`googleLinked` son ADITIVOS
+ * (`GET /me`, apps/api/src/modules/me/routes.ts) -- `.default(false)` para
+ * que las decenas de pruebas existentes de toda la app que mockean `/me`
+ * SIN estos dos campos (escritas antes de esta ronda) sigan validando: un
+ * mock viejo se interpreta como "sin contraseña propia ni Google
+ * vinculado" en vez de romper con un error de esquema. El uso real (contra
+ * apps/api real) siempre los declara explícitos.
+ */
 export const userPublicSchema = z.object({
   id: z.string(),
   email: z.string(),
   fullName: z.string().nullable(),
+  hasPassword: z.boolean().default(false),
+  googleLinked: z.boolean().default(false),
 });
 export type UserPublic = z.infer<typeof userPublicSchema>;
 
@@ -697,3 +708,43 @@ export const stepUpResponseSchema = z.object({
   expiresAt: z.string(),
 });
 export type StepUpResponse = z.infer<typeof stepUpResponseSchema>;
+
+// --- E21 (docs/BACKLOG.md): desactivar 2FA / regenerar códigos de respaldo,
+// ambos con step-up -- POST /auth/2fa/disable, POST
+// /auth/2fa/backup-codes/regenerate (apps/api/src/modules/twofa/routes.ts).
+export const disableTwoFactorResponseSchema = z.object({ disabled: z.literal(true) });
+export type DisableTwoFactorResponse = z.infer<typeof disableTwoFactorResponseSchema>;
+
+export const regenerateBackupCodesResponseSchema = z.object({ backupCodes: z.array(z.string()) });
+export type RegenerateBackupCodesResponse = z.infer<typeof regenerateBackupCodesResponseSchema>;
+
+// --- E21 (docs/BACKLOG.md): sesiones activas propias (refresh tokens) --
+// GET/DELETE /auth/sessions, POST /auth/sessions/revoke-others
+// (apps/api/src/modules/auth/sessions.routes.ts).
+export const authSessionSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  expiresAt: z.string(),
+  ipAddress: z.string().nullable(),
+  userAgent: z.string().nullable(),
+});
+export type AuthSession = z.infer<typeof authSessionSchema>;
+
+export const authSessionsListSchema = z.object({ sessions: z.array(authSessionSchema) });
+export type AuthSessionsList = z.infer<typeof authSessionsListSchema>;
+
+export const revokeSessionResponseSchema = z.object({ revoked: z.literal(true) });
+export type RevokeSessionResponse = z.infer<typeof revokeSessionResponseSchema>;
+
+export const revokeOtherSessionsResponseSchema = z.object({ revokedCount: z.number().int().nonnegative() });
+export type RevokeOtherSessionsResponse = z.infer<typeof revokeOtherSessionsResponseSchema>;
+
+// --- E21 (docs/BACKLOG.md): cambiar contraseña propia con step-up --
+// POST /auth/password/change (apps/api/src/modules/auth/password.routes.ts).
+export const changePasswordResponseSchema = z.object({ changed: z.literal(true) });
+export type ChangePasswordResponse = z.infer<typeof changePasswordResponseSchema>;
+
+// --- E19 (docs/BACKLOG.md): desvincular Google con step-up --
+// POST /auth/google/unlink (apps/api/src/modules/auth/google/unlink.routes.ts).
+export const unlinkGoogleResponseSchema = z.object({ unlinked: z.literal(true) });
+export type UnlinkGoogleResponse = z.infer<typeof unlinkGoogleResponseSchema>;

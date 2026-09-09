@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { MEMBERSHIP_ADMIN_ROLES, WRITE_ROLES } from '@atiende/db';
-import { NotFoundError, ConflictError } from '../../lib/errors.js';
+import { MEMBERSHIP_ADMIN_ROLES, WRITE_ROLES, type DbExecutor } from '@atiende/db';
+import { NotFoundError, ConflictError, ValidationAppError } from '../../lib/errors.js';
 import { recordAudit } from '../../lib/audit.js';
 import { requireOrgRole } from '../../lib/authorize.js';
 import { recordFieldProvenance, getFieldProvenance } from '../../lib/provenance.js';
@@ -47,6 +47,36 @@ function toCamelRow(row: Record<string, unknown>, mapping: Record<string, string
     out[camel] = row[snake] ?? null;
   }
   return out;
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * REQ-143: `evidenceRef` (futuro `evidenceDocId` de `packages/expediente`)
+ * es obligatorio SOLO a nivel de tipos de TypeScript en el schema de Zod
+ * (`z.string().optional()` no impide una cadena vacía ni una cadena
+ * inventada). Se añade la aserción runtime que faltaba: si el body declara
+ * `evidenceRef`, debe ser el id de un `company_documents` REAL y EXISTENTE
+ * de esta organización (la bóveda documental del perfil) -- nunca una
+ * cadena arbitraria. Se ejecuta dentro de la misma transacción (con RLS de
+ * tenant ya aplicado) justo antes de insertar/actualizar; si falla, lanza
+ * `ValidationAppError` (422) y aborta la escritura completa.
+ */
+async function validateExperienceEvidence(columns: Record<string, unknown>, ctx: { tx: DbExecutor; orgId: string }): Promise<void> {
+  if (!('evidence_ref' in columns)) return; // el body no tocó este campo
+  const ref = columns.evidence_ref;
+  if (ref === null || ref === undefined) return; // declarar experiencia sin evidencia (no verificable) sigue permitido
+  if (typeof ref !== 'string' || ref.trim() === '' || !UUID_RE.test(ref)) {
+    throw new ValidationAppError({
+      evidenceRef: 'evidenceRef debe ser el id (uuid) de un documento real ya existente en la bóveda documental de la empresa (company_documents), no una cadena arbitraria.',
+    });
+  }
+  const { rows } = await ctx.tx.query('select 1 from company_documents where id = $1 and org_id = $2', [ref, ctx.orgId]);
+  if (rows.length === 0) {
+    throw new ValidationAppError({
+      evidenceRef: `evidenceRef "${ref}" no corresponde a ningún documento existente en la bóveda documental de esta organización.`,
+    });
+  }
 }
 
 export async function companyRoutes(app: FastifyInstance): Promise<void> {
@@ -210,6 +240,7 @@ export async function companyRoutes(app: FastifyInstance): Promise<void> {
     updateSchema: experienceUpdateSchema,
     responseSchema: experienceSchema,
     writeRoles: WRITE_ROLES,
+    validate: validateExperienceEvidence,
     toColumns: (b: any) => ({
       ...(b.title !== undefined && { title: b.title }),
       ...(b.clientName !== undefined && { client_name: b.clientName }),

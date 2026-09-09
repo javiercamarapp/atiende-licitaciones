@@ -49,3 +49,13 @@ export const stepUpStatusResponseSchema = z.object({
   enrolled: z.boolean(),
   enrolledAt: isoTimestamp.nullable(),
 });
+
+/** E21: respuesta de `POST /2fa/disable`. */
+export const disableResponseSchema = z.object({
+  disabled: z.literal(true),
+});
+
+/** E21: respuesta de `POST /2fa/backup-codes/regenerate` -- mismos códigos en claro que `enrollResponseSchema.backupCodes`, mostrados UNA sola vez. */
+export const regenerateBackupCodesResponseSchema = z.object({
+  backupCodes: z.array(z.string()),
+});

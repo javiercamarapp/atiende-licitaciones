@@ -7,6 +7,7 @@ import { serializerCompiler, validatorCompiler, jsonSchemaTransform } from 'fast
 import type { DbClient } from '@atiende/db';
 import { applyMigrations } from '@atiende/db';
 import type { MailProvider } from '@atiende/mail';
+import type { WhatsAppProvider } from '@atiende/whatsapp';
 import type { AppConfig } from './config.js';
 import { authPlugin } from './plugins/auth.plugin.js';
 import { superadminPlugin } from './plugins/superadmin.plugin.js';
@@ -16,7 +17,10 @@ import { metricsPlugin } from './plugins/metrics.plugin.js';
 import { healthRoutes } from './modules/health/routes.js';
 import { authRoutes } from './modules/auth/routes.js';
 import { googleAuthRoutes } from './modules/auth/google/routes.js';
+import { googleUnlinkRoutes } from './modules/auth/google/unlink.routes.js';
 import { authMailRoutes } from './modules/auth/mail.routes.js';
+import { sessionsRoutes } from './modules/auth/sessions.routes.js';
+import { authPasswordRoutes } from './modules/auth/password.routes.js';
 import { twofaRoutes } from './modules/twofa/routes.js';
 import { legalRoutes } from './modules/legal/routes.js';
 import { organizationRoutes } from './modules/organizations/routes.js';
@@ -31,6 +35,7 @@ import { adminRoutes } from './modules/admin/routes.js';
 import { auditLogRoutes } from './modules/audit/routes.js';
 import { getRateLimitSettings } from './lib/rate-limit-settings.js';
 import { buildMailServiceFromEnv } from './lib/mail/env.js';
+import { buildWhatsAppProviderFromEnv } from './lib/mail/whatsapp-channel.js';
 import { PendingMailTracker } from './lib/mail/pending.js';
 import { mailRoutes } from './modules/mail/routes.js';
 import { mailWebhookRoutes } from './modules/mail/webhook.routes.js';
@@ -42,6 +47,7 @@ import { expedienteApprovalRoutes } from './modules/expediente/approval.routes.j
 import { expedientePackageRoutes } from './modules/expediente/package.routes.js';
 import { expedienteSubmissionRoutes } from './modules/expediente/submission.routes.js';
 import { expedientePostAwardRoutes } from './modules/expediente/post-award.routes.js';
+import { expedienteCollectionRoutes } from './modules/expediente/collection.routes.js';
 import { expedienteContractRoutes } from './modules/expediente/contract.routes.js';
 import { expedienteInconformidadRoutes } from './modules/expediente/inconformidad.routes.js';
 import { expedienteFalloAutopsyRoutes } from './modules/expediente/fallo-autopsy.routes.js';
@@ -55,6 +61,8 @@ export interface BuildAppOptions {
   logger?: boolean;
   /** REQ-181..195: `MailProvider` explícito en vez del que resuelve `MAIL_PROVIDER` -- ver `lib/mail/env.ts`. */
   mailProvider?: MailProvider;
+  /** Canal ADICIONAL de WhatsApp: `WhatsAppProvider` explícito en vez del que resuelve `WHATSAPP_PROVIDER` -- ver `lib/mail/whatsapp-channel.ts`, misma costura de inyección que `mailProvider`. */
+  whatsappProvider?: WhatsAppProvider;
 }
 
 // AE-15 (docs/auditoria-2/api-expediente-reverificacion.md, BAJA): el
@@ -87,6 +95,11 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   });
   app.decorate('mail', builtMail.mail);
   app.decorate('mailProvider', builtMail.provider);
+  // Canal ADICIONAL de WhatsApp -- ver lib/mail/whatsapp-channel.ts. Mismo
+  // criterio que MailProvider: sin WHATSAPP_PROVIDER=meta (o sin credenciales
+  // reales de Meta, que este entorno todavía no tiene) degrada a
+  // CaptureProvider, nunca sale a Internet por accidente.
+  app.decorate('whatsapp', buildWhatsAppProviderFromEnv({ provider: options.whatsappProvider }));
   const pendingMail = new PendingMailTracker();
   app.decorate('pendingMail', pendingMail);
   app.decorate('waitForPendingMail', () => pendingMail.wait());
@@ -241,10 +254,20 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   // REQ-172..180: login/registro con Google (OIDC), junto al método
   // email+contraseña existente, sin reemplazarlo.
   await app.register(googleAuthRoutes, { prefix: '/auth/google' });
+  // E19/E21 (docs/BACKLOG.md): desvincular la identidad de Google de la
+  // propia cuenta -- registrada aparte de googleAuthRoutes porque exige
+  // sesión autenticada (app.authenticate), a diferencia de start/callback/
+  // verify-2fa (login), que son anónimas.
+  await app.register(googleUnlinkRoutes, { prefix: '/auth/google' });
   // REQ-181..195: verificación de correo y recuperación de contraseña
   // (rutas ANÓNIMAS, ver modules/auth/mail.routes.ts).
   await app.register(authMailRoutes, { prefix: '/auth' });
   await app.register(twofaRoutes, { prefix: '/auth' });
+  // E21 (docs/BACKLOG.md, segunda mitad): sesiones activas propias
+  // (listar/cerrar una/cerrar todas menos la actual) y cambio de
+  // contraseña autenticado con step-up.
+  await app.register(sessionsRoutes, { prefix: '/auth' });
+  await app.register(authPasswordRoutes, { prefix: '/auth' });
   await app.register(organizationRoutes, { prefix: '/organizations' });
   await app.register(meRoutes);
   await app.register(companyRoutes, { prefix: '/company' });
@@ -279,6 +302,10 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   await app.register(expedientePackageRoutes, { prefix: '/expediente' });
   await app.register(expedienteSubmissionRoutes, { prefix: '/expediente' });
   await app.register(expedientePostAwardRoutes, { prefix: '/expediente' });
+  // REQ-051 (máquina de estados de COBRANZA para post_award_followups de
+  // kind='facturacion'/'pago' -- distinta de la máquina de estados del
+  // CONTRATO completo, ver expedienteContractRoutes más abajo).
+  await app.register(expedienteCollectionRoutes, { prefix: '/expediente' });
   // Ronda 6: REQ-051 (máquina de estados del contrato) + REQ-052 (extracción
   // del contrato firmado), REQ-053 (redactor de inconformidades, borrador),
   // REQ-054 (autopsia del fallo), REQ-055 (radar de renovaciones).

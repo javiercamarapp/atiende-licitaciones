@@ -9,10 +9,14 @@ import {
   enrollTwoFactorResponseSchema,
   verifyEnrollmentResponseSchema,
   stepUpResponseSchema,
+  disableTwoFactorResponseSchema,
+  regenerateBackupCodesResponseSchema,
   type StepUpStatus,
   type EnrollTwoFactorResponse,
   type VerifyEnrollmentResponse,
   type StepUpResponse,
+  type DisableTwoFactorResponse,
+  type RegenerateBackupCodesResponse,
 } from "./schemas";
 
 export async function getTwoFactorStatus(): Promise<StepUpStatus> {
@@ -64,4 +68,27 @@ export async function verifyTwoFactorEnrollment(code: string, orgId: string): Pr
 export async function verifyStepUp(code: string, orgId: string, purpose: string): Promise<StepUpResponse> {
   const raw = await apiRequest<unknown>("/auth/2fa/step-up", { method: "POST", body: { code, purpose }, orgId });
   return stepUpResponseSchema.parse(raw);
+}
+
+/**
+ * E21 (docs/BACKLOG.md): `POST /auth/2fa/disable` -- exige un `stepUpToken`
+ * vigente (purpose `twofa.disable`) vía `X-Step-Up`. apps/api rechaza con
+ * 409 si desactivar dejaría la cuenta sin ningún método de acceso (sin
+ * contraseña ni Google vinculado) -- ese rechazo llega como `ApiError`
+ * normal, la UI lo muestra con `describeApiError`.
+ */
+export async function disableTwoFactor(orgId: string, stepUpToken: string): Promise<DisableTwoFactorResponse> {
+  const raw = await apiRequest<unknown>("/auth/2fa/disable", { method: "POST", orgId, stepUpToken });
+  return disableTwoFactorResponseSchema.parse(raw);
+}
+
+/**
+ * E21: `POST /auth/2fa/backup-codes/regenerate` -- exige un `stepUpToken`
+ * vigente (purpose `twofa.backup_codes_regenerate`). Reemplaza POR
+ * COMPLETO los códigos anteriores (invalidación real en DB) -- los diez
+ * códigos nuevos solo se muestran una vez, igual que en el enrolamiento.
+ */
+export async function regenerateBackupCodes(orgId: string, stepUpToken: string): Promise<RegenerateBackupCodesResponse> {
+  const raw = await apiRequest<unknown>("/auth/2fa/backup-codes/regenerate", { method: "POST", orgId, stepUpToken });
+  return regenerateBackupCodesResponseSchema.parse(raw);
 }

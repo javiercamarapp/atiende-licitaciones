@@ -43,5 +43,5 @@ describe("CumplimientoDocumentalPage", () => {
     // acción paga, bajo `--coverage`, un costo medido de ~17-20s en
     // aislamiento total -- no es un bug de esta prueba. 45s deja ~2x de
     // margen sobre ese costo medido.
-  }, 45000);
+  }, process.env.CI === "true" ? 135000 : 45000);
 });

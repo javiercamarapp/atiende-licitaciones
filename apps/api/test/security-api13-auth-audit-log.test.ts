@@ -127,4 +127,57 @@ describe('API-13: eventos de autenticación quedan en audit_log', () => {
     expect(rows.length).toBe(1);
     expect(rows[0].actor_id).toBe(user.id);
   });
+
+  /**
+   * REQ-177: brecha honesta cerrada aquí -- `recordAuthAudit`
+   * (lib/audit.ts) nunca pasaba `correlationId` a `app.record_auth_event`
+   * (0051..0093), así que `audit_log.correlation_id` quedaba SIEMPRE NULL
+   * para todo evento de autenticación, sin importar el `X-Correlation-Id`
+   * que mandara el cliente. Fijado en 0096_req177_auth_event_correlation_id.sql
+   * + `recordAuthAudit`/`issueTokenPair` propagando `request.correlationId`
+   * (REQ-171, `plugins/correlation-id.plugin.ts`) hasta la función SQL.
+   */
+  it('el X-Correlation-Id de la request llega intacto a audit_log.correlation_id en login, refresh y logout (REQ-177)', async () => {
+    const correlationId = '11111111-1111-4111-8111-111111111111';
+
+    const reg = await app.inject({ method: 'POST', url: '/auth/register', payload: { email: 'api13-req177@example.com', password: 'super-secret-password' } });
+    expect(reg.statusCode).toBe(201);
+    await db.query('update users set email_verified_at = now() where id = $1', [reg.json().id]);
+
+    const login = await app.inject({
+      method: 'POST',
+      url: '/auth/login',
+      headers: { 'x-correlation-id': correlationId },
+      payload: { email: 'api13-req177@example.com', password: 'super-secret-password' },
+    });
+    expect(login.statusCode).toBe(200);
+    expect(login.headers['x-correlation-id']).toBe(correlationId);
+    const { refreshToken } = login.json();
+
+    const loginRows = await readAuthAuditRows(db, 'auth.login_succeeded');
+    const loginRow = loginRows.find((r) => r.actor_id === reg.json().id);
+    expect(loginRow?.correlation_id).toBe(correlationId);
+
+    const refresh = await app.inject({
+      method: 'POST',
+      url: '/auth/refresh',
+      headers: { 'x-correlation-id': correlationId },
+      payload: { refreshToken },
+    });
+    expect(refresh.statusCode).toBe(200);
+    const refreshRows = await readAuthAuditRows(db, 'auth.refresh_succeeded');
+    const refreshRow = refreshRows.find((r) => r.actor_id === reg.json().id);
+    expect(refreshRow?.correlation_id).toBe(correlationId);
+
+    // Sin cabecera explícita, `correlation-id.plugin.ts` (REQ-171) GENERA
+    // un UUID nuevo -- nunca deja `correlation_id` en NULL "por omitir el
+    // header": el contrato es que SIEMPRE hay un id de correlación, puesto
+    // por el cliente o por el propio servidor.
+    const logout = await app.inject({ method: 'POST', url: '/auth/logout', payload: { refreshToken: refresh.json().refreshToken } });
+    expect(logout.statusCode).toBe(204);
+    const logoutRows = await readAuthAuditRows(db, 'auth.logout');
+    const logoutRow = logoutRows.find((r) => r.actor_id === reg.json().id);
+    expect(typeof logoutRow?.correlation_id).toBe('string');
+    expect(logoutRow?.correlation_id).not.toBe(correlationId); // sin header propio en esta request -- id generado, no heredado
+  });
 });

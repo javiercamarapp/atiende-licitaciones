@@ -58,6 +58,10 @@ PATTERNS=(
   # Dominio de Supabase (si el proyecto llegara a usarlo, no debe haber URLs
   # reales de proyecto commiteadas).
   '[a-z0-9-]+\.supabase\.co'
+  # Google OAuth client secret real (prefijo usado por Google Cloud Console
+  # desde 2021). Ancla al prefijo del VALOR, no al nombre de la variable, para
+  # no capturar "GOOGLE_CLIENT_SECRET=" vacío o con placeholder.
+  'GOCSPX-[A-Za-z0-9_-]{20,}'
 )
 
 echo "[check-secrets] buscando patrones de secretos en el árbol de trabajo (excluye node_modules, dist, coverage, .env.example)..."
@@ -125,8 +129,18 @@ done
 # host que NO sea localhost/127.0.0.1 (sin lookahead: grep BSD de macOS no lo
 # soporta; se filtra en dos pasos para que este script funcione igual en
 # macOS local y en el runner de CI en Ubuntu).
+#
+# Excluye también el caso en que usuario Y password son EXACTAMENTE
+# interpolación de variables de entorno estilo Compose/shell (${VAR}) —
+# es la forma correcta de parametrizar credenciales (p. ej.
+# infra/compose/docker-compose.prod.yml: DATABASE_URL con
+# ${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432), no un secreto
+# literal. Si CUALQUIERA de los dos segmentos no es ${...} completo, la
+# línea se sigue reportando (evita que "usuario:${PASSWORD_REAL_HARDCODEADA}"
+# se cuele como si fuera seguro).
 pg_matches=$(grep -RInE "${EXCLUDE_DIRS[@]}" "${EXCLUDE_FILES[@]}" -- 'postgres(ql)?://[^:[:space:]]+:[^@[:space:]]{4,}@[A-Za-z0-9.-]+' . 2>/dev/null \
   | grep -vE '@(localhost|127\.0\.0\.1|db)([:/]|$)' \
+  | grep -vE ':\/\/\$\{[A-Za-z_][A-Za-z0-9_]*\}:\$\{[A-Za-z_][A-Za-z0-9_]*\}@' \
   | grep -viE "$PLACEHOLDER_FILTER" || true)
 pg_matches=$(filter_fixture_marker_exemptions "$pg_matches")
 if [ -n "$pg_matches" ]; then

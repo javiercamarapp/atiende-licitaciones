@@ -321,6 +321,20 @@ export const legalRegimeSchema = z.object({
   reason: z.string(),
 });
 
+// ---------------------------------------------------------------------------
+// REQ-051: máquina de estados de COBRANZA (facturación/pago post-adjudicación).
+// Declarado ANTES de `followupSchema` porque este último la referencia.
+// ---------------------------------------------------------------------------
+export const COLLECTION_STATUS_ENUM = z.enum([
+  'emitida',
+  'enviada',
+  'en_revision',
+  'aprobada_para_pago',
+  'pagada',
+  'vencida_sin_pago',
+  'en_disputa',
+]);
+
 export const followupSchema = z.object({
   id: z.string().uuid(),
   tenderId: z.string().uuid(),
@@ -344,13 +358,45 @@ export const followupSchema = z.object({
   /** AE-09/REQ-050: solo para kind='pago'/'facturacion' -- régimen legal aplicado, versionado por fecha de convocatoria. */
   legalRegime: legalRegimeSchema.nullable(),
   /**
+   * REQ-051 (máquina de estados de cobranza): solo para kind='facturacion'/
+   * kind='pago' -- ciclo de cobro de ESTA factura/pago concreto, distinto
+   * del `status` genérico del seguimiento (pending/in_progress/done/...).
+   * `null` para cualquier otro `kind` (nunca aplica). Ver
+   * `lib/expediente/collection-lifecycle.ts`.
+   */
+  collectionStatus: COLLECTION_STATUS_ENUM.nullable(),
+  /**
    * Alerta de vencimiento (REQ-056, "recordatorios T-72/24/6h" -- alcance de
    * esta ronda: alerta binaria por día, no por hora): 'vencido' si
    * `dueDate` ya pasó y el seguimiento no está en un estado terminal
    * (done/cancelled); 'proximo' si vence dentro de `reminderLeadDays` días;
-   * `null` en cualquier otro caso (sin fecha, terminal, o lejano).
+   * `null` en cualquier otro caso (sin fecha, terminal, o lejano). REQ-051:
+   * para kind='facturacion'/'pago' con `collectionStatus` en
+   * `COLLECTION_ALERT_STATES` ('vencida_sin_pago'/'en_disputa'), siempre
+   * 'vencido' -- una cobranza vencida sin pago o en disputa activa exige
+   * atención inmediata sin importar cuánto falte/haya pasado desde
+   * `dueDate` (ver `computeAlertLevel` en `post-award.routes.ts`).
    */
   alertLevel: z.enum(['vencido', 'proximo']).nullable(),
+});
+
+export const collectionTransitionRequestSchema = z.object({
+  toStatus: COLLECTION_STATUS_ENUM,
+  /** Motivo obligatorio de la transición -- nunca se registra un cambio de estado de cobranza sin justificación. */
+  reason: z.string().min(1),
+  /** Referencia de evidencia (p. ej. folio de comprobante de pago, correo de aprobación) -- opcional. */
+  evidenceRef: z.string().optional(),
+});
+
+export const collectionStatusHistoryItemSchema = z.object({
+  id: z.string().uuid(),
+  followupId: z.string().uuid(),
+  fromStatus: COLLECTION_STATUS_ENUM.nullable(),
+  toStatus: COLLECTION_STATUS_ENUM,
+  reason: z.string(),
+  actorId: z.string().uuid().nullable(),
+  evidenceRef: z.string().nullable(),
+  createdAt: isoTimestamp,
 });
 
 // ---------------------------------------------------------------------------
@@ -377,14 +423,19 @@ export const contractSchema = z.object({
   /** Fecha de fin/vigencia -- insumo directo del radar de renovaciones (REQ-055). */
   endDate: nullableIsoTimestamp,
   contractNumber: z.string().nullable(),
+  /** REQ-055 (ronda 8): true cuando el contrato tiene PACTADA una opción contractual de renovación (se puede extender el mismo contrato) -- distingue del caso genérico "el contrato simplemente termina y exigirá una convocatoria nueva". Metadata declarativa capturada por el usuario; nunca inferida del texto del contrato. */
+  hasRenewalOption: z.boolean(),
+  renewalOptionNotes: z.string().nullable(),
   createdAt: isoTimestamp,
   updatedAt: isoTimestamp,
 });
 
-/** REQ-055: metadatos administrativos del contrato (fecha de fin, número) -- NO es una transición de estado, no pasa por el grafo de `contract-lifecycle.ts`. */
+/** REQ-055: metadatos administrativos del contrato (fecha de fin, número, opción de renovación) -- NO es una transición de estado, no pasa por el grafo de `contract-lifecycle.ts`. */
 export const contractMetadataUpdateSchema = z.object({
   endDate: realCalendarDateString.nullable().optional(),
   contractNumber: z.string().min(1).nullable().optional(),
+  hasRenewalOption: z.boolean().optional(),
+  renewalOptionNotes: z.string().min(1).nullable().optional(),
 });
 
 export const contractTransitionRequestSchema = z.object({
@@ -487,9 +538,34 @@ export const inconformidadGenerateSchema = z.object({
   falloNotifiedOn: realCalendarDateString,
   /** Si el procedimiento es una licitación pública internacional bajo cobertura de tratados (Art. 95 LAASSP: 10 días hábiles en vez de 6). */
   bajoTratados: z.boolean().default(false),
-  hechos: z.array(z.string().min(1)).min(1),
+  /**
+   * Ronda 7 (REQ-053): capturados a mano por el usuario. Puede ir vacío
+   * SOLO si `sourceAutopsyId` aporta al menos un hecho derivado -- el
+   * conjunto final (manual + derivado) debe tener al menos uno, nunca un
+   * borrador sin ningún hecho (validado en la ruta, no aquí, porque
+   * depende de datos de base).
+   */
+  hechos: z.array(z.string().min(1)).default([]),
+  /**
+   * Los agravios (fundamento de la impugnación) SIEMPRE los redacta un
+   * humano -- nunca se derivan automáticamente de la matriz de requisitos
+   * ni de la autopsia: un hueco en el checklist propio es responsabilidad
+   * del cliente, no necesariamente una irregularidad de la convocante, y
+   * fabricar un "agravio" a partir de eso sería jurídicamente irresponsable
+   * (E9). Por eso este campo sigue siendo obligatorio y no admite derivación.
+   */
   agravios: z.array(z.string().min(1)).min(1),
   pruebas: z.array(z.string().min(1)).default([]),
+  /**
+   * Ronda 7 (REQ-053): vincula este borrador a una autopsia del fallo ya
+   * registrada (`fallo_autopsies`, REQ-054) -- si se declara, sus datos YA
+   * capturados (motivo de desechamiento, comparación de criterios, precio
+   * propio vs. ganador) se anexan a `hechos` como restatement factual
+   * (nunca se inventa nada nuevo, solo se repite lo que el usuario ya
+   * declaró en la autopsia). La autopsia debe pertenecer a la misma
+   * convocatoria y no puede tener `ownProposalStatus = 'ganadora'`.
+   */
+  sourceAutopsyId: z.string().uuid().optional(),
 });
 
 export const inconformidadDraftSchema = z.object({
@@ -565,6 +641,32 @@ export const falloAutopsiaSchema = z.object({
   lessons: z.array(z.string()),
   linkedToCompanyProfile: z.boolean(),
   createdAt: isoTimestamp,
+});
+
+// ---------------------------------------------------------------------------
+// REQ-054 (ronda 7): análisis automatizado de "posibles causas de no
+// adjudicación" -- compara la autopsia registrada contra la matriz de
+// requisitos (E6) de la convocatoria. Ver
+// `lib/expediente/fallo-analysis.ts` (función pura `analyzeFalloCauses`).
+// ---------------------------------------------------------------------------
+export const falloPossibleCauseSchema = z.object({
+  origin: z.enum(['fallo_declarado', 'requisito_pendiente', 'requisito_bloqueado']),
+  description: z.string(),
+  requirementItemId: z.string().uuid().nullable(),
+  category: z.string().nullable(),
+  sourcePage: z.number().nullable(),
+  clauseRef: z.string().nullable(),
+});
+
+export const falloAnalysisSchema = z.object({
+  tenderId: z.string().uuid(),
+  applicable: z.boolean(),
+  hasAutopsy: z.boolean(),
+  hasFalloReasonDeclared: z.boolean(),
+  hasRequirementMatrix: z.boolean(),
+  possibleCauses: z.array(falloPossibleCauseSchema),
+  missingDataNotes: z.array(z.string()),
+  disclaimer: z.string(),
 });
 
 // ---------------------------------------------------------------------------
@@ -661,4 +763,55 @@ export const renewalAlertsListQuerySchema = z.object({
 export const renewalAlertsListResponseSchema = z.object({
   items: z.array(renewalAlertSchema),
   nextCursor: z.string().nullable(),
+});
+
+// ---------------------------------------------------------------------------
+// REQ-055 (ronda 8) -- `GET /renewals/upcoming`: el cliente de negocio
+// concreto que exige el requisito. A diferencia de `POST /renewals/scan` +
+// `GET /renewals/alerts` (que persisten alertas/jobs como efecto
+// secundario, bajo demanda), este endpoint es de SOLO LECTURA: calcula en
+// vivo, a partir de `contracts.end_date`, los tres umbrales 90/60/30 (o los
+// que se pidan) de forma SIMULTÁNEA y EXPLÍCITA -- un mismo contrato puede
+// aparecer en más de un grupo de urgencia a la vez (p. ej. a 20 días del
+// vencimiento aparece en los tres) -- nunca colapsa a un solo `alertLevel`
+// binario como el mecanismo genérico de `post-award.routes.ts`.
+export const renewalUpcomingQuerySchema = z.object({
+  /** CSV de umbrales en días (p. ej. "90,60,30"); por defecto 90/60/30. Máximo 10 valores, mismo tope que `renewalScanRequestSchema`. */
+  thresholds: z.string().regex(/^\d+(,\d+)*$/, 'thresholds debe ser una lista de enteros separados por comas, p. ej. "90,60,30"').optional(),
+  /** Tope de contratos evaluados (los más próximos a vencer primero) -- ver `truncated` en la respuesta si se alcanza. */
+  limit: z.string().regex(/^\d+$/, 'limit debe ser un entero positivo').optional(),
+});
+
+export const RENEWAL_URGENCY_ENUM = z.enum(['urgente', 'proxima', 'seguimiento']);
+
+export const renewalUpcomingItemSchema = z.object({
+  contractId: z.string().uuid(),
+  tenderId: z.string().uuid(),
+  tenderTitle: z.string(),
+  contractingBody: z.string().nullable(),
+  contractNumber: z.string().nullable(),
+  /** REQ-055 (ronda 8): si este contrato tiene pactada una opción de renovación -- ver `contracts.has_renewal_option`. */
+  hasRenewalOption: z.boolean(),
+  renewalOptionNotes: z.string().nullable(),
+  endDate: isoTimestamp,
+  /** Días calendario restantes hasta `endDate`, calculados con la MISMA fecha de referencia (`asOfDate`) que el resto de la respuesta -- nunca recalculado por el cliente contra su propio reloj. */
+  daysUntilEnd: z.number().int(),
+  leadDays: z.number().int(),
+  confidence: z.number(),
+});
+
+export const renewalUpcomingGroupSchema = z.object({
+  urgency: RENEWAL_URGENCY_ENUM,
+  leadDays: z.number().int(),
+  items: z.array(renewalUpcomingItemSchema),
+});
+
+export const renewalUpcomingResponseSchema = z.object({
+  asOfDate: realCalendarDateString,
+  /** Umbrales efectivamente usados, ascendente (p. ej. [30, 60, 90]) -- un grupo por umbral, SIEMPRE presente aunque no tenga elementos. */
+  thresholds: z.array(z.number().int()),
+  totalContractsEvaluated: z.number().int(),
+  /** true si se alcanzó `limit` contratos evaluados (ordenados por vencimiento más próximo primero) -- puede haber más contratos con `end_date` futura sin evaluar todavía. Reintentar con un `limit` mayor si aplica. */
+  truncated: z.boolean(),
+  groups: z.array(renewalUpcomingGroupSchema),
 });

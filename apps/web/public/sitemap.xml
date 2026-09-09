@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  E22 / REQ-197: sitemap.xml real de apps/web.
+
+  Solo lista las DOS rutas que el propio código ya marca como pensadas para
+  descubrirse por buscador -- `robots: "index, follow"` en
+  `useDocumentMeta()`, ver `src/pages/LandingPage.tsx` y
+  `src/pages/DemoPage.tsx`. El resto del sitio es un back office autenticado
+  (nada que indexar detrás de sesión) o páginas de flujo de correo/acceso de
+  un solo uso (verificación, restablecer contraseña, invitaciones): ninguna
+  de esas trae `index, follow` y agregarlas aquí contradiría su propio meta
+  tag `noindex, nofollow` heredado de index.html.
+
+  Dominio: https://atiende-licitaciones.vercel.app -- el despliegue de
+  producción público confirmado (ver docs/BLOQUEOS.md B-07, cerrado). Si más
+  adelante se conecta un dominio propio, actualizar `<loc>` aquí.
+
+  `robots.txt` (apps/web/public/robots.txt) sigue con `Disallow: /` a
+  propósito -- el sitio aún no se declaró lanzado para buscadores (ver
+  docs/ACEPTACION.md REQ-197, docs/TABLERO.md); ese es un interruptor de
+  negocio, no algo que este archivo decida por su cuenta.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://atiende-licitaciones.vercel.app/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://atiende-licitaciones.vercel.app/demo</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+</urlset>

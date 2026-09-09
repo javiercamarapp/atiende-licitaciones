@@ -81,6 +81,8 @@ interface RejectAuditParams {
   ip: string;
   userAgent: string | null;
   requestId: string;
+  /** REQ-177: id de correlación de negocio de la request -- ver `IssueTokenPairAudit.correlationId`. */
+  correlationId?: string | null;
 }
 
 /**
@@ -99,6 +101,7 @@ async function auditGoogleRejected(app: FastifyInstance, params: RejectAuditPara
         action: 'auth.google_rejected',
         after: { reason: params.reason, ip: params.ip, userAgent: params.userAgent },
         requestId: params.requestId,
+        correlationId: params.correlationId,
       });
     });
   } catch {
@@ -146,7 +149,7 @@ interface ResolvedIdentity {
 async function resolveGoogleIdentityOnce(
   app: FastifyInstance,
   claims: { sub: string; email: string },
-  audit: { ip: string; userAgent: string | null; requestId: string }
+  audit: { ip: string; userAgent: string | null; requestId: string; correlationId?: string | null }
 ): Promise<ResolvedIdentity> {
   return app.db.transaction(async (tx) => {
     await tx.query('set local role app_role');
@@ -287,6 +290,7 @@ async function resolveGoogleIdentityOnce(
           // correcciones (ver AM-04 en docs/auditoria-2/api-mail.md).
           after: { ip: audit.ip, userAgent: audit.userAgent, accountWasSquatted },
           requestId: audit.requestId,
+          correlationId: audit.correlationId,
         });
       } else {
         // 3) REQ-174: ningún usuario con ese email -- crear cuenta nueva,
@@ -383,7 +387,7 @@ async function resolveGoogleIdentityOnce(
 async function resolveGoogleIdentity(
   app: FastifyInstance,
   claims: { sub: string; email: string },
-  audit: { ip: string; userAgent: string | null; requestId: string }
+  audit: { ip: string; userAgent: string | null; requestId: string; correlationId?: string | null }
 ): Promise<ResolvedIdentity> {
   for (let attempt = 1; attempt <= IDENTITY_RESOLUTION_ATTEMPTS; attempt += 1) {
     try {
@@ -475,7 +479,7 @@ export async function googleAuthRoutes(app: FastifyInstance): Promise<void> {
       const { ip, userAgent } = auditContext(request);
 
       if (error) {
-        await auditGoogleRejected(app, { actorId: null, reason: `provider_error:${error}`, ip, userAgent, requestId: request.id });
+        await auditGoogleRejected(app, { actorId: null, reason: `provider_error:${error}`, ip, userAgent, requestId: request.id, correlationId: request.correlationId });
         throw new BadRequestError('El proveedor reportó un error en el flujo de autorización (el usuario pudo haber cancelado el consentimiento).');
       }
 
@@ -487,7 +491,7 @@ export async function googleAuthRoutes(app: FastifyInstance): Promise<void> {
       try {
         oauthStateId = await verifyOauthState(app.config.jwtSecret, state);
       } catch {
-        await auditGoogleRejected(app, { actorId: null, reason: 'state_signature_invalid_or_expired', ip, userAgent, requestId: request.id });
+        await auditGoogleRejected(app, { actorId: null, reason: 'state_signature_invalid_or_expired', ip, userAgent, requestId: request.id, correlationId: request.correlationId });
         throw new BadRequestError('El parámetro state es inválido o expiró. Reinicie el login con Google.');
       }
 
@@ -499,13 +503,13 @@ export async function googleAuthRoutes(app: FastifyInstance): Promise<void> {
         );
       });
       if (consumed.rows.length === 0) {
-        await auditGoogleRejected(app, { actorId: null, reason: 'state_already_consumed_or_expired', ip, userAgent, requestId: request.id });
+        await auditGoogleRejected(app, { actorId: null, reason: 'state_already_consumed_or_expired', ip, userAgent, requestId: request.id, correlationId: request.correlationId });
         throw new BadRequestError('El parámetro state ya fue utilizado o expiró (posible reintento/CSRF). Reinicie el login con Google.');
       }
       const { code_verifier: codeVerifier, nonce, redirect_uri: redirectUri } = consumed.rows[0];
 
       if (!code) {
-        await auditGoogleRejected(app, { actorId: null, reason: 'missing_code', ip, userAgent, requestId: request.id });
+        await auditGoogleRejected(app, { actorId: null, reason: 'missing_code', ip, userAgent, requestId: request.id, correlationId: request.correlationId });
         throw new BadRequestError('Falta el parámetro code.');
       }
 
@@ -532,7 +536,7 @@ export async function googleAuthRoutes(app: FastifyInstance): Promise<void> {
         });
         idToken = exchanged.idToken;
       } catch {
-        await auditGoogleRejected(app, { actorId: null, reason: 'token_exchange_failed', ip, userAgent, requestId: request.id });
+        await auditGoogleRejected(app, { actorId: null, reason: 'token_exchange_failed', ip, userAgent, requestId: request.id, correlationId: request.correlationId });
         throw new UnauthorizedError('No se pudo completar el intercambio de código con el proveedor de Google.');
       }
 
@@ -546,23 +550,23 @@ export async function googleAuthRoutes(app: FastifyInstance): Promise<void> {
           expectedNonce: nonce,
         });
       } catch (err) {
-        await auditGoogleRejected(app, { actorId: null, reason: `id_token_invalid:${(err as Error).message}`, ip, userAgent, requestId: request.id });
+        await auditGoogleRejected(app, { actorId: null, reason: `id_token_invalid:${(err as Error).message}`, ip, userAgent, requestId: request.id, correlationId: request.correlationId });
         throw new UnauthorizedError('El id_token de Google no es válido (aud/iss/exp/nonce).');
       }
 
       // REQ-179: email_verified=false se rechaza EXPLÍCITAMENTE -- nunca
       // crea cuenta, nunca vincula, nunca inicia sesión.
       if (!claims.email || !claims.emailVerified) {
-        await auditGoogleRejected(app, { actorId: null, reason: 'email_not_verified', ip, userAgent, requestId: request.id });
+        await auditGoogleRejected(app, { actorId: null, reason: 'email_not_verified', ip, userAgent, requestId: request.id, correlationId: request.correlationId });
         throw new ForbiddenError('La cuenta de Google no tiene un email verificado; el login se rechaza (REQ-179).');
       }
 
       let resolved: ResolvedIdentity;
       try {
-        resolved = await resolveGoogleIdentity(app, { sub: claims.sub, email: claims.email }, { ip, userAgent, requestId: request.id });
+        resolved = await resolveGoogleIdentity(app, { sub: claims.sub, email: claims.email }, { ip, userAgent, requestId: request.id, correlationId: request.correlationId });
       } catch (err) {
         if (err instanceof GoogleRejectionError) {
-          await auditGoogleRejected(app, { actorId: err.actorId, reason: err.reason, ip, userAgent, requestId: request.id });
+          await auditGoogleRejected(app, { actorId: err.actorId, reason: err.reason, ip, userAgent, requestId: request.id, correlationId: request.correlationId });
           if (err.httpStatus === 403) throw new ForbiddenError(err.userMessage);
           // GO-07: carrera de identidad no resuelta tras el reintento --
           // 409 explícito y auditado, nunca un 500 con el error de Postgres.
@@ -581,6 +585,7 @@ export async function googleAuthRoutes(app: FastifyInstance): Promise<void> {
         ip,
         userAgent,
         requestId: request.id,
+        correlationId: request.correlationId,
         action: 'auth.google_login',
         extra: { provider: 'google', isNewUser: resolved.isNewUser, linked: resolved.linkedNow, acceptedInvitations: resolved.acceptedInvitations },
       });
@@ -667,6 +672,7 @@ export async function googleAuthRoutes(app: FastifyInstance): Promise<void> {
         ip,
         userAgent,
         requestId: request.id,
+        correlationId: request.correlationId,
         action: 'auth.google_login',
         extra: { provider: 'google', twoFactor: true },
       });

@@ -49,16 +49,22 @@ const SECURITY_DEFINER_WHITELIST: Record<string, string> = {
     'DB-01 (0019): resuelve siempre sobre el propio app.current_user_id(), sin parámetro de usuario.',
   'app.my_organizations()':
     'DB-12 (0041): resuelve siempre sobre el propio app.current_user_id(), sin parámetro de usuario (antes tenía p_user_id arbitrario).',
-  'app.create_refresh_token(uuid,uuid,text,timestamp with time zone)':
-    'DB-08 (0040): exige app.current_user_id() = p_user_id, si no coinciden lanza excepción; el llamador (apps/api) fija current_user_id al id ya verificado antes de invocar.',
+  'app.create_refresh_token(uuid,uuid,text,timestamp with time zone,text,text)':
+    'DB-08 (0040): exige app.current_user_id() = p_user_id, si no coinciden lanza excepción; el llamador (apps/api) fija current_user_id al id ya verificado antes de invocar. E21 (0092) añadió p_ip_address/p_user_agent (DEFAULT NULL) -- solo metadatos persistidos junto al token para GET /auth/sessions, no deciden ningún acceso.',
   'app.find_refresh_token(text)':
     'Opera por posesión de un token_hash (derivado de un secreto de 256 bits firmado por el servidor), no por un user_id adivinable -- equivalente a autenticarse con el propio token.',
   'app.revoke_refresh_token(text)':
     'Idem: opera por posesión del hash del token, nunca por user_id arbitrario.',
   'app.revoke_all_refresh_tokens(uuid)':
     'DB-08 (0040): exige app.current_user_id() = p_user_id o app.is_superadmin().',
-  'app.rotate_refresh_token(text,uuid,text,timestamp with time zone)':
-    'API-01/API-09 (0043): opera por posesión de un token_hash (igual que find_refresh_token/revoke_refresh_token); el user_id de destino se resuelve internamente de la fila encontrada, nunca de un parámetro externo.',
+  'app.rotate_refresh_token(text,uuid,text,timestamp with time zone,text,text)':
+    'API-01/API-09 (0043): opera por posesión de un token_hash (igual que find_refresh_token/revoke_refresh_token); el user_id de destino se resuelve internamente de la fila encontrada, nunca de un parámetro externo. E21 (0092) añadió p_ip_address/p_user_agent (DEFAULT NULL), mismo criterio que create_refresh_token arriba.',
+  'app.list_active_refresh_tokens()':
+    'E21 (0092, docs/BACKLOG.md): sin parámetros de identidad externos -- resuelve siempre sobre el propio app.current_user_id() (exige que ya esté fijado, si no lanza excepción); GET /auth/sessions.',
+  'app.revoke_refresh_token_by_id(uuid)':
+    'E21 (0092): p_id se filtra SIEMPRE junto con user_id = app.current_user_id() dentro del UPDATE -- pedir el id de la sesión de otro usuario no actualiza ninguna fila (0 filas devueltas), nunca revela si ese id existe o pertenece a alguien más. DELETE /auth/sessions/:id.',
+  'app.revoke_other_refresh_tokens(text)':
+    'E21 (0092): opera sobre las filas del propio app.current_user_id() únicamente; p_keep_token_hash es el hash del refresh token que el propio llamador ya está usando (no un identificador de otro usuario), y la función exige que corresponda a una sesión VIGENTE de app.current_user_id() antes de revocar cualquier otra (si no, lanza excepción sin tocar nada) -- evita que un valor ajeno/inventado revoque sesiones reales. POST /auth/sessions/revoke-others.',
   'app.accept_invitation(text,uuid)':
     'p_user_id es siempre el actor YA autenticado (apps/api lo fija igual a app.current_user_id() antes de invocarla); el verdadero secreto de un solo uso es p_token_hash (UUID aleatorio de 122 bits enviado fuera de banda), no p_user_id.',
   'app.source_freshness()':
@@ -67,8 +73,8 @@ const SECURITY_DEFINER_WHITELIST: Record<string, string> = {
     'Sin parámetros de identidad; solo valida la integridad del hash chain completo de audit_log.',
   'app.agent_run_context(uuid)':
     'DB-09 (0044, mitigación PARCIAL documentada): rechaza ejecutarse si ya hay contexto de sesión fijado (mismo patrón "pre-sesión" que find_user_by_email); el hueco residual (una llamada SIN contexto previo sigue resolviendo org_id/actor_id de cualquier run_id adivinado) requiere que apps/api/src/lib/agent-stores.pg.ts pase la identidad del actor autenticado como parámetro -- ese archivo está fuera del ámbito de este agente (no es apps/api/src/modules/auth/** ni organizations/**), documentado como gap real, no oculto.',
-  'app.record_auth_event(text,uuid,jsonb,text)':
-    'API-13 (0051) + API-14 (docs/auditoria-2/api-expediente-reverificacion.md, 0054_fix_api14_auth_audit_actor_match.sql): no acepta ningún identificador de ORGANIZACIÓN (nunca resuelve org_id de un parámetro externo -- siempre inserta org_id=null en audit_log, bypassing RLS SOLO para eso). Desde 0054, además, EXIGE que p_actor_id coincida con app.current_user_id() ya fijado por el llamador para cualquier acción salvo `auth.login_failed` (el único evento genuinamente pre-autenticación, sin sesión establecida) -- cierra el hallazgo API-14 (un llamador con app_role ya no puede forjar un evento atribuido a un actor_id arbitrario). `p_action` sigue restringido en SQL a una lista fija de 5 acciones de autenticación.',
+  'app.record_auth_event(text,uuid,jsonb,text,text)':
+    'API-13 (0051) + API-14 (docs/auditoria-2/api-expediente-reverificacion.md, 0054_fix_api14_auth_audit_actor_match.sql): no acepta ningún identificador de ORGANIZACIÓN (nunca resuelve org_id de un parámetro externo -- siempre inserta org_id=null en audit_log, bypassing RLS SOLO para eso). Desde 0054, además, EXIGE que p_actor_id coincida con app.current_user_id() ya fijado por el llamador para cualquier acción salvo las genuinamente pre-autenticación (`auth.login_failed`, `auth.google_rejected`, `auth.email_verification_sent`, `auth.password_reset_requested`) -- cierra el hallazgo API-14 (un llamador con app_role ya no puede forjar un evento atribuido a un actor_id arbitrario). `p_action` restringido en SQL a una lista fija de acciones de autenticación (ampliada por 0072/0084/0092/0093 para Google, verificación de correo, restablecimiento de contraseña y gestión de sesiones/contraseña propia). REQ-177 (0096_req177_auth_event_correlation_id.sql): quinto parámetro `p_correlation_id` (DEFAULT null, mismo patrón que `app.record_security_event` ya tenía desde 0057) -- antes `audit_log.correlation_id` quedaba SIEMPRE NULL para todo evento de autenticación.',
   'app.record_security_event(text,uuid,text,text,jsonb,text,text)':
     'REQ-044/064 (0057), mismo patrón que app.record_auth_event (0051/0054): los eventos de 2FA (enrolar/verificar/step-up) ocurren sin organización activa (credenciales de USUARIO), así que necesitan bypassing RLS SOLO para insertar con org_id=null. `p_action` restringido en SQL a una lista fija de 3 acciones de 2FA; `p_entity` restringido a `user_totp_secrets`/`step_up_sessions`; y -- a diferencia de record_auth_event, que exime `auth.login_failed` por ser pre-sesión -- aquí NO hay ninguna excepción: se exige SIEMPRE que p_actor_id coincida con app.current_user_id() ya fijado por el llamador (toda acción de 2FA ocurre con sesión ya autenticada).',
   'app.org_members(uuid)':

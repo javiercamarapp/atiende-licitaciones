@@ -43,3 +43,6 @@ export const googleAuthResultSchema = z.object({
   refreshToken: z.string().optional(),
   pendingToken: z.string().optional(),
 });
+
+/** E19/E21 (docs/BACKLOG.md): `POST /auth/google/unlink` -- ver `unlink.routes.ts`. */
+export const unlinkGoogleResponseSchema = z.object({ unlinked: z.literal(true) });

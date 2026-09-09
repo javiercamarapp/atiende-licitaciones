@@ -47,5 +47,5 @@ describe("ExpedientePage", () => {
     // abrir el <Select/>, pero CON `--coverage` el costo real de abrirlo
     // (subiendo este timeout a 120000ms para verlo terminar sin corte) fue
     // de ~32s. 60s deja casi 2x de margen sobre ese costo medido.
-  }, 60000);
+  }, process.env.CI === "true" ? 180000 : 60000);
 });

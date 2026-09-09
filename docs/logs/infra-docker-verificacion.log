@@ -1,0 +1,51 @@
+2026-09-08 02:0x — Verificación real de infra/compose/docker-compose.prod.yml contra Docker de verdad
+(nunca antes posible: B-08/E17 daban por hecho "Docker no está disponible en el entorno de
+desarrollo"; hoy sí lo estaba, ver docs/BLOQUEOS.md).
+
+Entorno: proyecto docker-compose aislado (-p atiende-lic-verify), .env local gitignored con
+valores de PRUEBA (nunca reales), sin puertos publicados en conflicto con otros stacks Docker
+ya corriendo en la misma máquina (Likida-e2e, atiende-restaurantes). Caddy (TLS real) excluido
+a propósito de esta verificación: necesita DNS/dominio real, fuera de alcance de un smoke test
+local.
+
+Hallazgos reales, cada uno arreglado y re-verificado antes de seguir:
+
+1. apps/api y apps/worker: ERR_MODULE_NOT_FOUND en runtime ('@atiende/mail' en worker;
+   arrastraba también a '@atiende/whatsapp' en api) -- ninguno de los dos Dockerfiles copiaba
+   packages/mail/ (preexistente, bug real desde antes de esta sesión) ni packages/whatsapp/
+   (nuevo hoy) en ninguna de sus dos etapas (deps/runtime). Arreglado: agregadas las 4 líneas
+   COPY que faltaban en cada Dockerfile.
+
+2. apps/api, tras el fix anterior: seguía ERR_MODULE_NOT_FOUND, ahora solo en '@fastify/swagger'.
+   Causa distinta: `npm ci` en la raíz del monorepo NO hosteó ese paquete (ni sus transitivas
+   @fastify/json-schema-resolver, ajv-*, typescript) a node_modules/ raíz -- quedó anidado en
+   apps/api/node_modules/ (verificado directo: `docker run --entrypoint sh <imagen-deps> -c "ls
+   apps/api/node_modules"`). El Dockerfile solo copiaba el node_modules raíz. Arreglado:
+   agregada una segunda COPY --from=deps de apps/api/node_modules.
+
+3. apps/api, tras los dos fixes anteriores: arrancaba y crasheaba con "MAIL_LINK_SECRET no
+   definido o demasiado corto" (config.ts lo exige, igual que JWT_SECRET). El propio
+   docker-compose.prod.yml nunca declaraba esa variable (ni PUBLIC_URL, ni ninguna otra de
+   @atiende/mail o @atiende/whatsapp) en el bloque `environment:` de `api` -- deuda acumulada de
+   varias rondas de implementación que nunca tocaron el compose de despliegue. Arreglado:
+   agregadas todas las variables de correo/Google/WhatsApp (con default vacío donde son
+   opcionales) a `api`, y las de proveedor de correo a `worker` (para que un reintento de correo
+   salga por el mismo canal real, nunca por "capture" por accidente). También se creó
+   infra/env/.env.prod.example, que el propio compose referenciaba en sus instrucciones pero
+   nunca existió como archivo real.
+
+Resultado final, con los 3 fixes aplicados: `docker compose -f docker-compose.prod.yml build`
+(las 5 imágenes, sin caddy) y `up -d` -- postgres sano, `migrate` aplicó las 79 migraciones
+reales contra Postgres real y salió con código 0, `api` "Up ... (healthy)" (HEALTHCHECK real via
+/healthz, confirmado también con una petición manual: {"status":"ok"}), `worker` corriendo de
+verdad (logs estructurados reales, jobs de descubrimiento encolados por el scheduler, rechazo
+honesto NotConfiguredError para las fuentes sin credenciales -- comportamiento correcto, no un
+fallo), `web` "Up ... (healthy)". Primera vez que este stack completo arranca de punta a punta.
+
+Limpieza: `docker compose ... down -v` (contenedores, red y volúmenes del proyecto de prueba
+eliminados), `.env` de prueba borrado, imágenes de diagnóstico intermedias (deps-check,
+deps-check-worker) eliminadas. Sin impacto en los otros contenedores Docker de la máquina.
+
+Pendiente real, no cubierto por esta verificación: `caddy` (TLS automático) necesita DNS/dominio
+real apuntando a un host real -- no se puede probar de verdad en local. El resto de S11
+(healthchecks, migraciones al arrancar, runbook) queda confirmado end-to-end por primera vez.

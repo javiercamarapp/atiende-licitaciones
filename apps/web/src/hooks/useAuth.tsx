@@ -46,6 +46,13 @@ export interface AuthContextValue {
   logout: () => Promise<void>;
   switchOrg: (orgId: string) => void;
   refreshMemberships: () => Promise<void>;
+  /**
+   * E19/E21 (docs/BACKLOG.md): re-lee `GET /me` y actualiza `user` --
+   * necesario tras desvincular Google o cambiar de estado de contraseña,
+   * donde `hasPassword`/`googleLinked` (ConfiguracionPage) quedarían
+   * desactualizados hasta el próximo login/recarga si nadie los refresca.
+   */
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -187,14 +194,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setCurrentOrgId((current) => (current && hydratedMemberships.some((m) => m.id === current) ? current : pickInitialOrgId(hydratedMemberships)));
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    const hydratedUser = await getMe();
+    setUser(hydratedUser);
+  }, []);
+
   const currentMembership = useMemo(
     () => memberships.find((m) => m.id === currentOrgId) ?? null,
     [memberships, currentOrgId],
   );
 
   const value = useMemo<AuthContextValue>(
-    () => ({ status, user, memberships, currentOrgId, currentMembership, login, loginWithTokens, logout, switchOrg, refreshMemberships }),
-    [status, user, memberships, currentOrgId, currentMembership, login, loginWithTokens, logout, switchOrg, refreshMemberships],
+    () => ({ status, user, memberships, currentOrgId, currentMembership, login, loginWithTokens, logout, switchOrg, refreshMemberships, refreshUser }),
+    [status, user, memberships, currentOrgId, currentMembership, login, loginWithTokens, logout, switchOrg, refreshMemberships, refreshUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

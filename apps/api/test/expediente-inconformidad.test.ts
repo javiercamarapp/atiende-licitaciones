@@ -256,4 +256,100 @@ describe('expediente — redactor de inconformidades (REQ-053)', () => {
     });
     expect(attempt.statusCode).toBe(403);
   });
+
+  it('sin hechos manuales ni sourceAutopsyId: 422 -- nunca genera un borrador sin ningún hecho', async () => {
+    const owner = await registerAndLogin(app, 'c053-owner-6@example.com');
+    const org = await createOrgFor(app, owner, 'C053 Org 6', 'c053-org-6');
+    const tenderId = await createTender(app, org.id, 'c053-006');
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+
+    const attempt = await app.inject({
+      method: 'POST',
+      url: `/expediente/tenders/${tenderId}/inconformidad`,
+      headers,
+      payload: { falloNotifiedOn: '2026-01-05', agravios: ['El fallo no motiva el desechamiento.'], pruebas: [] },
+    });
+    expect(attempt.statusCode).toBe(422);
+  });
+
+  it('sourceAutopsyId (ronda 7): deriva "hechos" factuales de una autopsia del fallo ya registrada -- nunca reemplaza los agravios, que siguen siendo obligatorios y manuales', async () => {
+    const owner = await registerAndLogin(app, 'c053-owner-7@example.com');
+    const org = await createOrgFor(app, owner, 'C053 Org 7', 'c053-org-7');
+    const tenderId = await createTender(app, org.id, 'c053-007');
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+
+    const autopsy = await app.inject({
+      method: 'POST',
+      url: `/expediente/tenders/${tenderId}/fallo-autopsy`,
+      headers,
+      payload: {
+        ownProposalStatus: 'desechada',
+        disqualificationReason: 'No se acreditó la garantía de sostenimiento de oferta.',
+        ownPrice: 900000,
+        winnerPrice: 950000,
+        winnerName: 'Constructora Ganadora SA',
+        criteriaComparison: [{ criterio: 'Experiencia', propio: '3 obras', ganador: '6 obras' }],
+        lessons: ['Revisar garantías antes de enviar.'],
+      },
+    });
+    expect(autopsy.statusCode).toBe(201);
+    const autopsyId = autopsy.json().id;
+
+    const create = await app.inject({
+      method: 'POST',
+      url: `/expediente/tenders/${tenderId}/inconformidad`,
+      headers,
+      payload: {
+        falloNotifiedOn: '2026-01-05',
+        sourceAutopsyId: autopsyId,
+        agravios: ['El acta de fallo no motiva ni funda el desechamiento conforme al Art. 49.'],
+        pruebas: ['Copia del fallo notificado.'],
+      },
+    });
+    expect(create.statusCode).toBe(201);
+    const draft = create.json();
+    expect(draft.hechos.length).toBeGreaterThanOrEqual(3);
+    expect(draft.hechos.some((h: string) => h.includes('No se acreditó la garantía de sostenimiento de oferta'))).toBe(true);
+    expect(draft.hechos.some((h: string) => h.includes('900,000') || h.includes('900000'))).toBe(true);
+    expect(draft.hechos.some((h: string) => h.includes('Experiencia'))).toBe(true);
+    expect(draft.agravios).toEqual(['El acta de fallo no motiva ni funda el desechamiento conforme al Art. 49.']);
+  });
+
+  it('sourceAutopsyId de una autopsia "ganadora": rechazado (422), no aplica un borrador de inconformidad', async () => {
+    const owner = await registerAndLogin(app, 'c053-owner-8@example.com');
+    const org = await createOrgFor(app, owner, 'C053 Org 8', 'c053-org-8');
+    const tenderId = await createTender(app, org.id, 'c053-008');
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+
+    const autopsy = await app.inject({
+      method: 'POST',
+      url: `/expediente/tenders/${tenderId}/fallo-autopsy`,
+      headers,
+      payload: { ownProposalStatus: 'ganadora', lessons: ['x'] },
+    });
+    expect(autopsy.statusCode).toBe(201);
+
+    const attempt = await app.inject({
+      method: 'POST',
+      url: `/expediente/tenders/${tenderId}/inconformidad`,
+      headers,
+      payload: { falloNotifiedOn: '2026-01-05', sourceAutopsyId: autopsy.json().id, agravios: ['agravio'], pruebas: [] },
+    });
+    expect(attempt.statusCode).toBe(422);
+  });
+
+  it('sourceAutopsyId inexistente: 404', async () => {
+    const owner = await registerAndLogin(app, 'c053-owner-9@example.com');
+    const org = await createOrgFor(app, owner, 'C053 Org 9', 'c053-org-9');
+    const tenderId = await createTender(app, org.id, 'c053-009');
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+
+    const attempt = await app.inject({
+      method: 'POST',
+      url: `/expediente/tenders/${tenderId}/inconformidad`,
+      headers,
+      payload: { falloNotifiedOn: '2026-01-05', sourceAutopsyId: '00000000-0000-0000-0000-000000000000', agravios: ['agravio'], pruebas: [] },
+    });
+    expect(attempt.statusCode).toBe(404);
+  });
 });

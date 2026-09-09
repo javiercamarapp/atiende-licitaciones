@@ -89,3 +89,91 @@ export const TONE_LABEL: Record<ToneKey, { label: string | null; color: string }
   urgente: { label: "Urgente", color: colors.danger },
   exito: { label: "Completado", color: colors.success },
 };
+
+/**
+ * ML-09 — paleta de RESPALDO para `prefers-color-scheme: dark`.
+ *
+ * Antes, `EmailLayout` solo declaraba `<meta name="color-scheme"
+ * content="light only">`: eso le PIDE a los pocos clientes que lo respetan
+ * (Apple Mail, iOS/macOS Mail) que NUNCA oscurezcan el correo — así que en
+ * modo oscuro seguía viéndose una tarjeta blanca de punta a punta. Esta
+ * paleta y `DARK_MODE_STYLE` (más abajo) reemplazan ese "nunca" por un
+ * segundo juego de colores real, activado por el propio cliente vía media
+ * query — no una promesa de "algún día".
+ *
+ * No son los tokens de `colors` con un filtro automático: cada valor se
+ * eligió a mano para seguir cumpliendo WCAG AA sobre `surfaceDark`/`canvasDark`
+ * (verificado en `test/theme/contrast-dark.test.ts`, la contraparte de
+ * `contrast.test.ts`). El azul de marca (`colors.brand`) y el botón CTA NO
+ * cambian: `#1d4ed8` ya tiene contraste de sobra contra texto blanco (6.7:1)
+ * y se distingue perfectamente sobre un fondo oscuro — solo los tonos de
+ * urgencia (`danger`/`warning`/`success`), pensados para una tarjeta BLANCA,
+ * pierden contraste suficiente sobre una tarjeta oscura y sí necesitan su
+ * propia variante.
+ */
+export const darkColors = {
+  canvas: "#0a0e16",
+  surface: "#141b29",
+  ink: "#eef2fa",
+  body: "#c7d0de",
+  muted: "#9aa7ba",
+  faint: "#93a0b5",
+  line: "#2a3446",
+  well: "#1b2434",
+  danger: "#f87171",
+  warning: "#fbbf24",
+  success: "#4ade80",
+} as const;
+
+/** Variante oscura de `TONE_LABEL`, para las clases `am-tone-*` que
+ *  `ToneBadge` aplica junto a su color inline (ver `components/blocks.tsx`). */
+export const TONE_LABEL_DARK: Record<ToneKey, string> = {
+  neutral: darkColors.muted,
+  atencion: darkColors.warning,
+  urgente: darkColors.danger,
+  exito: darkColors.success,
+};
+
+/**
+ * El `<style>` de respaldo para modo oscuro que `EmailLayout` inyecta en su
+ * `<Head>`. Usa CLASES (no `var()`, que el correo no soporta) con
+ * `!important` para poder pisar los estilos inline de `colors` — la técnica
+ * estándar de dark-mode en correo, porque una declaración `!important` en
+ * una hoja de estilos SÍ gana sobre un `style=""` inline sin `!important`.
+ *
+ * Se repite una vez bajo `@media (prefers-color-scheme: dark)` (Apple Mail,
+ * Outlook.com web/desktop nuevo) y otra vez bajo los selectores de atributo
+ * que Gmail (apps iOS/Android) usa cuando aplica SU PROPIO recoloreado
+ * automático (`[data-ogsc]`/`[data-ogsb]`, "Outlook/Gmail Style Color/
+ * Background") — sin este segundo bloque, Gmail seguiría adivinando sus
+ * propios colores en vez de usar los que aquí se eligieron a propósito.
+ * Los clientes que ignoran `<style>` en el `<head>` (Outlook de escritorio)
+ * simplemente no ven nada de esto y se quedan con el diseño claro normal —
+ * nunca se rompe nada, solo se pierde la variante oscura.
+ */
+export const DARK_MODE_STYLE = `
+  @media (prefers-color-scheme: dark) {
+    .am-canvas { background-color: ${darkColors.canvas} !important; }
+    .am-card { background-color: ${darkColors.surface} !important; border-color: ${darkColors.line} !important; }
+    .am-ink { color: ${darkColors.ink} !important; }
+    .am-body-text { color: ${darkColors.body} !important; }
+    .am-muted { color: ${darkColors.muted} !important; }
+    .am-faint { color: ${darkColors.faint} !important; }
+    .am-line { border-color: ${darkColors.line} !important; }
+    .am-well { background-color: ${darkColors.well} !important; border-color: ${darkColors.line} !important; }
+    .am-tone-atencion { color: ${TONE_LABEL_DARK.atencion} !important; }
+    .am-tone-urgente { color: ${TONE_LABEL_DARK.urgente} !important; }
+    .am-tone-exito { color: ${TONE_LABEL_DARK.exito} !important; }
+  }
+  [data-ogsc] .am-canvas, [data-ogsb] .am-canvas { background-color: ${darkColors.canvas} !important; }
+  [data-ogsc] .am-card, [data-ogsb] .am-card { background-color: ${darkColors.surface} !important; border-color: ${darkColors.line} !important; }
+  [data-ogsc] .am-ink { color: ${darkColors.ink} !important; }
+  [data-ogsc] .am-body-text { color: ${darkColors.body} !important; }
+  [data-ogsc] .am-muted { color: ${darkColors.muted} !important; }
+  [data-ogsc] .am-faint { color: ${darkColors.faint} !important; }
+  [data-ogsc] .am-line, [data-ogsb] .am-line { border-color: ${darkColors.line} !important; }
+  [data-ogsc] .am-well, [data-ogsb] .am-well { background-color: ${darkColors.well} !important; border-color: ${darkColors.line} !important; }
+  [data-ogsc] .am-tone-atencion { color: ${TONE_LABEL_DARK.atencion} !important; }
+  [data-ogsc] .am-tone-urgente { color: ${TONE_LABEL_DARK.urgente} !important; }
+  [data-ogsc] .am-tone-exito { color: ${TONE_LABEL_DARK.exito} !important; }
+`;

@@ -3,19 +3,29 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import QRCode from "qrcode";
-import { Settings, ShieldAlert, ShieldCheck, KeyRound, BellRing } from "lucide-react";
+import { Settings, ShieldCheck, ShieldOff, KeyRound, RefreshCw, BellRing, Lock, Link2Off, Monitor, LogOut } from "lucide-react";
 
 import { SectionHeader } from "@/components/layout/SectionHeader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ErrorState } from "@/components/ui/error-state";
 import { LoadingState } from "@/components/ui/loading-state";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { toast } from "@/components/ui/sonner";
-import { describeApiError } from "@/hooks/useAuth";
-import { useTwoFactorStatus, useEnrollTwoFactor, useVerifyTwoFactorEnrollment } from "@/hooks/useTwoFactor";
+import { StepUpDialog } from "@/components/StepUpDialog";
+import { useAuth, describeApiError } from "@/hooks/useAuth";
+import {
+  useTwoFactorStatus,
+  useEnrollTwoFactor,
+  useVerifyTwoFactorEnrollment,
+  useDisableTwoFactor,
+  useRegenerateBackupCodes,
+} from "@/hooks/useTwoFactor";
+import { useAuthSessions, useRevokeAuthSession, useRevokeOtherAuthSessions, useChangePassword, useUnlinkGoogle } from "@/hooks/useAccountSecurity";
 import { useNotificationPreferences, useUpdateNotificationPreferences } from "@/hooks/useNotificationPreferences";
 import type { NotificationPreferences } from "@/lib/api/mail";
 import { formatDateTimeMx } from "@/lib/datetime";
@@ -92,15 +102,23 @@ function TotpQrCode({ otpauthUrl }: { otpauthUrl: string }) {
  * REQ-044/064: enrolamiento de 2FA (TOTP) de la CUENTA -- válido para
  * aprobar tarifas o expedientes en cualquier organización de la que seas
  * miembro (ver StepUpDialog.tsx, usado por TarifasAprobadasPage y
- * RevisionPage). apps/api no ofrece re-enrolar sin desenrolar primero
- * (fuera de alcance de esta ronda; contactar a un administrador) — una vez
- * confirmado, esta pantalla ya no permite generar un secreto nuevo.
+ * RevisionPage). apps/api no ofrece re-enrolar sin desactivar primero --
+ * una vez confirmado, esta pantalla ya no permite generar un secreto
+ * nuevo, solo desactivarlo (E21) o regenerar los códigos de respaldo (E21).
+ *
+ * Desactivar/regenerar comparten UN solo StepUpDialog (`stepUpAction`
+ * decide el `purpose` y qué mutación corre `onVerified`) -- mismo patrón
+ * que `TarifasAprobadasPage` (un diálogo, varias acciones posibles).
  */
 function TwoFactorSection() {
   const { data: status, isLoading, isError, error, refetch } = useTwoFactorStatus();
   const enroll = useEnrollTwoFactor();
   const verify = useVerifyTwoFactorEnrollment();
+  const disable = useDisableTwoFactor();
+  const regenerate = useRegenerateBackupCodes();
   const [enrollment, setEnrollment] = useState<EnrollTwoFactorResponse | null>(null);
+  const [regeneratedCodes, setRegeneratedCodes] = useState<string[] | null>(null);
+  const [stepUpAction, setStepUpAction] = useState<"disable" | "regenerate" | null>(null);
   const form = useForm<CodeValues>({ resolver: zodResolver(codeSchema), defaultValues: { code: "" } });
 
   const onEnroll = async () => {
@@ -121,6 +139,21 @@ function TwoFactorSection() {
     } catch (err) {
       toast.error(describeApiError(err));
     }
+  };
+
+  const onStepUpVerified = (stepUpToken: string) => {
+    if (stepUpAction === "disable") {
+      disable.mutate(stepUpToken, {
+        onSuccess: () => toast.success("2FA desactivado."),
+        onError: (err) => toast.error(describeApiError(err)),
+      });
+    } else if (stepUpAction === "regenerate") {
+      regenerate.mutate(stepUpToken, {
+        onSuccess: (result) => setRegeneratedCodes(result.backupCodes),
+        onError: (err) => toast.error(describeApiError(err)),
+      });
+    }
+    setStepUpAction(null);
   };
 
   return (
@@ -149,6 +182,48 @@ function TwoFactorSection() {
               Tu app de autenticación es ahora el segundo factor: al aprobar una tarifa o un expediente se te pedirá un código de 6 dígitos
               (o uno de tus códigos de respaldo, de un solo uso).
             </p>
+
+            {regeneratedCodes ? (
+              <div className="space-y-2 rounded-xl border border-border p-4">
+                <p className="text-sm font-medium text-foreground">Nuevos códigos de respaldo (guárdalos ahora — no se muestran de nuevo)</p>
+                <p className="text-xs text-muted-foreground">Los códigos anteriores ya NO sirven.</p>
+                <ul aria-label="Nuevos códigos de respaldo" className="grid grid-cols-2 gap-1 font-mono text-xs text-muted-foreground sm:grid-cols-5">
+                  {regeneratedCodes.map((code) => (
+                    <li key={code} className="rounded bg-muted/40 px-2 py-1">
+                      {code}
+                    </li>
+                  ))}
+                </ul>
+                <Button type="button" size="sm" variant="secondary" onClick={() => setRegeneratedCodes(null)}>
+                  Ya los guardé
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="gap-1.5"
+                  disabled={regenerate.isPending}
+                  onClick={() => setStepUpAction("regenerate")}
+                >
+                  <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                  Regenerar códigos de respaldo
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  className="gap-1.5"
+                  disabled={disable.isPending}
+                  onClick={() => setStepUpAction("disable")}
+                >
+                  <ShieldOff className="h-4 w-4" aria-hidden="true" />
+                  Desactivar 2FA
+                </Button>
+              </div>
+            )}
           </div>
         )}
 
@@ -215,6 +290,21 @@ function TwoFactorSection() {
           </div>
         )}
       </CardContent>
+
+      <StepUpDialog
+        open={stepUpAction !== null}
+        onOpenChange={(open) => {
+          if (!open) setStepUpAction(null);
+        }}
+        purpose={stepUpAction === "disable" ? "twofa.disable" : "twofa.backup_codes_regenerate"}
+        title={stepUpAction === "disable" ? "Desactivar verificación en dos pasos" : "Regenerar códigos de respaldo"}
+        description={
+          stepUpAction === "disable"
+            ? "Confirma con tu app de autenticación antes de desactivar 2FA. Se rechaza si tu cuenta quedaría sin contraseña ni Google vinculado."
+            : "Confirma con tu app de autenticación antes de invalidar tus códigos de respaldo actuales y emitir diez nuevos."
+        }
+        onVerified={onStepUpVerified}
+      />
     </Card>
   );
 }
@@ -326,47 +416,320 @@ function NotificationPreferencesSection() {
   );
 }
 
+const passwordFormSchema = z
+  .object({
+    currentPassword: z.string().min(1, "Ingresa tu contraseña actual."),
+    newPassword: z.string().min(8, "La contraseña nueva debe tener al menos 8 caracteres."),
+    confirmPassword: z.string().min(1, "Confirma tu contraseña nueva."),
+  })
+  .refine((values) => values.newPassword === values.confirmPassword, {
+    message: "Las contraseñas nuevas no coinciden.",
+    path: ["confirmPassword"],
+  });
+type PasswordFormValues = z.infer<typeof passwordFormSchema>;
+
 /**
- * Ronda 8a: inventario HONESTO de lo que esta pantalla de seguridad NO
- * puede ofrecer todavía, con el motivo real de cada hueco. Se comprobó
- * endpoint por endpoint en `apps/api/src/modules/twofa/routes.ts` (solo
- * cuatro rutas: `GET /2fa/status`, `POST /2fa/enroll`, `POST
- * /2fa/verify-enrollment`, `POST /2fa/step-up`), en
- * `apps/api/src/modules/auth/routes.ts` (register/login/refresh/logout) y
- * en `apps/api/src/modules/me/routes.ts` (un único `GET`) — ninguna expone
- * desactivar 2FA, regenerar códigos de respaldo ni listar/cerrar sesiones
- * activas. Se documenta en la propia UI en vez de construir botones que
- * fingirían llamar a endpoints inexistentes.
+ * E21 (docs/BACKLOG.md): `POST /auth/password/change` -- exige step-up
+ * ADEMÁS de la contraseña actual. Solo aplica a cuentas con contraseña
+ * propia (`user.hasPassword`, `GET /me`) -- una cuenta solo-Google
+ * (REQ-172) no tiene contraseña que cambiar; se declara así en vez de
+ * ofrecer un formulario que la API rechazaría con 409.
+ *
+ * Éxito revoca TODAS las sesiones (este dispositivo incluido, ver
+ * docstring de `lib/api/password.ts`) -- tras el `toast` de éxito, la
+ * pantalla cierra la sesión local (`useAuth().logout()`) y deja que el
+ * enrutado normal mande a `/login`: seguir "autenticado" con un refresh
+ * token que el servidor ya revocó solo produciría un 401 en la siguiente
+ * petición.
  */
-function SecurityGapsCard() {
+function ChangePasswordSection() {
+  const { user, logout } = useAuth();
+  const changePassword = useChangePassword();
+  const [stepUpOpen, setStepUpOpen] = useState(false);
+  const [pendingValues, setPendingValues] = useState<PasswordFormValues | null>(null);
+  const form = useForm<PasswordFormValues>({
+    resolver: zodResolver(passwordFormSchema),
+    defaultValues: { currentPassword: "", newPassword: "", confirmPassword: "" },
+  });
+
+  const onSubmit = (values: PasswordFormValues) => {
+    setPendingValues(values);
+    setStepUpOpen(true);
+  };
+
+  const onStepUpVerified = (stepUpToken: string) => {
+    const values = pendingValues;
+    setPendingValues(null);
+    if (!values) return;
+    changePassword.mutate(
+      { payload: { currentPassword: values.currentPassword, newPassword: values.newPassword }, stepUpToken },
+      {
+        onSuccess: async () => {
+          toast.success("Contraseña actualizada. Vuelve a iniciar sesión con tu contraseña nueva.");
+          form.reset();
+          await logout();
+        },
+        onError: (err) => toast.error(describeApiError(err)),
+      },
+    );
+  };
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
-          <ShieldAlert className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
-          Lo que esta pantalla todavía no puede hacer
+          <Lock className="h-5 w-5 text-primary" aria-hidden="true" />
+          Contraseña
         </CardTitle>
-        <CardDescription>
-          Preferimos decirlo que ofrecer un botón que no haría nada. Cada punto depende de un endpoint que apps/api aún no expone.
-        </CardDescription>
+        <CardDescription>Exige verificación en dos pasos además de tu contraseña actual. Cambiarla cierra todas tus sesiones.</CardDescription>
       </CardHeader>
       <CardContent>
-        <ul className="space-y-3 text-sm text-muted-foreground">
-          <li>
-            <strong className="font-medium text-foreground">Desactivar la verificación en dos pasos.</strong> apps/api no tiene ninguna ruta
-            para desenrolar, y volver a enrolar sobre un 2FA ya verificado responde <code className="text-xs">409</code> a propósito. Si
-            pierdes tu app de autenticación, usa un código de respaldo y pide a un administrador que te ayude.
-          </li>
-          <li>
-            <strong className="font-medium text-foreground">Regenerar códigos de respaldo.</strong> Los diez códigos se emiten una única vez,
-            durante el enrolamiento, y no vuelven a mostrarse: no existe un endpoint que los reemplace sin desenrolar primero.
-          </li>
-          <li>
-            <strong className="font-medium text-foreground">Ver y cerrar tus sesiones activas.</strong> apps/api revoca el refresh token de la
-            sesión actual al cerrar sesión (<code className="text-xs">POST /auth/logout</code>), pero no expone ninguna lista de sesiones ni
-            forma de cerrar las demás a distancia.
-          </li>
-        </ul>
+        {user && !user.hasPassword ? (
+          <p className="text-sm text-muted-foreground">
+            Esta cuenta no tiene contraseña propia (solo Google) — no hay nada que cambiar aquí.
+          </p>
+        ) : (
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-3">
+                <FormField
+                  control={form.control}
+                  name="currentPassword"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Contraseña actual</FormLabel>
+                      <FormControl>
+                        <Input type="password" autoComplete="current-password" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="newPassword"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Contraseña nueva</FormLabel>
+                      <FormControl>
+                        <Input type="password" autoComplete="new-password" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="confirmPassword"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Confirmar contraseña nueva</FormLabel>
+                      <FormControl>
+                        <Input type="password" autoComplete="new-password" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <Button type="submit" className="gap-1.5" disabled={changePassword.isPending}>
+                <Lock className="h-4 w-4" aria-hidden="true" />
+                {changePassword.isPending ? "Cambiando…" : "Cambiar contraseña"}
+              </Button>
+            </form>
+          </Form>
+        )}
+      </CardContent>
+
+      <StepUpDialog
+        open={stepUpOpen}
+        onOpenChange={setStepUpOpen}
+        purpose="auth.password_change"
+        title="Confirma el cambio de contraseña"
+        description="Verifica con tu app de autenticación antes de cambiar tu contraseña."
+        onVerified={onStepUpVerified}
+      />
+    </Card>
+  );
+}
+
+/**
+ * E19 (docs/BACKLOG.md): `POST /auth/google/unlink` -- exige step-up y se
+ * rechaza (409) si la cuenta se quedaría sin ningún método de acceso (sin
+ * contraseña propia). Sin un flujo de "conectar Google" para una cuenta ya
+ * autenticada en apps/api (la vinculación real solo ocurre AUTOMÁTICAMENTE
+ * al iniciar sesión con Google por primera vez con un email que coincide,
+ * ver `modules/auth/google/routes.ts`), esta sección solo declara el
+ * estado y ofrece desvincular -- nunca un botón "vincular" que no tendría
+ * endpoint detrás.
+ */
+function GoogleAccountSection() {
+  const { user, refreshUser } = useAuth();
+  const unlinkGoogle = useUnlinkGoogle();
+  const [stepUpOpen, setStepUpOpen] = useState(false);
+
+  if (!user) return null;
+
+  const onStepUpVerified = (stepUpToken: string) => {
+    unlinkGoogle.mutate(stepUpToken, {
+      onSuccess: async () => {
+        toast.success("Cuenta de Google desvinculada.");
+        await refreshUser();
+      },
+      onError: (err) => toast.error(describeApiError(err)),
+    });
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Link2Off className="h-5 w-5 text-primary" aria-hidden="true" />
+          Cuenta de Google
+        </CardTitle>
+        <CardDescription>Vincular ocurre automáticamente al iniciar sesión con Google usando este mismo correo.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {user.googleLinked ? (
+          <>
+            <div className="flex items-center gap-2">
+              <Badge variant="success">Vinculada</Badge>
+              <span className="text-sm text-muted-foreground">Puedes iniciar sesión con esta cuenta de Google.</span>
+            </div>
+            {user.hasPassword ? (
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                className="gap-1.5"
+                disabled={unlinkGoogle.isPending}
+                onClick={() => setStepUpOpen(true)}
+              >
+                <Link2Off className="h-4 w-4" aria-hidden="true" />
+                Desvincular Google
+              </Button>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No se puede desvincular: esta cuenta no tiene contraseña propia y se quedaría sin ningún método de acceso. Configura una
+                contraseña primero (restablecerla vía "olvidé mi contraseña" también sirve para ponerla por primera vez).
+              </p>
+            )}
+          </>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary">Sin vincular</Badge>
+            <span className="text-sm text-muted-foreground">No has vinculado ninguna cuenta de Google.</span>
+          </div>
+        )}
+      </CardContent>
+
+      <StepUpDialog
+        open={stepUpOpen}
+        onOpenChange={setStepUpOpen}
+        purpose="auth.google_unlink"
+        title="Confirma la desvinculación de Google"
+        description="Verifica con tu app de autenticación antes de desvincular tu cuenta de Google."
+        onVerified={onStepUpVerified}
+      />
+    </Card>
+  );
+}
+
+/**
+ * E21 (docs/BACKLOG.md): `GET/DELETE /auth/sessions`,
+ * `POST /auth/sessions/revoke-others` -- una fila por refresh token
+ * vigente (como mucho una por login original, ver docstring de la
+ * migración 0092: la rotación reemplaza la fila anterior, no suma). La API
+ * no indica cuál fila es "esta" sesión (ver docstring de
+ * `lib/api/auth-sessions.ts`), así que ninguna fila se marca como actual.
+ */
+function SessionsSection() {
+  const { data, isLoading, isError, error, refetch } = useAuthSessions();
+  const revokeOne = useRevokeAuthSession();
+  const revokeOthers = useRevokeOtherAuthSessions();
+  const [revokingId, setRevokingId] = useState<string | null>(null);
+
+  const onRevokeOne = (id: string) => {
+    setRevokingId(id);
+    revokeOne.mutate(id, {
+      onSuccess: () => toast.success("Sesión cerrada."),
+      onError: (err) => toast.error(describeApiError(err)),
+      onSettled: () => setRevokingId(null),
+    });
+  };
+
+  const onRevokeOthers = () => {
+    revokeOthers.mutate(undefined, {
+      onSuccess: (result) => toast.success(`${result.revokedCount} sesión(es) cerrada(s).`),
+      onError: (err) => toast.error(describeApiError(err)),
+    });
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Monitor className="h-5 w-5 text-primary" aria-hidden="true" />
+          Sesiones activas
+        </CardTitle>
+        <CardDescription>Un dispositivo/navegador por fila. Cerrar una la deja sin efecto de inmediato.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isLoading && <LoadingState label="Cargando tus sesiones…" />}
+        {isError && <ErrorState message={describeApiError(error)} onRetry={() => refetch()} />}
+
+        {!isLoading && !isError && data && data.sessions.length === 0 && (
+          <EmptyState icon={Monitor} title="Sin sesiones activas" description="No se encontró ninguna sesión vigente." />
+        )}
+
+        {!isLoading && !isError && data && data.sessions.length > 0 && (
+          <>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Creada</TableHead>
+                    <TableHead>Expira</TableHead>
+                    <TableHead>IP</TableHead>
+                    <TableHead>Agente</TableHead>
+                    <TableHead />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.sessions.map((session) => (
+                    <TableRow key={session.id}>
+                      <TableCell>{formatDateTimeMx(session.createdAt)}</TableCell>
+                      <TableCell>{formatDateTimeMx(session.expiresAt)}</TableCell>
+                      <TableCell>{session.ipAddress ?? "—"}</TableCell>
+                      <TableCell className="max-w-[16rem] truncate" title={session.userAgent ?? undefined}>
+                        {session.userAgent ?? "—"}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="gap-1.5"
+                          disabled={revokingId === session.id}
+                          onClick={() => onRevokeOne(session.id)}
+                        >
+                          <LogOut className="h-4 w-4" aria-hidden="true" />
+                          {revokingId === session.id ? "Cerrando…" : "Cerrar"}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            {data.sessions.length > 1 && (
+              <Button type="button" variant="secondary" size="sm" className="gap-1.5" disabled={revokeOthers.isPending} onClick={onRevokeOthers}>
+                <LogOut className="h-4 w-4" aria-hidden="true" />
+                {revokeOthers.isPending ? "Cerrando…" : "Cerrar las demás sesiones"}
+              </Button>
+            )}
+          </>
+        )}
       </CardContent>
     </Card>
   );
@@ -378,12 +741,14 @@ export default function ConfiguracionPage() {
       <SectionHeader
         icon={Settings}
         title="Configuración"
-        description="Seguridad de tu cuenta y notificaciones por correo (ronda 8b). Fuentes de convocatorias, reglas de matching e integraciones siguen sin conectar."
+        description="Seguridad de tu cuenta y notificaciones por correo. Fuentes de convocatorias, reglas de matching e integraciones siguen sin conectar."
       />
       <div className="space-y-6">
         <TwoFactorSection />
+        <ChangePasswordSection />
+        <GoogleAccountSection />
+        <SessionsSection />
         <NotificationPreferencesSection />
-        <SecurityGapsCard />
       </div>
     </div>
   );

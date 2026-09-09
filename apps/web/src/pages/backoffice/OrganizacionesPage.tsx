@@ -26,7 +26,11 @@ export default function OrganizacionesPage() {
       {isLoading && <LoadingState label="Cargando organizaciones…" />}
       {isError && <ErrorState message={describeApiError(error)} onRetry={() => refetch()} />}
       {!isLoading && !isError && (!organizations || organizations.length === 0) && (
-        <EmptyState icon={Building2} title="Aún no hay organizaciones registradas" description="Crea la primera organización para empezar a operar en la plataforma." />
+        <EmptyState
+          icon={Building2}
+          title="Aún no hay organizaciones registradas"
+          description="Las organizaciones aparecen aquí en cuanto un usuario completa el onboarding — esta vista de superadmin no crea organizaciones."
+        />
       )}
       {!isLoading && !isError && organizations && organizations.length > 0 && (
         <Card>

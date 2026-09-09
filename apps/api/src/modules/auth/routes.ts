@@ -42,6 +42,8 @@ export interface IssueTokenPairAudit {
   ip: string;
   userAgent: string | null;
   requestId: string;
+  /** REQ-177: id de correlación de negocio de la request (`request.correlationId`) -- se propaga hasta `audit_log.correlation_id` vía `recordAuthAudit`, con la misma paridad entre Google y email+contraseña que el resto de este tipo. */
+  correlationId?: string | null;
   /**
    * REQ-175/REQ-177: acción de `audit_log` a registrar para la emisión de
    * este par de tokens -- por defecto `'auth.login_succeeded'`
@@ -86,14 +88,27 @@ export async function issueTokenPair(
     // la MISMA transacción de `modules/auth/google/routes.ts`) -- nunca a
     // partir de un valor de entrada del cliente sin verificar.
     await tx.query("select set_config('app.current_user_id', $1, true)", [userId]);
-    await tx.query(`select app.create_refresh_token($1, $2, $3, now() + interval '${REFRESH_TTL_DAYS} days')`, [
+    // E21 (docs/BACKLOG.md, migración 0092): ip/user-agent se persisten
+    // junto con el refresh token -- son exactamente los mismos valores que
+    // ya se calculan aquí para `recordAuthAudit` (nunca un dato nuevo sin
+    // verificar), y permiten que `GET /auth/sessions` muestre algo más útil
+    // que un id opaco.
+    await tx.query(`select app.create_refresh_token($1, $2, $3, now() + interval '${REFRESH_TTL_DAYS} days', $4, $5)`, [
       randomUUID(),
       userId,
       hashToken(jti),
+      audit.ip,
+      audit.userAgent,
     ]);
     // API-13: login exitoso ahora deja rastro en audit_log (actor, ip,
     // user-agent, request_id -- nunca contraseña ni token).
-    await recordAuthAudit(tx, { actorId: userId, action, after: { ip: audit.ip, userAgent: audit.userAgent, ...audit.extra }, requestId: audit.requestId });
+    await recordAuthAudit(tx, {
+      actorId: userId,
+      action,
+      after: { ip: audit.ip, userAgent: audit.userAgent, ...audit.extra },
+      requestId: audit.requestId,
+      correlationId: audit.correlationId,
+    });
   });
   return { accessToken, refreshToken };
 }
@@ -215,6 +230,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
               action: 'auth.login_failed',
               after: { email, ...auditContext(request) },
               requestId: request.id,
+              correlationId: request.correlationId,
             });
           });
         } catch {
@@ -240,6 +256,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
               action: 'auth.login_failed',
               after: { email, motivo: 'email_no_verificado', ...auditContext(request) },
               requestId: request.id,
+              correlationId: request.correlationId,
             });
           });
         } catch {
@@ -248,7 +265,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         throw new EmailNotVerifiedError();
       }
 
-      return issueTokenPair(app, user!.id, { ...auditContext(request), requestId: request.id });
+      return issueTokenPair(app, user!.id, { ...auditContext(request), requestId: request.id, correlationId: request.correlationId });
     }
   );
 
@@ -299,8 +316,8 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       const ok = await app.db.transaction(async (tx) => {
         await tx.query('set local role app_role');
         const rotated = await tx.query<{ user_id: string }>(
-          `select * from app.rotate_refresh_token($1, $2, $3, now() + interval '${REFRESH_TTL_DAYS} days')`,
-          [hashToken(jti), randomUUID(), hashToken(newJti)]
+          `select * from app.rotate_refresh_token($1, $2, $3, now() + interval '${REFRESH_TTL_DAYS} days', $4, $5)`,
+          [hashToken(jti), randomUUID(), hashToken(newJti), audit.ip, audit.userAgent]
         );
         if (rotated.rows.length > 0) {
           // API-14 (docs/auditoria-2/api-expediente-reverificacion.md):
@@ -312,7 +329,13 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
           // entrada del cliente sin verificar).
           await tx.query("select set_config('app.current_user_id', $1, true)", [rotated.rows[0].user_id]);
           // API-13: rotación/refresh exitosos quedan en audit_log.
-          await recordAuthAudit(tx, { actorId: rotated.rows[0].user_id, action: 'auth.refresh_succeeded', after: audit, requestId: request.id });
+          await recordAuthAudit(tx, {
+            actorId: rotated.rows[0].user_id,
+            action: 'auth.refresh_succeeded',
+            after: audit,
+            requestId: request.id,
+            correlationId: request.correlationId,
+          });
           return true;
         }
         // API-13 (docs/auditoria-1/db-api-seguridad-reverificacion.md):
@@ -331,7 +354,13 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
             // el actor con el `user_id` YA verificado por
             // `app.find_refresh_token` antes de auditar.
             await tx.query("select set_config('app.current_user_id', $1, true)", [found.rows[0].user_id]);
-            await recordAuthAudit(tx, { actorId: found.rows[0].user_id, action: 'auth.refresh_reuse_detected', after: audit, requestId: request.id });
+            await recordAuthAudit(tx, {
+              actorId: found.rows[0].user_id,
+              action: 'auth.refresh_reuse_detected',
+              after: audit,
+              requestId: request.id,
+              correlationId: request.correlationId,
+            });
           }
           return false;
         });
@@ -360,7 +389,13 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
           // API-13: logout deja rastro en audit_log (solo cuando el token
           // era válido -- un token ya inválido/ajeno no revoca nada, así
           // que tampoco genera un evento de "logout" real).
-          await recordAuthAudit(tx, { actorId: payload.sub, action: 'auth.logout', after: auditContext(request), requestId: request.id });
+          await recordAuthAudit(tx, {
+            actorId: payload.sub,
+            action: 'auth.logout',
+            after: auditContext(request),
+            requestId: request.id,
+            correlationId: request.correlationId,
+          });
         });
       } catch {
         // Logout es idempotente y nunca revela si el token era válido: un

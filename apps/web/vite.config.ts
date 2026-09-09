@@ -251,7 +251,17 @@ export default defineConfig(({ command }) => ({
     // límite. (Nota: `poolOptions.forks.maxForks` hace lo mismo pero Vitest
     // 4.1.11 lo marca DEPRECATED en cada corrida -- `maxWorkers` es la
     // forma top-level soportada.)
-    maxWorkers: process.argv.includes("--coverage") ? 3 : undefined,
+    // 2026-09-07: en CI (GitHub Actions, `process.env.CI === "true"`) se
+    // fuerza 1 worker SIEMPRE (con o sin --coverage), no el punto medio de 3
+    // calibrado arriba para la Mac de desarrollo. El runner de CI tiene
+    // mucho menos margen de CPU real que esa Mac (confirmado en los runs
+    // 34095934923, 34150626677 y 34151948193, los tres reventando por
+    // "Test timed out" en los mismos ~11-12 archivos que abren un <Select/>
+    // de Radix por primera vez -- nunca antes se había podido medir esto en
+    // CI porque hoy es la primera vez que corre, ver B-06). Serializar por
+    // completo es más lento pero, según lo ya documentado arriba, elimina
+    // la contención de raíz -- preferible a un job de CI en rojo.
+    maxWorkers: process.env.CI === "true" ? 1 : process.argv.includes("--coverage") ? 3 : undefined,
     // La suite Playwright/axe vive en e2e/ (W-14) y usa su propio test
     // runner (`playwright test`, ver playwright.config.ts) — sin esta
     // exclusión, vitest intenta correr esos *.spec.ts con su runtime jsdom y

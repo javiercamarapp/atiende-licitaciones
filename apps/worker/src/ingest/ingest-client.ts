@@ -162,10 +162,29 @@ function isRetryableStatus(status: number): boolean {
  * paquetes, ver instrucciones de esta ronda) porque esa tabla vive en
  * `packages/db`/`apps/api`, fuera de este alcance.
  */
+export interface IngestOptions {
+  signal?: AbortSignal;
+  /**
+   * Residual de REQ-171 (R5-04): el id de correlación de la corrida de
+   * descubrimiento que originó este lote (ver `handlers/discover-tenders.ts`).
+   * Se envía como cabecera `X-Correlation-Id`, NUNCA como campo del cuerpo
+   * JSON -- `correlation-id.plugin.ts` de apps/api ya resuelve esa cabecera
+   * para CUALQUIER request (la hereda si es un UUID válido, genera una nueva
+   * si no), así que este es el mismo mecanismo que ya usa cualquier otro
+   * cliente HTTP de la plataforma, no un contrato nuevo. Antes de esto,
+   * `apps/worker` nunca mandaba esta cabecera, así que cada POST de ingesta
+   * recibía un `correlation_id` NUEVO en `apps/api` (uno por request), sin
+   * relación con el `correlation_id` (inexistente hasta ahora) de la fila de
+   * `source_runs` de la corrida que lo disparó.
+   */
+  correlationId?: string;
+}
+
 export class TenderIngestClient {
   constructor(private readonly options: TenderIngestClientOptions) {}
 
-  async ingest(request: IngestTenderRequest, signal?: AbortSignal): Promise<IngestTenderResponse> {
+  async ingest(request: IngestTenderRequest, options: IngestOptions = {}): Promise<IngestTenderResponse> {
+    const { signal, correlationId } = options;
     const fetchImpl = this.options.fetchImpl ?? fetch;
     const maxRetries = this.options.maxRetries ?? 3;
     const url = new URL('/internal/tenders/ingest', this.options.baseUrl).toString();
@@ -198,6 +217,7 @@ export class TenderIngestClient {
             'content-type': 'application/json',
             'idempotency-key': idempotencyKey,
             ...(this.options.apiKey ? { 'x-platform-api-key': this.options.apiKey } : {}),
+            ...(correlationId ? { 'x-correlation-id': correlationId } : {}),
           },
           body,
           signal: controller.signal,

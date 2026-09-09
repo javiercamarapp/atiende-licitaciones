@@ -57,6 +57,9 @@ export type AuthAuditAction =
   // rechazo de identidad de Google -- ver `modules/auth/google/routes.ts`.
   | 'auth.google_login'
   | 'auth.google_linked'
+  // E19/E21 (docs/BACKLOG.md, migración 0093): desvincular la identidad de
+  // Google de la propia cuenta -- ver `modules/auth/google/unlink.routes.ts`.
+  | 'auth.google_unlinked'
   | 'auth.google_rejected'
   // REQ-181..195 (0084_req_email_verification_and_password_reset.sql):
   // verificación de correo y restablecimiento de contraseña. Los dos
@@ -68,7 +71,14 @@ export type AuthAuditAction =
   | 'auth.email_verification_sent'
   | 'auth.email_verified'
   | 'auth.password_reset_requested'
-  | 'auth.password_reset_completed';
+  | 'auth.password_reset_completed'
+  // E21 (docs/BACKLOG.md, migración 0092): cambiar la contraseña propia
+  // (autenticado, con step-up) y gestión de sesiones activas propias --
+  // cerrar una sesión concreta, o todas menos la actual. Ver
+  // `modules/auth/password.routes.ts`/`modules/auth/sessions.routes.ts`.
+  | 'auth.password_changed'
+  | 'auth.session_revoked'
+  | 'auth.sessions_revoked_others';
 
 export interface AuthAuditEntry {
   actorId: string | null;
@@ -76,6 +86,16 @@ export interface AuthAuditEntry {
   /** NUNCA debe incluir contraseñas ni tokens -- solo metadatos (ip, user-agent, email en login_failed). */
   after?: unknown;
   requestId?: string | null;
+  /**
+   * REQ-177: brecha honesta cerrada aquí -- id de correlación de negocio
+   * (mismo mecanismo que `AuditEntry.correlationId`, ver
+   * `plugins/correlation-id.plugin.ts`), antes NUNCA propagado hasta
+   * `app.record_auth_event`, así que `audit_log.correlation_id` quedaba
+   * NULL en todo evento de autenticación (login, refresh, logout, Google,
+   * verificación de correo, restablecimiento de contraseña) -- con
+   * paridad exacta entre Google y email+contraseña.
+   */
+  correlationId?: string | null;
 }
 
 /**
@@ -94,11 +114,12 @@ export interface AuthAuditEntry {
  * llamadora, igual que cualquier otra escritura de `apps/api`.
  */
 export async function recordAuthAudit(tx: DbExecutor, entry: AuthAuditEntry): Promise<void> {
-  await tx.query('select app.record_auth_event($1, $2, $3::jsonb, $4)', [
+  await tx.query('select app.record_auth_event($1, $2, $3::jsonb, $4, $5)', [
     entry.action,
     entry.actorId,
     entry.after !== undefined ? JSON.stringify(entry.after) : null,
     entry.requestId ?? null,
+    entry.correlationId ?? null,
   ]);
 }
 
@@ -109,12 +130,17 @@ export type SecurityAuditAction =
   // R5-03: fallos de verificación (código inválido, replay, backup code ya
   // usado, o cuenta bloqueada) -- ver `lib/twofa-lockout.ts` y 0059.
   | 'twofa.verification_failed'
-  | 'twofa.step_up_denied';
+  | 'twofa.step_up_denied'
+  // E21 (docs/BACKLOG.md, migración 0091): desactivar 2FA de la cuenta
+  // propia, o regenerar (invalidando las anteriores) sus códigos de
+  // respaldo -- ver `modules/twofa/routes.ts`.
+  | 'twofa.disabled'
+  | 'twofa.backup_codes_regenerated';
 
 export interface SecurityAuditEntry {
   action: SecurityAuditAction;
   actorId: string;
-  entity: 'user_totp_secrets' | 'step_up_sessions';
+  entity: 'user_totp_secrets' | 'step_up_sessions' | 'user_backup_codes';
   entityId: string;
   after?: unknown;
   requestId?: string | null;

@@ -125,7 +125,8 @@ export type BlockingReasonCode =
   | "tarifa_aun_no_vigente"
   | "firmante_no_autorizado"
   | "capacidad_no_aprobada"
-  | "experiencia_no_aprobada";
+  | "experiencia_no_aprobada"
+  | "evidencia_no_verificable";
 
 export interface FieldResolutionOk<T> {
   status: "ok";
@@ -218,7 +219,33 @@ export class CompanyDataService {
     if (record.approvalStatus !== "aprobado") {
       return { status: "blocked", field, reason: "experiencia_no_aprobada", detail: `Experiencia "${experienceId}" en estado "${record.approvalStatus}".` };
     }
-    return { status: "ok", field, value: record, sourceRef: { docId: record.evidenceDocId, capturedAt: record.id } };
+    // REQ-143: `CompanyExperienceRecord.evidenceDocId` es `string` obligatorio
+    // SOLO a nivel de TIPOS de TypeScript. Un adaptador real (deserializando
+    // JSON no tipado de Postgres, o cualquier `CompanyDataResolver` que un
+    // llamador construya con un payload que burle el tipo, p. ej. con
+    // `as any`/`as unknown as`) podría colar un registro "aprobado" con
+    // `evidenceDocId` vacío o apuntando a un documento que no existe. Se
+    // verifica en RUNTIME contra la bóveda documental real (`getDocuments`)
+    // -- nunca se confía en que el tipo por sí solo garantice evidencia real.
+    const evidenceDocId = typeof record.evidenceDocId === "string" ? record.evidenceDocId.trim() : "";
+    if (evidenceDocId === "") {
+      return {
+        status: "blocked",
+        field,
+        reason: "evidencia_no_verificable",
+        detail: `Experiencia "${experienceId}" no tiene un evidenceDocId real (llega vacío o ausente pese a que el tipo lo declara obligatorio); no puede darse por probada sin evidencia documental.`,
+      };
+    }
+    const evidenceDoc = this.resolver.getDocuments(companyId).find((d) => d.id === evidenceDocId);
+    if (!evidenceDoc) {
+      return {
+        status: "blocked",
+        field,
+        reason: "evidencia_no_verificable",
+        detail: `Experiencia "${experienceId}" referencia evidenceDocId "${evidenceDocId}", que no corresponde a ningún documento existente en la bóveda documental de la empresa.`,
+      };
+    }
+    return { status: "ok", field, value: record, sourceRef: { docId: evidenceDocId, capturedAt: record.id } };
   }
 
   resolveAuthorizedSigner(companyId: string, role: string): FieldResolution<CompanySigner> {

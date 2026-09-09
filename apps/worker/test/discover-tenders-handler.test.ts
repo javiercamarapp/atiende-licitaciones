@@ -66,7 +66,7 @@ function makeVerifiedFakeConnector(options: { records?: TenderRecord[]; failWith
 class FakeApiServer {
   server: http.Server;
   baseUrl = '';
-  requests: Array<{ body: unknown }> = [];
+  requests: Array<{ body: unknown; headers: http.IncomingHttpHeaders }> = [];
 
   constructor() {
     this.server = http.createServer((req, res) => {
@@ -74,7 +74,7 @@ class FakeApiServer {
       req.on('data', (c) => (raw += c));
       req.on('end', () => {
         const body = JSON.parse(raw);
-        this.requests.push({ body });
+        this.requests.push({ body, headers: req.headers });
         const records = (body as { records: Array<{ source: string; externalId: string }> }).records;
         res.writeHead(200, { 'content-type': 'application/json' });
         res.end(
@@ -192,6 +192,40 @@ describe('discover_tenders handler — A1/A2: publicación nueva e idempotencia 
     );
     expect(rows[0].status).toBe('ok');
     expect(rows[0].coverage.obtained).toBe(1);
+  });
+
+  /**
+   * Residual de REQ-171 (R5-04 cubrió `tenders`/`tender_versions`, pero
+   * `source_runs` -- el eslabón que DISPARA esa cadena -- se quedó sin
+   * escribir la columna, pese a que ya existe desde
+   * `0056_correlation_id_propagation.sql`). Prueba real de extremo a
+   * extremo hasta la frontera de `apps/worker`: la corrida escribe un
+   * `correlation_id` REAL (no null, un UUID real) en `source_runs`, y ESE
+   * MISMO id es el que viaja en la cabecera `X-Correlation-Id` hacia
+   * `POST /internal/tenders/ingest` -- la cabecera que
+   * `apps/api/.../correlation-id.plugin.ts` hereda tal cual (si es un UUID
+   * válido) y que `internal-ingest.routes.ts` ya persiste en
+   * `tenders`/`tender_versions` desde R5-04 (ver
+   * `apps/api/test/correlation-id-e2e.test.ts`, sin tocar en esta ronda).
+   * Con ambos hechos juntos, el `source_run` y los `tenders`/`tender_versions`
+   * que produjo esa corrida terminan con el MISMO `correlation_id` real.
+   */
+  it('REQ-171: source_runs.correlation_id es un id real (no null) y es EL MISMO que viaja como X-Correlation-Id hacia el ingest', async () => {
+    const registry = new ConnectorRegistry().register(makeVerifiedFakeConnector({ records: [makeTender('EXP-CORR')] }));
+    const ingestClient = new TenderIngestClient({ baseUrl: apiServer.baseUrl, apiKey: 'k' });
+    const handler = createDiscoverTendersHandler({ db, registry, ingestClient, httpClient: new HttpClient({ userAgent: 'test' }) });
+
+    const job = makeJob({ sourceId: 'dof' });
+    await handler(job, makeCtx());
+
+    const { rows } = await db.query<{ correlation_id: string | null }>(
+      `select correlation_id from source_runs where source_id = 'dof' order by started_at desc limit 1`,
+    );
+    expect(rows[0].correlation_id).toBeTruthy();
+    expect(rows[0].correlation_id).toBe(job.id);
+
+    expect(apiServer.requests).toHaveLength(1);
+    expect(apiServer.requests[0].headers['x-correlation-id']).toBe(job.id);
   });
 
   it('replay del mismo lote (misma corrida repetida) envía el mismo payload de ingesta — idempotente (A2)', async () => {

@@ -63,7 +63,7 @@ describe("PaqueteDescargablePage", () => {
     // operativa que el propio README de apps/web fija para este patrón es
     // 60000ms; se aplica aquí y en su prueba gemela de abajo, sin tocar
     // ninguna aserción.
-  }, 60000);
+  }, process.env.CI === "true" ? 180000 : 60000);
 
   it("muestra 'Listo para presentar' solo cuando el servidor deriva 'ready'", async () => {
     const user = userEvent.setup();
@@ -85,5 +85,5 @@ describe("PaqueteDescargablePage", () => {
 
     await waitFor(() => expect(screen.getByText("Listo para presentar")).toBeInTheDocument());
     // Timeout propio: ver comentario arriba y en vite.config.ts.
-  }, 60000);
+  }, process.env.CI === "true" ? 180000 : 60000);
 });

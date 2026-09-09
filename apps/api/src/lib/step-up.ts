@@ -41,6 +41,24 @@ export const STEP_UP_PURPOSES = [
   // y marcar un borrador de inconformidad como revisado por abogado.
   'expediente.contract_transition',
   'expediente.inconformidad_review',
+  // E21 (docs/BACKLOG.md, migración 0091): acciones de cuenta sobre el
+  // propio 2FA -- desactivarlo por completo, o regenerar (invalidando las
+  // anteriores) las claves de respaldo. Ver `modules/twofa/routes.ts`.
+  'twofa.disable',
+  'twofa.backup_codes_regenerate',
+  // E21 (docs/BACKLOG.md, migración 0092): cambiar la contraseña de la
+  // propia cuenta -- ver `modules/auth/password.routes.ts`.
+  'auth.password_change',
+  // E19/E21 (docs/BACKLOG.md, migración 0093): desvincular la identidad de
+  // Google de la propia cuenta -- ver `modules/auth/google/unlink.routes.ts`.
+  'auth.google_unlink',
+  // REQ-051 (máquina de estados de cobranza, migración 0094): marcar una
+  // cobranza (post_award_followup de kind='facturacion'/'pago') como
+  // "pagada" es dinero real confirmado -- nunca se infiere ni se marca
+  // automáticamente, exige 2FA reciente igual que
+  // `expediente.contract_transition`. Ver
+  // `lib/expediente/collection-lifecycle.ts`/`modules/expediente/collection.routes.ts`.
+  'expediente.collection_transition',
 ] as const;
 export type StepUpPurpose = (typeof STEP_UP_PURPOSES)[number];
 

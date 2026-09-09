@@ -90,6 +90,26 @@ if (!("ResizeObserver" in globalThis)) {
   (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = ResizeObserverStub;
 }
 
+// Mismo hueco que ResizeObserver arriba, para MutationObserver: en el runner
+// de CI (GitHub Actions, Ubuntu, Node 22 -- ver .github/workflows/quality.yml)
+// `globalThis.MutationObserver` existe pero no es invocable como constructor
+// ("MutationObserver is not a constructor"), rompiendo cualquier prueba que
+// renderice un <Select/> de Radix con contenido real. Nunca se había
+// detectado porque hoy (2026-09-07) es la primera vez que CI corre pruebas
+// de verdad en este repo (bloqueado antes por facturación de GitHub
+// Actions, ver docs/BLOQUEOS.md B-06) -- en Mac/desarrollo local nunca se
+// manifestó. Confirmado en los runs 34095934923/34150626677.
+if (typeof globalThis.MutationObserver !== "function") {
+  class MutationObserverStub {
+    observe() {}
+    disconnect() {}
+    takeRecords() {
+      return [];
+    }
+  }
+  (globalThis as unknown as { MutationObserver: unknown }).MutationObserver = MutationObserverStub;
+}
+
 // jsdom no implementa matchMedia; ThemeSelector y useIsMobile lo necesitan.
 if (!window.matchMedia) {
   window.matchMedia = (query: string) => ({

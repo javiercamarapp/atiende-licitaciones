@@ -16,6 +16,15 @@
  * (reviewer/admin/owner) -- protege que un abogado humano, y no cualquier
  * escritor, sea quien certifique la revisión antes de que el usuario
  * proceda a presentarla por su cuenta.
+ *
+ * Ronda 7 (REQ-053): `sourceAutopsyId` opcional vincula el borrador a una
+ * autopsia del fallo ya registrada (REQ-054, `fallo-autopsy.routes.ts`) --
+ * sus datos ya capturados se anexan a `hechos` como restatement puramente
+ * factual (`buildHechosFromAutopsyRow`, abajo). Los `agravios` (fundamento
+ * de la impugnación) siguen siendo SIEMPRE responsabilidad del humano: un
+ * hueco en la matriz de requisitos propia no es automáticamente una
+ * irregularidad de la convocante, así que nunca se fabrica un agravio a
+ * partir de eso (E9).
  */
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
@@ -25,13 +34,54 @@ import { WRITE_ROLES, type OrgRole } from '@atiende/db';
 import { requireOrgRole } from '../../lib/authorize.js';
 import { recordAudit } from '../../lib/audit.js';
 import { requireStepUp } from '../../lib/step-up.js';
-import { ConflictError, NotFoundError } from '../../lib/errors.js';
+import { ConflictError, NotFoundError, ValidationAppError } from '../../lib/errors.js';
 import { withTx, requireTender } from '../../lib/expediente/context.js';
 import { loadOfficialHolidays } from '../../lib/expediente/calendar-holidays.js';
 import { buildInconformidadContent, INCONFORMIDAD_DISCLAIMER } from '../../lib/expediente/inconformidad.js';
-import { inconformidadGenerateSchema, inconformidadDraftSchema } from './schemas.js';
+import { inconformidadGenerateSchema, inconformidadDraftSchema, NO_DISPONIBLE } from './schemas.js';
 
 const REVIEW_ROLES: OrgRole[] = ['owner', 'admin', 'reviewer'];
+
+/**
+ * Ronda 7 (REQ-053, "a partir de la autopsia del fallo"): restatement
+ * PURAMENTE FACTUAL de lo que el usuario YA capturó en una autopsia del
+ * fallo (REQ-054) -- nunca infiere ni agrega nada que no esté en la fila.
+ * Cada hecho generado queda explícitamente atribuido ("según lo capturado
+ * en la autopsia") para que quien revise el borrador sepa que es un dato
+ * trasladado, no observado directamente por este código. Los `agravios`
+ * (fundamento legal de la impugnación) NUNCA se derivan aquí -- ver el
+ * comentario en `inconformidadGenerateSchema` (schemas.ts).
+ */
+function buildHechosFromAutopsyRow(row: Record<string, unknown>): string[] {
+  const hechos: string[] = [];
+  const reason = row.disqualification_reason as string;
+  hechos.push(
+    reason !== NO_DISPONIBLE
+      ? `El acta de fallo, según lo capturado en la autopsia registrada, señaló como motivo respecto a la propuesta propia: "${reason}".`
+      : 'La autopsia del fallo vinculada NO tiene capturado un motivo de desechamiento del acta real (quedó registrado como "no disponible") -- este hecho debe completarse con el motivo real antes de presentar cualquier inconformidad.'
+  );
+
+  const winnerName = row.winner_name as string;
+  const ownPrice = row.own_price !== null && row.own_price !== undefined ? Number(row.own_price) : null;
+  const winnerPrice = row.winner_price !== null && row.winner_price !== undefined ? Number(row.winner_price) : null;
+  if (ownPrice !== null && winnerPrice !== null) {
+    const winnerLabel = winnerName !== NO_DISPONIBLE ? `de la propuesta de "${winnerName}"` : 'de la propuesta ganadora (nombre del proveedor no disponible)';
+    hechos.push(`Según lo capturado en la autopsia, el precio de la propuesta propia fue $${ownPrice.toLocaleString('es-MX')} frente a $${winnerPrice.toLocaleString('es-MX')} ${winnerLabel}.`);
+  }
+
+  const ownScore = row.own_score !== null && row.own_score !== undefined ? Number(row.own_score) : null;
+  const winnerScore = row.winner_score !== null && row.winner_score !== undefined ? Number(row.winner_score) : null;
+  if (ownScore !== null && winnerScore !== null) {
+    hechos.push(`Según lo capturado en la autopsia, la propuesta propia obtuvo un puntaje de ${ownScore} frente a ${winnerScore} de la propuesta ganadora.`);
+  }
+
+  const criteriaComparison = (row.criteria_comparison as Array<{ criterio: string; propio: string; ganador: string }> | null) ?? [];
+  for (const c of criteriaComparison) {
+    hechos.push(`Según lo capturado en la autopsia, en el criterio "${c.criterio}" la propuesta propia registró "${c.propio}" y la propuesta ganadora registró "${c.ganador}".`);
+  }
+
+  return hechos;
+}
 
 function mapDraftRow(r: Record<string, unknown>): any {
   return {
@@ -77,11 +127,35 @@ export async function expedienteInconformidadRoutes(app: FastifyInstance): Promi
 
       const row = await withTx(app.db, orgId, userId, async (tx) => {
         await requireTender(tx, orgId, request.params.tenderId);
+
+        // Ronda 7 (REQ-053): si se vincula una autopsia del fallo ya
+        // registrada, sus datos capturados se anexan a `hechos` como
+        // restatement factual (ver `buildHechosFromAutopsyRow`) -- nunca
+        // reemplazan lo que el usuario ya escribió a mano, solo se agregan.
+        let hechos = [...request.body.hechos];
+        if (request.body.sourceAutopsyId) {
+          const autopsyRes = await tx.query<Record<string, unknown>>(
+            'select * from fallo_autopsies where id = $1 and org_id = $2 and tender_id = $3',
+            [request.body.sourceAutopsyId, orgId, request.params.tenderId]
+          );
+          if (autopsyRes.rows.length === 0) {
+            throw new NotFoundError('La autopsia del fallo indicada en sourceAutopsyId no existe para esta convocatoria.');
+          }
+          const autopsyRow = autopsyRes.rows[0];
+          if (autopsyRow.own_proposal_status === 'ganadora') {
+            throw new ValidationAppError({ sourceAutopsyId: 'La autopsia vinculada registra la propuesta propia como GANADORA -- no aplica un borrador de inconformidad.' });
+          }
+          hechos = [...hechos, ...buildHechosFromAutopsyRow(autopsyRow)];
+        }
+        if (hechos.length === 0) {
+          throw new ValidationAppError({ hechos: 'Se requiere al menos un hecho: captúrelo manualmente en "hechos" o vincule una autopsia del fallo ya registrada con "sourceAutopsyId".' });
+        }
+
         const holidays = await loadOfficialHolidays(tx, request.body.falloNotifiedOn);
         const content = buildInconformidadContent({
           falloNotifiedOn: request.body.falloNotifiedOn,
           bajoTratados: request.body.bajoTratados,
-          hechos: request.body.hechos,
+          hechos,
           agravios: request.body.agravios,
           pruebas: request.body.pruebas,
           holidays,
@@ -107,7 +181,7 @@ export async function expedienteInconformidadRoutes(app: FastifyInstance): Promi
             request.params.tenderId,
             version,
             content.contentHash,
-            request.body.hechos,
+            hechos,
             request.body.agravios,
             request.body.pruebas,
             JSON.stringify(content.fundamentos),

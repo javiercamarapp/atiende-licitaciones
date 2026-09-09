@@ -110,6 +110,7 @@ export async function authMailRoutes(app: FastifyInstance): Promise<void> {
           action: 'auth.email_verified',
           after: auditContext(request),
           requestId: request.id,
+          correlationId: request.correlationId,
         });
       });
 
@@ -149,6 +150,7 @@ export async function authMailRoutes(app: FastifyInstance): Promise<void> {
               action: 'auth.email_verification_sent',
               after: { reenvio: true, ...auditContext(request) },
               requestId: request.id,
+              correlationId: request.correlationId,
             });
           });
         } else {
@@ -192,6 +194,7 @@ export async function authMailRoutes(app: FastifyInstance): Promise<void> {
               action: 'auth.password_reset_requested',
               after: auditContext(request),
               requestId: request.id,
+              correlationId: request.correlationId,
             });
           });
         } else {
@@ -244,6 +247,7 @@ export async function authMailRoutes(app: FastifyInstance): Promise<void> {
           action: 'auth.password_reset_completed',
           after: auditContext(request),
           requestId: request.id,
+          correlationId: request.correlationId,
         });
       });
 

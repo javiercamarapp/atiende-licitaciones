@@ -63,7 +63,20 @@ export default function AuditoriaPage() {
           {isLoading && <LoadingState label="Cargando bitácora…" />}
           {isError && <ErrorState message={describeApiError(error)} onRetry={() => refetch()} />}
           {!isLoading && !isError && (!data || data.items.length === 0) && (
-            <EmptyState icon={History} title="Sin eventos" description="No hay eventos de auditoría que coincidan con el filtro actual." />
+            <EmptyState
+              icon={History}
+              title="Sin eventos"
+              description="No hay eventos de auditoría que coincidan con el filtro actual."
+              {...(entity || correlationId
+                ? {
+                    actionLabel: "Limpiar filtros",
+                    onAction: () => {
+                      setEntity("");
+                      setCorrelationId("");
+                    },
+                  }
+                : {})}
+            />
           )}
           {!isLoading && !isError && data && data.items.length > 0 && (
             <Card>

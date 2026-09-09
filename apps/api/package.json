@@ -17,6 +17,7 @@
     "@atiende/expediente": "*",
     "@atiende/mail": "*",
     "@atiende/sources": "*",
+    "@atiende/whatsapp": "*",
     "@fastify/cors": "^11.3.0",
     "@fastify/helmet": "^13.1.1",
     "@fastify/rate-limit": "^10.2.1",

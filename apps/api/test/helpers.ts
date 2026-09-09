@@ -5,6 +5,7 @@ import { createPgliteClient } from '@atiende/db';
 import type { DbClient } from '@atiende/db';
 import type { FastifyInstance } from 'fastify';
 import type { MailProvider } from '@atiende/mail';
+import type { WhatsAppProvider } from '@atiende/whatsapp';
 import { buildApp } from '../src/app.js';
 import { loadConfig, type AppConfig } from '../src/config.js';
 import { generateTotpCodeForTesting } from '../src/lib/step-up.js';
@@ -28,6 +29,8 @@ export interface CreateTestAppOptions {
    * necesitan uno propio.
    */
   mailProvider?: MailProvider;
+  /** Canal ADICIONAL de WhatsApp: `WhatsAppProvider` explícito -- mismo criterio que `mailProvider` (sin él, `CaptureProvider`, nunca sale a la red). */
+  whatsappProvider?: WhatsAppProvider;
 }
 
 export async function createTestApp(
@@ -49,7 +52,7 @@ export async function createTestApp(
     autoMigrate: true,
     ...overrides,
   };
-  const app = await buildApp({ db, config, logger: false, mailProvider: options.mailProvider });
+  const app = await buildApp({ db, config, logger: false, mailProvider: options.mailProvider, whatsappProvider: options.whatsappProvider });
   await app.ready();
   return { app, db };
 }
@@ -104,7 +107,12 @@ export type TestStepUpPurpose =
   | 'tool_call.approval'
   | 'admin.action'
   | 'expediente.contract_transition'
-  | 'expediente.inconformidad_review';
+  | 'expediente.inconformidad_review'
+  | 'twofa.disable'
+  | 'twofa.backup_codes_regenerate'
+  | 'auth.password_change'
+  | 'auth.google_unlink'
+  | 'expediente.collection_transition';
 
 export interface StepUpScope {
   orgId: string;

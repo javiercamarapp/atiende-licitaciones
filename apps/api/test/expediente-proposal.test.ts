@@ -186,6 +186,73 @@ describe('expediente — propuesta técnica/económica (E7)', () => {
     expect(writerPatch.json().version).toBe(2);
   });
 
+  it('REQ-145: resolveAuthorizedSigner de punta a punta vía HTTP -- firmante fuera de vigencia y rol sin firmante registrado se rechazan; firmante autorizado resuelve en texto trazable', async () => {
+    const owner = await registerAndLogin(app, 'prop-owner-signer-1@example.com');
+    const org = await createOrgFor(app, owner, 'Prop Org Signer 1', 'prop-org-signer-1');
+    // submissionDeadline por defecto de createTender: 2099-01-01T00:00:00Z (asOfIso).
+    const tenderId = await createTender(app, org.id, 'prop-signer-001');
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+
+    // Firmante REGISTRADO pero cuya vigencia venció antes de la fecha del
+    // acto (asOfIso = submissionDeadline) -- CompanySigner.authorized=false,
+    // resolveAuthorizedSigner debe bloquear con "firmante_no_autorizado".
+    const expiredSigner = await app.inject({
+      method: 'POST',
+      url: '/company/signatories',
+      headers,
+      payload: { fullName: 'Juan Pérez', roleTitle: 'Apoderado Legal Vencido', validUntil: '2020-01-01' },
+    });
+    expect(expiredSigner.statusCode).toBe(201);
+
+    // Firmante AUTORIZADO: sin ventana de vigencia declarada (sin
+    // restricción conocida) y con procedencia real (creado vía API).
+    const authorizedSigner = await app.inject({
+      method: 'POST',
+      url: '/company/signatories',
+      headers,
+      payload: { fullName: 'María López', roleTitle: 'Representante Legal' },
+    });
+    expect(authorizedSigner.statusCode).toBe(201);
+
+    const reqMissingRole = await insertRequirement(db, org.id, tenderId, { description: 'Manifestación firmada por el Apoderado Especial (rol sin firmante registrado).' });
+    const reqExpiredSigner = await insertRequirement(db, org.id, tenderId, { description: 'Manifestación firmada por el Apoderado Legal Vencido.' });
+    const reqAuthorizedSigner = await insertRequirement(db, org.id, tenderId, { description: 'Manifestación firmada por el Representante Legal.' });
+
+    const generate = await app.inject({
+      method: 'POST',
+      url: `/expediente/tenders/${tenderId}/proposal/technical/generate`,
+      headers,
+      payload: {
+        mappings: [
+          { requirementId: reqMissingRole, kind: 'signer', refKey: 'Apoderado Especial (no existe)' },
+          { requirementId: reqExpiredSigner, kind: 'signer', refKey: 'Apoderado Legal Vencido' },
+          { requirementId: reqAuthorizedSigner, kind: 'signer', refKey: 'Representante Legal' },
+        ],
+      },
+    });
+    expect(generate.statusCode).toBe(200);
+
+    const blockers = generate.json().generationReport.technical.blockers as Array<{ field: string; status: string; detail: string }>;
+    const missingBlocker = blockers.find((b) => b.field === 'firmante:Apoderado Especial (no existe)');
+    expect(missingBlocker?.status).toBe('missing');
+    const expiredBlocker = blockers.find((b) => b.field === 'firmante:Apoderado Legal Vencido');
+    expect(expiredBlocker?.status).toBe('blocked');
+    expect(expiredBlocker?.detail).toMatch(/no está autorizado/);
+    expect(blockers.find((b) => b.field === 'firmante:Representante Legal')).toBeUndefined();
+
+    const sections = await app.inject({ method: 'GET', url: `/expediente/tenders/${tenderId}/proposal/sections`, headers });
+    const sectionOf = (reqId: string) => sections.json().find((s: any) => s.sectionKey === `technical:${reqId}`);
+
+    // Rol sin ningún firmante registrado en el perfil: rechazado, nunca inventa un firmante.
+    expect(sectionOf(reqMissingRole).content).toContain('PENDIENTE');
+    // Firmante registrado pero fuera de vigencia a la fecha del acto: rechazado explícitamente.
+    expect(sectionOf(reqExpiredSigner).content).toContain('PENDIENTE');
+    expect(sectionOf(reqExpiredSigner).content).toMatch(/no está autorizado/);
+    // Firmante autorizado: la propuesta SÍ referencia su nombre y rol reales, de forma trazable.
+    expect(sectionOf(reqAuthorizedSigner).content).toBe('Firmante autorizado: María López (Representante Legal).');
+    expect(sectionOf(reqAuthorizedSigner).content).not.toContain('PENDIENTE');
+  });
+
   it('coordinación packages/expediente (expediente-cierre.md): cambiar la aplicabilidad de un requisito condicional invalida explícitamente una aprobación vigente (no forma parte de ExpedienteInputs, así que el hash no cambia por sí solo)', async () => {
     const owner = await registerAndLogin(app, 'prop-owner-4@example.com');
     const org = await createOrgFor(app, owner, 'Prop Org 4', 'prop-org-4');

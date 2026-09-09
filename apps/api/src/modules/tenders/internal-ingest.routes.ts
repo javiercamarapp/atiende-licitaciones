@@ -3,6 +3,8 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import type { DbClient, DbExecutor } from '@atiende/db';
 import { ingestBodySchema, ingestResponseSchema, type TenderRecordIngest } from './schemas.js';
+import { fireAndForgetMail } from '../../lib/mail/pending.js';
+import { notifyTenderChangeToResponsibles } from '../../lib/mail/tender-change-notify.js';
 
 interface IngestOutcome {
   source: string;
@@ -11,6 +13,10 @@ interface IngestOutcome {
   action: 'created' | 'updated' | 'unchanged';
   tenderId: string;
   versionId: string | null;
+  /** Solo en `action: 'updated'` -- el `change_kind` inferido de ESTE cambio (ver `notifyTenderChangeToResponsibles`, REQ-155). */
+  changeKind?: string;
+  /** Solo en `action: 'updated'` -- el plazo previo a este cambio (`tenders.submission_deadline` antes del UPDATE), para el aviso de cambio. */
+  priorDeadlineIso?: string | null;
 }
 
 /**
@@ -69,8 +75,32 @@ export async function internalIngestRoutes(app: FastifyInstance): Promise<void> 
           const outcome = await ingestOneRecordForOrg(app.db, orgId, record, correlationId);
           results.push(outcome);
           if (outcome.action === 'created') created += 1;
-          else if (outcome.action === 'updated') updated += 1;
-          else unchanged += 1;
+          else if (outcome.action === 'updated') {
+            updated += 1;
+            // REQ-155: la invalidación en cascada de `outcome.tenderId` ya
+            // hizo COMMIT dentro de `ingestOneRecordForOrg` (el trigger
+            // `app.invalidate_tender_dependents` corrió como parte de esa
+            // misma transacción, ver el comentario ahí) -- este aviso corre
+            // DESPUÉS y en segundo plano (`fireAndForgetMail`, nunca con
+            // `await` directo): un fallo al notificar (lectura de miembros,
+            // correo, WhatsApp) nunca debe bloquear ni hacer fallar esta
+            // respuesta HTTP, y estructuralmente no puede revertir una
+            // invalidación que ya es un hecho consumado.
+            fireAndForgetMail(app, 'tender-change', () =>
+              notifyTenderChangeToResponsibles(app, {
+                organizationId: orgId,
+                tenderId: outcome.tenderId,
+                // Siempre poblado en `action: 'updated'` (ver el return de
+                // `ingestOneRecordForOrg` arriba) -- `IngestOutcome.versionId`
+                // es `string | null` solo porque otras acciones no lo usan.
+                versionId: outcome.versionId as string,
+                tenderTitle: record.title,
+                changeKind: outcome.changeKind ?? 'amendment',
+                previousDeadlineIso: outcome.priorDeadlineIso ?? null,
+                newDeadlineIso: record.submissionDeadline ?? null,
+              })
+            );
+          } else unchanged += 1;
         }
       }
 
@@ -190,7 +220,25 @@ async function ingestOneRecordForOrg(
 
     await auditIngest(tx, orgId, 'tender.ingest.updated', tenderId, record, correlationId);
 
-    return { source: record.source, externalId: record.externalId, organizationId: orgId, action: 'updated', tenderId, versionId };
+    return {
+      source: record.source,
+      externalId: record.externalId,
+      organizationId: orgId,
+      action: 'updated',
+      tenderId,
+      versionId,
+      changeKind: inferredKind,
+      // `priorDeadline` viene del driver de PG como `Date` para una columna
+      // `timestamptz` (NO como string, pese a que `existing.rows[0]` se
+      // tipa como `{ submission_deadline: string | null }` arriba -- esa
+      // anotación es solo un cast de TypeScript, no una conversión real).
+      // El resto de esta ruta nunca lo necesitó como string (solo lo
+      // compara con `newDeadline` arriba), pero `TenderChangeVariablesSchema`
+      // (`packages/mail`) sí exige `z.string()` -- sin normalizar aquí,
+      // `MailService.send()` devuelve `invalid_variables` en silencio (no
+      // lanza) y el correo nunca sale, sin que nada lo marque como error.
+      priorDeadlineIso: priorDeadline ? new Date(priorDeadline).toISOString() : null,
+    };
   });
 }
 

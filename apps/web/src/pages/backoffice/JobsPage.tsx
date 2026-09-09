@@ -44,7 +44,12 @@ export default function JobsPage() {
       {isLoading && <LoadingState label="Cargando jobs…" />}
       {isError && <ErrorState message={describeApiError(error)} onRetry={() => refetch()} />}
       {!isLoading && !isError && (!jobs || jobs.length === 0) && (
-        <EmptyState icon={ListTodo} title="Sin jobs para este filtro" description="No hay trabajos encolados que coincidan con el estado seleccionado." />
+        <EmptyState
+          icon={ListTodo}
+          title="Sin jobs para este filtro"
+          description="No hay trabajos encolados que coincidan con el estado seleccionado."
+          {...(status !== "todos" ? { actionLabel: "Ver todos los estados", onAction: () => setStatus("todos") } : {})}
+        />
       )}
       {!isLoading && !isError && jobs && jobs.length > 0 && (
         <Card>

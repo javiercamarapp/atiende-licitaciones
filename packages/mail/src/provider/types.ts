@@ -54,6 +54,15 @@ export interface MailProvider {
   send(message: OutboundEmail): Promise<SendResult>;
 }
 
+/**
+ * Timeout de red por defecto de los adaptadores HTTP (Resend, Postmark):
+ * fuente única de verdad para que `MailService` (ML-08, ver
+ * `service/mail-service.ts`) pueda alinear la ventana de espera del
+ * "perdedor" de `reserve()` con lo que el proveedor real puede tardar en
+ * responder, en vez de un número arbitrario sin relación con él.
+ */
+export const DEFAULT_PROVIDER_TIMEOUT_MS = 5_000;
+
 /** Clasifica un código HTTP en `retryable`/`permanent`, el mismo criterio
  *  para los tres adaptadores HTTP (Resend, Postmark): 429 y 5xx son
  *  transitorios; el resto de los 4xx son un rechazo definitivo del payload

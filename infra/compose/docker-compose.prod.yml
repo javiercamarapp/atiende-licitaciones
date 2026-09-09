@@ -107,6 +107,41 @@ services:
       TOTP_ENCRYPTION_KEY: ${TOTP_ENCRYPTION_KEY}
       STEP_UP_WINDOW_MINUTES: ${STEP_UP_WINDOW_MINUTES:-5}
       SENTRY_DSN: ${SENTRY_DSN:-}
+      # REQ-181..195 (@atiende/mail) -- faltaban por completo en este
+      # compose (verificado en vivo con Docker real: la API crashea en
+      # bucle sin MAIL_LINK_SECRET, "obligatoria" según apps/api/.env.example).
+      # Nunca se había detectado porque Docker no estaba disponible en el
+      # entorno de desarrollo hasta hoy (ver docs/BLOQUEOS.md B-08/E17).
+      MAIL_LINK_SECRET: ${MAIL_LINK_SECRET}
+      PUBLIC_URL: https://${WEB_DOMAIN}
+      MAIL_FROM: ${MAIL_FROM:-soporte@atiende.mx}
+      CONTACT_INBOX: ${CONTACT_INBOX:-}
+      MAIL_PROVIDER: ${MAIL_PROVIDER:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_EMAIL_DOMAIN: ${RESEND_EMAIL_DOMAIN:-}
+      POSTMARK_SERVER_TOKEN: ${POSTMARK_SERVER_TOKEN:-}
+      POSTMARK_FROM_ADDRESS: ${POSTMARK_FROM_ADDRESS:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_SECURE: ${SMTP_SECURE:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM_ADDRESS: ${SMTP_FROM_ADDRESS:-}
+      RESEND_WEBHOOK_SECRET: ${RESEND_WEBHOOK_SECRET:-}
+      REQUIRE_EMAIL_VERIFICATION: ${REQUIRE_EMAIL_VERIFICATION:-true}
+      # REQ-172..180 (login con Google) -- sin estas 3, /auth/google/* responde
+      # 503 (BLOQUEADO_EXTERNO), lo cual es el comportamiento honesto correcto
+      # mientras Javier no tenga credenciales reales de Google Cloud Console.
+      # NUNCA definir OIDC_ISSUER_URL aquí (solo para pruebas, ver .env.example).
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+      # Canal adicional de WhatsApp (packages/whatsapp) -- sin estas 2, el
+      # provider real de Meta declara "not_configured" y solo el correo
+      # sigue notificando (comportamiento honesto, ver packages/whatsapp/README.md).
+      WHATSAPP_PROVIDER: ${WHATSAPP_PROVIDER:-}
+      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
     volumes:
       - api_storage:/app/data/storage
     depends_on:
@@ -134,6 +169,21 @@ services:
       API_BASE_URL: http://api:3000
       PLATFORM_API_KEY: ${PLATFORM_API_KEY}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # Reintento de correo (apps/worker/src/mail/build-mail-service.ts):
+      # NUNCA necesita MAIL_LINK_SECRET (no genera enlaces firmados), solo
+      # el mismo proveedor real que usa apps/api para que un reintento
+      # realmente salga por el mismo canal, no por "capture" por accidente.
+      MAIL_PROVIDER: ${MAIL_PROVIDER:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_EMAIL_DOMAIN: ${RESEND_EMAIL_DOMAIN:-}
+      POSTMARK_SERVER_TOKEN: ${POSTMARK_SERVER_TOKEN:-}
+      POSTMARK_FROM_ADDRESS: ${POSTMARK_FROM_ADDRESS:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_SECURE: ${SMTP_SECURE:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM_ADDRESS: ${SMTP_FROM_ADDRESS:-}
     depends_on:
       migrate:
         condition: service_completed_successfully

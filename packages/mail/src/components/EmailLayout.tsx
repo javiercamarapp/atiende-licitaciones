@@ -31,7 +31,7 @@
  */
 import * as React from "react";
 import { Head, Html, Img, Preview, Section, Text, Link } from "@react-email/components";
-import { colors, EMAIL_WIDTH, fonts } from "../theme";
+import { colors, DARK_MODE_STYLE, EMAIL_WIDTH, fonts } from "../theme";
 import { AtiendeWordmarkText } from "./AtiendeLogo";
 import { ToneBadge } from "./blocks";
 import type { ToneKey } from "../theme";
@@ -101,12 +101,24 @@ export function EmailLayout({
     <Html lang="es">
       <Head>
         <title>{documentTitle}</title>
-        <meta name="color-scheme" content="light only" />
-        <meta name="supported-color-schemes" content="light only" />
+        {/* ML-09: "light dark" (ya NO "light only") + el `<style>` de abajo
+         *  es lo que convierte esto en soporte real de modo oscuro, no solo
+         *  la promesa del meta tag — ver el comentario de `DARK_MODE_STYLE`
+         *  en `theme.ts`. */}
+        <meta name="color-scheme" content="light dark" />
+        <meta name="supported-color-schemes" content="light dark" />
+        <style>{DARK_MODE_STYLE}</style>
       </Head>
       <Preview>{preheader}</Preview>
-      <body style={{ margin: 0, padding: 0, backgroundColor: colors.canvas }}>
-        <table role="presentation" width="100%" cellPadding={0} cellSpacing={0} style={{ backgroundColor: colors.canvas }}>
+      <body className="am-canvas" style={{ margin: 0, padding: 0, backgroundColor: colors.canvas }}>
+        <table
+          role="presentation"
+          width="100%"
+          cellPadding={0}
+          cellSpacing={0}
+          className="am-canvas"
+          style={{ backgroundColor: colors.canvas }}
+        >
           <tbody>
             <tr>
               <td align="center" style={{ padding: "44px 16px 36px 16px" }}>
@@ -150,6 +162,7 @@ export function EmailLayout({
                     </tr>
                     <tr>
                       <td
+                        className="am-card"
                         style={{
                           backgroundColor: colors.surface,
                           padding: "42px 44px 38px 44px",
@@ -164,6 +177,7 @@ export function EmailLayout({
                     <tr>
                       <td align="left" style={{ padding: "26px 6px 0 6px" }}>
                         <Text
+                          className="am-muted"
                           style={{
                             margin: "0 0 7px 0",
                             fontFamily: fonts.sans,
@@ -177,34 +191,52 @@ export function EmailLayout({
                         >
                           Atiende&nbsp;&nbsp;&#183;&nbsp;&nbsp;Licitaciones
                         </Text>
-                        <Text style={{ margin: "0 0 5px 0", fontFamily: fonts.sans, fontSize: 11, lineHeight: "18px", color: colors.faint }}>
+                        <Text
+                          className="am-faint"
+                          style={{ margin: "0 0 5px 0", fontFamily: fonts.sans, fontSize: 11, lineHeight: "18px", color: colors.faint }}
+                        >
                           {reason}
                         </Text>
-                        <Text style={{ margin: "0 0 5px 0", fontFamily: fonts.sans, fontSize: 11, lineHeight: "18px", color: colors.faint }}>
-                          <Link href={safeUrl(appUrl, appUrl)} style={{ color: colors.faint, textDecoration: "underline" }}>
+                        <Text
+                          className="am-faint"
+                          style={{ margin: "0 0 5px 0", fontFamily: fonts.sans, fontSize: 11, lineHeight: "18px", color: colors.faint }}
+                        >
+                          <Link href={safeUrl(appUrl, appUrl)} className="am-faint" style={{ color: colors.faint, textDecoration: "underline" }}>
                             {bareAppUrl}
                           </Link>
                           {" · "}
-                          <Link href={`mailto:${supportEmail}`} style={{ color: colors.faint, textDecoration: "underline" }}>
+                          <Link
+                            href={`mailto:${supportEmail}`}
+                            className="am-faint"
+                            style={{ color: colors.faint, textDecoration: "underline" }}
+                          >
                             {supportEmail}
                           </Link>
                         </Text>
                         {preferencesUrl ? (
-                          <Text style={{ margin: "0 0 2px 0", fontFamily: fonts.sans, fontSize: 11, lineHeight: "18px" }}>
-                            <Link href={safeUrl(preferencesUrl, appUrl)} style={{ color: colors.faint, textDecoration: "underline" }}>
+                          <Text className="am-faint" style={{ margin: "0 0 2px 0", fontFamily: fonts.sans, fontSize: 11, lineHeight: "18px" }}>
+                            <Link
+                              href={safeUrl(preferencesUrl, appUrl)}
+                              className="am-faint"
+                              style={{ color: colors.faint, textDecoration: "underline" }}
+                            >
                               Administrar preferencias de notificación
                             </Link>
                           </Text>
                         ) : null}
                         {unsubscribeUrl ? (
-                          <Text style={{ margin: "0 0 12px 0", fontFamily: fonts.sans, fontSize: 11, lineHeight: "18px" }}>
-                            <Link href={safeUrl(unsubscribeUrl, appUrl)} style={{ color: colors.faint, textDecoration: "underline" }}>
+                          <Text className="am-faint" style={{ margin: "0 0 12px 0", fontFamily: fonts.sans, fontSize: 11, lineHeight: "18px" }}>
+                            <Link
+                              href={safeUrl(unsubscribeUrl, appUrl)}
+                              className="am-faint"
+                              style={{ color: colors.faint, textDecoration: "underline" }}
+                            >
                               Darme de baja de estos correos
                             </Link>
                           </Text>
                         ) : null}
                         <Section style={{ margin: "12px 0 0 0" }}>
-                          <Text style={{ margin: 0, fontFamily: fonts.sans, fontSize: 10, lineHeight: "15px", color: colors.faint }}>
+                          <Text className="am-faint" style={{ margin: 0, fontFamily: fonts.sans, fontSize: 10, lineHeight: "15px", color: colors.faint }}>
                             {LEGAL_FOOTER_PLACEHOLDER}
                           </Text>
                         </Section>

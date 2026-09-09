@@ -1,19 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import QRCode from "qrcode";
 
 import { renderWithProviders } from "@/test/utils";
 import { server, http, HttpResponse } from "@/test/msw";
-import { setTokens } from "@/lib/api/session";
+import { setTokens, getTokens } from "@/lib/api/session";
 import { Toaster } from "@/components/ui/sonner";
 import ConfiguracionPage from "@/pages/ConfiguracionPage";
 
+/**
+ * E19/E21 (docs/BACKLOG.md): cuenta base para la mayoría de las pruebas --
+ * CON contraseña propia y SIN Google vinculado (el caso más común). Las
+ * pruebas de la sección de Google/contraseña que necesitan el estado
+ * contrario lo declaran con su propio `http.get("*\/me", ...)`.
+ */
 function mockAuthenticatedSession() {
   setTokens({ accessToken: null, refreshToken: "ref-1" });
   server.use(
     http.post("*/auth/refresh", () => HttpResponse.json({ accessToken: "acc-1", refreshToken: "ref-1" })),
-    http.get("*/me", () => HttpResponse.json({ id: "user-1", email: "admin@empresa.com", fullName: "Admin" })),
+    http.get("*/me", () =>
+      HttpResponse.json({ id: "user-1", email: "admin@empresa.com", fullName: "Admin", hasPassword: true, googleLinked: false }),
+    ),
     http.get("*/organizations", () => HttpResponse.json([{ id: "org-a", name: "Organización A", slug: "org-a", role: "owner" }])),
     // Ronda 8b: la tarjeta de preferencias de notificación vive en esta
     // misma pantalla, así que TODA prueba de aquí dispara este GET. Se
@@ -21,6 +29,14 @@ function mockAuthenticatedSession() {
     // en `notification_preferences`); las pruebas que van sobre las
     // preferencias lo sobreescriben con su propio handler.
     http.get("*/mail/preferences", () => HttpResponse.json(TODAS_ACTIVADAS)),
+    // E21: la sección de sesiones activas también vive en esta pantalla --
+    // TODA prueba de aquí dispara este GET. Por defecto sin sesiones (las
+    // pruebas de esa sección lo sobreescriben con su propio handler).
+    http.get("*/auth/sessions", () => HttpResponse.json({ sessions: [] })),
+    // Logout es best-effort del lado del cliente (ver useAuth.tsx) -- se
+    // sirve 200 para que las pruebas de cambio de contraseña (que terminan
+    // en logout) no dependan de un fallo de red silencioso.
+    http.post("*/auth/logout", () => new HttpResponse(null, { status: 204 })),
   );
 }
 
@@ -144,7 +160,12 @@ describe("ConfiguracionPage", () => {
     renderWithProviders(<ConfiguracionPage />);
     await user.click(await screen.findByRole("button", { name: "Enrolar 2FA" }));
 
-    expect(await screen.findByRole("status")).toHaveTextContent(/no se pudo generar el código qr/i);
+    // `findByRole("status")` ya no sirve aquí: E21 agregó otro `role="status"`
+    // a la pantalla (el `EmptyState` de "Sin sesiones activas" de
+    // SessionsSection, sesiones vacías por defecto en `mockAuthenticatedSession`)
+    // -- se busca por texto en vez de por rol para no depender de que
+    // exista un único `status` en toda la página.
+    expect(await screen.findByText(/no se pudo generar el código qr/i)).toBeInTheDocument();
     expect(screen.queryByRole("img", { name: /código qr/i })).not.toBeInTheDocument();
     // El secreto en texto (alternativa accesible) sigue disponible.
     expect(screen.getByText("ABCD1234EFGH5678")).toBeInTheDocument();
@@ -152,24 +173,293 @@ describe("ConfiguracionPage", () => {
     toCanvasSpy.mockRestore();
   }, 15000);
 
-  // Ronda 8a: la pantalla de seguridad NO ofrece desactivar 2FA, regenerar
-  // códigos de respaldo ni listar sesiones activas porque apps/api no
-  // expone ningún endpoint para eso (se comprobó ruta por ruta en
-  // modules/twofa/routes.ts, modules/auth/routes.ts y modules/me/routes.ts).
-  // Esta prueba fija esa honestidad: los huecos se DECLARAN en la UI, y no
-  // aparece ningún control que fingiría llamarlos.
-  it("declara honestamente los huecos de seguridad en vez de ofrecer botones sin endpoint detrás", async () => {
+  // E19/E21: los huecos declarados hasta ronda 8a ya se cerraron -- esta
+  // prueba fija lo contrario de la vieja "declara honestamente los huecos":
+  // los controles reales SÍ aparecen una vez enrolado, con endpoint real
+  // detrás (ver las suites dedicadas más abajo para el flujo completo de
+  // cada uno).
+  it("una vez enrolado, ofrece desactivar 2FA y regenerar códigos de respaldo con controles reales", async () => {
     server.use(http.get("*/auth/2fa/status", () => HttpResponse.json({ enrolled: true, enrolledAt: "2026-01-01T00:00:00Z" })));
     renderWithProviders(<ConfiguracionPage />);
 
-    expect(await screen.findByRole("heading", { name: "Lo que esta pantalla todavía no puede hacer" })).toBeInTheDocument();
-    expect(screen.getByText(/Desactivar la verificación en dos pasos/)).toBeInTheDocument();
-    expect(screen.getByText(/Regenerar códigos de respaldo/)).toBeInTheDocument();
-    expect(screen.getByText(/Ver y cerrar tus sesiones activas/)).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /desactivar 2fa/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /regenerar códigos de respaldo/i })).toBeInTheDocument();
+  }, 15000);
 
-    expect(screen.queryByRole("button", { name: /desactivar/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /regenerar/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /cerrar (las )?(demás )?sesiones/i })).not.toBeInTheDocument();
+  // -------------------------------------------------------------------
+  // E21: desactivar 2FA (POST /auth/2fa/disable) y regenerar códigos de
+  // respaldo (POST /auth/2fa/backup-codes/regenerate) -- ambos exigen un
+  // stepUpToken vigente, pedido en el mismo StepUpDialog ya cubierto por
+  // TarifasAprobadasPage/RevisionPage (aquí solo se cubre el cableado
+  // propio de esta pantalla, no el diálogo en sí).
+  // -------------------------------------------------------------------
+
+  /** Solo la parte de "ya está abierto el StepUpDialog, ingresa el código y confirma". */
+  async function enterStepUpCode(user: ReturnType<typeof userEvent.setup>) {
+    await user.type(await screen.findByLabelText("Código TOTP o de respaldo"), "123456");
+    await user.click(screen.getByRole("button", { name: "Verificar y continuar" }));
+  }
+
+  /** Click en el botón que ABRE el StepUpDialog de esta pantalla, más completar el código. */
+  async function completeStepUp(user: ReturnType<typeof userEvent.setup>, openButtonName: RegExp) {
+    await user.click(await screen.findByRole("button", { name: openButtonName }));
+    await enterStepUpCode(user);
+  }
+
+  it("E21: desactiva 2FA tras un step-up válido", async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.get("*/auth/2fa/status", () => HttpResponse.json({ enrolled: true, enrolledAt: "2026-01-01T00:00:00Z" })),
+      http.post("*/auth/2fa/step-up", () => HttpResponse.json({ stepUpToken: "step-disable-1", expiresAt: "2026-01-01T00:10:00Z" })),
+      http.post("*/auth/2fa/disable", () => HttpResponse.json({ disabled: true })),
+    );
+
+    renderWithProviders(
+      <>
+        <Toaster />
+        <ConfiguracionPage />
+      </>,
+    );
+    await completeStepUp(user, /desactivar 2fa/i);
+
+    expect(await screen.findByText("2FA desactivado.")).toBeInTheDocument();
+  }, 15000);
+
+  it("E21: adversarial -- desactivar 2FA sin otro método de acceso muestra el 409 real, sin borrar nada", async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.get("*/auth/2fa/status", () => HttpResponse.json({ enrolled: true, enrolledAt: "2026-01-01T00:00:00Z" })),
+      http.post("*/auth/2fa/step-up", () => HttpResponse.json({ stepUpToken: "step-disable-2", expiresAt: "2026-01-01T00:10:00Z" })),
+      http.post("*/auth/2fa/disable", () =>
+        HttpResponse.json(
+          { title: "No se puede desactivar la verificación en dos pasos: esta cuenta no tiene contraseña ni una cuenta de Google vinculada.", status: 409 },
+          { status: 409 },
+        ),
+      ),
+    );
+
+    renderWithProviders(
+      <>
+        <Toaster />
+        <ConfiguracionPage />
+      </>,
+    );
+    await completeStepUp(user, /desactivar 2fa/i);
+
+    expect(await screen.findByText(/no se puede desactivar la verificación en dos pasos/i)).toBeInTheDocument();
+    // El botón de desactivar sigue ahí -- no se pintó ningún estado de "ya desactivado".
+    expect(screen.getByRole("button", { name: /desactivar 2fa/i })).toBeInTheDocument();
+  }, 15000);
+
+  it("E21: regenera códigos de respaldo y los muestra una sola vez", async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.get("*/auth/2fa/status", () => HttpResponse.json({ enrolled: true, enrolledAt: "2026-01-01T00:00:00Z" })),
+      http.post("*/auth/2fa/step-up", () => HttpResponse.json({ stepUpToken: "step-regen-1", expiresAt: "2026-01-01T00:10:00Z" })),
+      http.post("*/auth/2fa/backup-codes/regenerate", () => HttpResponse.json({ backupCodes: ["ZZZZ-9999", "YYYY-8888"] })),
+    );
+
+    renderWithProviders(<ConfiguracionPage />);
+    await completeStepUp(user, /regenerar códigos de respaldo/i);
+
+    expect(await screen.findByText("ZZZZ-9999")).toBeInTheDocument();
+    expect(screen.getByText("YYYY-8888")).toBeInTheDocument();
+    // Al confirmar que ya se guardaron, el panel desaparece y vuelven los botones.
+    await user.click(screen.getByRole("button", { name: "Ya los guardé" }));
+    expect(screen.queryByText("ZZZZ-9999")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /regenerar códigos de respaldo/i })).toBeInTheDocument();
+  }, 15000);
+
+  // -------------------------------------------------------------------
+  // E21: cambiar contraseña (POST /auth/password/change)
+  // -------------------------------------------------------------------
+
+  it("E21: cambia la contraseña tras step-up y cierra la sesión local (todas las sesiones se revocan del lado del servidor)", async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.get("*/auth/2fa/status", () => HttpResponse.json({ enrolled: true, enrolledAt: "2026-01-01T00:00:00Z" })),
+      http.post("*/auth/2fa/step-up", () => HttpResponse.json({ stepUpToken: "step-pwd-1", expiresAt: "2026-01-01T00:10:00Z" })),
+      http.post("*/auth/password/change", () => HttpResponse.json({ changed: true })),
+    );
+
+    renderWithProviders(
+      <>
+        <Toaster />
+        <ConfiguracionPage />
+      </>,
+    );
+
+    await user.type(await screen.findByLabelText("Contraseña actual"), "vieja-secreta");
+    await user.type(screen.getByLabelText("Contraseña nueva"), "nueva-secreta-123");
+    await user.type(screen.getByLabelText("Confirmar contraseña nueva"), "nueva-secreta-123");
+    await user.click(screen.getByRole("button", { name: "Cambiar contraseña" }));
+
+    expect(await screen.findByText(/confirma el cambio de contraseña/i)).toBeInTheDocument();
+    await enterStepUpCode(user);
+
+    expect(await screen.findByText(/vuelve a iniciar sesión con tu contraseña nueva/i)).toBeInTheDocument();
+    // logout() limpia el refresh token local -- coherente con que el
+    // servidor ya revocó todas las sesiones, esta incluida.
+    await waitFor(() => expect(getTokens().refreshToken).toBeNull());
+  }, 15000);
+
+  it("E21: adversarial -- las contraseñas nuevas que no coinciden se rechazan en cliente, sin llamar a la API", async () => {
+    const user = userEvent.setup();
+    const changeCalls: unknown[] = [];
+    server.use(
+      http.get("*/auth/2fa/status", () => HttpResponse.json({ enrolled: true, enrolledAt: "2026-01-01T00:00:00Z" })),
+      http.post("*/auth/password/change", async ({ request }) => {
+        changeCalls.push(await request.json());
+        return HttpResponse.json({ changed: true });
+      }),
+    );
+
+    renderWithProviders(<ConfiguracionPage />);
+    await user.type(await screen.findByLabelText("Contraseña actual"), "vieja-secreta");
+    await user.type(screen.getByLabelText("Contraseña nueva"), "nueva-secreta-123");
+    await user.type(screen.getByLabelText("Confirmar contraseña nueva"), "otra-cosa-distinta");
+    await user.click(screen.getByRole("button", { name: "Cambiar contraseña" }));
+
+    expect(await screen.findByText("Las contraseñas nuevas no coinciden.")).toBeInTheDocument();
+    expect(changeCalls).toEqual([]);
+    // Sin StepUpDialog abierto: la validación de cliente corta ANTES de pedir el step-up.
+    expect(screen.queryByText(/confirma el cambio de contraseña/i)).not.toBeInTheDocument();
+  }, 15000);
+
+  it("E21: una cuenta solo-Google (sin contraseña propia) no ve el formulario de cambio de contraseña", async () => {
+    server.use(
+      http.get("*/me", () =>
+        HttpResponse.json({ id: "user-1", email: "solo-google@empresa.com", fullName: null, hasPassword: false, googleLinked: true }),
+      ),
+    );
+    renderWithProviders(<ConfiguracionPage />);
+
+    expect(await screen.findByText(/esta cuenta no tiene contraseña propia \(solo google\)/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Contraseña actual")).not.toBeInTheDocument();
+  }, 15000);
+
+  // -------------------------------------------------------------------
+  // E19: desvincular Google (POST /auth/google/unlink)
+  // -------------------------------------------------------------------
+
+  it("E19: cuenta sin Google vinculado -- muestra 'Sin vincular' y ningún botón de desvincular", async () => {
+    renderWithProviders(<ConfiguracionPage />);
+
+    expect(await screen.findByText("Sin vincular")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /desvincular google/i })).not.toBeInTheDocument();
+  }, 15000);
+
+  it("E19: desvincula Google tras step-up y refresca el estado de la cuenta", async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.get("*/me", () =>
+        HttpResponse.json({ id: "user-1", email: "admin@empresa.com", fullName: "Admin", hasPassword: true, googleLinked: true }),
+      ),
+      http.get("*/auth/2fa/status", () => HttpResponse.json({ enrolled: true, enrolledAt: "2026-01-01T00:00:00Z" })),
+      http.post("*/auth/2fa/step-up", () => HttpResponse.json({ stepUpToken: "step-unlink-1", expiresAt: "2026-01-01T00:10:00Z" })),
+      http.post("*/auth/google/unlink", () => HttpResponse.json({ unlinked: true })),
+    );
+
+    renderWithProviders(
+      <>
+        <Toaster />
+        <ConfiguracionPage />
+      </>,
+    );
+    expect(await screen.findByText("Vinculada")).toBeInTheDocument();
+
+    // Tras desvincular, `refreshUser()` vuelve a pedir /me -- se sirve "ya
+    // desvinculado" para que la pantalla refleje el cambio real.
+    server.use(
+      http.get("*/me", () =>
+        HttpResponse.json({ id: "user-1", email: "admin@empresa.com", fullName: "Admin", hasPassword: true, googleLinked: false }),
+      ),
+    );
+
+    await completeStepUp(user, /desvincular google/i);
+
+    expect(await screen.findByText("Cuenta de Google desvinculada.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Sin vincular")).toBeInTheDocument());
+  }, 15000);
+
+  it("E19: Google vinculado pero sin contraseña propia -- explica por qué no se puede desvincular, sin ofrecer el botón", async () => {
+    server.use(
+      http.get("*/me", () =>
+        HttpResponse.json({ id: "user-1", email: "solo-google@empresa.com", fullName: null, hasPassword: false, googleLinked: true }),
+      ),
+    );
+    renderWithProviders(<ConfiguracionPage />);
+
+    expect(await screen.findByText(/no se puede desvincular/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /desvincular google/i })).not.toBeInTheDocument();
+  }, 15000);
+
+  // -------------------------------------------------------------------
+  // E21: sesiones activas (GET/DELETE /auth/sessions, POST
+  // /auth/sessions/revoke-others)
+  // -------------------------------------------------------------------
+
+  const DOS_SESIONES = {
+    sessions: [
+      { id: "sess-1", createdAt: "2026-01-01T00:00:00Z", expiresAt: "2026-02-01T00:00:00Z", ipAddress: "10.0.0.1", userAgent: "Chrome/Mac" },
+      { id: "sess-2", createdAt: "2026-01-02T00:00:00Z", expiresAt: "2026-02-02T00:00:00Z", ipAddress: "10.0.0.2", userAgent: "Firefox/Linux" },
+    ],
+  };
+
+  it("E21: lista las sesiones reales de la cuenta", async () => {
+    server.use(http.get("*/auth/sessions", () => HttpResponse.json(DOS_SESIONES)));
+    renderWithProviders(<ConfiguracionPage />);
+
+    expect(await screen.findByText("10.0.0.1")).toBeInTheDocument();
+    expect(screen.getByText("10.0.0.2")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Cerrar" })).toHaveLength(2);
+  }, 15000);
+
+  it("E21: sin sesiones, muestra un estado vacío honesto", async () => {
+    renderWithProviders(<ConfiguracionPage />);
+    expect(await screen.findByText("Sin sesiones activas")).toBeInTheDocument();
+  }, 15000);
+
+  it("E21: cierra una sesión concreta", async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.get("*/auth/sessions", () => HttpResponse.json(DOS_SESIONES)),
+      http.delete("*/auth/sessions/sess-1", () => HttpResponse.json({ revoked: true })),
+    );
+
+    renderWithProviders(
+      <>
+        <Toaster />
+        <ConfiguracionPage />
+      </>,
+    );
+    const row = (await screen.findByText("10.0.0.1")).closest("tr")!;
+    await user.click(within(row).getByRole("button", { name: "Cerrar" }));
+
+    expect(await screen.findByText("Sesión cerrada.")).toBeInTheDocument();
+  }, 15000);
+
+  it("E21: cierra todas las demás sesiones usando el refresh token de esta pestaña", async () => {
+    const user = userEvent.setup();
+    const bodies: unknown[] = [];
+    server.use(
+      http.get("*/auth/sessions", () => HttpResponse.json(DOS_SESIONES)),
+      http.post("*/auth/sessions/revoke-others", async ({ request }) => {
+        bodies.push(await request.json());
+        return HttpResponse.json({ revokedCount: 1 });
+      }),
+    );
+
+    renderWithProviders(
+      <>
+        <Toaster />
+        <ConfiguracionPage />
+      </>,
+    );
+    await user.click(await screen.findByRole("button", { name: "Cerrar las demás sesiones" }));
+
+    expect(await screen.findByText("1 sesión(es) cerrada(s).")).toBeInTheDocument();
+    expect(bodies).toEqual([{ refreshToken: "ref-1" }]);
   }, 15000);
 
   it("adversarial: re-enrolar sobre un 2FA ya verificado muestra el 409 real de apps/api, sin borrar nada", async () => {
