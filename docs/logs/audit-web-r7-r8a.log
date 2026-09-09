@@ -1,0 +1,1003 @@
+# Auditoría adversarial apps/web — rondas 7 y 8a — salida real de comandos
+# Worktree: wt-web-r7r8a (detached)
+# HEAD auditado: d993bf6fcf377baf364243813faba8f0a8f8d58e
+# Fecha de ejecución: 2026-09-08 (turno único, continuación de dos agentes previos cortados por límite)
+# Node: v25.6.1 npm: 11.12.1
+#
+# NOTA DE PROCEDENCIA: esta auditoría es continuación de intentos previos cortados por límite.
+# El log parcial del primer intento (scratchpad/audit-web-r7-r8a.log, HEAD e8da855, anterior
+# a d993bf6) queda citado más abajo con sus resultados de typecheck/lint/test:coverage x2 a ese
+# HEAD -- ya desactualizado (18 archivos / 1662 líneas de ronda 8b se agregaron entre e8da855 y
+# d993bf6). typecheck/lint/build/test/test:e2e:full de este documento se re-ejecutaron en HEAD
+# d993bf6 real. test:coverage x2 no pudo re-ejecutarse en esta sesión por límite de tasa del
+# entorno tras agotar el tiempo disponible; se usa 'npm run test' (sin --coverage) x2 como señal
+# equivalente de reproducibilidad de la suite completa, más el test:coverage x2 parcial citado.
+
+############################################################
+# 1) typecheck + lint (x2 cada uno) -- HEAD d993bf6
+############################################################
+# Comandos de reproducibilidad — auditor WB (continuación)
+# HEAD: d993bf6fcf377baf364243813faba8f0a8f8d58e
+# Fecha: 2026-09-09T03:02:30Z
+
+=== $ npm run -w apps/web typecheck (1/2) ===
+
+> @atiende/web@0.1.0 typecheck
+> tsc -b --noEmit
+
+--- EXIT: 0 ---
+
+=== $ npm run -w apps/web typecheck (2/2) ===
+
+> @atiende/web@0.1.0 typecheck
+> tsc -b --noEmit
+
+--- EXIT: 0 ---
+
+=== $ npm run -w apps/web lint (1/2) ===
+
+> @atiende/web@0.1.0 lint
+> eslint .
+
+--- EXIT: 0 ---
+
+=== $ npm run -w apps/web lint (2/2) ===
+
+> @atiende/web@0.1.0 lint
+> eslint .
+
+--- EXIT: 0 ---
+
+############################################################
+# 2) build -- HEAD d993bf6
+############################################################
+=== $ npm run -w apps/web build ===
+
+> @atiende/web@0.1.0 build
+> tsc -b && vite build
+
+[36mvite v6.4.3 [32mbuilding for production...[36m[39m
+transforming...
+[32m✓[39m 2141 modules transformed.
+rendering chunks...
+computing gzip size...
+[2mdist/[22m[32mindex.html                                     [39m[1m[2m  1.37 kB[22m[1m[22m[2m │ gzip:  0.64 kB[22m
+[2mdist/[22m[2massets/[22m[35mlogin-BcYFrIpy.css                      [39m[1m[2m  0.19 kB[22m[1m[22m[2m │ gzip:  0.17 kB[22m
+[2mdist/[22m[2massets/[22m[35mindex-DcUlanLG.css                      [39m[1m[2m 38.16 kB[22m[1m[22m[2m │ gzip:  7.77 kB[22m
+[2mdist/[22m[2massets/[22m[36mplus-CsivoUb7.js                        [39m[1m[2m  0.32 kB[22m[1m[22m[2m │ gzip:  0.25 kB[22m
+[2mdist/[22m[2massets/[22m[36marrow-left-BciIeOBV.js                  [39m[1m[2m  0.33 kB[22m[1m[22m[2m │ gzip:  0.27 kB[22m
+[2mdist/[22m[2massets/[22m[36marrow-right-CZZ18xrM.js                 [39m[1m[2m  0.33 kB[22m[1m[22m[2m │ gzip:  0.27 kB[22m
+[2mdist/[22m[2massets/[22m[36mcircle-check--BVdYb6o.js                [39m[1m[2m  0.34 kB[22m[1m[22m[2m │ gzip:  0.27 kB[22m
+[2mdist/[22m[2massets/[22m[36mcircle-play-D2rvxD9F.js                 [39m[1m[2m  0.36 kB[22m[1m[22m[2m │ gzip:  0.27 kB[22m
+[2mdist/[22m[2massets/[22m[36mlabel-BcAshXXu.js                       [39m[1m[2m  0.37 kB[22m[1m[22m[2m │ gzip:  0.27 kB[22m
+[2mdist/[22m[2massets/[22m[36mmail-B9F_UK_r.js                        [39m[1m[2m  0.38 kB[22m[1m[22m[2m │ gzip:  0.30 kB[22m
+[2mdist/[22m[2massets/[22m[36mupload-Cyb_nvlq.js                      [39m[1m[2m  0.43 kB[22m[1m[22m[2m │ gzip:  0.32 kB[22m
+[2mdist/[22m[2massets/[22m[36mmail-check-kjp0CRqW.js                  [39m[1m[2m  0.45 kB[22m[1m[22m[2m │ gzip:  0.32 kB[22m
+[2mdist/[22m[2massets/[22m[36muser-plus-vj9UMQpw.js                   [39m[1m[2m  0.48 kB[22m[1m[22m[2m │ gzip:  0.33 kB[22m
+[2mdist/[22m[2massets/[22m[36mloading-state-B7ouAk-3.js               [39m[1m[2m  0.49 kB[22m[1m[22m[2m │ gzip:  0.33 kB[22m
+[2mdist/[22m[2massets/[22m[36mdatetime-phlS3Qpi.js                    [39m[1m[2m  0.52 kB[22m[1m[22m[2m │ gzip:  0.27 kB[22m
+[2mdist/[22m[2massets/[22m[36mkey-round-cVLLBB22.js                   [39m[1m[2m  0.52 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mtrash-2-BaGTXPbN.js                     [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36minput-CxaBVmAb.js                       [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mtextarea-Ci90U19j.js                    [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36museMatching-CDAXtsxJ.js                 [39m[1m[2m  0.54 kB[22m[1m[22m[2m │ gzip:  0.31 kB[22m
+[2mdist/[22m[2massets/[22m[36mgoogle-XQZ5h0LR.js                      [39m[1m[2m  0.55 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mSectionHeader-4eN96vIM.js               [39m[1m[2m  0.56 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36museAuditLog-BDljQg3J.js                 [39m[1m[2m  0.65 kB[22m[1m[22m[2m │ gzip:  0.38 kB[22m
+[2mdist/[22m[2massets/[22m[36museMemberships-Bt79lNUt.js              [39m[1m[2m  0.70 kB[22m[1m[22m[2m │ gzip:  0.33 kB[22m
+[2mdist/[22m[2massets/[22m[36museDocumentMeta-DG6BM3nP.js             [39m[1m[2m  0.74 kB[22m[1m[22m[2m │ gzip:  0.36 kB[22m
+[2mdist/[22m[2massets/[22m[36mvalidateDocumentFile-BiFIh6bU.js        [39m[1m[2m  0.88 kB[22m[1m[22m[2m │ gzip:  0.53 kB[22m
+[2mdist/[22m[2massets/[22m[36mTenderSelect-Bn0yNL_w.js                [39m[1m[2m  0.99 kB[22m[1m[22m[2m │ gzip:  0.61 kB[22m
+[2mdist/[22m[2massets/[22m[36mcard-BxXY89UF.js                        [39m[1m[2m  1.09 kB[22m[1m[22m[2m │ gzip:  0.45 kB[22m
+[2mdist/[22m[2massets/[22m[36mtabs-DjWH7amK.js                        [39m[1m[2m  1.10 kB[22m[1m[22m[2m │ gzip:  0.47 kB[22m
+[2mdist/[22m[2massets/[22m[36museTwoFactor-DE6JTMz_.js                [39m[1m[2m  1.23 kB[22m[1m[22m[2m │ gzip:  0.59 kB[22m
+[2mdist/[22m[2massets/[22m[36mNotFoundPage-EuVUC1A0.js                [39m[1m[2m  1.23 kB[22m[1m[22m[2m │ gzip:  0.70 kB[22m
+[2mdist/[22m[2massets/[22m[36mAiDisclosureNote-BReBgrSm.js            [39m[1m[2m  1.24 kB[22m[1m[22m[2m │ gzip:  0.74 kB[22m
+[2mdist/[22m[2massets/[22m[36mempty-state-DO4KZXZG.js                 [39m[1m[2m  1.27 kB[22m[1m[22m[2m │ gzip:  0.72 kB[22m
+[2mdist/[22m[2massets/[22m[36mrenderSimpleMarkdown-4zQ9nPbL.js        [39m[1m[2m  1.32 kB[22m[1m[22m[2m │ gzip:  0.68 kB[22m
+[2mdist/[22m[2massets/[22m[36museTenders-BDLf2q7g.js                  [39m[1m[2m  1.42 kB[22m[1m[22m[2m │ gzip:  0.54 kB[22m
+[2mdist/[22m[2massets/[22m[36mOrganizacionesPage-DScxBHrp.js          [39m[1m[2m  1.50 kB[22m[1m[22m[2m │ gzip:  0.74 kB[22m
+[2mdist/[22m[2massets/[22m[36mtable-fwrQmCp7.js                       [39m[1m[2m  1.61 kB[22m[1m[22m[2m │ gzip:  0.58 kB[22m
+[2mdist/[22m[2massets/[22m[36merror-state-BQsMxcT7.js                 [39m[1m[2m  1.68 kB[22m[1m[22m[2m │ gzip:  0.83 kB[22m
+[2mdist/[22m[2massets/[22m[36mConectoresPage-yatGaO24.js              [39m[1m[2m  1.69 kB[22m[1m[22m[2m │ gzip:  0.85 kB[22m
+[2mdist/[22m[2massets/[22m[36mAuthScreen-BhaTSBLv.js                  [39m[1m[2m  1.86 kB[22m[1m[22m[2m │ gzip:  0.87 kB[22m
+[2mdist/[22m[2massets/[22m[36mCostosPage-CIK65n0z.js                  [39m[1m[2m  1.89 kB[22m[1m[22m[2m │ gzip:  0.94 kB[22m
+[2mdist/[22m[2massets/[22m[36mredirectAfterAuth-C0wHY_R-.js           [39m[1m[2m  1.93 kB[22m[1m[22m[2m │ gzip:  1.03 kB[22m
+[2mdist/[22m[2massets/[22m[36mResendVerificationForm-CKinM7Sw.js      [39m[1m[2m  2.07 kB[22m[1m[22m[2m │ gzip:  1.09 kB[22m
+[2mdist/[22m[2massets/[22m[36mRevisaTuCorreoPage-BC-9ZEWC.js          [39m[1m[2m  2.51 kB[22m[1m[22m[2m │ gzip:  1.33 kB[22m
+[2mdist/[22m[2massets/[22m[36mJobsPage-DDWHgAuv.js                    [39m[1m[2m  2.59 kB[22m[1m[22m[2m │ gzip:  1.28 kB[22m
+[2mdist/[22m[2massets/[22m[36mAprobacionesPage-9VMUMUxy.js            [39m[1m[2m  2.62 kB[22m[1m[22m[2m │ gzip:  1.22 kB[22m
+[2mdist/[22m[2massets/[22m[36museAdmin-CcYjv1WC.js                    [39m[1m[2m  2.70 kB[22m[1m[22m[2m │ gzip:  0.75 kB[22m
+[2mdist/[22m[2massets/[22m[36mPrivacyNoticePage-MLQAjXG1.js           [39m[1m[2m  2.74 kB[22m[1m[22m[2m │ gzip:  1.36 kB[22m
+[2mdist/[22m[2massets/[22m[36mFuentesFrescuraPage-qJV1rDoh.js         [39m[1m[2m  3.06 kB[22m[1m[22m[2m │ gzip:  1.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mRecuperarPasswordPage-Xm-UhSWp.js       [39m[1m[2m  3.19 kB[22m[1m[22m[2m │ gzip:  1.54 kB[22m
+[2mdist/[22m[2massets/[22m[36mAprobacionesBackofficePage-CrKyIgNG.js  [39m[1m[2m  3.23 kB[22m[1m[22m[2m │ gzip:  1.45 kB[22m
+[2mdist/[22m[2massets/[22m[36mVerificarCorreoPage-BKtaE6_W.js         [39m[1m[2m  3.33 kB[22m[1m[22m[2m │ gzip:  1.59 kB[22m
+[2mdist/[22m[2massets/[22m[36mDescubrimientoPage-BKz4DXZB.js          [39m[1m[2m  3.41 kB[22m[1m[22m[2m │ gzip:  1.59 kB[22m
+[2mdist/[22m[2massets/[22m[36mIncidentesPage-Cd3c6XNm.js              [39m[1m[2m  3.47 kB[22m[1m[22m[2m │ gzip:  1.55 kB[22m
+[2mdist/[22m[2massets/[22m[36mAuditoriaPage-BxQe_UvX.js               [39m[1m[2m  3.54 kB[22m[1m[22m[2m │ gzip:  1.57 kB[22m
+[2mdist/[22m[2massets/[22m[36mFirmantesAutorizadosPage-DirIopdx.js    [39m[1m[2m  3.70 kB[22m[1m[22m[2m │ gzip:  1.68 kB[22m
+[2mdist/[22m[2massets/[22m[36mMatchingPage-BkF_2O7l.js                [39m[1m[2m  3.77 kB[22m[1m[22m[2m │ gzip:  1.57 kB[22m
+[2mdist/[22m[2massets/[22m[36mAlertsList-fbwURw8V.js                  [39m[1m[2m  3.78 kB[22m[1m[22m[2m │ gzip:  1.33 kB[22m
+[2mdist/[22m[2massets/[22m[36mSinAccesoPage-i4UHwZ3S.js               [39m[1m[2m  3.91 kB[22m[1m[22m[2m │ gzip:  1.68 kB[22m
+[2mdist/[22m[2massets/[22m[36mRestablecerPasswordPage-C4B77-XF.js     [39m[1m[2m  3.94 kB[22m[1m[22m[2m │ gzip:  1.85 kB[22m
+[2mdist/[22m[2massets/[22m[36mStepUpDialog-C2Xb-0dA.js                [39m[1m[2m  4.04 kB[22m[1m[22m[2m │ gzip:  1.78 kB[22m
+[2mdist/[22m[2massets/[22m[36mExpedientePage-CDSzXu8v.js              [39m[1m[2m  4.10 kB[22m[1m[22m[2m │ gzip:  1.63 kB[22m
+[2mdist/[22m[2massets/[22m[36museCompany-K_jkVv2C.js                  [39m[1m[2m  4.12 kB[22m[1m[22m[2m │ gzip:  0.83 kB[22m
+[2mdist/[22m[2massets/[22m[36mAceptarInvitacionPage-W4yWbAW9.js       [39m[1m[2m  4.21 kB[22m[1m[22m[2m │ gzip:  1.81 kB[22m
+[2mdist/[22m[2massets/[22m[36mGoogleCallbackPage-yoM6cW1V.js          [39m[1m[2m  4.36 kB[22m[1m[22m[2m │ gzip:  1.80 kB[22m
+[2mdist/[22m[2massets/[22m[36mUsuariosRolesPage-_zpoXbi6.js           [39m[1m[2m  4.75 kB[22m[1m[22m[2m │ gzip:  2.09 kB[22m
+[2mdist/[22m[2massets/[22m[36mLoginPage-CuYdL6Rs.js                   [39m[1m[2m  5.02 kB[22m[1m[22m[2m │ gzip:  2.21 kB[22m
+[2mdist/[22m[2massets/[22m[36mTermsPage-bvmqTKs5.js                   [39m[1m[2m  5.24 kB[22m[1m[22m[2m │ gzip:  2.38 kB[22m
+[2mdist/[22m[2massets/[22m[36mEntregasPage-DlYnqE5e.js                [39m[1m[2m  5.26 kB[22m[1m[22m[2m │ gzip:  2.36 kB[22m
+[2mdist/[22m[2massets/[22m[36mDocumentosVigenciasPage-B2cyamJm.js     [39m[1m[2m  5.26 kB[22m[1m[22m[2m │ gzip:  2.31 kB[22m
+[2mdist/[22m[2massets/[22m[36mDemoPage-BVsWgWkV.js                    [39m[1m[2m  5.41 kB[22m[1m[22m[2m │ gzip:  2.46 kB[22m
+[2mdist/[22m[2massets/[22m[36mPreferenciasBajaPage-DLJGV6V9.js        [39m[1m[2m  5.61 kB[22m[1m[22m[2m │ gzip:  2.42 kB[22m
+[2mdist/[22m[2massets/[22m[36mAgentesHerramientasPage-BGvDWqdk.js     [39m[1m[2m  5.70 kB[22m[1m[22m[2m │ gzip:  2.15 kB[22m
+[2mdist/[22m[2massets/[22m[36mConvocatoriaDetallePage-DEVGht4g.js     [39m[1m[2m  5.71 kB[22m[1m[22m[2m │ gzip:  2.18 kB[22m
+[2mdist/[22m[2massets/[22m[36mPaqueteDescargablePage-XvpctlpL.js      [39m[1m[2m  5.74 kB[22m[1m[22m[2m │ gzip:  2.51 kB[22m
+[2mdist/[22m[2massets/[22m[36mTarifasAprobadasPage-DI5GmdhP.js        [39m[1m[2m  5.88 kB[22m[1m[22m[2m │ gzip:  2.51 kB[22m
+[2mdist/[22m[2massets/[22m[36mRegistroPage-DIDlt_w0.js                [39m[1m[2m  5.99 kB[22m[1m[22m[2m │ gzip:  2.43 kB[22m
+[2mdist/[22m[2massets/[22m[36mPerfilCapacidadesPage-DpB1KPIn.js       [39m[1m[2m  6.49 kB[22m[1m[22m[2m │ gzip:  2.32 kB[22m
+[2mdist/[22m[2massets/[22m[36mCumplimientoDocumentalPage-Dmo_eEn6.js  [39m[1m[2m  6.54 kB[22m[1m[22m[2m │ gzip:  2.39 kB[22m
+[2mdist/[22m[2massets/[22m[36mGoNoGoPage-Bsn_6qBd.js                  [39m[1m[2m  6.60 kB[22m[1m[22m[2m │ gzip:  2.75 kB[22m
+[2mdist/[22m[2massets/[22m[36mRevisionPage-sNPaGYE0.js                [39m[1m[2m  7.40 kB[22m[1m[22m[2m │ gzip:  2.92 kB[22m
+[2mdist/[22m[2massets/[22m[36museExpediente-y7tfZ3w-.js               [39m[1m[2m  7.80 kB[22m[1m[22m[2m │ gzip:  1.67 kB[22m
+[2mdist/[22m[2massets/[22m[36mPanelPage-CR-n24L9.js                   [39m[1m[2m  8.14 kB[22m[1m[22m[2m │ gzip:  3.14 kB[22m
+[2mdist/[22m[2massets/[22m[36mSeguimientoPage-CRjZv-9I.js             [39m[1m[2m 10.02 kB[22m[1m[22m[2m │ gzip:  3.43 kB[22m
+[2mdist/[22m[2massets/[22m[36mAnalisisBasesPage-NUwq77S9.js           [39m[1m[2m 10.96 kB[22m[1m[22m[2m │ gzip:  4.05 kB[22m
+[2mdist/[22m[2massets/[22m[36mRedaccionPage-BxvstJGf.js               [39m[1m[2m 11.47 kB[22m[1m[22m[2m │ gzip:  4.01 kB[22m
+[2mdist/[22m[2massets/[22m[36mOnboardingPage-DQpoPu3l.js              [39m[1m[2m 12.66 kB[22m[1m[22m[2m │ gzip:  4.39 kB[22m
+[2mdist/[22m[2massets/[22m[36mLandingPage-DNy6-tIH.js                 [39m[1m[2m 18.91 kB[22m[1m[22m[2m │ gzip:  5.88 kB[22m
+[2mdist/[22m[2massets/[22m[36mConfiguracionPage-DuyEv_cs.js           [39m[1m[2m 36.16 kB[22m[1m[22m[2m │ gzip: 13.93 kB[22m
+[2mdist/[22m[2massets/[22m[36mform-CiiysPOw.js                        [39m[1m[2m 38.11 kB[22m[1m[22m[2m │ gzip: 13.68 kB[22m
+[2mdist/[22m[2massets/[22m[36mquery-D8y_6FMe.js                       [39m[1m[2m 49.11 kB[22m[1m[22m[2m │ gzip: 15.06 kB[22m
+[2mdist/[22m[2massets/[22m[36mindex-B6vpxdyj.js                       [39m[1m[2m219.60 kB[22m[1m[22m[2m │ gzip: 63.59 kB[22m
+[2mdist/[22m[2massets/[22m[36mapp-platform-BVUrvij4.js                [39m[1m[2m256.45 kB[22m[1m[22m[2m │ gzip: 82.61 kB[22m
+[2mdist/[22m[2massets/[22m[36mbrowser-CN7sUZHg.js                     [39m[1m[2m296.75 kB[22m[1m[22m[2m │ gzip: 97.77 kB[22m
+[32m✓ built in 4.53s[39m
+--- EXIT: 0 ---
+
+############################################################
+# 3) npm run -w apps/web test (x2, SIN --coverage) -- HEAD d993bf6
+############################################################
+=== $ npm run -w apps/web test (1/2) ===
+     65|   it("admin pide el step-up con la organización activa (X-Org-Id) y el…
+       |   ^
+     66|     mockSession("admin");
+     67|     server.use(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/18]⎯
+
+ FAIL  src/pages/preparacion/RevisionPage.test.tsx > RevisionPage > admin pide el step-up con la organización activa (X-Org-Id) y el propósito exacto de la acción (R5-09)
+Error: Unable to perform pointer interaction as the element has `pointer-events: none`:
+
+BUTTON(label=Aprobar expediente)
+ ❯ assertPointerEvents ../../node_modules/@testing-library/user-event/dist/esm/utils/pointer/cssPointerEvents.js:45:15
+ ❯ Object.enter ../../node_modules/@testing-library/user-event/dist/esm/system/pointer/pointer.js:48:17
+ ❯ PointerHost.move ../../node_modules/@testing-library/user-event/dist/esm/system/pointer/index.js:49:79
+ ❯ pointerAction ../../node_modules/@testing-library/user-event/dist/esm/pointer/index.js:57:39
+ ❯ Object.pointer ../../node_modules/@testing-library/user-event/dist/esm/pointer/index.js:25:15
+ ❯ Object.asyncWrapper ../../node_modules/@testing-library/react/dist/pure.js:88:22
+ ❯ src/pages/preparacion/RevisionPage.test.tsx:106:5
+    104|     await user.click(await screen.findByRole("option", { name: TENDER.…
+    105|
+    106|     await user.click(await screen.findByRole("button", { name: "Aproba…
+       |     ^
+    107|     await user.type(await screen.findByLabelText("Código TOTP o de res…
+    108|     await user.click(screen.getByRole("button", { name: "Verificar y c…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/18]⎯
+
+
+ Test Files  8 failed | 38 passed (46)
+      Tests  9 failed | 216 passed (225)
+   Start at  21:38:37
+   Duration  466.20s (transform 4.72s, setup 15.71s, import 27.40s, tests 2631.79s, environment 71.30s)
+
+npm error Lifecycle script `test` failed with error:
+npm error code 1
+npm error path /private/tmp/claude-501/-Users-javiercamaraportepetit/***/scratchpad/wt-web-r7r8a/apps/web
+npm error workspace @atiende/web@0.1.0
+npm error location /private/tmp/claude-501/-Users-javiercamaraportepetit/***/scratchpad/wt-web-r7r8a/apps/web
+npm error command failed
+npm error command sh -c NODE_OPTIONS=--no-experimental-webstorage vitest run
+--- EXIT: 0 ---
+
+=== $ npm run -w apps/web test (2/2) ===
+    at Rule.colorContrastMatches [as matches] (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:17087:41)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:17087:41)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:17087:41)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+
+ Test Files  46 passed (46)
+      Tests  225 passed (225)
+   Start at  21:46:24
+   Duration  167.85s (transform 3.67s, setup 9.58s, import 17.16s, tests 858.35s, environment 16.40s)
+
+--- EXIT: 0 ---
+
+############################################################
+# 4) RATE_LIMIT_PROFILE=e2e npm run -w apps/web test:e2e:full -- HEAD d993bf6
+#    (log condensado: se removieron las líneas de log JSON de apps/api,
+#     puramente de tránsito de red, para dejar legibles los resultados
+#     de Playwright; el log crudo completo con las 2997 líneas originales
+#     queda en el scratchpad de esta sesión si se requiere reproducir)
+############################################################
+
+> @atiende/web@0.1.0 test:e2e:full
+> node scripts/e2e-full.mjs
+
+[test:e2e:full] proveedor OIDC falso (solo pruebas) escuchando en http://127.0.0.1:52543
+[test:e2e:full] arrancando apps/api real (PGlite en memoria) en http://127.0.0.1:3698…
+[test:e2e:full] apps/api lista (GET /healthz → 200).
+[test:e2e:full] corriendo build + Playwright contra http://127.0.0.1:3698 (web servido en http://127.0.0.1:4407)…
+
+> @atiende/web@0.1.0 test:e2e
+> npm run build && playwright test
+
+
+> @atiende/web@0.1.0 build
+> tsc -b && vite build
+
+[36mvite v6.4.3 [32mbuilding for production...[36m[39m
+transforming...
+[32m✓[39m 2141 modules transformed.
+rendering chunks...
+computing gzip size...
+[2mdist/[22m[32mindex.html                                     [39m[1m[2m  1.37 kB[22m[1m[22m[2m │ gzip:  0.64 kB[22m
+[2mdist/[22m[2massets/[22m[35mlogin-BcYFrIpy.css                      [39m[1m[2m  0.19 kB[22m[1m[22m[2m │ gzip:  0.17 kB[22m
+[2mdist/[22m[2massets/[22m[35mindex-DcUlanLG.css                      [39m[1m[2m 38.16 kB[22m[1m[22m[2m │ gzip:  7.77 kB[22m
+[2mdist/[22m[2massets/[22m[36mplus-CsivoUb7.js                        [39m[1m[2m  0.32 kB[22m[1m[22m[2m │ gzip:  0.25 kB[22m
+[2mdist/[22m[2massets/[22m[36marrow-left-BciIeOBV.js                  [39m[1m[2m  0.33 kB[22m[1m[22m[2m │ gzip:  0.27 kB[22m
+[2mdist/[22m[2massets/[22m[36marrow-right-CZZ18xrM.js                 [39m[1m[2m  0.33 kB[22m[1m[22m[2m │ gzip:  0.27 kB[22m
+[2mdist/[22m[2massets/[22m[36mcircle-check--BVdYb6o.js                [39m[1m[2m  0.34 kB[22m[1m[22m[2m │ gzip:  0.27 kB[22m
+[2mdist/[22m[2massets/[22m[36mcircle-play-D2rvxD9F.js                 [39m[1m[2m  0.36 kB[22m[1m[22m[2m │ gzip:  0.27 kB[22m
+[2mdist/[22m[2massets/[22m[36mlabel-BcAshXXu.js                       [39m[1m[2m  0.37 kB[22m[1m[22m[2m │ gzip:  0.27 kB[22m
+[2mdist/[22m[2massets/[22m[36mmail-B9F_UK_r.js                        [39m[1m[2m  0.38 kB[22m[1m[22m[2m │ gzip:  0.30 kB[22m
+[2mdist/[22m[2massets/[22m[36mupload-Cyb_nvlq.js                      [39m[1m[2m  0.43 kB[22m[1m[22m[2m │ gzip:  0.32 kB[22m
+[2mdist/[22m[2massets/[22m[36mmail-check-kjp0CRqW.js                  [39m[1m[2m  0.45 kB[22m[1m[22m[2m │ gzip:  0.32 kB[22m
+[2mdist/[22m[2massets/[22m[36muser-plus-vj9UMQpw.js                   [39m[1m[2m  0.48 kB[22m[1m[22m[2m │ gzip:  0.33 kB[22m
+[2mdist/[22m[2massets/[22m[36mloading-state-B7ouAk-3.js               [39m[1m[2m  0.49 kB[22m[1m[22m[2m │ gzip:  0.33 kB[22m
+[2mdist/[22m[2massets/[22m[36mdatetime-phlS3Qpi.js                    [39m[1m[2m  0.52 kB[22m[1m[22m[2m │ gzip:  0.27 kB[22m
+[2mdist/[22m[2massets/[22m[36mkey-round-cVLLBB22.js                   [39m[1m[2m  0.52 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mtrash-2-BaGTXPbN.js                     [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36minput-CxaBVmAb.js                       [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mtextarea-Ci90U19j.js                    [39m[1m[2m  0.53 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36museMatching-CDAXtsxJ.js                 [39m[1m[2m  0.54 kB[22m[1m[22m[2m │ gzip:  0.31 kB[22m
+[2mdist/[22m[2massets/[22m[36mgoogle-XQZ5h0LR.js                      [39m[1m[2m  0.55 kB[22m[1m[22m[2m │ gzip:  0.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mSectionHeader-4eN96vIM.js               [39m[1m[2m  0.56 kB[22m[1m[22m[2m │ gzip:  0.34 kB[22m
+[2mdist/[22m[2massets/[22m[36museAuditLog-BDljQg3J.js                 [39m[1m[2m  0.65 kB[22m[1m[22m[2m │ gzip:  0.38 kB[22m
+[2mdist/[22m[2massets/[22m[36museMemberships-Bt79lNUt.js              [39m[1m[2m  0.70 kB[22m[1m[22m[2m │ gzip:  0.33 kB[22m
+[2mdist/[22m[2massets/[22m[36museDocumentMeta-DG6BM3nP.js             [39m[1m[2m  0.74 kB[22m[1m[22m[2m │ gzip:  0.36 kB[22m
+[2mdist/[22m[2massets/[22m[36mvalidateDocumentFile-BiFIh6bU.js        [39m[1m[2m  0.88 kB[22m[1m[22m[2m │ gzip:  0.53 kB[22m
+[2mdist/[22m[2massets/[22m[36mTenderSelect-Bn0yNL_w.js                [39m[1m[2m  0.99 kB[22m[1m[22m[2m │ gzip:  0.61 kB[22m
+[2mdist/[22m[2massets/[22m[36mcard-BxXY89UF.js                        [39m[1m[2m  1.09 kB[22m[1m[22m[2m │ gzip:  0.45 kB[22m
+[2mdist/[22m[2massets/[22m[36mtabs-DjWH7amK.js                        [39m[1m[2m  1.10 kB[22m[1m[22m[2m │ gzip:  0.47 kB[22m
+[2mdist/[22m[2massets/[22m[36museTwoFactor-DE6JTMz_.js                [39m[1m[2m  1.23 kB[22m[1m[22m[2m │ gzip:  0.59 kB[22m
+[2mdist/[22m[2massets/[22m[36mNotFoundPage-EuVUC1A0.js                [39m[1m[2m  1.23 kB[22m[1m[22m[2m │ gzip:  0.70 kB[22m
+[2mdist/[22m[2massets/[22m[36mAiDisclosureNote-BReBgrSm.js            [39m[1m[2m  1.24 kB[22m[1m[22m[2m │ gzip:  0.74 kB[22m
+[2mdist/[22m[2massets/[22m[36mempty-state-DO4KZXZG.js                 [39m[1m[2m  1.27 kB[22m[1m[22m[2m │ gzip:  0.72 kB[22m
+[2mdist/[22m[2massets/[22m[36mrenderSimpleMarkdown-4zQ9nPbL.js        [39m[1m[2m  1.32 kB[22m[1m[22m[2m │ gzip:  0.68 kB[22m
+[2mdist/[22m[2massets/[22m[36museTenders-BDLf2q7g.js                  [39m[1m[2m  1.42 kB[22m[1m[22m[2m │ gzip:  0.54 kB[22m
+[2mdist/[22m[2massets/[22m[36mOrganizacionesPage-DScxBHrp.js          [39m[1m[2m  1.50 kB[22m[1m[22m[2m │ gzip:  0.74 kB[22m
+[2mdist/[22m[2massets/[22m[36mtable-fwrQmCp7.js                       [39m[1m[2m  1.61 kB[22m[1m[22m[2m │ gzip:  0.58 kB[22m
+[2mdist/[22m[2massets/[22m[36merror-state-BQsMxcT7.js                 [39m[1m[2m  1.68 kB[22m[1m[22m[2m │ gzip:  0.83 kB[22m
+[2mdist/[22m[2massets/[22m[36mConectoresPage-yatGaO24.js              [39m[1m[2m  1.69 kB[22m[1m[22m[2m │ gzip:  0.85 kB[22m
+[2mdist/[22m[2massets/[22m[36mAuthScreen-BhaTSBLv.js                  [39m[1m[2m  1.86 kB[22m[1m[22m[2m │ gzip:  0.87 kB[22m
+[2mdist/[22m[2massets/[22m[36mCostosPage-CIK65n0z.js                  [39m[1m[2m  1.89 kB[22m[1m[22m[2m │ gzip:  0.94 kB[22m
+[2mdist/[22m[2massets/[22m[36mredirectAfterAuth-C0wHY_R-.js           [39m[1m[2m  1.93 kB[22m[1m[22m[2m │ gzip:  1.03 kB[22m
+[2mdist/[22m[2massets/[22m[36mResendVerificationForm-CKinM7Sw.js      [39m[1m[2m  2.07 kB[22m[1m[22m[2m │ gzip:  1.09 kB[22m
+[2mdist/[22m[2massets/[22m[36mRevisaTuCorreoPage-BC-9ZEWC.js          [39m[1m[2m  2.51 kB[22m[1m[22m[2m │ gzip:  1.33 kB[22m
+[2mdist/[22m[2massets/[22m[36mJobsPage-DDWHgAuv.js                    [39m[1m[2m  2.59 kB[22m[1m[22m[2m │ gzip:  1.28 kB[22m
+[2mdist/[22m[2massets/[22m[36mAprobacionesPage-9VMUMUxy.js            [39m[1m[2m  2.62 kB[22m[1m[22m[2m │ gzip:  1.22 kB[22m
+[2mdist/[22m[2massets/[22m[36museAdmin-CcYjv1WC.js                    [39m[1m[2m  2.70 kB[22m[1m[22m[2m │ gzip:  0.75 kB[22m
+[2mdist/[22m[2massets/[22m[36mPrivacyNoticePage-MLQAjXG1.js           [39m[1m[2m  2.74 kB[22m[1m[22m[2m │ gzip:  1.36 kB[22m
+[2mdist/[22m[2massets/[22m[36mFuentesFrescuraPage-qJV1rDoh.js         [39m[1m[2m  3.06 kB[22m[1m[22m[2m │ gzip:  1.35 kB[22m
+[2mdist/[22m[2massets/[22m[36mRecuperarPasswordPage-Xm-UhSWp.js       [39m[1m[2m  3.19 kB[22m[1m[22m[2m │ gzip:  1.54 kB[22m
+[2mdist/[22m[2massets/[22m[36mAprobacionesBackofficePage-CrKyIgNG.js  [39m[1m[2m  3.23 kB[22m[1m[22m[2m │ gzip:  1.45 kB[22m
+[2mdist/[22m[2massets/[22m[36mVerificarCorreoPage-BKtaE6_W.js         [39m[1m[2m  3.33 kB[22m[1m[22m[2m │ gzip:  1.59 kB[22m
+[2mdist/[22m[2massets/[22m[36mDescubrimientoPage-BKz4DXZB.js          [39m[1m[2m  3.41 kB[22m[1m[22m[2m │ gzip:  1.59 kB[22m
+[2mdist/[22m[2massets/[22m[36mIncidentesPage-Cd3c6XNm.js              [39m[1m[2m  3.47 kB[22m[1m[22m[2m │ gzip:  1.55 kB[22m
+[2mdist/[22m[2massets/[22m[36mAuditoriaPage-BxQe_UvX.js               [39m[1m[2m  3.54 kB[22m[1m[22m[2m │ gzip:  1.57 kB[22m
+[2mdist/[22m[2massets/[22m[36mFirmantesAutorizadosPage-DirIopdx.js    [39m[1m[2m  3.70 kB[22m[1m[22m[2m │ gzip:  1.68 kB[22m
+[2mdist/[22m[2massets/[22m[36mMatchingPage-BkF_2O7l.js                [39m[1m[2m  3.77 kB[22m[1m[22m[2m │ gzip:  1.57 kB[22m
+[2mdist/[22m[2massets/[22m[36mAlertsList-fbwURw8V.js                  [39m[1m[2m  3.78 kB[22m[1m[22m[2m │ gzip:  1.33 kB[22m
+[2mdist/[22m[2massets/[22m[36mSinAccesoPage-i4UHwZ3S.js               [39m[1m[2m  3.91 kB[22m[1m[22m[2m │ gzip:  1.68 kB[22m
+[2mdist/[22m[2massets/[22m[36mRestablecerPasswordPage-C4B77-XF.js     [39m[1m[2m  3.94 kB[22m[1m[22m[2m │ gzip:  1.85 kB[22m
+[2mdist/[22m[2massets/[22m[36mStepUpDialog-C2Xb-0dA.js                [39m[1m[2m  4.04 kB[22m[1m[22m[2m │ gzip:  1.78 kB[22m
+[2mdist/[22m[2massets/[22m[36mExpedientePage-CDSzXu8v.js              [39m[1m[2m  4.10 kB[22m[1m[22m[2m │ gzip:  1.63 kB[22m
+[2mdist/[22m[2massets/[22m[36museCompany-K_jkVv2C.js                  [39m[1m[2m  4.12 kB[22m[1m[22m[2m │ gzip:  0.83 kB[22m
+[2mdist/[22m[2massets/[22m[36mAceptarInvitacionPage-W4yWbAW9.js       [39m[1m[2m  4.21 kB[22m[1m[22m[2m │ gzip:  1.81 kB[22m
+[2mdist/[22m[2massets/[22m[36mGoogleCallbackPage-yoM6cW1V.js          [39m[1m[2m  4.36 kB[22m[1m[22m[2m │ gzip:  1.80 kB[22m
+[2mdist/[22m[2massets/[22m[36mUsuariosRolesPage-_zpoXbi6.js           [39m[1m[2m  4.75 kB[22m[1m[22m[2m │ gzip:  2.09 kB[22m
+[2mdist/[22m[2massets/[22m[36mLoginPage-CuYdL6Rs.js                   [39m[1m[2m  5.02 kB[22m[1m[22m[2m │ gzip:  2.21 kB[22m
+[2mdist/[22m[2massets/[22m[36mTermsPage-bvmqTKs5.js                   [39m[1m[2m  5.24 kB[22m[1m[22m[2m │ gzip:  2.38 kB[22m
+[2mdist/[22m[2massets/[22m[36mEntregasPage-DlYnqE5e.js                [39m[1m[2m  5.26 kB[22m[1m[22m[2m │ gzip:  2.36 kB[22m
+[2mdist/[22m[2massets/[22m[36mDocumentosVigenciasPage-B2cyamJm.js     [39m[1m[2m  5.26 kB[22m[1m[22m[2m │ gzip:  2.31 kB[22m
+[2mdist/[22m[2massets/[22m[36mDemoPage-BVsWgWkV.js                    [39m[1m[2m  5.41 kB[22m[1m[22m[2m │ gzip:  2.46 kB[22m
+[2mdist/[22m[2massets/[22m[36mPreferenciasBajaPage-DLJGV6V9.js        [39m[1m[2m  5.61 kB[22m[1m[22m[2m │ gzip:  2.42 kB[22m
+[2mdist/[22m[2massets/[22m[36mAgentesHerramientasPage-BGvDWqdk.js     [39m[1m[2m  5.70 kB[22m[1m[22m[2m │ gzip:  2.15 kB[22m
+[2mdist/[22m[2massets/[22m[36mConvocatoriaDetallePage-DEVGht4g.js     [39m[1m[2m  5.71 kB[22m[1m[22m[2m │ gzip:  2.18 kB[22m
+[2mdist/[22m[2massets/[22m[36mPaqueteDescargablePage-XvpctlpL.js      [39m[1m[2m  5.74 kB[22m[1m[22m[2m │ gzip:  2.51 kB[22m
+[2mdist/[22m[2massets/[22m[36mTarifasAprobadasPage-DI5GmdhP.js        [39m[1m[2m  5.88 kB[22m[1m[22m[2m │ gzip:  2.51 kB[22m
+[2mdist/[22m[2massets/[22m[36mRegistroPage-DIDlt_w0.js                [39m[1m[2m  5.99 kB[22m[1m[22m[2m │ gzip:  2.43 kB[22m
+[2mdist/[22m[2massets/[22m[36mPerfilCapacidadesPage-DpB1KPIn.js       [39m[1m[2m  6.49 kB[22m[1m[22m[2m │ gzip:  2.32 kB[22m
+[2mdist/[22m[2massets/[22m[36mCumplimientoDocumentalPage-Dmo_eEn6.js  [39m[1m[2m  6.54 kB[22m[1m[22m[2m │ gzip:  2.39 kB[22m
+[2mdist/[22m[2massets/[22m[36mGoNoGoPage-Bsn_6qBd.js                  [39m[1m[2m  6.60 kB[22m[1m[22m[2m │ gzip:  2.75 kB[22m
+[2mdist/[22m[2massets/[22m[36mRevisionPage-sNPaGYE0.js                [39m[1m[2m  7.40 kB[22m[1m[22m[2m │ gzip:  2.92 kB[22m
+[2mdist/[22m[2massets/[22m[36museExpediente-y7tfZ3w-.js               [39m[1m[2m  7.80 kB[22m[1m[22m[2m │ gzip:  1.67 kB[22m
+[2mdist/[22m[2massets/[22m[36mPanelPage-CR-n24L9.js                   [39m[1m[2m  8.14 kB[22m[1m[22m[2m │ gzip:  3.14 kB[22m
+[2mdist/[22m[2massets/[22m[36mSeguimientoPage-CRjZv-9I.js             [39m[1m[2m 10.02 kB[22m[1m[22m[2m │ gzip:  3.43 kB[22m
+[2mdist/[22m[2massets/[22m[36mAnalisisBasesPage-NUwq77S9.js           [39m[1m[2m 10.96 kB[22m[1m[22m[2m │ gzip:  4.05 kB[22m
+[2mdist/[22m[2massets/[22m[36mRedaccionPage-BxvstJGf.js               [39m[1m[2m 11.47 kB[22m[1m[22m[2m │ gzip:  4.01 kB[22m
+[2mdist/[22m[2massets/[22m[36mOnboardingPage-DQpoPu3l.js              [39m[1m[2m 12.66 kB[22m[1m[22m[2m │ gzip:  4.39 kB[22m
+[2mdist/[22m[2massets/[22m[36mLandingPage-DNy6-tIH.js                 [39m[1m[2m 18.91 kB[22m[1m[22m[2m │ gzip:  5.88 kB[22m
+[2mdist/[22m[2massets/[22m[36mConfiguracionPage-DuyEv_cs.js           [39m[1m[2m 36.16 kB[22m[1m[22m[2m │ gzip: 13.93 kB[22m
+[2mdist/[22m[2massets/[22m[36mform-CiiysPOw.js                        [39m[1m[2m 38.11 kB[22m[1m[22m[2m │ gzip: 13.68 kB[22m
+[2mdist/[22m[2massets/[22m[36mquery-D8y_6FMe.js                       [39m[1m[2m 49.11 kB[22m[1m[22m[2m │ gzip: 15.06 kB[22m
+[2mdist/[22m[2massets/[22m[36mindex-B6vpxdyj.js                       [39m[1m[2m219.60 kB[22m[1m[22m[2m │ gzip: 63.59 kB[22m
+[2mdist/[22m[2massets/[22m[36mapp-platform-BVUrvij4.js                [39m[1m[2m256.45 kB[22m[1m[22m[2m │ gzip: 82.61 kB[22m
+[2mdist/[22m[2massets/[22m[36mbrowser-CN7sUZHg.js                     [39m[1m[2m296.75 kB[22m[1m[22m[2m │ gzip: 97.77 kB[22m
+[32m✓ built in 11.69s[39m
+
+[2mRunning [22m142[2m tests using [22m1[2m worker[22m
+
+  [32m✓[39m  [2m  1 [22m[chromium] › e2e/ai-disclosure.spec.ts:10:5 › Disclosure de IA (W-15) › /preparacion/redaccion muestra el aviso de uso de IA[2m (1.2s)[22m
+  [32m✓[39m  [2m  2 [22m[chromium] › e2e/ai-disclosure.spec.ts:10:5 › Disclosure de IA (W-15) › /preparacion/revision muestra el aviso de uso de IA[2m (649ms)[22m
+  [32m✓[39m  [2m  3 [22m[chromium] › e2e/ai-disclosure.spec.ts:10:5 › Disclosure de IA (W-15) › /evaluacion/analisis-bases muestra el aviso de uso de IA[2m (647ms)[22m
+  [32m✓[39m  [2m  4 [22m[chromium] › e2e/contraste.spec.ts:8:3 › Contraste de color (W-05, W-06) › el wordmark en modo oscuro no tiene violaciones serias de contraste[2m (1.5s)[22m
+  [32m✓[39m  [2m  5 [22m[chromium] › e2e/contraste.spec.ts:22:3 › Contraste de color (W-05, W-06) › los badges de estado de fuente (CAPTCHA / cambio de interfaz) no tienen violaciones serias de contraste[2m (997ms)[22m
+  [32m✓[39m  [2m  6 [22m[chromium] › e2e/contraste.spec.ts:37:3 › Contraste de color (W-05, W-06) › los 5 estados de fuente (incluido el badge destructive) no tienen violaciones serias de contraste en modo oscuro[2m (1.9s)[22m
+  [32m✓[39m  [2m  7 [22m[chromium] › e2e/correo-cuenta.spec.ts:74:3 › Correo de cuenta (ronda 8b) › REQ-181: la compuerta bloquea el login sin confirmar, el reenvío funciona y el enlace real desbloquea[2m (2.9s)[22m
+  [32m✓[39m  [2m  8 [22m[chromium] › e2e/correo-cuenta.spec.ts:115:3 › Correo de cuenta (ronda 8b) › REQ-181 adversarial: reabrir el enlace de confirmación ya consumido lo rechaza[2m (2.2s)[22m
+  [32m✓[39m  [2m  9 [22m[chromium] › e2e/correo-cuenta.spec.ts:131:3 › Correo de cuenta (ronda 8b) › REQ-186: recuperación de contraseña de punta a punta, y el enlace no sirve dos veces[2m (5.4s)[22m
+  [32m✓[39m  [2m 10 [22m[chromium] › e2e/correo-cuenta.spec.ts:179:3 › Correo de cuenta (ronda 8b) › REQ-186: la invitación por enlace firmado sobrevive al login intermedio[2m (3.0s)[22m
+  [32m✓[39m  [2m 11 [22m[chromium] › e2e/correo-cuenta.spec.ts:222:3 › Correo de cuenta (ronda 8b) › REQ-196: el formulario de contacto de la landing crea el registro y dispara el correo interno[2m (1.4s)[22m
+  [32m✓[39m  [2m 12 [22m[chromium] › e2e/csp.spec.ts:11:3 › Content-Security-Policy real (WI-01) › la respuesta HTTP de vite preview trae una CSP real sin 'unsafe-inline' en script-src[2m (1.2s)[22m
+  [32m✓[39m  [2m 13 [22m[chromium] › e2e/csp.spec.ts:21:3 › Content-Security-Policy real (WI-01) › el documento sirve el meta tag CSP (defensa en profundidad para hosting estático sin cabeceras propias)[2m (1.2s)[22m
+  [32m✓[39m  [2m 14 [22m[chromium] › e2e/csp.spec.ts:28:3 › Content-Security-Policy real (WI-01) › un <script> inline inyectado dinámicamente NO se ejecuta bajo la CSP real[2m (1.3s)[22m
+  [32m✓[39m  [2m 15 [22m[chromium] › e2e/dashboard.spec.ts:24:3 › Panel/Dashboard real (REQ-169) › muestra KPIs reales calculados sobre la convocatoria sembrada de orgD[2m (1.8s)[22m
+  [32m✓[39m  [2m 16 [22m[chromium] › e2e/dashboard.spec.ts:53:3 › Panel/Dashboard real (REQ-169) › sin violaciones serious/critical de axe, y deja la organización activa de vuelta en orgA[2m (3.5s)[22m
+  [32m✓[39m  [2m 17 [22m[chromium] › e2e/demo.spec.ts:9:3 › Demo de solo lectura (/demo) › etiqueta los datos de ejemplo y muestra KPIs con datos ficticios[2m (1.2s)[22m
+  [32m✓[39m  [2m 18 [22m[chromium] › e2e/demo.spec.ts:18:3 › Demo de solo lectura (/demo) › nunca mezcla con datos reales: el namespace /demo-api/* es propio[2m (1.2s)[22m
+  [32m✓[39m  [2m 19 [22m[chromium] › e2e/demo.spec.ts:35:3 › Demo de solo lectura (/demo) › enlaza de vuelta a inicio y a iniciar sesión[2m (1.3s)[22m
+  [32m✓[39m  [2m 20 [22m[chromium] › e2e/demo.spec.ts:42:3 › Demo de solo lectura (/demo) › sin violaciones serious/critical de axe[2m (2.2s)[22m
+  [32m✓[39m  [2m 21 [22m[chromium] › e2e/demo.spec.ts:49:3 › Demo de solo lectura (/demo) › móvil 390×844: sin scroll horizontal[2m (1.2s)[22m
+  [32m✓[39m  [2m 22 [22m[chromium] › e2e/expediente-flujo-completo.spec.ts:85:3 › Expediente — flujo completo real (ronda 5) › preparación: admin agrega un firmante autorizado en la organización C[2m (2.5s)[22m
+  [32m✓[39m  [2m 23 [22m[chromium] › e2e/expediente-flujo-completo.spec.ts:97:3 › Expediente — flujo completo real (ronda 5) › preparación: admin propone y aprueba una tarifa con step-up 2FA (dato real para la propuesta económica)[2m (2.5s)[22m
+  [32m✓[39m  [2m 24 [22m[chromium] › e2e/expediente-flujo-completo.spec.ts:114:3 › Expediente — flujo completo real (ronda 5) › Análisis de bases: sube el documento y construye la matriz de requisitos (sin OCR necesario)[2m (4.5s)[22m
+  [32m✓[39m  [2m 25 [22m[chromium] › e2e/expediente-flujo-completo.spec.ts:139:3 › Expediente — flujo completo real (ronda 5) › A14: el paquete nunca aparece "Listo" con el expediente todavía incompleto[2m (4.0s)[22m
+  [32m✓[39m  [2m 26 [22m[chromium] › e2e/expediente-flujo-completo.spec.ts:170:3 › Expediente — flujo completo real (ronda 5) › Redacción: genera la propuesta técnica mapeando el requisito a un dato real de empresa[2m (4.2s)[22m
+  [32m✓[39m  [2m 27 [22m[chromium] › e2e/expediente-flujo-completo.spec.ts:197:3 › Expediente — flujo completo real (ronda 5) › Redacción: genera la propuesta económica con la tarifa aprobada (sin conceptos bloqueados)[2m (5.4s)[22m
+  [32m✓[39m  [2m 28 [22m[chromium] › e2e/expediente-flujo-completo.spec.ts:227:3 › Expediente — flujo completo real (ronda 5) › Cumplimiento documental: ejecuta el checklist de integridad real y queda en verde[2m (2.6s)[22m
+  [32m✓[39m  [2m 29 [22m[chromium] › e2e/expediente-flujo-completo.spec.ts:238:3 › Expediente — flujo completo real (ronda 5) › Revisión: writer solicita revisión del expediente[2m (3.4s)[22m
+  [32m✓[39m  [2m 30 [22m[chromium] › e2e/expediente-flujo-completo.spec.ts:250:3 › Expediente — flujo completo real (ronda 5) › A12: el rol writer no puede aprobar el expediente (la UI ni siquiera ofrece el botón)[2m (4.1s)[22m
+  [32m✓[39m  [2m 31 [22m[chromium] › e2e/expediente-flujo-completo.spec.ts:273:3 › Expediente — flujo completo real (ronda 5) › admin aprueba el expediente con step-up 2FA (actor distinto de quien solicitó la revisión)[2m (2.9s)[22m
+  [32m✓[39m  [2m 32 [22m[chromium] › e2e/expediente-flujo-completo.spec.ts:285:3 › Expediente — flujo completo real (ronda 5) › el paquete pasa a "Listo para presentar" con el expediente completo y aprobado[2m (2.8s)[22m
+  [32m✓[39m  [2m 33 [22m[chromium] › e2e/expediente-flujo-completo.spec.ts:296:3 › Expediente — flujo completo real (ronda 5) › descarga autenticada del paquete listo[2m (2.4s)[22m
+  [32m✓[39m  [2m 34 [22m[chromium] › e2e/expediente-flujo-completo.spec.ts:310:3 › Expediente — flujo completo real (ronda 5) › declara la presentación del expediente (nunca se envía nada a un portal externo)[2m (2.5s)[22m
+  [32m✓[39m  [2m 35 [22m[chromium] › e2e/expediente-flujo-completo.spec.ts:326:3 › Expediente — flujo completo real (ronda 5) › A11: editar una sección tras aprobar invalida la aprobación y el paquete vuelve a "Borrador"[2m (4.8s)[22m
+  [32m✓[39m  [2m 36 [22m[chromium] › e2e/expediente-flujo-completo.spec.ts:352:3 › Expediente — flujo completo real (ronda 5) › 320×568 y 390×844: Análisis de bases y Redacción sin scroll horizontal con datos reales[2m (5.4s)[22m
+  [32m✓[39m  [2m 37 [22m[chromium] › e2e/expediente-flujo-completo.spec.ts:382:3 › Expediente — flujo completo real (ronda 5) › limpieza: restaura la organización activa a A para no afectar otras suites[2m (3.4s)[22m
+  [32m✓[39m  [2m 38 [22m[chromium] › e2e/google-login.spec.ts:62:3 › Login con Google contra apps/api real (REQ-172..180, D-09) › cuenta de Google nueva: login → /sin-acceso → crear organización → panel[2m (2.6s)[22m
+  [32m✓[39m  [2m 39 [22m[chromium] › e2e/google-login.spec.ts:98:3 › Login con Google contra apps/api real (REQ-172..180, D-09) › REQ-176: una cuenta existente con 2FA enrolado exige el segundo factor antes de completar el login con Google[2m (1.6s)[22m
+  [32m✓[39m  [2m 40 [22m[chromium] › e2e/google-login.spec.ts:134:3 › Login con Google contra apps/api real (REQ-172..180, D-09) › adversarial: un `state` inventado nunca abre sesión (se consumió, expiró o jamás existió)[2m (1.1s)[22m
+  [32m✓[39m  [2m 41 [22m[chromium] › e2e/heading-order.spec.ts:12:5 › Orden de encabezados (W-07) › /convocatorias/fuentes-frescura no tiene salto de nivel de encabezado[2m (1.6s)[22m
+  [32m✓[39m  [2m 42 [22m[chromium] › e2e/heading-order.spec.ts:12:5 › Orden de encabezados (W-07) › /entrega/paquete-descargable no tiene salto de nivel de encabezado[2m (1.6s)[22m
+  [32m✓[39m  [2m 43 [22m[chromium] › e2e/landing.spec.ts:9:3 › Landing pública (/) › muestra el hero real y navega a /demo y /login[2m (1.4s)[22m
+  [31m✘[39m  [2m 44 [22m[31m[chromium] › e2e/landing.spec.ts:21:3 › Landing pública (/) › enlaza el pie a /privacidad y /legal/terminos[39m[2m (1.3s)[22m
+  [31m✘[39m  [2m 45 [22m[31m[chromium] › e2e/landing.spec.ts:21:3 › Landing pública (/) › enlaza el pie a /privacidad y /legal/terminos[39m[33m (retry #1)[39m[2m (1.6s)[22m
+  [32m✓[39m  [2m 46 [22m[chromium] › e2e/landing.spec.ts:32:3 › Landing pública (/) › escritorio (1280×800): sin violaciones serious/critical de axe[2m (2.7s)[22m
+  [32m✓[39m  [2m 47 [22m[chromium] › e2e/landing.spec.ts:39:3 › Landing pública (/) › móvil 390×844: sin scroll horizontal ni violaciones serious/critical[2m (2.7s)[22m
+  [32m✓[39m  [2m 48 [22m[chromium] › e2e/landing.spec.ts:48:3 › Landing pública (/) › móvil 320×568 (el más angosto soportado): sin scroll horizontal[2m (1.2s)[22m
+  [32m✓[39m  [2m 49 [22m[chromium] › e2e/landing.spec.ts:62:3 › Landing pública (/) › el formulario de solicitar demo está habilitado y conserva el honeypot[2m (1.3s)[22m
+  [32m✓[39m  [2m 50 [22m[chromium] › e2e/landing.spec.ts:73:3 › Landing pública (/) › una sesión activa redirige la landing a /panel[2m (1.2s)[22m
+  [32m✓[39m  [2m 51 [22m[chromium] › e2e/login-landmarks.spec.ts:13:1 › /login tiene landmark <main>, un <h1> real y ningún contenido fuera de landmarks (W-08)[2m (1.9s)[22m
+  [32m✓[39m  [2m 52 [22m[chromium] › e2e/login-landmarks.spec.ts:24:1 › /registro tiene landmark <main>, un <h1> real y ningún contenido fuera de landmarks (W-08)[2m (1.9s)[22m
+  [31m✘[39m  [2m 53 [22m[31m[chromium] › e2e/login-parity.spec.ts:12:3 › Paridad visual del login (W-11) › escritorio: layout de pantalla partida con kicker, titular y lámina decorativa[39m[2m (15.4m)[22m
+  [32m✓[39m  [2m 54 [22m[chromium] › e2e/login-parity.spec.ts:12:3 › Paridad visual del login (W-11) › escritorio: layout de pantalla partida con kicker, titular y lámina decorativa[33m (retry #1)[39m[2m (1.2s)[22m
+  [32m✓[39m  [2m 55 [22m[chromium] › e2e/login-parity.spec.ts:23:3 › Paridad visual del login (W-11) › móvil (390×844): la lámina decorativa se oculta y no hay scroll horizontal[2m (1.0s)[22m
+  [32m✓[39m  [2m 56 [22m[chromium] › e2e/login-parity.spec.ts:43:3 › Paridad visual del login (W-11) › métodos de acceso con backend real: contraseña + Google, sin tabs ni enlace mágico[2m (948ms)[22m
+  [31m✘[39m  [2m 57 [22m[31m[chromium] › e2e/onboarding.spec.ts:26:3 › Onboarding: primer login sin organizaciones › wizard completo hasta el checklist real del panel[39m[2m (1.0m)[22m
+  [31m✘[39m  [2m 58 [22m[31m[chromium] › e2e/onboarding.spec.ts:26:3 › Onboarding: primer login sin organizaciones › wizard completo hasta el checklist real del panel[39m[33m (retry #1)[39m[2m (1.0m)[22m
+  [32m✓[39m  [2m 59 [22m[chromium] › e2e/recorrido.spec.ts:32:3 › Login sin sesión (W-14/ronda 3) › /login muestra el formulario real cuando no hay sesión[2m (1.3s)[22m
+  [32m✓[39m  [2m 60 [22m[chromium] › e2e/recorrido.spec.ts:40:3 › Recorrido esencial (W-14) › shell: con sesión, /panel muestra el AppShell completo[2m (1.1s)[22m
+  [32m✓[39m  [2m 61 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Panel (/panel) carga sin violaciones serious/critical[2m (2.2s)[22m
+  [32m✓[39m  [2m 62 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Perfil y capacidades (/empresa/perfil-capacidades) carga sin violaciones serious/critical[2m (1.5s)[22m
+  [32m✓[39m  [2m 63 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Documentos y vigencias (/empresa/documentos-vigencias) carga sin violaciones serious/critical[2m (1.5s)[22m
+  [32m✓[39m  [2m 64 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Firmantes autorizados (/empresa/firmantes-autorizados) carga sin violaciones serious/critical[2m (1.6s)[22m
+  [32m✓[39m  [2m 65 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Tarifas aprobadas (/empresa/tarifas-aprobadas) carga sin violaciones serious/critical[2m (1.7s)[22m
+  [32m✓[39m  [2m 66 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Descubrimiento (/convocatorias/descubrimiento) carga sin violaciones serious/critical[2m (1.9s)[22m
+  [32m✓[39m  [2m 67 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Matching (/convocatorias/matching) carga sin violaciones serious/critical[2m (1.7s)[22m
+  [32m✓[39m  [2m 68 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Fuentes y frescura (/convocatorias/fuentes-frescura) carga sin violaciones serious/critical[2m (1.6s)[22m
+  [32m✓[39m  [2m 69 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Go/No-Go (/evaluacion/go-no-go) carga sin violaciones serious/critical[2m (1.5s)[22m
+  [32m✓[39m  [2m 70 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Análisis de bases (/evaluacion/analisis-bases) carga sin violaciones serious/critical[2m (1.4s)[22m
+  [32m✓[39m  [2m 71 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Cumplimiento documental (/preparacion/cumplimiento-documental) carga sin violaciones serious/critical[2m (1.7s)[22m
+  [32m✓[39m  [2m 72 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Redacción (/preparacion/redaccion) carga sin violaciones serious/critical[2m (1.4s)[22m
+  [32m✓[39m  [2m 73 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Revisión (/preparacion/revision) carga sin violaciones serious/critical[2m (1.7s)[22m
+  [32m✓[39m  [2m 74 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Expediente (/preparacion/expediente) carga sin violaciones serious/critical[2m (1.6s)[22m
+  [32m✓[39m  [2m 75 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Aprobaciones (/preparacion/aprobaciones) carga sin violaciones serious/critical[2m (1.4s)[22m
+  [32m✓[39m  [2m 76 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Entregas (/entrega/entregas) carga sin violaciones serious/critical[2m (1.5s)[22m
+  [32m✓[39m  [2m 77 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Paquete descargable (/entrega/paquete-descargable) carga sin violaciones serious/critical[2m (1.7s)[22m
+  [32m✓[39m  [2m 78 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Seguimiento post-adjudicación (/entrega/seguimiento) carga sin violaciones serious/critical[2m (1.5s)[22m
+  [32m✓[39m  [2m 79 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Organizaciones (/backoffice/organizaciones) carga sin violaciones serious/critical[2m (1.5s)[22m
+  [32m✓[39m  [2m 80 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Usuarios y roles (/backoffice/usuarios-roles) carga sin violaciones serious/critical[2m (1.6s)[22m
+  [32m✓[39m  [2m 81 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Agentes y herramientas (/backoffice/agentes-herramientas) carga sin violaciones serious/critical[2m (1.5s)[22m
+  [32m✓[39m  [2m 82 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Auditoría / Trazabilidad (/backoffice/auditoria) carga sin violaciones serious/critical[2m (1.5s)[22m
+  [32m✓[39m  [2m 83 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Conectores (/backoffice/conectores) carga sin violaciones serious/critical[2m (1.7s)[22m
+  [32m✓[39m  [2m 84 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Jobs (/backoffice/jobs) carga sin violaciones serious/critical[2m (1.5s)[22m
+  [32m✓[39m  [2m 85 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Costos (/backoffice/costos) carga sin violaciones serious/critical[2m (1.7s)[22m
+  [32m✓[39m  [2m 86 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Incidentes (/backoffice/incidentes) carga sin violaciones serious/critical[2m (1.6s)[22m
+  [32m✓[39m  [2m 87 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Aprobaciones (tool_calls) (/backoffice/aprobaciones) carga sin violaciones serious/critical[2m (1.5s)[22m
+  [32m✓[39m  [2m 88 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Configuración (/configuracion) carga sin violaciones serious/critical[2m (2.1s)[22m
+  [32m✓[39m  [2m 89 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Aviso de privacidad (/privacidad) carga sin violaciones serious/critical[2m (960ms)[22m
+  [32m✓[39m  [2m 90 [22m[chromium] › e2e/recorrido.spec.ts:47:5 › Recorrido esencial (W-14) › grupo del sidebar: Términos de servicio (/legal/terminos) carga sin violaciones serious/critical[2m (1.1s)[22m
+  [32m✓[39m  [2m 91 [22m[chromium] › e2e/recorrido.spec.ts:54:3 › Recorrido esencial (W-14) › drawer móvil (390×844): se abre, comparte SidebarNav y no hay scroll horizontal[2m (1.7s)[22m
+  [32m✓[39m  [2m 92 [22m[chromium] › e2e/recorrido.spec.ts:69:3 › Recorrido esencial (W-14) › tema oscuro: activa .dark en <html> y el panel sigue sin violaciones serious/critical[2m (1.4s)[22m
+  [32m✓[39m  [2m 93 [22m[chromium] › e2e/recorrido.spec.ts:77:3 › Recorrido esencial (W-14) › Fuentes y frescura: expone los 5 estados de fuente sin violaciones serious/critical[2m (969ms)[22m
+  [32m✓[39m  [2m 94 [22m[chromium] › e2e/recorrido.spec.ts:93:3 › Recorrido esencial (W-14) › Paquete descargable: sin convocatorias en la organización por defecto, nunca "Listo", sin violaciones serious/critical[2m (941ms)[22m
+  [32m✓[39m  [2m 95 [22m[chromium] › e2e/recorrido.spec.ts:103:3 › Recorrido esencial (W-14) › todas las rutas del sidebar: sin scroll horizontal a 390×844[2m (16.8s)[22m
+  [32m✓[39m  [2m 96 [22m[chromium] › e2e/ronda3-flujo-real.spec.ts:61:3 › Ronda 3 — recorrido real contra apps/api › login con credenciales reales del seed redirige a /panel[2m (2.2s)[22m
+  [32m✓[39m  [2m 97 [22m[chromium] › e2e/ronda3-flujo-real.spec.ts:73:5 › Ronda 3 — recorrido real contra apps/api › como admin (owner de ambas organizaciones del seed) › cambia de organización con el selector real (X-Org-Id)[2m (1.6s)[22m
+  [32m✓[39m  [2m 98 [22m[chromium] › e2e/ronda3-flujo-real.spec.ts:92:5 › Ronda 3 — recorrido real contra apps/api › como admin (owner de ambas organizaciones del seed) › crea el perfil real de la empresa en la organización A[2m (1.3s)[22m
+  [32m✓[39m  [2m 99 [22m[chromium] › e2e/ronda3-flujo-real.spec.ts:125:5 › Ronda 3 — recorrido real contra apps/api › como admin (owner de ambas organizaciones del seed) › sube un documento y ve su semáforo de vigencia real[2m (781ms)[22m
+  [32m✓[39m  [2m100 [22m[chromium] › e2e/ronda3-flujo-real.spec.ts:160:5 › Ronda 3 — recorrido real contra apps/api › como admin (owner de ambas organizaciones del seed) › rechaza en el cliente un archivo de e.firma sin llegar a enviarlo por red (REQ-098)[2m (675ms)[22m
+  [32m✓[39m  [2m101 [22m[chromium] › e2e/ronda3-flujo-real.spec.ts:181:5 › Ronda 3 — recorrido real contra apps/api › como writer (solo miembro de la organización A) › propone una tarifa, que queda en borrador (no puede aprobarla)[2m (995ms)[22m
+  [32m✓[39m  [2m102 [22m[chromium] › e2e/ronda3-flujo-real.spec.ts:196:5 › Ronda 3 — recorrido real contra apps/api › como writer (solo miembro de la organización A) › ve convocatorias vacías honestas (sin datos ficticios)[2m (634ms)[22m
+  [32m✓[39m  [2m103 [22m[chromium] › e2e/ronda3-flujo-real.spec.ts:201:5 › Ronda 3 — recorrido real contra apps/api › como writer (solo miembro de la organización A) › recibe un 403 honesto de la API al entrar a back office (no es superadmin)[2m (1.4s)[22m
+  [32m✓[39m  [2m104 [22m[chromium] › e2e/ronda3-flujo-real.spec.ts:233:5 › Ronda 3 — recorrido real contra apps/api › como admin (aprueba lo que propuso writer) › aprueba la tarifa propuesta por writer con step-up 2FA, resistiendo un doble clic físico en "Verificar y continuar" (WI-06)[2m (1.9s)[22m
+  [32m✓[39m  [2m105 [22m[chromium] › e2e/skip-link.spec.ts:58:3 › Skip-link mueve el foco real (W-09) › en LoginPage (sin sesión), el skip-link mueve el foco al formulario (#login-form)[2m (929ms)[22m
+  [32m✓[39m  [2m106 [22m[chromium] › e2e/skip-link.spec.ts:77:3 › Skip-link mueve el foco real (W-09) › en AppShell, el skip-link mueve el foco al contenido principal (#main-content)[2m (668ms)[22m
+  [32m✓[39m  [2m107 [22m[chromium] › e2e/skip-link.spec.ts:97:3 › Foco visible tras activar el skip-link (W-18) › en LoginPage (sin sesión), el foco en #login-form es visible (outline/box-shadow reales)[2m (961ms)[22m
+  [32m✓[39m  [2m108 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Panel (/panel), el foco en #main-content es visible (outline/box-shadow reales)[2m (701ms)[22m
+  [32m✓[39m  [2m109 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Perfil y capacidades (/empresa/perfil-capacidades), el foco en #main-content es visible (outline/box-shadow reales)[2m (730ms)[22m
+  [32m✓[39m  [2m110 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Documentos y vigencias (/empresa/documentos-vigencias), el foco en #main-content es visible (outline/box-shadow reales)[2m (742ms)[22m
+  [32m✓[39m  [2m111 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Firmantes autorizados (/empresa/firmantes-autorizados), el foco en #main-content es visible (outline/box-shadow reales)[2m (741ms)[22m
+  [32m✓[39m  [2m112 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Tarifas aprobadas (/empresa/tarifas-aprobadas), el foco en #main-content es visible (outline/box-shadow reales)[2m (727ms)[22m
+  [32m✓[39m  [2m113 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Descubrimiento (/convocatorias/descubrimiento), el foco en #main-content es visible (outline/box-shadow reales)[2m (1.0s)[22m
+  [32m✓[39m  [2m114 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Matching (/convocatorias/matching), el foco en #main-content es visible (outline/box-shadow reales)[2m (688ms)[22m
+  [32m✓[39m  [2m115 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Fuentes y frescura (/convocatorias/fuentes-frescura), el foco en #main-content es visible (outline/box-shadow reales)[2m (694ms)[22m
+  [32m✓[39m  [2m116 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Go/No-Go (/evaluacion/go-no-go), el foco en #main-content es visible (outline/box-shadow reales)[2m (701ms)[22m
+  [32m✓[39m  [2m117 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Análisis de bases (/evaluacion/analisis-bases), el foco en #main-content es visible (outline/box-shadow reales)[2m (692ms)[22m
+  [32m✓[39m  [2m118 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Cumplimiento documental (/preparacion/cumplimiento-documental), el foco en #main-content es visible (outline/box-shadow reales)[2m (952ms)[22m
+  [31m✘[39m  [2m119 [22m[31m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Redacción (/preparacion/redaccion), el foco en #main-content es visible (outline/box-shadow reales)[39m[2m (1.5m)[22m
+  [32m✓[39m  [2m120 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Redacción (/preparacion/redaccion), el foco en #main-content es visible (outline/box-shadow reales)[33m (retry #1)[39m[2m (1.1s)[22m
+  [32m✓[39m  [2m121 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Revisión (/preparacion/revision), el foco en #main-content es visible (outline/box-shadow reales)[2m (653ms)[22m
+  [32m✓[39m  [2m122 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Expediente (/preparacion/expediente), el foco en #main-content es visible (outline/box-shadow reales)[2m (646ms)[22m
+  [32m✓[39m  [2m123 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Aprobaciones (/preparacion/aprobaciones), el foco en #main-content es visible (outline/box-shadow reales)[2m (651ms)[22m
+  [32m✓[39m  [2m124 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Entregas (/entrega/entregas), el foco en #main-content es visible (outline/box-shadow reales)[2m (940ms)[22m
+  [32m✓[39m  [2m125 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Paquete descargable (/entrega/paquete-descargable), el foco en #main-content es visible (outline/box-shadow reales)[2m (638ms)[22m
+  [32m✓[39m  [2m126 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Seguimiento post-adjudicación (/entrega/seguimiento), el foco en #main-content es visible (outline/box-shadow reales)[2m (637ms)[22m
+  [32m✓[39m  [2m127 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Organizaciones (/backoffice/organizaciones), el foco en #main-content es visible (outline/box-shadow reales)[2m (624ms)[22m
+  [32m✓[39m  [2m128 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Usuarios y roles (/backoffice/usuarios-roles), el foco en #main-content es visible (outline/box-shadow reales)[2m (638ms)[22m
+  [32m✓[39m  [2m129 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Agentes y herramientas (/backoffice/agentes-herramientas), el foco en #main-content es visible (outline/box-shadow reales)[2m (932ms)[22m
+  [32m✓[39m  [2m130 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Auditoría / Trazabilidad (/backoffice/auditoria), el foco en #main-content es visible (outline/box-shadow reales)[2m (619ms)[22m
+  [32m✓[39m  [2m131 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Conectores (/backoffice/conectores), el foco en #main-content es visible (outline/box-shadow reales)[2m (624ms)[22m
+  [32m✓[39m  [2m132 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Jobs (/backoffice/jobs), el foco en #main-content es visible (outline/box-shadow reales)[2m (621ms)[22m
+  [32m✓[39m  [2m133 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Costos (/backoffice/costos), el foco en #main-content es visible (outline/box-shadow reales)[2m (624ms)[22m
+  [32m✓[39m  [2m134 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Incidentes (/backoffice/incidentes), el foco en #main-content es visible (outline/box-shadow reales)[2m (938ms)[22m
+  [32m✓[39m  [2m135 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Aprobaciones (tool_calls) (/backoffice/aprobaciones), el foco en #main-content es visible (outline/box-shadow reales)[2m (659ms)[22m
+  [32m✓[39m  [2m136 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Configuración (/configuracion), el foco en #main-content es visible (outline/box-shadow reales)[2m (677ms)[22m
+  [32m✓[39m  [2m137 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Aviso de privacidad (/privacidad), el foco en #main-content es visible (outline/box-shadow reales)[2m (608ms)[22m
+  [32m✓[39m  [2m138 [22m[chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Términos de servicio (/legal/terminos), el foco en #main-content es visible (outline/box-shadow reales)[2m (623ms)[22m
+  [32m✓[39m  [2m139 [22m[chromium] › e2e/touch-targets.spec.ts:9:3 › Objetivos táctiles ≥44×44px (W-10) › el botón hamburguesa mide al menos 44×44px[2m (661ms)[22m
+  [32m✓[39m  [2m140 [22m[chromium] › e2e/touch-targets.spec.ts:20:3 › Objetivos táctiles ≥44×44px (W-10) › el primer link del drawer móvil mide al menos 44px de alto[2m (738ms)[22m
+  [32m✓[39m  [2m141 [22m[chromium] › e2e/touch-targets.spec.ts:37:3 › Objetivos táctiles ≥44×44px (W-10) › todos los botones de acordeón de grupo del drawer móvil miden al menos 44px de alto[2m (799ms)[22m
+  [32m✓[39m  [2m142 [22m[chromium] › e2e/touch-targets.spec.ts:60:3 › Objetivos táctiles ≥44×44px (W-10) › todos los controles interactivos del drawer móvil (grupos + enlaces) miden al menos 44px de alto[2m (942ms)[22m
+  [32m✓[39m  [2m143 [22m[chromium] › e2e/touch-targets.spec.ts:90:5 › Objetivos táctiles ≥44×44px (W-10) › W-22: OrganizationSwitcher y "Cerrar menú" del drawer miden ≥44×44px a 320×568[2m (732ms)[22m
+  [32m✓[39m  [2m144 [22m[chromium] › e2e/touch-targets.spec.ts:90:5 › Objetivos táctiles ≥44×44px (W-10) › W-22: OrganizationSwitcher y "Cerrar menú" del drawer miden ≥44×44px a 390×844[2m (709ms)[22m
+  [32m✓[39m  [2m145 [22m[chromium] › e2e/touch-targets.spec.ts:134:5 › Controles del header dentro del viewport (W-21) › header: hamburguesa, OrganizationSwitcher y UserMenu quedan dentro del viewport a 320×568[2m (1.3s)[22m
+  [32m✓[39m  [2m146 [22m[chromium] › e2e/touch-targets.spec.ts:134:5 › Controles del header dentro del viewport (W-21) › header: hamburguesa, OrganizationSwitcher y UserMenu quedan dentro del viewport a 390×844[2m (1.3s)[22m
+
+
+[31m  1) [chromium] › e2e/landing.spec.ts:21:3 › Landing pública (/) › enlaza el pie a /privacidad y /legal/terminos [39m
+
+    Error: locator.click: Error: strict mode violation: getByRole('link', { name: 'Aviso de privacidad' }) resolved to 2 elements:
+        1) <a href="/privacidad" data-discover="true" class="underline underline-offset-4">aviso de privacidad</a> aka getByRole('link', { name: 'aviso de privacidad', exact: true })
+        2) <a href="/privacidad" data-discover="true" class="hover:text-foreground">Aviso de privacidad</a> aka getByRole('link', { name: 'Aviso de privacidad', exact: true })
+
+    Call log:
+    [2m  - waiting for getByRole('link', { name: 'Aviso de privacidad' })[22m
+
+
+    [0m [90m 21 |[39m   test([32m"enlaza el pie a /privacidad y /legal/terminos"[39m[33m,[39m [36masync[39m ({ noAuthPage[33m:[39m page }) [33m=>[39m {
+     [90m 22 |[39m     [36mawait[39m page[33m.[39mgoto([32m"/"[39m)[33m;[39m
+    [31m[1m>[22m[39m[90m 23 |[39m     [36mawait[39m page[33m.[39mgetByRole([32m"link"[39m[33m,[39m { name[33m:[39m [32m"Aviso de privacidad"[39m })[33m.[39mclick()[33m;[39m
+     [90m    |[39m                                                                   [31m[1m^[22m[39m
+     [90m 24 |[39m     [36mawait[39m expect(page)[33m.[39mtoHaveURL([35m/\/privacidad$/[39m)[33m;[39m
+     [90m 25 |[39m
+     [90m 26 |[39m     [36mawait[39m page[33m.[39mgoBack()[33m;[39m[0m
+    [2m    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/apps/web/e2e/landing.spec.ts:23:67[22m
+
+[2m    Error Context: test-results/landing-Landing-pública-en-b0f14-privacidad-y-legal-terminos-chromium/error-context.md[22m
+
+[2m    attachment #2: [1mtrace[2m (application/zip) [2m─────────────────────────────────────────────────────────[2m[22m
+[2m    test-results/landing-Landing-pública-en-b0f14-privacidad-y-legal-terminos-chromium/trace.zip[22m
+[2m    Usage:[22m
+
+[2m        npx playwright show-trace test-results/landing-Landing-pública-en-b0f14-privacidad-y-legal-terminos-chromium/trace.zip[22m
+
+[2m    [2m────────────────────────────────────────────────────────────────────────────────────────────────[2m[22m
+
+[90m    Retry #1 [2m───────────────────────────────────────────────────────────────────────────────────────[22m[39m
+
+    Error: locator.click: Error: strict mode violation: getByRole('link', { name: 'Aviso de privacidad' }) resolved to 2 elements:
+        1) <a href="/privacidad" data-discover="true" class="underline underline-offset-4">aviso de privacidad</a> aka getByRole('link', { name: 'aviso de privacidad', exact: true })
+        2) <a href="/privacidad" data-discover="true" class="hover:text-foreground">Aviso de privacidad</a> aka getByRole('link', { name: 'Aviso de privacidad', exact: true })
+
+    Call log:
+    [2m  - waiting for getByRole('link', { name: 'Aviso de privacidad' })[22m
+
+
+    [0m [90m 21 |[39m   test([32m"enlaza el pie a /privacidad y /legal/terminos"[39m[33m,[39m [36masync[39m ({ noAuthPage[33m:[39m page }) [33m=>[39m {
+     [90m 22 |[39m     [36mawait[39m page[33m.[39mgoto([32m"/"[39m)[33m;[39m
+    [31m[1m>[22m[39m[90m 23 |[39m     [36mawait[39m page[33m.[39mgetByRole([32m"link"[39m[33m,[39m { name[33m:[39m [32m"Aviso de privacidad"[39m })[33m.[39mclick()[33m;[39m
+     [90m    |[39m                                                                   [31m[1m^[22m[39m
+     [90m 24 |[39m     [36mawait[39m expect(page)[33m.[39mtoHaveURL([35m/\/privacidad$/[39m)[33m;[39m
+     [90m 25 |[39m
+     [90m 26 |[39m     [36mawait[39m page[33m.[39mgoBack()[33m;[39m[0m
+    [2m    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/apps/web/e2e/landing.spec.ts:23:67[22m
+
+[2m    Error Context: test-results/landing-Landing-pública-en-b0f14-privacidad-y-legal-terminos-chromium-retry1/error-context.md[22m
+
+[2m    attachment #2: [1mtrace[2m (application/zip) [2m─────────────────────────────────────────────────────────[2m[22m
+[2m    test-results/landing-Landing-pública-en-b0f14-privacidad-y-legal-terminos-chromium-retry1/trace.zip[22m
+[2m    Usage:[22m
+
+[2m        npx playwright show-trace test-results/landing-Landing-pública-en-b0f14-privacidad-y-legal-terminos-chromium-retry1/trace.zip[22m
+
+[2m    [2m────────────────────────────────────────────────────────────────────────────────────────────────[2m[22m
+
+[31m  2) [chromium] › e2e/onboarding.spec.ts:26:3 › Onboarding: primer login sin organizaciones › wizard completo hasta el checklist real del panel [39m
+
+    [31mTest timeout of 60000ms exceeded.[39m
+
+    Error: page.waitForURL: Target page, context or browser has been closed
+    =========================== logs ===========================
+    waiting for navigation to "**/sin-acceso" until "load"
+      navigated to "http://127.0.0.1:4407/revisa-tu-correo"
+    ============================================================
+
+    [0m [90m 44 |[39m     [90m// cuentas de email+contraseña, no solo Google) -- "Crear mi[39m
+     [90m 45 |[39m     [90m// organización" entra al wizard existente, que arranca igual que antes.[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     [36mawait[39m page[33m.[39mwaitForURL([32m"**/sin-acceso"[39m)[33m;[39m
+     [90m    |[39m                [31m[1m^[22m[39m
+     [90m 47 |[39m     [36mawait[39m expect(page[33m.[39mgetByRole([32m"heading"[39m[33m,[39m { level[33m:[39m [35m1[39m[33m,[39m name[33m:[39m [32m"Tu cuenta no está vinculada a ninguna organización"[39m }))[33m.[39mtoBeVisible()[33m;[39m
+     [90m 48 |[39m     [36mawait[39m page[33m.[39mgetByRole([32m"link"[39m[33m,[39m { name[33m:[39m [32m"Crear mi organización"[39m })[33m.[39mclick()[33m;[39m
+     [90m 49 |[39m[0m
+    [2m    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/apps/web/e2e/onboarding.spec.ts:46:16[22m
+
+[2m    Error Context: test-results/onboarding-Onboarding-prim-7b433-el-checklist-real-del-panel-chromium/error-context.md[22m
+
+[2m    attachment #2: [1mtrace[2m (application/zip) [2m─────────────────────────────────────────────────────────[2m[22m
+[2m    test-results/onboarding-Onboarding-prim-7b433-el-checklist-real-del-panel-chromium/trace.zip[22m
+[2m    Usage:[22m
+
+[2m        npx playwright show-trace test-results/onboarding-Onboarding-prim-7b433-el-checklist-real-del-panel-chromium/trace.zip[22m
+
+[2m    [2m────────────────────────────────────────────────────────────────────────────────────────────────[2m[22m
+
+[90m    Retry #1 [2m───────────────────────────────────────────────────────────────────────────────────────[22m[39m
+
+    [31mTest timeout of 60000ms exceeded.[39m
+
+    Error: page.waitForURL: Target page, context or browser has been closed
+    =========================== logs ===========================
+    waiting for navigation to "**/sin-acceso" until "load"
+      navigated to "http://127.0.0.1:4407/revisa-tu-correo"
+    ============================================================
+
+    [0m [90m 44 |[39m     [90m// cuentas de email+contraseña, no solo Google) -- "Crear mi[39m
+     [90m 45 |[39m     [90m// organización" entra al wizard existente, que arranca igual que antes.[39m
+    [31m[1m>[22m[39m[90m 46 |[39m     [36mawait[39m page[33m.[39mwaitForURL([32m"**/sin-acceso"[39m)[33m;[39m
+     [90m    |[39m                [31m[1m^[22m[39m
+     [90m 47 |[39m     [36mawait[39m expect(page[33m.[39mgetByRole([32m"heading"[39m[33m,[39m { level[33m:[39m [35m1[39m[33m,[39m name[33m:[39m [32m"Tu cuenta no está vinculada a ninguna organización"[39m }))[33m.[39mtoBeVisible()[33m;[39m
+     [90m 48 |[39m     [36mawait[39m page[33m.[39mgetByRole([32m"link"[39m[33m,[39m { name[33m:[39m [32m"Crear mi organización"[39m })[33m.[39mclick()[33m;[39m
+     [90m 49 |[39m[0m
+    [2m    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/apps/web/e2e/onboarding.spec.ts:46:16[22m
+
+[2m    Error Context: test-results/onboarding-Onboarding-prim-7b433-el-checklist-real-del-panel-chromium-retry1/error-context.md[22m
+
+[2m    attachment #2: [1mtrace[2m (application/zip) [2m─────────────────────────────────────────────────────────[2m[22m
+[2m    test-results/onboarding-Onboarding-prim-7b433-el-checklist-real-del-panel-chromium-retry1/trace.zip[22m
+[2m    Usage:[22m
+
+[2m        npx playwright show-trace test-results/onboarding-Onboarding-prim-7b433-el-checklist-real-del-panel-chromium-retry1/trace.zip[22m
+
+[2m    [2m────────────────────────────────────────────────────────────────────────────────────────────────[2m[22m
+
+[31m  3) [chromium] › e2e/login-parity.spec.ts:12:3 › Paridad visual del login (W-11) › escritorio: layout de pantalla partida con kicker, titular y lámina decorativa [39m
+
+    [31mTest timeout of 45000ms exceeded.[39m
+
+    Error: page.waitForLoadState: Target page, context or browser has been closed
+
+    [90m   at [39mfixtures.ts:73
+
+    [0m [90m 71 |[39m   page[33m.[39mgoto [33m=[39m ([36masync[39m (url[33m:[39m string[33m,[39m options[33m?[39m[33m:[39m [33mParameters[39m[33m<[39m[33mPage[39m[[32m"goto"[39m][33m>[39m[[35m1[39m]) [33m=>[39m {
+     [90m 72 |[39m     [36mconst[39m response [33m=[39m [36mawait[39m originalGoto(url[33m,[39m options)[33m;[39m
+    [31m[1m>[22m[39m[90m 73 |[39m     [36mawait[39m page[33m.[39mwaitForLoadState([32m"networkidle"[39m)[33m;[39m
+     [90m    |[39m                [31m[1m^[22m[39m
+     [90m 74 |[39m     [36mreturn[39m response[33m;[39m
+     [90m 75 |[39m   }) [36mas[39m [33mPage[39m[[32m"goto"[39m][33m;[39m
+     [90m 76 |[39m }[0m
+    [2m    at _Page.page.goto (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/apps/web/e2e/fixtures.ts:73:16)[22m
+    [2m    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/apps/web/e2e/login-parity.spec.ts:14:5[22m
+
+[2m    Error Context: test-results/login-parity-Paridad-visua-36cc7-titular-y-lámina-decorativa-chromium/error-context.md[22m
+
+[2m    attachment #2: [1mtrace[2m (application/zip) [2m─────────────────────────────────────────────────────────[2m[22m
+[2m    test-results/login-parity-Paridad-visua-36cc7-titular-y-lámina-decorativa-chromium/trace.zip[22m
+[2m    Usage:[22m
+
+[2m        npx playwright show-trace test-results/login-parity-Paridad-visua-36cc7-titular-y-lámina-decorativa-chromium/trace.zip[22m
+
+[2m    [2m────────────────────────────────────────────────────────────────────────────────────────────────[2m[22m
+
+[31m  4) [chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Redacción (/preparacion/redaccion), el foco en #main-content es visible (outline/box-shadow reales) [39m
+
+    [31mTest timeout of 45000ms exceeded.[39m
+
+    Error: page.evaluate: Target page, context or browser has been closed
+
+    [0m [90m 11 |[39m
+     [90m 12 |[39m [36masync[39m [36mfunction[39m leerEstiloDe(page[33m:[39m [33mPage[39m[33m,[39m selector[33m:[39m string)[33m:[39m [33mPromise[39m[33m<[39m[33mFocusStyleSnapshot[39m[33m>[39m {
+    [31m[1m>[22m[39m[90m 13 |[39m   [36mreturn[39m page[33m.[39mevaluate((sel) [33m=>[39m {
+     [90m    |[39m               [31m[1m^[22m[39m
+     [90m 14 |[39m     [36mconst[39m el [33m=[39m document[33m.[39mquerySelector(sel)[33m;[39m
+     [90m 15 |[39m     [36mif[39m ([33m![39mel) [36mreturn[39m { outlineStyle[33m:[39m [32m"(sin elemento)"[39m[33m,[39m outlineColor[33m:[39m [32m""[39m[33m,[39m boxShadow[33m:[39m [32m""[39m }[33m;[39m
+     [90m 16 |[39m     [36mconst[39m style [33m=[39m window[33m.[39mgetComputedStyle(el)[33m;[39m[0m
+    [2m    at leerEstiloDe (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/apps/web/e2e/skip-link.spec.ts:13:15)[22m
+    [2m    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/apps/web/e2e/skip-link.spec.ts:132:30[22m
+
+[2m    Error Context: test-results/skip-link-Foco-visible-tra-1f9fa--outline-box-shadow-reales--chromium/error-context.md[22m
+
+[2m    attachment #2: [1mtrace[2m (application/zip) [2m─────────────────────────────────────────────────────────[2m[22m
+[2m    test-results/skip-link-Foco-visible-tra-1f9fa--outline-box-shadow-reales--chromium/trace.zip[22m
+[2m    Usage:[22m
+
+[2m        npx playwright show-trace test-results/skip-link-Foco-visible-tra-1f9fa--outline-box-shadow-reales--chromium/trace.zip[22m
+
+[2m    [2m────────────────────────────────────────────────────────────────────────────────────────────────[2m[22m
+
+[31m  2 failed[39m
+[31m    [chromium] › e2e/landing.spec.ts:21:3 › Landing pública (/) › enlaza el pie a /privacidad y /legal/terminos [39m
+[31m    [chromium] › e2e/onboarding.spec.ts:26:3 › Onboarding: primer login sin organizaciones › wizard completo hasta el checklist real del panel [39m
+[33m  2 flaky[39m
+[33m    [chromium] › e2e/login-parity.spec.ts:12:3 › Paridad visual del login (W-11) › escritorio: layout de pantalla partida con kicker, titular y lámina decorativa [39m
+[33m    [chromium] › e2e/skip-link.spec.ts:112:5 › Foco visible tras activar el skip-link (W-18) › en Redacción (/preparacion/redaccion), el foco en #main-content es visible (outline/box-shadow reales) [39m
+[32m  138 passed[39m[2m (26.0m)[22m
+npm error Lifecycle script `test:e2e` failed with error:
+npm error code 1
+npm error path /private/tmp/claude-501/-Users-javiercamaraportepetit/***/scratchpad/wt-web-r7r8a/apps/web
+npm error workspace @atiende/web@0.1.0
+npm error location /private/tmp/claude-501/-Users-javiercamaraportepetit/***/scratchpad/wt-web-r7r8a/apps/web
+npm error command failed
+npm error command sh -c npm run build && playwright test
+[test:e2e:full] apagando apps/api y el proveedor OIDC falso…
+[test:e2e:full] test:e2e:full FALLÓ (exit 1).
+npm error Lifecycle script `test:e2e:full` failed with error:
+npm error code 1
+npm error path /private/tmp/claude-501/-Users-javiercamaraportepetit/***/scratchpad/wt-web-r7r8a/apps/web
+npm error workspace @atiende/web@0.1.0
+npm error location /private/tmp/claude-501/-Users-javiercamaraportepetit/***/scratchpad/wt-web-r7r8a/apps/web
+npm error command failed
+npm error command sh -c node scripts/e2e-full.mjs
+EXIT:1
+
+############################################################
+# 5) Log parcial del intento previo cortado por límite (HEAD e8da855, DESACTUALIZADO)
+#    typecheck/lint: exit 0 (igual que en d993bf6). test:coverage x2 con resultados
+#    mixtos (ver abajo) -- ya NO representativo de d993bf6 (ver nota de procedencia arriba).
+############################################################
+# Auditoría adversarial web (rondas 7 y 8a) — salida real
+# Generado: 2026-09-06T23:40:35Z
+# HEAD auditado: e8da855bda05db030da97d8669ec341fcb47364e
+# Node: v25.6.1  npm: 11.12.1
+
+=== $ npm run -w apps/web typecheck ===
+
+> @atiende/web@0.1.0 typecheck
+> tsc -b --noEmit
+
+--- EXIT: 0 ---
+
+=== $ npm run -w apps/web lint ===
+
+> @atiende/web@0.1.0 lint
+> eslint .
+
+--- EXIT: 0 ---
+
+=== $ npm run -w apps/web test:coverage (corrida 1/2) ===
+
+> @atiende/web@0.1.0 test:coverage
+> NODE_OPTIONS=--no-experimental-webstorage vitest run --coverage
+
+
+ RUN  v4.1.11 /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/apps/web
+      Coverage enabled with v8
+
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:17087:41)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:17087:41)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:17087:41)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+ ❯ src/pages/LandingPage.test.tsx (5 tests | 1 failed) 416ms
+     × el formulario de solicitar demo está deshabilitado (sin backend de contacto) 46ms (retry x1)
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:17087:41)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+ ❯ src/pages/preparacion/ExpedientePage.test.tsx (1 test | 1 failed) 146607ms
+     × resume el estado real del expediente por convocatoria con enlaces a cada módulo 146600ms (retry x1)
+ ❯ src/pages/entrega/SeguimientoPage.test.tsx (1 test | 1 failed) 144105ms
+     × muestra calendarNote y legalRegime reales para un seguimiento de tipo pago 144041ms (retry x1)
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:17087:41)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:17087:41)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/pages/LandingPage.test.tsx > LandingPage > el formulario de solicitar demo está deshabilitado (sin backend de contacto)
+ FAIL  src/pages/LandingPage.test.tsx > LandingPage > el formulario de solicitar demo está deshabilitado (sin backend de contacto)
+Error: [2mexpect([22m[31melement[39m[2m).toBeDisabled()[22m
+
+Received element is not disabled:
+  [31m<button
+  class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full text-sm font-semibold tracking-[0.005em] ring-offset-background transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 shadow-card motion-safe:hover:-translate-y-px h-10 px-5 py-2 w-full"
+  type="submit"
+/>[39m
+ ❯ src/pages/LandingPage.test.tsx:26:77
+     24|   it("el formulario de solicitar demo está deshabilitado (sin backend …
+     25|     renderWithProviders(<LandingPage />);
+     26|     expect(await screen.findByRole("button", { name: "Enviar solicitud…
+       |                                                                             ^
+     27|     expect(screen.getByText(/todavía no está conectado a ningún backen…
+     28|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  src/pages/entrega/SeguimientoPage.test.tsx > SeguimientoPage > muestra calendarNote y legalRegime reales para un seguimiento de tipo pago
+ FAIL  src/pages/entrega/SeguimientoPage.test.tsx > SeguimientoPage > muestra calendarNote y legalRegime reales para un seguimiento de tipo pago
+Error: Test timed out in 45000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/pages/entrega/SeguimientoPage.test.tsx:47:3
+     45|   });
+     46|
+     47|   it("muestra calendarNote y legalRegime reales para un seguimiento de…
+       |   ^
+     48|     const user = userEvent.setup();
+     49|     renderWithProviders(<SeguimientoPage />);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  src/pages/preparacion/ExpedientePage.test.tsx > ExpedientePage > resume el estado real del expediente por convocatoria con enlaces a cada módulo
+ FAIL  src/pages/preparacion/ExpedientePage.test.tsx > ExpedientePage > resume el estado real del expediente por convocatoria con enlaces a cada módulo
+Error: Test timed out in 60000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/pages/preparacion/ExpedientePage.test.tsx:34:3
+     32|   });
+     33|
+     34|   it("resume el estado real del expediente por convocatoria con enlace…
+       |   ^
+     35|     const user = userEvent.setup();
+     36|     renderWithProviders(<ExpedientePage />);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+
+ Test Files  3 failed | 36 passed (39)
+      Tests  3 failed | 159 passed (162)
+   Start at  17:40:57
+   Duration  319.86s (transform 2.08s, setup 9.28s, import 13.20s, tests 873.50s, environment 15.37s)
+
+npm error Lifecycle script `test:coverage` failed with error:
+npm error code 1
+npm error path /private/tmp/claude-501/-Users-javiercamaraportepetit/***/scratchpad/wt-web-r7r8a/apps/web
+npm error workspace @atiende/web@0.1.0
+npm error location /private/tmp/claude-501/-Users-javiercamaraportepetit/***/scratchpad/wt-web-r7r8a/apps/web
+npm error command failed
+npm error command sh -c NODE_OPTIONS=--no-experimental-webstorage vitest run --coverage
+--- EXIT: 1 ---
+
+
+=== $ npm run -w apps/web test:coverage (corrida 2/2) ===
+
+> @atiende/web@0.1.0 test:coverage
+> NODE_OPTIONS=--no-experimental-webstorage vitest run --coverage
+
+
+ RUN  v4.1.11 /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/apps/web
+      Coverage enabled with v8
+
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:17087:41)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+ ❯ src/pages/LandingPage.test.tsx (5 tests | 1 failed) 2058ms
+     × el formulario de solicitar demo está deshabilitado (sin backend de contacto) 387ms (retry x1)
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:17087:41)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:17087:41)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:17087:41)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:17087:41)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+Error: Not implemented: HTMLCanvasElement.prototype.getContext (without installing the canvas npm package)
+    at module.exports (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+    at HTMLCanvasElementImpl.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/living/nodes/HTMLCanvasElement-impl.js:42:5)
+    at HTMLCanvasElement.getContext (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/jsdom/lib/jsdom/living/generated/HTMLCanvasElement.js:131:58)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:17088:49
+    at Object.get (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:11246:23)
+    at _isIconLigature (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:17087:41)
+    at /private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28725:54
+    at Array.some (<anonymous>)
+    at hasRealTextChildren (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28724:35)
+    at Rule.colorContrastMatches [as matches] (/private/tmp/claude-501/-Users-javiercamaraportepetit/5739b51c-8e0d-442d-ad45-250a589f3fd2/scratchpad/wt-web-r7r8a/node_modules/axe-core/axe.js:28686:12) [90mundefined[39m
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/pages/LandingPage.test.tsx > LandingPage > el formulario de solicitar demo está deshabilitado (sin backend de contacto)
+ FAIL  src/pages/LandingPage.test.tsx > LandingPage > el formulario de solicitar demo está deshabilitado (sin backend de contacto)
+Error: [2mexpect([22m[31melement[39m[2m).toBeDisabled()[22m
+
+Received element is not disabled:
+  [31m<button
+  class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full text-sm font-semibold tracking-[0.005em] ring-offset-background transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 bg-primary text-primary-foreground hover:bg-primary/90 shadow-card motion-safe:hover:-translate-y-px h-10 px-5 py-2 w-full"
+  type="submit"
+/>[39m
+ ❯ src/pages/LandingPage.test.tsx:26:77
+     24|   it("el formulario de solicitar demo está deshabilitado (sin backend …
+     25|     renderWithProviders(<LandingPage />);
+     26|     expect(await screen.findByRole("button", { name: "Enviar solicitud…
+       |                                                                             ^
+     27|     expect(screen.getByText(/todavía no está conectado a ningún backen…
+     28|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+
+ Test Files  1 failed | 38 passed (39)
+      Tests  1 failed | 161 passed (162)
+   Start at  17:47:26
+   Duration  94.41s (transform 2.05s, setup 5.77s, import 8.44s, tests 242.56s, environment 8.94s)
+
+npm error Lifecycle script `test:coverage` failed with error:
+npm error code 1
+npm error path /private/tmp/claude-501/-Users-javiercamaraportepetit/***/scratchpad/wt-web-r7r8a/apps/web
+npm error workspace @atiende/web@0.1.0
+npm error location /private/tmp/claude-501/-Users-javiercamaraportepetit/***/scratchpad/wt-web-r7r8a/apps/web
+npm error command failed
+npm error command sh -c NODE_OPTIONS=--no-experimental-webstorage vitest run --coverage
+--- EXIT: 1 ---
+
