@@ -60,7 +60,27 @@ async function switchOrganization(page: import("@playwright/test").Page, orgName
 async function selectTender(page: import("@playwright/test").Page, tenderTitle: string) {
   const combo = page.getByRole("combobox", { name: "Convocatoria" });
   await combo.click();
-  await page.getByRole("option", { name: tenderTitle }).click();
+  const option = page.getByRole("option", { name: tenderTitle });
+  await option.click();
+  // Condición de carrera real (reportada como intermitente en
+  // RevisionPage: "Error: locator.click: ... pointer-events: none sobre el
+  // botón 'Aprobar expediente'"): Radix Select bloquea `pointer-events` en
+  // <body> mientras su popover corre la animación de salida
+  // (`data-[state=closed]:fade-out-0` en components/ui/select.tsx) y solo
+  // lo restaura cuando el popover termina de DESMONTARSE del DOM (Radix
+  // `Presence`), no cuando el click de la opción se resuelve. Sin esperar
+  // ese desmontaje, un click inmediato posterior sobre CUALQUIER otro
+  // elemento de la página (p. ej. "Aprobar expediente" en
+  // e2e/expediente-flujo-completo.spec.ts, líneas más abajo) puede fallar
+  // intermitentemente la comprobación de accionabilidad de Playwright con
+  // "pointer-events: none", porque el body todavía lo tiene activo. Se
+  // espera a que la opción seleccionada (parte del mismo popover) se
+  // desprenda del DOM -- señal real de que la animación terminó y Radix ya
+  // restauró `pointer-events` -- en vez de un `waitForTimeout` fijo que
+  // cada llamador tendría que reinventar (dos pruebas de este archivo ya
+  // usaban ese parche, para un síntoma relacionado de contraste de axe, no
+  // para este).
+  await option.waitFor({ state: "detached" });
 }
 
 // REQ-044/064: `getAdminStepUpCode`/`completeStepUp` viven en

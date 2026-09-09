@@ -32,7 +32,7 @@ function GoogleGlyph({ className }: { className?: string }) {
 type ButtonState = "idle" | "loading" | "unavailable";
 
 export interface GoogleAuthButtonProps {
-  /** REQ-172: "Continuar con Google" (login) por defecto — el registro reutiliza este mismo componente con otra etiqueta cuando exista una pantalla propia (ver README, "queda para ronda 8b"). */
+  /** REQ-172: "Continuar con Google" (login) por defecto — /registro (ronda 8a, ver RegistroPage.tsx) ya reutiliza este mismo componente con otra etiqueta. */
   label?: string;
 }
 

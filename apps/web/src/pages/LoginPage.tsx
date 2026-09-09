@@ -15,6 +15,7 @@ import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
 import { ApiError } from "@/lib/api/http";
 import { redirectAfterAuth } from "@/lib/redirectAfterAuth";
 import { useAuth, describeApiError } from "@/hooks/useAuth";
+import { useDocumentMeta } from "@/hooks/useDocumentMeta";
 import { toast } from "@/components/ui/sonner";
 import "./login.css";
 
@@ -116,6 +117,12 @@ function PasswordLoginForm() {
 }
 
 export default function LoginPage() {
+  // WB-05 (docs/auditoria-2/web-r7-r8a.md §2): pública igual que /registro
+  // (RegistroPage.tsx, mismo patrón mínimo), pero sin metaetiquetas propias
+  // -- se quedaba con el `<title>` de la página anterior de la SPA en la
+  // pestaña del navegador. No pasa `robots`: el default de `index.html`
+  // ("noindex, nofollow") ya es el correcto aquí.
+  useDocumentMeta({ title: "Iniciar sesión" });
   const { status } = useAuth();
   const location = useLocation();
 

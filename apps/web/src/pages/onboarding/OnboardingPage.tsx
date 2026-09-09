@@ -29,6 +29,27 @@ const STEPS = [
   { id: 5, label: "Listo" },
 ] as const;
 
+// WB-10 (docs/auditoria-2/web-r7-r8a.md §4): el paso del wizard solo vivía
+// en `useState` de React -- si el usuario ya avanzó a un paso OPCIONAL
+// (invitar equipo / primer documento, ambos omitibles) y recarga la
+// página, el wizard siempre reiniciaba en el paso 2 (perfil), aunque los
+// datos de esos pasos ya estuvieran guardados en el servidor. `sessionStorage`
+// (no `localStorage`): se pierde intencionalmente al cerrar la pestaña,
+// igual que tendría sentido para un asistente de una sola sesión.
+const ONBOARDING_STEP_STORAGE_KEY = "atiende.onboarding.step";
+
+function readStoredStep(): number | null {
+  try {
+    const raw = sessionStorage.getItem(ONBOARDING_STEP_STORAGE_KEY);
+    const parsed = raw ? Number(raw) : NaN;
+    return STEPS.some((s) => s.id === parsed) ? parsed : null;
+  } catch {
+    // Almacenamiento bloqueado (navegación privada/política del entorno):
+    // se degrada al comportamiento anterior (siempre desde el baseline).
+    return null;
+  }
+}
+
 function slugify(value: string): string {
   return value
     .toLowerCase()
@@ -58,16 +79,54 @@ function fileToBase64(file: File): Promise<string> {
  */
 export default function OnboardingPage() {
   const { currentOrgId, memberships } = useAuth();
-  const [step, setStep] = useState<number>(memberships.length > 0 ? 2 : 1);
+  // WB-10: capturado UNA SOLA VEZ en un ref (nunca releído de
+  // `sessionStorage` más adelante) -- el efecto de persistencia de abajo
+  // reescribe la clave en cuanto este componente monta, con el `step`
+  // inicial que sea (a veces 1, si `memberships` todavía no hidrató, ver
+  // comentario más abajo); sin este ref, la corrección por `currentOrgId`
+  // llegaría demasiado tarde y encontraría su propio "1" recién escrito en
+  // vez del paso real que el usuario había alcanzado antes de recargar.
+  const initialStoredStepRef = useRef<number | null>(readStoredStep());
+  const [step, setStep] = useState<number>(() => {
+    const baseline = memberships.length > 0 ? 2 : 1;
+    const stored = initialStoredStepRef.current;
+    // Solo se confía en el paso guardado si ya existe una organización real
+    // (baseline >= 2): sin eso, un recorrido previo dejado a medias en la
+    // MISMA pestaña (otra cuenta, otra organización) podría adelantar el
+    // wizard de una organización nueva a un paso que no le corresponde.
+    return stored && baseline >= 2 ? Math.max(stored, baseline) : baseline;
+  });
 
   useDocumentMeta({ title: "Bienvenido a Atiende Licitaciones" });
 
   // Si otra pestaña/paso ya creó la organización activa mientras este
   // componente estaba montado, no se fuerza el avance de vuelta al paso 1.
+  // WB-10: si además había un paso guardado más avanzado (capturado en
+  // `initialStoredStepRef` arriba), se respeta ESE en vez de forzar siempre
+  // el paso 2 -- `memberships` (usado en el `useState` de arriba para el
+  // baseline inicial) solo está garantizado poblado de forma SÍNCRONA
+  // cuando este componente cuelga de `<RequireAuth/>` (ver App.tsx); este
+  // efecto es la red de seguridad para cuando esa hidratación llega
+  // después del primer render (montaje directo en pruebas, o una
+  // organización creada en otra pestaña).
   useEffect(() => {
-    if (currentOrgId && step === 1) setStep(2);
+    if (currentOrgId && step === 1) {
+      const stored = initialStoredStepRef.current;
+      setStep(stored && stored > 1 ? stored : 2);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- solo debe reaccionar a la aparición de currentOrgId, no a cada cambio de `step`
   }, [currentOrgId]);
+
+  // WB-10: persiste el paso actual para sobrevivir una recarga real de la
+  // pestaña (ver `readStoredStep` arriba).
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(ONBOARDING_STEP_STORAGE_KEY, String(step));
+    } catch {
+      // Almacenamiento bloqueado -- se degrada a solo-en-memoria, mismo
+      // comportamiento que antes de este cambio.
+    }
+  }, [step]);
 
   return (
     <>
@@ -481,7 +540,21 @@ function StepListo() {
         </CardDescription>
       </CardHeader>
       <CardContent className="flex justify-center">
-        <Button onClick={() => navigate("/panel")}>Ir al panel</Button>
+        <Button
+          onClick={() => {
+            // Onboarding terminado: limpia el paso persistido (WB-10) para
+            // que una futura organización nueva en esta misma pestaña
+            // arranque limpia en vez de heredar el paso 5 de esta.
+            try {
+              sessionStorage.removeItem(ONBOARDING_STEP_STORAGE_KEY);
+            } catch {
+              // Sin almacenamiento no hay nada que limpiar.
+            }
+            navigate("/panel");
+          }}
+        >
+          Ir al panel
+        </Button>
       </CardContent>
     </Card>
   );

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { axe } from "vitest-axe";
@@ -43,7 +43,81 @@ function mockNewAccountSession() {
   );
 }
 
+function mockExistingOrgSession() {
+  setTokens({ accessToken: null, refreshToken: "ref-1" });
+  const orgs: MyOrg[] = [{ id: "org-a", name: "Mi Empresa S.A. de C.V.", slug: "mi-empresa", role: "owner" }];
+  let profile: Record<string, unknown> | null = null;
+
+  server.use(
+    http.post("*/auth/refresh", () => HttpResponse.json({ accessToken: "acc-1", refreshToken: "ref-1" })),
+    http.get("*/me", () => HttpResponse.json({ id: "user-1", email: "admin@empresa.com", fullName: "Admin" })),
+    http.get("*/organizations", () => HttpResponse.json(orgs)),
+    http.get("*/company/profile", () => HttpResponse.json(profile)),
+    http.put("*/company/profile", async ({ request }) => {
+      const body = (await request.json()) as Record<string, unknown>;
+      profile = {
+        id: "profile-1",
+        legalName: body.legalName,
+        tradeName: null,
+        taxId: body.taxId,
+        description: null,
+        sector: body.sector ?? null,
+        foundedYear: null,
+        employeeCount: null,
+        annualRevenue: null,
+        website: null,
+        createdAt: "2026-01-01T00:00:00Z",
+        updatedAt: "2026-01-01T00:00:00Z",
+      };
+      return HttpResponse.json(profile);
+    }),
+  );
+}
+
 describe("OnboardingPage", () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+  });
+
+  afterEach(() => {
+    sessionStorage.clear();
+  });
+
+  /**
+   * WB-10 (docs/auditoria-2/web-r7-r8a.md §4): antes de este cambio, el
+   * paso vivía solo en `useState` -- desmontar y volver a montar el
+   * componente (lo que una recarga real de la pestaña hace) siempre volvía
+   * al paso 2 (perfil), incluso si el usuario ya había avanzado a un paso
+   * OPCIONAL (aquí: "Invita a tu equipo", paso 3 → omitido → paso 4). Se
+   * simula la recarga con un `unmount()`/render real (no solo re-render),
+   * que es lo único que puede reproducir la pérdida de `useState`.
+   */
+  it("sobrevive una recarga real de la página: no reinicia en el paso 2 tras avanzar a un paso opcional", async () => {
+    mockExistingOrgSession();
+    const user = userEvent.setup();
+    const { unmount } = renderWithProviders(<OnboardingPage />);
+
+    await screen.findByRole("heading", { level: 2, name: "Perfil de empresa esencial" });
+    await user.type(screen.getByLabelText("Razón social"), "Mi Empresa S.A. de C.V.");
+    await user.type(screen.getByLabelText("RFC"), "MEE800101ABC");
+    await user.click(screen.getByRole("button", { name: "Guardar y continuar" }));
+
+    await screen.findByRole("heading", { level: 2, name: "Invita a tu equipo" });
+    await user.click(screen.getByRole("button", { name: "Omitir por ahora" }));
+    await screen.findByRole("heading", { level: 2, name: "Sube tu primer documento" });
+    expect(sessionStorage.getItem("atiende.onboarding.step")).toBe("4");
+
+    // Recarga real de la pestaña: desmonta y vuelve a montar (una
+    // rerenderización normal NUNCA habría reproducido la pérdida de
+    // `useState` que describe WB-10).
+    unmount();
+
+    mockExistingOrgSession();
+    renderWithProviders(<OnboardingPage />);
+    expect(await screen.findByRole("heading", { level: 2, name: "Sube tu primer documento" })).toBeInTheDocument();
+  }, 20000);
+
+
   it("empieza en el paso 'Organización' cuando la cuenta todavía no tiene ninguna", async () => {
     mockNewAccountSession();
     renderWithProviders(<OnboardingPage />);

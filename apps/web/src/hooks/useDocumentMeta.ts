@@ -59,9 +59,25 @@ export function useDocumentMeta({ title, description, robots }: DocumentMetaInpu
       setOgMeta("og:type", "website");
       setOgMeta("og:site_name", BRAND_SUFFIX);
     }
+    // WB-04 (docs/auditoria-2/web-r7-r8a.md §2): el cleanup de abajo solo
+    // restauraba `document.title` -- `meta[name="robots"]` se quedaba
+    // pegado en el valor que esta página fijó (p. ej. "index, follow" de `/`
+    // o `/demo`) para cualquier ruta siguiente que NO llame a este hook,
+    // porque nunca se revertía al valor anterior. Se captura el valor real
+    // que tenía la etiqueta ANTES de este montaje (o su ausencia) y se
+    // restaura al desmontar, igual que ya se hace con el título.
+    const robotsEl = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
+    const previousRobots = robotsEl?.getAttribute("content") ?? null;
     if (robots) setMeta("robots", robots);
     return () => {
       document.title = previousTitle;
+      if (robots) {
+        if (previousRobots === null) {
+          document.querySelector<HTMLMetaElement>('meta[name="robots"]')?.remove();
+        } else {
+          setMeta("robots", previousRobots);
+        }
+      }
     };
   }, [title, description, robots]);
 }

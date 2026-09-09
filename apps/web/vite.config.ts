@@ -178,8 +178,30 @@ export default defineConfig(({ command }) => ({
       output: {
         manualChunks(id) {
           if (!id.includes("node_modules")) return undefined;
+          // Sin esto, Rollup coloca el runtime compartido de React/
+          // ReactDOM/scheduler (siempre eager, lo necesita CUALQUIER
+          // página) dentro de cualquier otro chunk manual conveniente por
+          // su propia heurística automática -- se vio así con `radix-*` de
+          // abajo, dando nombres engañosos a un chunk que en realidad era
+          // sobre todo React, no Radix.
+          if (id.includes("/react-dom/") || id.includes("/scheduler/") || /\/react\/(index|jsx-runtime|cjs)/.test(id)) return "vendor-react";
           if (id.includes("/@tanstack/")) return "query";
-          if (id.includes("/@radix-ui/")) return "app-platform";
+          // WB-13 (docs/auditoria-2/web-r7-r8a.md §10): agrupar TODO
+          // `@radix-ui/*` en un único chunk ("app-platform") forzaba a
+          // CUALQUIER página que use un solo primitivo Radix a cargar
+          // TODOS los demás junto con ella. Antes de este cambio, ese único
+          // chunk se cargaba eager en TODA ruta porque `App.tsx` montaba
+          // `<TooltipProvider/>` incondicionalmente en la raíz -- ya
+          // retirado de ahí (ver ese archivo, WB-13: 0 usos reales de
+          // `Tooltip` en todo el repo). El único uso EAGER de Radix que
+          // queda (fuera de `lazy()`) es `Button` (`@radix-ui/react-slot`,
+          // `asChild`), así que un chunk POR primitivo deja que Rollup solo
+          // cargue ese de forma eager y que el resto (Select/Dialog/
+          // DropdownMenu/Tabs/ScrollArea) viaje junto al chunk `lazy()` de
+          // la página que efectivamente los usa (los módulos del panel
+          // autenticado, vía `AppShell`, también ahora `lazy()`).
+          const radixMatch = id.match(/\/@radix-ui\/react-([a-z-]+)\//);
+          if (radixMatch) return `radix-${radixMatch[1]}`;
           return undefined;
         },
       },

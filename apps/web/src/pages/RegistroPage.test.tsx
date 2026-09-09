@@ -96,8 +96,10 @@ describe("RegistroPage (REQ-172)", () => {
   // No se prueba aquí el 429 del límite de tasa a propósito: `rawRequest`
   // (src/lib/api/http.ts) lo REINTENTA con backoff respetando `Retry-After`
   // antes de propagarlo, así que un handler que responde 429 siempre no
-  // ejercita esta pantalla sino ese reintento — ya cubierto por
-  // src/lib/api/client.test.ts. Un 500 sí llega directo al formulario.
+  // ejercita esta pantalla sino ese reintento — cubierto por
+  // src/lib/api/http.test.ts (WB-12: el comentario anterior decía
+  // "client.test.ts", que no menciona 429 en ninguna prueba — falso/
+  // desactualizado). Un 500 sí llega directo al formulario.
   it("adversarial: un fallo del servidor se muestra tal cual, sin inventar que la cuenta se creó", async () => {
     const user = userEvent.setup();
     server.use(http.post("*/auth/register", () => problemJson({ status: 500, title: "Error interno del servidor." })));

@@ -585,7 +585,17 @@ function DemoRequestSection() {
                   </Button>
                   <p className="text-xs text-muted-foreground">
                     Al enviarlo guardamos tu mensaje para poder responderte. Consulta el{" "}
-                    <Link to="/privacidad" className="underline underline-offset-4">
+                    {/* WB-08 (docs/auditoria-2/web-r7-r8a.md §2): este enlace y el del pie
+                        de página (LandingFooter, abajo) llevan al mismo /privacidad, pero
+                        sin `aria-label` compartían el MISMO nombre accesible ("aviso de
+                        privacidad", sin distinguir mayúsculas para un lector de pantalla
+                        ni para `getByRole` de Playwright) -- un defecto real de
+                        accesibilidad (dos enlaces indistinguibles por nombre en la misma
+                        página) que además rompía en modo estricto e2e/landing.spec.ts
+                        hasta que ese test se acotó al `<footer>` (WB-01), sin tocar este
+                        componente. Se le da un nombre accesible propio y más descriptivo
+                        sin cambiar el texto visible. */}
+                    <Link to="/privacidad" className="underline underline-offset-4" aria-label="Consulta el aviso de privacidad de este formulario de contacto">
                       aviso de privacidad
                     </Link>
                     .

@@ -8,6 +8,7 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 import { ErrorState } from "@/components/ui/error-state";
 import { LoadingState } from "@/components/ui/loading-state";
 import { describeApiError } from "@/hooks/useAuth";
+import { useDocumentMeta } from "@/hooks/useDocumentMeta";
 import { getPrivacyNotice } from "@/lib/api/legal";
 import { renderSimpleMarkdown } from "@/lib/renderSimpleMarkdown";
 import { formatDateMx } from "@/lib/datetime";
@@ -22,6 +23,17 @@ import { formatDateMx } from "@/lib/datetime";
  * que un abogado mexicano lo confirme).
  */
 export default function PrivacyNoticePage() {
+  // WB-05 (docs/auditoria-2/web-r7-r8a.md §2): pública igual que
+  // TermsPage.tsx (mismo patrón), pero sin metaetiquetas propias --
+  // `docs/ACEPTACION.md:276` no la excluye al listar las páginas cubiertas.
+  // `robots: "noindex, nofollow"` explícito (no solo el default de
+  // index.html) por el mismo motivo que TermsPage: contenido legal en
+  // borrador, no pensado para descubrirse por buscador todavía.
+  useDocumentMeta({
+    title: "Aviso de privacidad",
+    description: "Aviso de privacidad de Atiende Licitaciones — tratamiento de datos personales.",
+    robots: "noindex, nofollow",
+  });
   const { data: notice, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["legal", "privacy-notice"],
     queryFn: getPrivacyNotice,
