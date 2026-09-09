@@ -1,0 +1,115 @@
+# fix-api-r6-11-reincidencia-v2.log — CI run 34363181329, job "Quality", 2026-09-09
+# Agente: Sonnet 5, worktree aislado /private/tmp/licitaciones-agent-r6-11-v2,
+# rama agent/fix-r6-11-pdf-bomb-timeout-v2. Repo:
+# /Users/javiercamaraportepetit/Desktop/supabase/licitaciones
+#
+# Hallazgo previo (docs/logs/fix-api-r6b.log): `extractPdfPages` ya comprueba
+# `pdf.numPages > MAX_PDF_PAGES` INMEDIATAMENTE después de
+# `loadingTask.promise`, ANTES de tocar ninguna página. Pese a eso, el test
+# R6-11 seguía haciendo timeout en CI a los 20s (límite global de vitest).
+#
+# ADVERTENCIA: un intento anterior de este mismo fix se colgó 52 minutos
+# ejecutando una reproducción del "PDF bomb" sin timeout. Toda medición de
+# esta ronda se ejecutó con el parámetro `timeout` de la herramienta Bash
+# (<=15s) para nunca repetir ese colgado.
+
+## Medición 1 — pdf-lib `doc.addPage()` en bucle para 20.000 páginas (aislado)
+
+Script de <20 líneas, ejecutado desde apps/api (para resolución de módulos),
+acotado a 15s por la herramienta:
+
+  for (let i = 0; i < 20000; i++) doc.addPage([50, 50]);
+
+Resultado medido (máquina de desarrollo, sin contención de CI):
+
+  addPage loop ms 25133
+  save ms 1424 size 268974
+
+CONFIRMA una causa raíz que la hipótesis original (getDocument lento) no
+cubría: la propia GENERACIÓN del fixture del test es O(n²) --
+`insertLeafNode` (usado por `addPage`/`insertPage` en pdf-lib) recorre
+linealmente todo el array `Kids` existente en cada llamada -- y por sí sola
+ya excede los 20s del timeout global de vitest EN UNA MÁQUINA OCIOSA, antes
+de que `extractDocumentText` entre en juego. Esto es más que suficiente para
+explicar el timeout observado en CI (que corre con más contención, ver
+comentario sobre timeouts espurios en vitest.config.ts).
+
+## Medición 2 — `pdfjsLib.getDocument(...).promise` contra un PDF de 20.000
+## páginas construido en O(n) (sin pasar por el `addPage` lento)
+
+Para aislar el costo de `getDocument` del costo de generar el fixture, se
+construyó el mismo archivo (mismo número de páginas reales, mismo tamaño
+~260KB) insertando cada `PDFPageLeaf` directamente en el array `Kids` con
+`context.register` (O(1) por página, sin `insertLeafNode`) -- ver
+`createBlankPageBombFast` en el test. Contra ESE buffer:
+
+  fast-built size 268977
+  getDocument ms 818 numPages 20000
+
+`getDocument` sí tiene un costo medible (818ms en máquina ociosa) para
+construir el árbol /Pages completo y poder reportar `numPages` -- consistente
+con la hipótesis original, aunque menor de lo esperado en esta máquina.
+Bajo contención real de CI este costo se amplifica (varios ficheros de test
+en paralelo, cada uno con su propio Fastify + PGlite). Es secundario frente
+a la Medición 1 para explicar el timeout DEL TEST, pero relevante para el
+CAMINO DE PRODUCCIÓN: un atacante real que suba un PDF bomba SÍ ejecuta este
+costo directamente (no pasa por `doc.addPage()` de pdf-lib), así que vale la
+pena evitarlo también ahí.
+
+## Fix aplicado (dos frentes, ninguno relaja límites existentes)
+
+1. `apps/api/src/lib/expediente/text-extraction.ts` — `estimateFastPdfPageCount`:
+   atajo O(tamaño de archivo) que cuenta ocurrencias de `/Type/Page` (nunca
+   `/Type/Pages`) en el buffer crudo y dentro de cada stream que logre
+   descomprimirse con Flate (pdf-lib y la mayoría de generadores PDF 1.5+
+   empaquetan los objetos de página en "object streams" comprimidos -- el
+   texto plano del fixture de este ataque tiene CERO coincidencias sin
+   descomprimir). Acotado en tiempo (`FAST_PRECHECK_MAX_MS=500`), en streams
+   inspeccionados (`FAST_PRECHECK_MAX_STREAMS=20000`) y en bytes de salida
+   por stream (`zlib.inflateSync` con `maxOutputLength=8MB`, que ABORTA la
+   descompresión al superarse, no descomprime de más). Si el conteo
+   aproximado ya supera `MAX_PDF_PAGES`, se rechaza con el mismo contrato de
+   siempre SIN llamar nunca a `pdfjsLib.getDocument`. Si no supera el
+   límite (caso normal), se cae al flujo existente sin cambios --
+   `pdf.numPages` sigue siendo la única fuente de verdad autoritativa.
+2. `apps/api/test/expediente-text-extraction.test.ts` — `createBlankPageBombFast`:
+   genera el MISMO archivo de ataque (mismo número de páginas reales, mismo
+   tamaño ~260KB, PDF genuino de pdf-lib) insertando cada página en O(1) en
+   vez de pasar por `insertLeafNode`. Reduce la generación del fixture de
+   ~25s a <1s. No cambia el comportamiento bajo prueba
+   (`extractDocumentText`), solo cómo de rápido se fabrica la entrada.
+
+Ninguna protección existente (páginas/caracteres/tiempo, AE-05/R6-11
+original) se relajó -- `estimateFastPdfPageCount` es un atajo adicional
+ANTES del flujo actual, nunca un reemplazo de `pdf.numPages`.
+
+## Verde confirmado (worktree aislado, sin tocar main)
+
+  npx vitest run test/expediente-text-extraction.test.ts -t "R6-11"
+  → 3/3 corridas verdes, 1684-2235ms cada una (contra el límite de 20000ms
+    global de vitest y el límite interno de 2000ms que exige el propio test)
+
+  npx tsc -p tsconfig.json --noEmit → limpio, sin errores de tipos (todo
+    apps/api, no solo el módulo tocado).
+
+  Suite relevante completa de apps/api -- los 4 archivos que en TODO el
+  paquete importan `text-extraction.ts` o las rutas que lo consumen
+  (`grep -rl "text-extraction\|extractDocumentText" src test`):
+    test/expediente-text-extraction.test.ts
+    test/expediente-documents-and-matrix.test.ts
+    test/security-ae04-sanitize-extracted-text.test.ts (AE-04, sanitizePlainText)
+    test/expediente-contract-lifecycle.test.ts (REQ-051, usa contract.routes.ts)
+  → npx vitest run <esos 4 archivos> → 23/23 verdes (82.57s total), sin
+    regresión en xref-stream/xref-classic/OCR/matriz de requisitos/permisos
+    viewer-writer/A6 conflicto de bases/sanitización AE-04/máquina de
+    estados del contrato.
+
+  NOTA: se intentó primero `npx vitest run` sin filtro (las 86 suites de
+  apps/api, cada una con su propio Fastify + PGlite) para máxima cobertura;
+  tras >27 min sin terminar (progreso real confirmado -- forks nuevos
+  procesando archivos sucesivos, sin quedarse pegado en uno solo, a
+  diferencia del colgado real de 52 min documentado en la tarea) se detuvo
+  por desproporcionado frente al alcance del cambio (una función pura sin
+  efectos sobre módulos no relacionados) y se sustituyó por la suite
+  relevante de arriba, ya cubierta además por el `tsc --noEmit` limpio de
+  todo el paquete.

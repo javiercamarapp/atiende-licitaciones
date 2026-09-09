@@ -57,7 +57,7 @@
  * 42 s de CPU síncrona en el handler HTTP antes de que `MAX_PDF_PAGES`
  * llegara a evaluarse, y como el texto concatenado quedaba vacío, ni
  * siquiera llegaba a rechazarse por ese límite -- ganaba antes la rama
- * `requires_ocr`. Ahora `extractPdfPages` comprueba `pdf.numPages` (dato ya
+ * `requires_ocr`. `extractPdfPages` comprueba `pdf.numPages` (dato ya
  * disponible tras `getDocument`, sin tocar una sola página) ANTES de entrar
  * al bucle, y dentro del bucle acumula caracteres y tiempo transcurrido
  * página a página para poder abortar temprano sin esperar a terminar de
@@ -65,10 +65,50 @@
  * `YIELD_EVERY_N_PAGES` páginas (`setImmediate`) para que un documento
  * legítimo de hasta `MAX_PDF_PAGES` páginas no bloquee el proceso de un
  * tirón.
+ *
+ * R6-11 reincidencia (CI run 34363181329, 2026-09-09): con el fix anterior
+ * YA en el código, el propio test de la "bomba de páginas" seguía haciendo
+ * timeout en CI (20 s, el límite global de vitest) en vez de completar en
+ * los <2 s que exige. Medido en aislado (`node`, con timeout de la
+ * herramienta para nunca colgar más de 15 s, ver
+ * `docs/logs/fix-api-r6-11-reincidencia-v2.log`): la causa DOMINANTE
+ * resultó ser la propia GENERACIÓN del fixture del test, no este módulo --
+ * el bucle `doc.addPage()` de `pdf-lib` para 20.000 páginas es O(n²)
+ * (`insertLeafNode` recorre todo el array `Kids` en cada llamada) y por sí
+ * solo mide ~25 s en una máquina de desarrollo ociosa, más que suficiente
+ * para agotar el límite global de vitest sin que `extractDocumentText`
+ * llegue a ejecutarse (fix del lado del test: `createBlankPageBombFast` en
+ * `expediente-text-extraction.test.ts`, que construye el mismo archivo en
+ * O(n)). Aislando ESE costo, `pdfjsLib.getDocument(...).promise` para el
+ * PDF de 20.000 páginas también tiene un costo medible (no del bucle de
+ * extracción, que ya se cortaba a tiempo, sino de construir el árbol
+ * `/Pages` completo para poder reportar `numPages`): ~800 ms en una máquina
+ * de desarrollo ociosa. Bajo la contención real de CI (varios ficheros de
+ * test en paralelo, cada uno con su propio Fastify + PGlite, ver el
+ * comentario en `vitest.config.ts` sobre timeouts espurios por saturación
+ * de CPU) ese costo se amplifica, y es el que sí paga cualquier atacante
+ * real (que nunca pasa por `doc.addPage()` de `pdf-lib`), así que vale la
+ * pena evitarlo también en el camino de producción.
+ *
+ * `estimateFastPdfPageCount` añade un atajo MÁS BARATO que invocar
+ * `pdfjs-dist` en absoluto para el caso fácil de detectar: cuenta
+ * ocurrencias de `/Type/Page` en el archivo, incluyendo dentro de streams
+ * comprimidos con Flate (`pdf-lib`, y la mayoría de generadores PDF 1.5+,
+ * empaquetan los objetos de página dentro de "object streams" comprimidos --
+ * el texto plano del fixture de este mismo ataque tiene CERO coincidencias
+ * sin descomprimir). Si ese conteo aproximado ya supera `MAX_PDF_PAGES`, se
+ * rechaza con el mismo contrato de siempre SIN llamar nunca a
+ * `pdfjsLib.getDocument`. Es solo un atajo best-effort para el caso fácil:
+ * si no encuentra suficientes coincidencias (streams con otro filtro,
+ * cifrado, estructura atípica), se cae al flujo normal de abajo sin
+ * cambios -- `pdf.numPages` sigue siendo la única fuente de verdad
+ * autoritativa para documentos legítimos, y ningún límite existente
+ * (páginas, caracteres, tiempo) se relaja.
  */
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
+import zlib from 'node:zlib';
 
 export type TextExtractionStatus = 'extracted' | 'requires_ocr' | 'failed';
 
@@ -123,6 +163,81 @@ const MAX_EXTRACTION_MS = 8_000;
 /** R6-11: cada cuántas páginas se cede el event loop (`setImmediate`) durante la extracción, para que un documento legítimo de hasta `MAX_PDF_PAGES` páginas no monopolice el proceso de un tirón. */
 const YIELD_EVERY_N_PAGES = 20;
 
+/**
+ * R6-11 (perf): cotas de seguridad del atajo `estimateFastPdfPageCount` --
+ * existen para que la propia heurística barata nunca se convierta en el
+ * nuevo cuello de botella ni en un vector de ataque contra sí misma (p. ej.
+ * una "zip bomb" dirigida al pre-chequeo en vez de a `pdfjs`).
+ * `maxOutputLength` hace que Node ABORTE la descompresión de un stream en
+ * cuanto se supera -- no descomprime de más para luego descartar --, así que
+ * el costo real de cada stream queda acotado por este valor sin importar
+ * cuánto "prometa" expandirse su versión comprimida.
+ */
+const FAST_PRECHECK_MAX_STREAM_OUTPUT_BYTES = 8 * 1024 * 1024;
+/** Tope de streams inspeccionados -- el propio ataque de referencia (20.000 páginas) produce 402; este margen es generoso sin dejar de acotar el peor caso. */
+const FAST_PRECHECK_MAX_STREAMS = 20_000;
+/** Presupuesto de tiempo de pared del atajo completo -- si se agota, se corta y se cae al flujo normal con `pdfjs` (que sigue siendo la fuente de verdad). */
+const FAST_PRECHECK_MAX_MS = 500;
+
+/** `/Type/Page` (con o sin espacio antes de la segunda barra), pero NUNCA `/Type/Pages` (el nodo intermedio del árbol, no una página real). */
+const PAGE_TYPE_MARKER_RE = /\/Type\s*\/Page(?!s)/g;
+
+function countPageMarkers(text: string): number {
+  const matches = text.match(PAGE_TYPE_MARKER_RE);
+  return matches ? matches.length : 0;
+}
+
+/**
+ * R6-11 (perf): conteo APROXIMADO y barato de páginas reales de un PDF, sin
+ * invocar `pdfjs-dist` -- ver el comentario de cabecera de este módulo para
+ * el porqué (evitar que `pdfjs` construya el árbol `/Pages` completo es lo
+ * que de verdad hace falta para el caso "bomba", no solo cortar el bucle de
+ * extracción). Cuenta ocurrencias de `/Type/Page` tanto en el texto plano
+ * del archivo como dentro de cada stream que logre descomprimirse con
+ * Flate -- `pdf-lib` y la mayoría de generadores PDF 1.5+ empaquetan los
+ * objetos de página dentro de "object streams" (`/Type/ObjStm`)
+ * comprimidos, así que el texto plano por sí solo no encuentra nada en esos
+ * archivos.
+ *
+ * Es SOLO un atajo best-effort para el caso fácil de detectar: si el
+ * archivo usa otro filtro de compresión, está cifrado, o tiene una
+ * estructura atípica que este escaneo ingenuo no reconoce, simplemente
+ * cuenta menos de lo real (nunca más) y la llamada de arriba cae al flujo
+ * normal con `pdfjs`, que sigue comprobando `pdf.numPages` como única
+ * fuente de verdad. Esta función nunca reemplaza ese chequeo -- solo evita
+ * pagar su costo en el caso en que ya alcanza para rechazar.
+ */
+function estimateFastPdfPageCount(buffer: Buffer): number {
+  const startedAt = Date.now();
+  const text = buffer.toString('latin1');
+  let count = countPageMarkers(text);
+  let searchFrom = 0;
+  let streamsScanned = 0;
+  while (streamsScanned < FAST_PRECHECK_MAX_STREAMS) {
+    const streamKeywordIdx = text.indexOf('stream', searchFrom);
+    if (streamKeywordIdx === -1) break;
+    let dataStart = streamKeywordIdx + 'stream'.length;
+    if (text[dataStart] === '\r') dataStart += 1;
+    if (text[dataStart] === '\n') dataStart += 1;
+    const dataEnd = text.indexOf('endstream', dataStart);
+    if (dataEnd === -1) break;
+    streamsScanned += 1;
+    try {
+      const inflated = zlib.inflateSync(buffer.subarray(dataStart, dataEnd), {
+        maxOutputLength: FAST_PRECHECK_MAX_STREAM_OUTPUT_BYTES,
+      });
+      count += countPageMarkers(inflated.toString('latin1'));
+    } catch {
+      // Filtro distinto de Flate, stream corrupto/cifrado, o excede
+      // `maxOutputLength`: se ignora -- es solo un atajo best-effort, el
+      // chequeo autoritativo (`pdf.numPages`) sigue vigente más abajo.
+    }
+    searchFrom = dataEnd + 'endstream'.length;
+    if (Date.now() - startedAt > FAST_PRECHECK_MAX_MS) break;
+  }
+  return count;
+}
+
 function looksLikePdf(buffer: Buffer): boolean {
   return buffer.subarray(0, 5).toString('latin1') === '%PDF-';
 }
@@ -176,6 +291,16 @@ type PdfExtractionResult =
   | { ok: false; limit: PdfBombLimit; pageCount: number };
 
 async function extractPdfPages(buffer: Buffer): Promise<PdfExtractionResult> {
+  // R6-11 (perf): atajo barato ANTES de tocar `pdfjs-dist` en absoluto --
+  // ver `estimateFastPdfPageCount`. Si el conteo aproximado ya supera el
+  // límite, se rechaza con el mismo contrato de siempre sin pagar el costo
+  // de que `pdfjs` construya el árbol `/Pages` completo (el cuello de
+  // botella real medido para el caso "bomba", ver comentario de cabecera).
+  const fastPageCount = estimateFastPdfPageCount(buffer);
+  if (fastPageCount > MAX_PDF_PAGES) {
+    return { ok: false, limit: 'paginas', pageCount: fastPageCount };
+  }
+
   // Import perezoso: `pdfjs-dist` es pesado y solo hace falta en la rama PDF.
   const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
   const data = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
