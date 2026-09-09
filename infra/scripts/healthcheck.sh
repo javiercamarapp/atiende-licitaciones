@@ -31,10 +31,17 @@ check() {
   local path="$1"
   local url="${BASE_URL}${path}"
   local code
-  code="$(curl -s -o /tmp/healthcheck-body.$$ -w '%{http_code}' --max-time 5 "$url")"
+  # IN-11 (docs/auditoria-2/infra.md): antes usaba una ruta predecible
+  # (/tmp/healthcheck-body.$$) en /tmp (mundialmente escribible) -- superficie
+  # TOCTOU de bajo impacto práctico (solo se lee un cuerpo HTTP no sensible),
+  # pero el resto de scripts de este repo ya usa `mktemp`, así que este
+  # también, por consistencia y para cerrar la brecha sin costo real.
+  local body_file
+  body_file="$(mktemp)"
+  code="$(curl -s -o "$body_file" -w '%{http_code}' --max-time 5 "$url")"
   local body
-  body="$(cat /tmp/healthcheck-body.$$ 2>/dev/null || true)"
-  rm -f /tmp/healthcheck-body.$$
+  body="$(cat "$body_file" 2>/dev/null || true)"
+  rm -f "$body_file"
   if [ "$code" = "200" ]; then
     echo "[healthcheck] OK   $url -> $code $body"
     return 0
