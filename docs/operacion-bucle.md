@@ -49,3 +49,6 @@ Reanudar desde archivos: `docs/PROGRESO.md` (último paso), `docs/BLOQUEOS.md`, 
 - 2026-09-05 18:2x — `CronCreate` → `Scheduled recurring job a1c165a2 (Every 2 hours at :13). Session-only (not written to disk, dies when Claude exits). Auto-expires after 7 days.`
 - 2026-09-05 18:2x — `CronList` → `a1c165a2 — Every 2 hours at :13 (recurring) [session-only]` (único job de esta sesión; el de Hoteles vive en otra sesión).
 - Latidos y despertares ScheduleWakeup: ver `docs/logs/bucle.log`.
+
+## Estado final (2026-09-08 23:0x)
+Bucle DETENIDO por consolidación en otra sesión orquestadora (`~/Desktop/supabase/licitaciones`): `CronDelete a1c165a2` ejecutado y `ScheduleWakeup stop`. No reanudar desde esta sesión. Ver el cierre en `docs/PROGRESO.md`.
