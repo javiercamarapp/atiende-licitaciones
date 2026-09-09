@@ -34,6 +34,7 @@ import { agentRoutes } from './modules/agents/routes.js';
 import { adminRoutes } from './modules/admin/routes.js';
 import { auditLogRoutes } from './modules/audit/routes.js';
 import { getRateLimitSettings } from './lib/rate-limit-settings.js';
+import { createPgRateLimitStoreCtor } from './lib/rate-limit-store.js';
 import { buildMailServiceFromEnv } from './lib/mail/env.js';
 import { buildWhatsAppProviderFromEnv } from './lib/mail/whatsapp-channel.js';
 import { PendingMailTracker } from './lib/mail/pending.js';
@@ -240,12 +241,38 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   // `lib/rate-limit-settings.ts`). Ronda 4: los límites concretos por
   // "tier" (global/auth/sensitiveAction) y el perfil `RATE_LIMIT_PROFILE`
   // (solo para pruebas E2E) viven en ese módulo, no como números mágicos
-  // aquí. La tabla `rate_limits` de packages/db sigue existiendo para un
-  // futuro límite persistido entre procesos (hoy en memoria, por proceso).
+  // aquí. La tabla `rate_limits` de packages/db sigue existiendo para el
+  // límite POR ORGANIZACIÓN de acciones de negocio (nada que ver con este
+  // limitador HTTP).
+  //
+  // D-11 (despliegue serverless en Vercel): `store` persistido en Postgres
+  // (`rate_limit_buckets`, ver `lib/rate-limit-store.ts`) en vez del
+  // `LocalStore` por defecto de `@fastify/rate-limit` -- un `LocalStore` en
+  // memoria del PROCESO es correcto con un único proceso de larga duración,
+  // pero cada invocación serverless de Vercel puede ser una instancia de
+  // Node distinta sin memoria compartida, multiplicando el límite real por
+  // el número de instancias vivas. Se comparte la MISMA fábrica de store en
+  // TODA la app (una sola `db` por instancia, ver `options.db`), así que
+  // dos instancias de `buildApp()` sobre la misma base de datos (dos
+  // funciones serverless, o dos procesos locales) ven el mismo contador.
+  //
+  // `skipOnError: true`: a diferencia de `LocalStore` (nunca falla: es un
+  // `Map` en memoria), este store depende de una consulta real a Postgres
+  // -- una caída/timeout transitorio de la base de datos NO debe tumbar
+  // TODA la API con un 500 en el hook `onRequest` (que corre antes que
+  // cualquier ruta, incluidas las que no tocan la base de datos ellas
+  // mismas). El peor caso de `skipOnError` es perder la protección de
+  // límite de tasa durante esa ventana -- preferible a una caída total.
+  // `/healthz`/`/readyz` igual se excluyen explícitamente del limitador
+  // (`config: { rateLimit: false }`, ver `modules/health/routes.ts`) para
+  // que `/readyz` pueda seguir devolviendo SU PROPIO 503 explícito cuando
+  // la base de datos está caída, en vez de que el limitador se adelante.
   await app.register(rateLimit, {
     global: true,
     max: app.rateLimitSettings.global.max,
     timeWindow: app.rateLimitSettings.global.timeWindow,
+    store: createPgRateLimitStoreCtor(options.db),
+    skipOnError: true,
   });
 
   await app.register(healthRoutes);
