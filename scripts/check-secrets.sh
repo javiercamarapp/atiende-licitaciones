@@ -9,33 +9,105 @@
 
 set -uo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ROOT_DIR"
+# CHECK_SECRETS_ROOT: override solo para pruebas (ver
+# scripts/check-secrets.test.sh) -- permite ejecutar este script contra un
+# árbol de fixtures aislado en /tmp en vez del repositorio real, sin arriesgar
+# que un secreto sintético de prueba quede commiteado por accidente. Sin
+# definir, se comporta exactamente igual que antes (raíz real del repo).
+ROOT_DIR="${CHECK_SECRETS_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+cd "$ROOT_DIR" || exit 1
 
-# Directorios/paths excluidos de la búsqueda.
-EXCLUDE_DIRS=(
-  --exclude-dir=node_modules
-  --exclude-dir=dist
-  --exclude-dir=coverage
-  --exclude-dir=.git
-  --exclude-dir=.pglite
-  --exclude-dir=playwright-report
-  --exclude-dir=test-results
-)
-EXCLUDE_FILES=(
-  --exclude='*.env.example'
-  --exclude='package-lock.json'
-  # Este propio script contiene los patrones como strings literales; sin
-  # excluirlo, se detectaría a sí mismo como un falso positivo.
-  --exclude='check-secrets.sh'
-  # Logs de ejecuciones de CI local (docs/logs/*.log). Cuando check-secrets
-  # falla, su propia salida (que reproduce las líneas "sospechosas"
-  # encontradas) queda grabada en estos logs; si no se excluyeran, un log
-  # que documentó un hallazgo pasado volvería a activarlo para siempre,
-  # incluso después de corregir el original (problema autorreferencial).
-  # Los .log no son código fuente ni deben contener secretos reales.
-  --exclude='*.log'
-)
+# IN-02 (docs/auditoria-2/infra.md): este script escanea el CONTENIDO de los
+# archivos que git considera parte de un posible commit -- trackeados
+# (`--cached`) más nuevos sin trackear que NO estén en .gitignore
+# (`--others --exclude-standard`, respeta .gitignore anidados como
+# apps/web/.gitignore) -- en vez de recorrer el filesystem crudo con
+# `grep -r .`. Motivo real, no teórico: al agregar el patrón de JWT más
+# abajo se descubrió que el árbol de trabajo real de este repo tiene
+# `.env.local`/`apps/web/.env.local` (token OIDC real de `vercel env pull`)
+# y `apps/web/e2e/.artifacts/*.json` (tokens de sesión reales de una corrida
+# de Playwright) -- los tres correctamente gitignored, NUNCA en riesgo de
+# commitearse, pero que un `grep -r .` crudo sí reportaría como "hallazgo"
+# cada vez que existan localmente. Ese ruido es exactamente lo opuesto al
+# propósito de este script ("antes de commitear/mergear"): un archivo que el
+# propio git ya garantiza que nunca se commiteará no debería poder fallar
+# este chequeo. Un archivo NUEVO sin trackear que SÍ sería commiteado
+# (`git add` + `git commit`) sigue estando cubierto por `--others
+# --exclude-standard`.
+if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "[check-secrets] ERROR: '$ROOT_DIR' no es (o no se pudo determinar que sea) un repositorio git -- no se puede aplicar el filtro de .gitignore de forma segura." >&2
+  exit 2
+fi
+
+# Archivos/paths excluidos del escaneo AUNQUE git los liste (no por estar
+# gitignorados, sino porque son ruido conocido para este propósito concreto).
+is_excluded_file() {
+  local path="$1"
+  case "$path" in
+    *.env.example) return 0 ;;
+    package-lock.json|*/package-lock.json) return 0 ;;
+    # Este propio script (y su suite de pruebas, que genera A PROPÓSITO
+    # fixtures con forma de secreto real para verificar que cada patrón SÍ
+    # los detecta -- ver check-secrets.test.sh) contienen los patrones y
+    # ejemplos como strings literales; sin excluirlos, se detectarían a sí
+    # mismos como un falso positivo cada vez que corra este chequeo sobre el
+    # repositorio real.
+    scripts/check-secrets.sh|scripts/check-secrets.test.sh) return 0 ;;
+    # Logs de ejecuciones de CI local (docs/logs/*.log). Cuando check-secrets
+    # falla, su propia salida (que reproduce las líneas "sospechosas"
+    # encontradas) queda grabada en estos logs; si no se excluyeran, un log
+    # que documentó un hallazgo pasado volvería a activarlo para siempre,
+    # incluso después de corregir el original (problema autorreferencial).
+    # Los .log no son código fuente ni deben contener secretos reales.
+    *.log) return 0 ;;
+    # IN-02 (docs/auditoria-2/infra.md): docs/auditoria-2/**/*.md son
+    # informes de auditoría adversarial que, por su propia naturaleza, CITAN
+    # literalmente ejemplos de secretos sintéticos usados para verificar que
+    # este mismo script SÍ los detecta (p. ej. "AKIAABCDEFGHIJKLMNOP", un
+    # bloque "-----BEGIN PRIVATE KEY-----" de prueba, o
+    # "sk-test-super-secreta-...") -- mismo problema autorreferencial que
+    # *.log arriba. Ninguno de estos archivos es código fuente ni debe
+    # contener secretos reales.
+    docs/auditoria-2/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Lista de archivos candidatos, separados por NUL (para sobrevivir espacios y
+# saltos de línea en nombres de archivo), ya sin los excluidos de arriba.
+#
+# A PROPÓSITO un archivo temporal, NUNCA una variable de bash: bash (probado
+# en 3.2, el que trae macOS sin homebrew -- el mismo que ejecuta este script
+# en este entorno) representa sus variables como cadenas terminadas en NUL
+# al estilo C, así que CUALQUIER intento de acumular una lista NUL-delimitada
+# en una variable (`v="${v}${f}"$'\0'`) pierde en silencio cada separador al
+# ejecutarse como script real (`bash archivo.sh`, no interactivo) -- se
+# verificó de forma reproducible en esta ronda: la lista de candidatos
+# "colapsaba" a una sola cadena sin separadores y ningún patrón volvía a
+# encontrar nada, un falso "OK" total y silencioso. Un archivo en disco no
+# tiene ese límite.
+CANDIDATES_FILE="$(mktemp)"
+trap 'rm -f "$CANDIDATES_FILE"' EXIT
+git ls-files --cached --others --exclude-standard -z -- . 2>/dev/null \
+  | while IFS= read -r -d '' f; do
+      is_excluded_file "$f" && continue
+      printf '%s\0' "$f"
+    done > "$CANDIDATES_FILE"
+
+# grep sobre la lista de candidatos (NUL-delimitada, vía el archivo de
+# arriba). Silencioso (matches vacío) si no hay candidatos, para que `xargs`
+# nunca corra sin argumentos de archivo (leería de stdin y colgaría el
+# script -- BSD/macOS `xargs` no tiene `-r`/`--no-run-if-empty` como GNU).
+grep_candidates() {
+  local pattern="$1"
+  [ -s "$CANDIDATES_FILE" ] || return 0
+  # -H: fuerza el prefijo "archivo:" SIEMPRE, incluso cuando `xargs` termine
+  # invocando `grep` con un solo argumento de archivo (grep lo omite por
+  # defecto en ese caso, lo que rompía el reporte "archivo:línea:contenido"
+  # de abajo -- p. ej. is_test_fixture_path()/filter_fixture_marker_exemptions()
+  # dependen de poder extraer la ruta antes de los ":").
+  xargs -0 grep -HInE -- "$pattern" < "$CANDIDATES_FILE" 2>/dev/null || true
+}
 
 # Patrones de secretos conocidos. Cada línea es un patrón grep -E
 # independiente; se reporta el archivo:línea de cualquier coincidencia.
@@ -52,9 +124,22 @@ PATTERNS=(
   'xox[baprs]-[A-Za-z0-9-]{10,}'
   # GitHub tokens.
   'gh[pousr]_[A-Za-z0-9]{20,}'
-  # JWT con forma real (tres segmentos base64url) — ruido alto, se reporta
-  # aparte y no cuenta para el código de salida por sí solo salvo que
-  # aparezca junto a "secret"/"password" en la misma línea (ver abajo).
+  # IN-02 (docs/auditoria-2/infra.md): esta ronda introdujo
+  # RESEND_API_KEY/RESEND_WEBHOOK_SECRET (packages/mail) sin ningún patrón
+  # que detectara un token real filtrado. Forma real de Resend:
+  # "re_" + segmento + "_" + segmento (ver dashboard.resend.com/api-keys).
+  're_[A-Za-z0-9]{6,}_[A-Za-z0-9]{16,}'
+  # JWT con forma real (tres segmentos base64url, el primero típicamente
+  # empieza con "eyJ" -- base64 de '{"'). Antes solo documentado en un
+  # comentario ("se reporta aparte... salvo que aparezca junto a
+  # secret/password") pero NUNCA implementado (IN-02) -- se trata ahora
+  # igual que el resto de patrones: sujeto al mismo PLACEHOLDER_FILTER y al
+  # mismo $FIXTURE_MARKER que cualquier otro secreto de esta lista, sin la
+  # excepción de proximidad a "secret"/"password" (un JWT real filtrado no
+  # suele aparecer junto a esas palabras literales). Solo puede reportar
+  # sobre archivos que git commitearía -- ver el filtro de candidatos arriba
+  # para el motivo por el que esto importa concretamente para este patrón.
+  'eyJ[A-Za-z0-9_=-]{10,}\.[A-Za-z0-9_=-]{10,}\.[A-Za-z0-9_=-]{10,}'
   # Dominio de Supabase (si el proyecto llegara a usarlo, no debe haber URLs
   # reales de proyecto commiteadas).
   '[a-z0-9-]+\.supabase\.co'
@@ -64,7 +149,7 @@ PATTERNS=(
   'GOCSPX-[A-Za-z0-9_-]{20,}'
 )
 
-echo "[check-secrets] buscando patrones de secretos en el árbol de trabajo (excluye node_modules, dist, coverage, .env.example)..."
+echo "[check-secrets] buscando patrones de secretos en los archivos que git commitearía (trackeados + nuevos sin trackear, respetando .gitignore)..."
 
 # Filtro de placeholders documentales conocidos (no son secretos reales):
 # credenciales de ejemplo en READMEs/.env.example y dominios de muestra.
@@ -82,7 +167,7 @@ PLACEHOLDER_FILTER='usuario:password|user:pass|changeme|tu[_-]?password|ejemplo|
 FIXTURE_MARKER='check-secrets:allow-fixture'
 
 # Determina si una ruta de archivo (tal como la reporta grep, p. ej.
-# "./apps/api/test/foo.test.ts") corresponde a un archivo de test/e2e.
+# "apps/api/test/foo.test.ts") corresponde a un archivo de test/e2e.
 is_test_fixture_path() {
   local path="$1"
   case "$path" in
@@ -114,8 +199,7 @@ filter_fixture_marker_exemptions() {
 FOUND=0
 for pattern in "${PATTERNS[@]}"; do
   # -I: ignora binarios. -n: número de línea. -E: regex extendida.
-  matches=$(grep -RInE "${EXCLUDE_DIRS[@]}" "${EXCLUDE_FILES[@]}" -- "$pattern" . 2>/dev/null \
-    | grep -viE "$PLACEHOLDER_FILTER" || true)
+  matches=$(grep_candidates "$pattern" | grep -viE "$PLACEHOLDER_FILTER" || true)
   matches=$(filter_fixture_marker_exemptions "$matches")
   if [ -n "$matches" ]; then
     echo ""
@@ -138,7 +222,7 @@ done
 # literal. Si CUALQUIERA de los dos segmentos no es ${...} completo, la
 # línea se sigue reportando (evita que "usuario:${PASSWORD_REAL_HARDCODEADA}"
 # se cuele como si fuera seguro).
-pg_matches=$(grep -RInE "${EXCLUDE_DIRS[@]}" "${EXCLUDE_FILES[@]}" -- 'postgres(ql)?://[^:[:space:]]+:[^@[:space:]]{4,}@[A-Za-z0-9.-]+' . 2>/dev/null \
+pg_matches=$(grep_candidates 'postgres(ql)?://[^:[:space:]]+:[^@[:space:]]{4,}@[A-Za-z0-9.-]+' \
   | grep -vE '@(localhost|127\.0\.0\.1|db)([:/]|$)' \
   | grep -vE ':\/\/\$\{[A-Za-z_][A-Za-z0-9_]*\}:\$\{[A-Za-z_][A-Za-z0-9_]*\}@' \
   | grep -viE "$PLACEHOLDER_FILTER" || true)
@@ -152,7 +236,10 @@ fi
 
 # Aviso adicional, no bloqueante por sí solo: archivos .env reales que se
 # hayan colado (deberían estar en .gitignore, pero si un agente los crea sin
-# darse cuenta de que igual quedan en el árbol de trabajo, avisamos).
+# darse cuenta de que igual quedan en el árbol de trabajo, avisamos). A
+# propósito por filesystem crudo (no por la lista de candidatos de git): el
+# objetivo aquí es avisar de la MERA PRESENCIA del archivo, incluso uno
+# legítimamente gitignorado, no escanear su contenido en busca de patrones.
 env_files=$(find . -type d \( -name node_modules -o -name .git \) -prune -o -type f -name '.env' -print 2>/dev/null)
 if [ -n "$env_files" ]; then
   echo ""
