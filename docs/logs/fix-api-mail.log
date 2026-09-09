@@ -1,0 +1,117 @@
+fix-api-mail.log -- corrector AM-01/02/03/05 (docs/auditoria-2/api-mail.md)
+=============================================================================
+
+Alcance de este agente: apps/api/src/modules/auth/**, apps/api/src/lib/mail/**,
+apps/api/src/modules/mail/** (webhook), sus tests. packages/db, apps/web,
+apps/worker fuera de ámbito (otros agentes).
+
+AM-01 y AM-02 ya estaban reparados y commiteados por una sesión previa
+(b70a1ea, 640ecce), con sus propios tests en verde (security-am01-*,
+security-am02-*) -- verificados en esta ronda, sin cambios de código.
+
+AM-05 (correlation_id en audit_log para auth.*) ya estaba reparado por
+c98bb30 en una ronda previa (0096_req177_auth_event_correlation_id.sql +
+recordAuthAudit propagando correlationId en las 16 llamadas existentes) --
+verificado por lectura de código en esta ronda; faltaba la prueba, cerrada
+aquí con security-am05-correlation-id-auth-family.test.ts.
+
+AM-03 (ALTA) era el único hallazgo sin reparar: el webhook de correo
+suprimía cualquier dirección de un evento con firma Svix válida sin
+verificar que correspondiera a un envío real de mail_outbox. Reparado en
+esta ronda: modules/mail/webhook.routes.ts + lib/mail/pg-outbox-lookup.ts
+(nuevo) + backfill de mail_outbox.to_email en lib/mail/send-transactional.ts
+(columna que nunca se escribía). Test rojo->verde en
+test/mail-webhook.test.ts (bloque "AM-03").
+
+NOTA IMPORTANTE sobre el entorno de ejecución: esta máquina corrió, durante
+buena parte de la sesión, varios agentes concurrentes sobre el MISMO
+worktree (apps/worker, apps/web, y hasta otro repo distinto
+atiende-rentas-vacacionales-staging), lo que produjo (a) timeouts de test
+por contención de CPU/IO (pruebas normales de <1s tardando 20-120s) y (b)
+en un punto, la pérdida completa del trabajo de AM-03/AM-05 sin commitear
+por una operación de limpieza/checkout de otra sesión consolidadora --
+tuvo que rehacerse desde este mismo agente antes de commitear. Por eso el
+gate de cierre de esta ronda se corrió DIRIGIDO a los archivos tocados
+(mail-webhook.test.ts + security-am05-correlation-id-auth-family.test.ts,
+72 aserciones/16 tests) en vez de la suite completa de apps/api, que bajo
+contención no llegó a completar una corrida limpia dentro de esta sesión.
+Typecheck y lint SÍ corren sobre apps/api completo (rápidos, sin
+contención de base de datos).
+
+=============================================================================
+=== typecheck ===
+
+> @atiende/api@0.1.0 typecheck
+> tsc --noEmit
+
+=== lint ===
+
+> @atiende/api@0.1.0 lint
+> eslint src test
+
+=== test: mail-webhook + security-am05 (targeted, gate for AM-03/AM-05) pasada 1 ===
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/api[39m
+
+ [32m✓[39m test/security-am05-correlation-id-auth-family.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 3539[2mms[22m[39m
+   [33m[2m✓[22m[39m AM-05: correlation_id se propaga en toda la familia auth.* (correo incluido)[2m > [22mlas cuatro acciones de correo (email_verification_sent/email_verified/password_reset_requested/password_reset_completed) llevan el X-Correlation-Id de la request [33m1202[2mms[22m[39m
+   [33m[2m✓[22m[39m AM-05: correlation_id se propaga en toda la familia auth.* (correo incluido)[2m > [22mauth.session_revoked y auth.sessions_revoked_others también llevan correlation_id [33m786[2mms[22m[39m
+   [33m[2m✓[22m[39m AM-05: correlation_id se propaga en toda la familia auth.* (correo incluido)[2m > [22mauth.password_changed lleva correlation_id [33m807[2mms[22m[39m
+   [33m[2m✓[22m[39m AM-05: correlation_id se propaga en toda la familia auth.* (correo incluido)[2m > [22mningún evento auth.* insertado durante esta suite queda con correlation_id NULL (red de seguridad genérica) [33m744[2mms[22m[39m
+ [32m✓[39m test/mail-webhook.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 9450[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-181..195: webhook de correo (firma Svix + anti-replay -> supresión)[2m > [22mun rebote con firma válida suprime la dirección, y el siguiente envío a esa dirección se descarta [33m1190[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-181..195: webhook de correo (firma Svix + anti-replay -> supresión)[2m > [22muna queja de spam suprime con motivo `complaint` cuando corresponde a un envío real [33m691[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-181..195: webhook de correo (firma Svix + anti-replay -> supresión)[2m > [22mADVERSARIAL: webhook FORJADO (firma con otro secreto) -> 401 y NINGÚN efecto [33m678[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-181..195: webhook de correo (firma Svix + anti-replay -> supresión)[2m > [22mADVERSARIAL: cuerpo alterado DESPUÉS de firmar -> 401 y ningún efecto [33m636[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-181..195: webhook de correo (firma Svix + anti-replay -> supresión)[2m > [22mADVERSARIAL: cabeceras Svix ausentes o timestamp fuera de la ventana -> 401 [33m671[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-181..195: webhook de correo (firma Svix + anti-replay -> supresión)[2m > [22mADVERSARIAL (ML-05): REENVIAR la misma petición firmada -> 409 y no se reaplica el efecto [33m637[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-181..195: webhook de correo (firma Svix + anti-replay -> supresión)[2m > [22mun evento con firma válida pero de un tipo que no modelamos se acepta y se ignora [33m664[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-181..195: webhook de correo (firma Svix + anti-replay -> supresión)[2m > [22mSIN secreto configurado el endpoint responde 503 y NUNCA procesa nada (falla cerrado) [33m1422[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-181..195: webhook de correo (firma Svix + anti-replay -> supresión)[2m > [22mun proveedor desconocido en la ruta se rechaza por esquema (lista cerrada) [33m719[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-181..195: webhook de correo (firma Svix + anti-replay -> supresión)[2m > [22mAM-03: la supresión exige que el evento corresponda a un envío real de mail_outbox[2m > [22mun rebote con `email_id` que NUNCA existió en `mail_outbox` NO suprime, y queda un evento ignorado en audit_log [33m789[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-181..195: webhook de correo (firma Svix + anti-replay -> supresión)[2m > [22mAM-03: la supresión exige que el evento corresponda a un envío real de mail_outbox[2m > [22mun rebote sin `email_id` (payload incompleto) NO suprime, y queda un evento ignorado en audit_log [33m670[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-181..195: webhook de correo (firma Svix + anti-replay -> supresión)[2m > [22mAM-03: la supresión exige que el evento corresponda a un envío real de mail_outbox[2m > [22mun `email_id` real de un envío a OTRO destinatario no suprime la dirección del evento (no basta con que la fila exista) [33m681[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m2 passed[39m[22m[90m (2)[39m
+[2m      Tests [22m [1m[32m16 passed[39m[22m[90m (16)[39m
+[2m   Start at [22m 23:35:09
+[2m   Duration [22m 10.33s[2m (transform 365ms, setup 0ms, collect 1.42s, tests 12.99s, environment 0ms, prepare 53ms)[22m
+
+=== typecheck (pasada 2) ===
+
+> @atiende/api@0.1.0 typecheck
+> tsc --noEmit
+
+=== lint (pasada 2) ===
+
+> @atiende/api@0.1.0 lint
+> eslint src test
+
+=== test: mail-webhook + security-am05 pasada 2 ===
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90m/Users/javiercamaraportepetit/Documents/Codex/atiende-licitaciones-staging/apps/api[39m
+
+ [32m✓[39m test/security-am05-correlation-id-auth-family.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 6019[2mms[22m[39m
+   [33m[2m✓[22m[39m AM-05: correlation_id se propaga en toda la familia auth.* (correo incluido)[2m > [22mlas cuatro acciones de correo (email_verification_sent/email_verified/password_reset_requested/password_reset_completed) llevan el X-Correlation-Id de la request [33m1467[2mms[22m[39m
+   [33m[2m✓[22m[39m AM-05: correlation_id se propaga en toda la familia auth.* (correo incluido)[2m > [22mauth.session_revoked y auth.sessions_revoked_others también llevan correlation_id [33m1500[2mms[22m[39m
+   [33m[2m✓[22m[39m AM-05: correlation_id se propaga en toda la familia auth.* (correo incluido)[2m > [22mauth.password_changed lleva correlation_id [33m1747[2mms[22m[39m
+   [33m[2m✓[22m[39m AM-05: correlation_id se propaga en toda la familia auth.* (correo incluido)[2m > [22mningún evento auth.* insertado durante esta suite queda con correlation_id NULL (red de seguridad genérica) [33m1304[2mms[22m[39m
+ [32m✓[39m test/mail-webhook.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 12503[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-181..195: webhook de correo (firma Svix + anti-replay -> supresión)[2m > [22mun rebote con firma válida suprime la dirección, y el siguiente envío a esa dirección se descarta [33m1462[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-181..195: webhook de correo (firma Svix + anti-replay -> supresión)[2m > [22muna queja de spam suprime con motivo `complaint` cuando corresponde a un envío real [33m1254[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-181..195: webhook de correo (firma Svix + anti-replay -> supresión)[2m > [22mADVERSARIAL: webhook FORJADO (firma con otro secreto) -> 401 y NINGÚN efecto [33m1509[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-181..195: webhook de correo (firma Svix + anti-replay -> supresión)[2m > [22mADVERSARIAL: cuerpo alterado DESPUÉS de firmar -> 401 y ningún efecto [33m1190[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-181..195: webhook de correo (firma Svix + anti-replay -> supresión)[2m > [22mADVERSARIAL: cabeceras Svix ausentes o timestamp fuera de la ventana -> 401 [33m1066[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-181..195: webhook de correo (firma Svix + anti-replay -> supresión)[2m > [22mADVERSARIAL (ML-05): REENVIAR la misma petición firmada -> 409 y no se reaplica el efecto [33m829[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-181..195: webhook de correo (firma Svix + anti-replay -> supresión)[2m > [22mun evento con firma válida pero de un tipo que no modelamos se acepta y se ignora [33m686[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-181..195: webhook de correo (firma Svix + anti-replay -> supresión)[2m > [22mSIN secreto configurado el endpoint responde 503 y NUNCA procesa nada (falla cerrado) [33m1500[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-181..195: webhook de correo (firma Svix + anti-replay -> supresión)[2m > [22mun proveedor desconocido en la ruta se rechaza por esquema (lista cerrada) [33m750[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-181..195: webhook de correo (firma Svix + anti-replay -> supresión)[2m > [22mAM-03: la supresión exige que el evento corresponda a un envío real de mail_outbox[2m > [22mun rebote con `email_id` que NUNCA existió en `mail_outbox` NO suprime, y queda un evento ignorado en audit_log [33m859[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-181..195: webhook de correo (firma Svix + anti-replay -> supresión)[2m > [22mAM-03: la supresión exige que el evento corresponda a un envío real de mail_outbox[2m > [22mun rebote sin `email_id` (payload incompleto) NO suprime, y queda un evento ignorado en audit_log [33m720[2mms[22m[39m
+   [33m[2m✓[22m[39m REQ-181..195: webhook de correo (firma Svix + anti-replay -> supresión)[2m > [22mAM-03: la supresión exige que el evento corresponda a un envío real de mail_outbox[2m > [22mun `email_id` real de un envío a OTRO destinatario no suprime la dirección del evento (no basta con que la fila exista) [33m677[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m2 passed[39m[22m[90m (2)[39m
+[2m      Tests [22m [1m[32m16 passed[39m[22m[90m (16)[39m
+[2m   Start at [22m 23:35:38
+[2m   Duration [22m 13.36s[2m (transform 348ms, setup 0ms, collect 1.37s, tests 18.52s, environment 0ms, prepare 54ms)[22m
+
