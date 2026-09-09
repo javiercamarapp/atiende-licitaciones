@@ -184,3 +184,4 @@
 2026-09-08 21:02  MERGE  2d06943 integra ~45 commits del 7-sep de otra sesión; agentes avisados; despacho #133 infra; en curso #128–#133.
 2026-09-08 21:27  LATIDO  e121b54 (D-11 pool+rate_limit_buckets); 6 agentes en curso (#128–#133); sin token Supabase.
 2026-09-08 22:40  NOTIF  #132 auditoría web a0701ab (R6-1 ALTA cobertura, WB-01..14); corrector web en cola tras #128; en curso #128 #129 #130 #133.
+2026-09-08 22:43  CRON a1c165a2  latido; bucle dinámico vivo (próximo 23:07); en curso #128 #129 #130 #133.
