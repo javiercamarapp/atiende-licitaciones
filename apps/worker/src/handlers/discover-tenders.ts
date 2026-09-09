@@ -22,6 +22,7 @@ import type { Job } from '../queue/types.js';
 import type { JobQueue } from '../queue/job-queue.js';
 import { enqueueAgentRun } from '../agents/enqueue-agent-run.js';
 import { SYSTEM_ACTOR_ID, SYSTEM_ACTOR_ROLE } from '../agents/system-actor.js';
+import { sanitizeCorrelationId } from '../lib/correlation-id.js';
 
 export interface DiscoverTendersPayload {
   sourceId: SourceId;
@@ -205,7 +206,23 @@ export function createDiscoverTendersHandler(deps: DiscoverTendersHandlerDeps): 
     // `DiscoverTendersPayload.correlationId`): todas las filas de
     // `source_runs` de esta corrida y la ingesta HTTP que dispare comparten
     // este mismo valor.
-    const correlationId = job.payload.correlationId ?? job.id;
+    //
+    // WK6-04 (docs/auditoria-2/worker-agentes-reverificacion.md, MEDIA;
+    // "audit gap" en la ruta de encolado): `payload.correlationId` es el
+    // MISMO tipo de dato de negocio de confianza limitada que
+    // `RunAgentPayload.correlationId` (ver `../lib/correlation-id.ts`), pero
+    // este handler lo usaba tal cual -- sin pasar por
+    // `sanitizeCorrelationId` -- en DOS fronteras que ese saneamiento
+    // todavía no cubría: el INSERT de `source_runs.correlation_id` (un byte
+    // NUL rompe el INSERT igual que rompía `agent_runs`/jobs) y la cabecera
+    // `X-Correlation-Id` que `TenderIngestClient.ingest()` manda tal cual a
+    // `fetch()` (un salto de línea/CR ahí es inyección de cabecera HTTP; 10
+    // KB es una cabecera abusiva). Hoy solo el scheduler encola
+    // `discover_tenders` (siempre sin `correlationId`, cae a `job.id`, un
+    // UUID real -- no explotable en la práctica), pero el payload es JSONB
+    // sin esquema forzado igual que el de `run_agent`, así que este límite
+    // se cierra aquí por el mismo motivo que en las otras tres fronteras.
+    const correlationId = sanitizeCorrelationId(job.payload.correlationId)?.value ?? job.id;
 
     // WK-06 (docs/auditoria-1/worker.md): `coverage.expected` viene de la
     // config de la fuente (`payload.expectedTotal`, si el scheduler/config

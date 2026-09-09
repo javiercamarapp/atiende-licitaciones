@@ -228,6 +228,62 @@ describe('discover_tenders handler — A1/A2: publicación nueva e idempotencia 
     expect(apiServer.requests[0].headers['x-correlation-id']).toBe(job.id);
   });
 
+  /**
+   * WK6-04 (docs/auditoria-2/worker-agentes-reverificacion.md, MEDIA;
+   * reverificación de la ronda K, "audit gap" en la ruta de encolado):
+   * `payload.correlationId` de un job `discover_tenders` es el mismo tipo de
+   * dato de negocio de confianza limitada que `RunAgentPayload.correlationId`
+   * (JSONB sin esquema forzado), pero hasta esta corrección se usaba tal
+   * cual en `source_runs.correlation_id` y en la cabecera saliente
+   * `X-Correlation-Id` -- sin pasar por `sanitizeCorrelationId`. Un valor
+   * con un byte NUL rompería el INSERT de `source_runs`; un salto de
+   * línea/CR en la cabecera es inyección de cabecera HTTP hacia
+   * `apps/api`, no solo un dato sucio en un log.
+   */
+  it('WK6-04: un correlationId adversarial en el payload se sanea antes de llegar a source_runs y a la cabecera X-Correlation-Id', async () => {
+    const registry = new ConnectorRegistry().register(makeVerifiedFakeConnector({ records: [makeTender('EXP-WK604')] }));
+    const ingestClient = new TenderIngestClient({ baseUrl: apiServer.baseUrl, apiKey: 'k' });
+    const handler = createDiscoverTendersHandler({ db, registry, ingestClient, httpClient: new HttpClient({ userAgent: 'test' }) });
+
+    const job = makeJob({ sourceId: 'dof' });
+    // `makeJob` no modela `correlationId`: se asigna directamente al payload
+    // (mismo patrón ya usado en esta suite para `expectedTotal`).
+    const malicious = 'abc\r\nX-Evil: 1\n' + 'A'.repeat(200);
+    (job as any).payload = { sourceId: 'dof', correlationId: malicious };
+
+    await handler(job, makeCtx());
+
+    const { rows } = await db.query<{ correlation_id: string | null }>(
+      `select correlation_id from source_runs where source_id = 'dof' order by started_at desc limit 1`,
+    );
+    expect(rows[0].correlation_id).not.toBe(malicious);
+    expect(rows[0].correlation_id).toMatch(/^sane-[0-9a-f]{16}$/);
+
+    expect(apiServer.requests).toHaveLength(1);
+    const sentHeader = apiServer.requests[0].headers['x-correlation-id'];
+    expect(sentHeader).not.toContain('\r');
+    expect(sentHeader).not.toContain('\n');
+    expect(sentHeader).toBe(rows[0].correlation_id);
+  });
+
+  it('WK6-04: un correlationId de payload ya válido (UUID) pasa intacto a source_runs y a la cabecera, sin sobre-saneamiento', async () => {
+    const registry = new ConnectorRegistry().register(makeVerifiedFakeConnector({ records: [makeTender('EXP-WK604-OK')] }));
+    const ingestClient = new TenderIngestClient({ baseUrl: apiServer.baseUrl, apiKey: 'k' });
+    const handler = createDiscoverTendersHandler({ db, registry, ingestClient, httpClient: new HttpClient({ userAgent: 'test' }) });
+
+    const job = makeJob({ sourceId: 'dof' });
+    const validCorrelationId = '44444444-5555-6666-7777-888888888888';
+    (job as any).payload = { sourceId: 'dof', correlationId: validCorrelationId };
+
+    await handler(job, makeCtx());
+
+    const { rows } = await db.query<{ correlation_id: string | null }>(
+      `select correlation_id from source_runs where source_id = 'dof' order by started_at desc limit 1`,
+    );
+    expect(rows[0].correlation_id).toBe(validCorrelationId);
+    expect(apiServer.requests[0].headers['x-correlation-id']).toBe(validCorrelationId);
+  });
+
   it('replay del mismo lote (misma corrida repetida) envía el mismo payload de ingesta — idempotente (A2)', async () => {
     const tender = makeTender('EXP-REPLAY');
     const registry1 = new ConnectorRegistry().register(makeVerifiedFakeConnector({ records: [tender] }));
