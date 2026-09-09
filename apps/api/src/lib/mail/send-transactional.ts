@@ -79,6 +79,40 @@ export async function sendTransactionalMail<V>(app: FastifyInstance, input: Send
     fromLocalPart: input.fromLocalPart,
   });
 
+  // AM-03 (docs/auditoria-2/api-mail.md, ALTA): respalda el destinatario
+  // real en `mail_outbox.to_email` -- columna que `PgSendRecordStore`
+  // (`reserve()`/`save()`, ver su docstring) nunca escribe, porque
+  // `SendRecordStore` (packages/mail) es agnóstico del contrato de negocio
+  // y no expone el destinatario en ninguno de sus métodos. Este es el ÚNICO
+  // punto de `apps/api` que conoce, en el mismo instante, tanto el
+  // `messageKey` (== `dedupe_key`) como el destinatario REAL ya validado
+  // (`assertRegisteredRecipient`, dentro de `MailService.send()`) -- de ahí
+  // que el webhook (`modules/mail/webhook.routes.ts` ->
+  // `lib/mail/pg-outbox-lookup.ts`) pueda cruzar un `provider_message_id`
+  // contra el destinatario verdadero de ese envío, y no solo contra su
+  // existencia. `where to_email is null` es un backfill idempotente: nunca
+  // pisa una fila que ya tiene destinatario (p. ej. un reintento posterior
+  // con el mismo `messageKey`). Un solo destinatario -- con varios (poco
+  // frecuente en este módulo, ver `resolvePreferences` arriba) no hay UNA
+  // columna que llenar de forma inequívoca, así que se omite: esas filas
+  // quedan como antes (`to_email` NULL, el webhook las trata como
+  // "sin envío correspondiente", nunca como pretexto para suprimir).
+  // Best-effort: un fallo aquí nunca debe convertir un envío YA REALIZADO
+  // en un error para el llamador.
+  if (!Array.isArray(input.to)) {
+    try {
+      await app.db.query('update mail_outbox set to_email = $1 where dedupe_key = $2 and to_email is null', [
+        input.to.email,
+        input.messageKey,
+      ]);
+    } catch (error) {
+      app.log.error(
+        { err: error instanceof Error ? error.message : String(error), messageKey: input.messageKey },
+        'No se pudo respaldar mail_outbox.to_email (AM-03)'
+      );
+    }
+  }
+
   if (outcome.status === 'dead') {
     await app.db.transaction(async (tx) => {
       await tx.query('set local role app_role');
