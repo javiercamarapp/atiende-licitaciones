@@ -117,9 +117,15 @@ echo "=================================================================="
 run_step "npm audit" npm audit --omit=dev --audit-level=high
 
 echo "=================================================================="
+echo "check-env-parity (IN-01, docs/auditoria-2/infra.md)"
+echo "=================================================================="
+run_step "check-env-parity" node infra/scripts/check-env-parity.mjs
+
+echo "=================================================================="
 echo "check-secrets"
 echo "=================================================================="
 run_step "check-secrets" bash scripts/check-secrets.sh
+run_step "check-secrets:selftest" bash scripts/check-secrets.test.sh
 
 echo "=================================================================="
 echo "RESUMEN"

@@ -15,6 +15,13 @@
 # compose NO inyecta automáticamente todo `.env` a cada contenedor, solo lo
 # usa para resolver este archivo).
 #
+# IN-05 (docs/auditoria-2/infra.md): las variables OBLIGATORIAS (sin las
+# cuales el servicio correspondiente no debe arrancar nunca, mismo criterio
+# que su propio código de arranque -- ver apps/api/src/config.ts) usan
+# `${VAR:?mensaje}` en vez de `${VAR}` simple: si `infra/compose/.env` omite
+# alguna, `docker compose up` ABORTA con el mensaje antes de crear ningún
+# contenedor, en vez de sustituir una cadena vacía con solo una advertencia.
+#
 # Arquitectura: caddy (borde, TLS automático) -> web (nginx, estático) y
 # api (Fastify) por dominios separados (ver infra/docker/Caddyfile) ->
 # postgres (con volumen persistente) <- worker (cola de jobs) y api.
@@ -23,6 +30,20 @@
 # api/worker (con SKIP_MIGRATIONS=true en ambos, para no competir con este
 # servicio — ver docs/OPERACION.md §2 "nunca ambos [api y worker] a la vez
 # de forma descoordinada la primera vez").
+#
+# IN-04 (docs/auditoria-2/infra.md): `worker` y `caddy` dependen de `api`
+# (y `caddy` también de `web`) con `condition: service_healthy`, no
+# `service_started`/forma corta -- ambas imágenes declaran `HEALTHCHECK`
+# real (ver apps/api/Dockerfile, apps/web/Dockerfile), así que Compose
+# puede esperar a que respondan de verdad antes de enrutar tráfico o
+# empezar a consumir la cola.
+#
+# IN-06 (docs/auditoria-2/infra.md): cada servicio declara
+# `deploy.resources.limits` (cpus/memory) -- límites conservadores para una
+# única VM pequeña; ajusta según el tamaño real de la máquina de despliegue
+# (ver infra/README.md). `docker compose up` (sin Swarm) SÍ aplica
+# `deploy.resources.limits` desde Compose v2 (a diferencia de `replicas`/
+# `restart_policy`, que sí son solo-Swarm) -- no requiere `docker stack`.
 #
 # LIMITACIÓN CONOCIDA (documentada, no oculta): `apps/api` usa STORAGE_DIR
 # en disco local (`api_storage`, ver abajo) para archivos subidos — con una
@@ -48,9 +69,9 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER es obligatoria -- ver infra/env/.env.prod.example}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD es obligatoria -- ver infra/env/.env.prod.example}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB es obligatoria -- ver infra/env/.env.prod.example}
     volumes:
       - pgdata:/var/lib/postgresql/data
     networks: [atiende]
@@ -60,6 +81,11 @@ services:
       timeout: 5s
       retries: 10
       start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1g
     # Sin `ports:` publicado al host a propósito: solo api/worker/migrate
     # (en la misma red `atiende`) necesitan llegar a Postgres. Para
     # inspección manual usa `docker compose exec postgres psql ...` o el
@@ -81,11 +107,16 @@ services:
     command: ["node_modules/.bin/tsx", "scripts/db-postgres-migrate.mjs"]
     restart: "no"
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      DATABASE_URL: postgres://${POSTGRES_USER:?POSTGRES_USER es obligatoria}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD es obligatoria}@postgres:5432/${POSTGRES_DB:?POSTGRES_DB es obligatoria}
     depends_on:
       postgres:
         condition: service_healthy
     networks: [atiende]
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512m
 
   api:
     image: atiende/api:${IMAGE_TAG:-local}
@@ -98,13 +129,13 @@ services:
       NODE_ENV: production
       # Las migraciones ya las aplicó el servicio `migrate` de arriba.
       SKIP_MIGRATIONS: "true"
-      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      JWT_SECRET: ${JWT_SECRET}
+      DATABASE_URL: postgres://${POSTGRES_USER:?POSTGRES_USER es obligatoria}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD es obligatoria}@postgres:5432/${POSTGRES_DB:?POSTGRES_DB es obligatoria}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET es obligatoria -- apps/api/src/config.ts revienta al arrancar sin ella}
       STORAGE_DIR: /app/data/storage
-      CORS_ORIGINS: https://${WEB_DOMAIN}
-      PLATFORM_API_KEY: ${PLATFORM_API_KEY}
+      CORS_ORIGINS: https://${WEB_DOMAIN:?WEB_DOMAIN es obligatoria -- ver infra/README.md}
+      PLATFORM_API_KEY: ${PLATFORM_API_KEY:?PLATFORM_API_KEY es obligatoria -- sin ella, POST /internal/tenders/ingest rechaza toda solicitud}
       RATE_LIMIT_PROFILE: ${RATE_LIMIT_PROFILE:-}
-      TOTP_ENCRYPTION_KEY: ${TOTP_ENCRYPTION_KEY}
+      TOTP_ENCRYPTION_KEY: ${TOTP_ENCRYPTION_KEY:?TOTP_ENCRYPTION_KEY es obligatoria -- apps/api/src/config.ts revienta al arrancar sin ella}
       STEP_UP_WINDOW_MINUTES: ${STEP_UP_WINDOW_MINUTES:-5}
       SENTRY_DSN: ${SENTRY_DSN:-}
       # REQ-181..195 (@atiende/mail) -- faltaban por completo en este
@@ -112,8 +143,8 @@ services:
       # bucle sin MAIL_LINK_SECRET, "obligatoria" según apps/api/.env.example).
       # Nunca se había detectado porque Docker no estaba disponible en el
       # entorno de desarrollo hasta hoy (ver docs/BLOQUEOS.md B-08/E17).
-      MAIL_LINK_SECRET: ${MAIL_LINK_SECRET}
-      PUBLIC_URL: https://${WEB_DOMAIN}
+      MAIL_LINK_SECRET: ${MAIL_LINK_SECRET:?MAIL_LINK_SECRET es obligatoria -- apps/api/src/config.ts revienta al arrancar sin ella}
+      PUBLIC_URL: https://${WEB_DOMAIN:?WEB_DOMAIN es obligatoria -- ver infra/README.md}
       MAIL_FROM: ${MAIL_FROM:-soporte@atiende.mx}
       CONTACT_INBOX: ${CONTACT_INBOX:-}
       MAIL_PROVIDER: ${MAIL_PROVIDER:-}
@@ -127,6 +158,17 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM_ADDRESS: ${SMTP_FROM_ADDRESS:-}
+      # Ruta local opcional donde CaptureProvider (sin MAIL_PROVIDER real)
+      # persiste los correos "enviados" a disco en vez de solo en memoria
+      # (ver packages/mail/src/provider/capture-provider.ts) -- vacío = solo
+      # en memoria (se pierde al reiniciar el proceso), suficiente mientras
+      # no haya proveedor real configurado.
+      MAIL_CAPTURE_FILE: ${MAIL_CAPTURE_FILE:-}
+      # Dominio público adicional (sin protocolo) que puede recibir un
+      # enlace http:// en un correo sin caer al fallback (ver
+      # packages/mail/src/security/safe-url.ts) -- vacío en el caso normal,
+      # ya que PUBLIC_URL de este despliegue sirve HTTPS real vía Caddy.
+      MAIL_PUBLIC_APP_HOST: ${MAIL_PUBLIC_APP_HOST:-}
       RESEND_WEBHOOK_SECRET: ${RESEND_WEBHOOK_SECRET:-}
       REQUIRE_EMAIL_VERIFICATION: ${REQUIRE_EMAIL_VERIFICATION:-true}
       # REQ-172..180 (login con Google) -- sin estas 3, /auth/google/* responde
@@ -142,12 +184,25 @@ services:
       WHATSAPP_PROVIDER: ${WHATSAPP_PROVIDER:-}
       WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
       WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      # Opcionales, con default seguro en código (ver
+      # packages/whatsapp/src/provider/factory.ts/meta-cloud-provider.ts):
+      # versión de la Graph API de Meta y el idioma de plantilla por
+      # defecto, más la ruta local de captura (mismo criterio que
+      # MAIL_CAPTURE_FILE) cuando WHATSAPP_PROVIDER no es "meta".
+      WHATSAPP_API_VERSION: ${WHATSAPP_API_VERSION:-}
+      WHATSAPP_DEFAULT_LANGUAGE: ${WHATSAPP_DEFAULT_LANGUAGE:-}
+      WHATSAPP_CAPTURE_FILE: ${WHATSAPP_CAPTURE_FILE:-}
     volumes:
       - api_storage:/app/data/storage
     depends_on:
       migrate:
         condition: service_completed_successfully
     networks: [atiende]
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512m
 
   worker:
     image: atiende/worker:${IMAGE_TAG:-local}
@@ -158,17 +213,27 @@ services:
     environment:
       NODE_ENV: production
       SKIP_MIGRATIONS: "true"
-      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      DATABASE_URL: postgres://${POSTGRES_USER:?POSTGRES_USER es obligatoria}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD es obligatoria}@postgres:5432/${POSTGRES_DB:?POSTGRES_DB es obligatoria}
       WORKER_ID: ${WORKER_ID:-}
       WORKER_POLL_INTERVAL_MS: ${WORKER_POLL_INTERVAL_MS:-1000}
       WORKER_LEASE_SECONDS: ${WORKER_LEASE_SECONDS:-60}
       WORKER_HEARTBEAT_INTERVAL_MS: ${WORKER_HEARTBEAT_INTERVAL_MS:-15000}
+      # apps/worker/src/config.ts: máximo de jobs concurrentes por proceso
+      # (default 1 en código) -- ausente de este compose hasta ahora, ver
+      # infra/scripts/check-env-parity.mjs (IN-01).
+      WORKER_MAX_CONCURRENT_JOBS: ${WORKER_MAX_CONCURRENT_JOBS:-1}
       WORKER_SHUTDOWN_TIMEOUT_MS: ${WORKER_SHUTDOWN_TIMEOUT_MS:-30000}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       WORKER_SCHEDULE_JSON: ${WORKER_SCHEDULE_JSON:-}
       API_BASE_URL: http://api:3000
-      PLATFORM_API_KEY: ${PLATFORM_API_KEY}
+      PLATFORM_API_KEY: ${PLATFORM_API_KEY:?PLATFORM_API_KEY es obligatoria -- debe coincidir con la de "api"}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # Ronda 6 (apps/worker/src/agents/kill-switch.ts, handlers/run-agent.ts):
+      # kill-switch por agente y presupuesto USD/org de run_agent -- ambas con
+      # default seguro en código, ausentes de este compose hasta ahora (ver
+      # infra/scripts/check-env-parity.mjs, IN-01).
+      WORKER_DISABLED_AGENTS: ${WORKER_DISABLED_AGENTS:-}
+      WORKER_AGENT_BUDGET_USD_PER_ORG: ${WORKER_AGENT_BUDGET_USD_PER_ORG:-5}
       # Reintento de correo (apps/worker/src/mail/build-mail-service.ts):
       # NUNCA necesita MAIL_LINK_SECRET (no genera enlaces firmados), solo
       # el mismo proveedor real que usa apps/api para que un reintento
@@ -184,12 +249,30 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM_ADDRESS: ${SMTP_FROM_ADDRESS:-}
+      MAIL_CAPTURE_FILE: ${MAIL_CAPTURE_FILE:-}
+      # packages/mail es una dependencia COMPLETA de esta imagen (ver
+      # apps/worker/Dockerfile): aunque el flujo de reintento hoy no vuelve a
+      # renderizar plantillas (ver docstring de build-mail-service.ts), se
+      # declara por la misma razón de paridad exhaustiva que el resto de
+      # MAIL_* -- infra/scripts/check-env-parity.mjs la exige por lectura
+      # estática de packages/mail/src/security/safe-url.ts.
+      MAIL_PUBLIC_APP_HOST: ${MAIL_PUBLIC_APP_HOST:-}
     depends_on:
       migrate:
         condition: service_completed_successfully
+      # IN-04 (docs/auditoria-2/infra.md): antes `condition: service_started`
+      # pese a que apps/api/Dockerfile SÍ declara HEALTHCHECK -- el worker
+      # podía empezar a llamar a POST /internal/tenders/ingest antes de que
+      # la API respondiera de verdad. `service_healthy` espera al HEALTHCHECK
+      # real (ver apps/api/Dockerfile).
       api:
-        condition: service_started
+        condition: service_healthy
     networks: [atiende]
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512m
 
   web:
     image: atiende/web:${IMAGE_TAG:-local}
@@ -197,9 +280,14 @@ services:
       context: ../..
       dockerfile: apps/web/Dockerfile
       args:
-        VITE_API_URL: https://${API_DOMAIN}
+        VITE_API_URL: https://${API_DOMAIN:?API_DOMAIN es obligatoria -- ver infra/README.md}
     restart: unless-stopped
     networks: [atiende]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128m
 
   caddy:
     image: caddy:2.8-alpine
@@ -209,14 +297,25 @@ services:
       - "443:443"
       - "443:443/udp"
     environment:
-      WEB_DOMAIN: ${WEB_DOMAIN}
-      API_DOMAIN: ${API_DOMAIN}
-      ACME_EMAIL: ${ACME_EMAIL}
+      WEB_DOMAIN: ${WEB_DOMAIN:?WEB_DOMAIN es obligatoria -- ver infra/README.md}
+      API_DOMAIN: ${API_DOMAIN:?API_DOMAIN es obligatoria -- ver infra/README.md}
+      ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL es obligatoria -- Let's Encrypt la exige para el aviso de expiración}
     volumes:
       - ../docker/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - web
-      - api
+      # IN-04 (docs/auditoria-2/infra.md): antes forma corta (`- web`/`- api`,
+      # equivalente a `service_started`) pese a que ambas imágenes declaran
+      # HEALTHCHECK (ver apps/web/Dockerfile, apps/api/Dockerfile) -- Caddy
+      # podía enrutar tráfico real a un contenedor que aún no respondía.
+      web:
+        condition: service_healthy
+      api:
+        condition: service_healthy
     networks: [atiende]
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 256m
