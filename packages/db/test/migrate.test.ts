@@ -73,6 +73,7 @@ describe('migraciones', () => {
         'post_award_followups',
         'proposal_sections',
         'proposals',
+        'rate_limit_buckets',
         'rate_limits',
         'requirement_items',
         'reviews',
