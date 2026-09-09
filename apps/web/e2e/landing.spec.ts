@@ -20,11 +20,16 @@ test.describe("Landing pública (/)", () => {
 
   test("enlaza el pie a /privacidad y /legal/terminos", async ({ noAuthPage: page }) => {
     await page.goto("/");
-    await page.getByRole("link", { name: "Aviso de privacidad" }).click();
+    // Ronda 8b (REQ-196): el formulario de contacto también enlaza "aviso de
+    // privacidad" en su letra pequeña -- `getByRole` compara nombres
+    // accesibles sin distinguir mayúsculas, así que sin acotar al `<footer>`
+    // (role `contentinfo`) el locator es ambiguo (dos enlaces a /privacidad).
+    const pie = page.getByRole("contentinfo");
+    await pie.getByRole("link", { name: "Aviso de privacidad" }).click();
     await expect(page).toHaveURL(/\/privacidad$/);
 
     await page.goBack();
-    await page.getByRole("link", { name: "Términos de servicio" }).click();
+    await pie.getByRole("link", { name: "Términos de servicio" }).click();
     await expect(page).toHaveURL(/\/legal\/terminos$/);
     await expect(page.getByText("Borrador pendiente de validación jurídica")).toBeVisible();
   });

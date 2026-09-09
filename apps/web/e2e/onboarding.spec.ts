@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, expect } from "./fixtures";
 import { createSeedClient } from "./seed-client";
+import { mailCaptureFile, waitForMailLink } from "./mail-capture";
 import type { SeedData } from "./global-setup";
 import { seriousOrCriticalViolations, formatViolations } from "./utils/a11y";
 
@@ -20,7 +21,15 @@ function readSeedApiUrl(): string {
 // organización todavía -- ninguna identidad del seed de global-setup.ts
 // sirve aquí (`admin`/`writer` ya son miembros de orgA/orgB/orgC/orgD desde
 // el arranque).
+//
+// Ronda 8b (REQ-181): `test:e2e:full` arranca la API con
+// `REQUIRE_EMAIL_VERIFICATION=true` (scripts/e2e-full.mjs), así que una
+// cuenta recién registrada YA NO entra a /login sin más -- ver más abajo,
+// se confirma con el enlace real de la bandeja de captura antes de intentar
+// el login. Sin esa bandeja (`E2E_MAIL_CAPTURE_FILE`) no hay forma honesta
+// de confirmarla, así que la prueba se salta en vez de fingir.
 test.skip(!process.env.E2E_API_URL, "requiere `npm run test:e2e:full` (arranca apps/api real)");
+test.skip(!mailCaptureFile(), "requiere la bandeja de captura de correo (E2E_MAIL_CAPTURE_FILE) para confirmar la cuenta");
 
 test.describe("Onboarding: primer login sin organizaciones", () => {
   test("wizard completo hasta el checklist real del panel", async ({ noAuthPage: page }) => {
@@ -31,6 +40,14 @@ test.describe("Onboarding: primer login sin organizaciones", () => {
     const email = `e2e-onboarding-${runId}@atiende.test`;
     const password = "ContraseñaSeguraE2E123";
     await client.register(email, password);
+
+    // REQ-181: confirma el correo con el enlace REAL que la API dejó en su
+    // bandeja de captura, server-a-server -- este spec prueba el onboarding
+    // posterior al login, no la pantalla de verificación (esa la cubre
+    // e2e/correo-cuenta.spec.ts).
+    const enlace = await waitForMailLink(email, "/verificar-correo");
+    const params = new URL(enlace).searchParams;
+    await client.verifyEmail({ d: params.get("d")!, s: params.get("s")! });
 
     await page.goto("/login");
     await page.getByLabel("Correo electrónico").fill(email);
