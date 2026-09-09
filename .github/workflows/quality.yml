@@ -184,9 +184,37 @@ jobs:
   # ---------------------------------------------------------------------
   # E2E de apps/web (Playwright + axe-core) sobre el build de producción
   # servido con `vite preview` — ver apps/web/playwright.config.ts.
+  #
+  # Corre `test:e2e:full` (no el `test:e2e` a secas) CONTRA UNA apps/api
+  # REAL, no la suite "sin sesión". Evidencia de que esa es la intención
+  # original, no una tercera opción inventada aquí:
+  #   - `apps/web/playwright.config.ts` documenta la variante sin
+  #     `E2E_API_URL` como el modo degradado ("queda limitada a lo que sea
+  #     alcanzable sin sesión"), no como el modo de referencia.
+  #   - `e2e/recorrido.spec.ts` (y otros specs sin guarda `test.skip`) dan
+  #     por hecho que el fixture `page` por defecto "ya llega autenticado
+  #     como admin" — es decir, están escritos asumiendo que la suite SIEMPRE
+  #     corre con sesión real, no que deban saltarse sin ella.
+  #   - `docs/PROGRESO.md` registra corrida tras corrida de
+  #     `test:e2e:full` en verde (89/2/3, 97/0/0, 116/116, 133/133…) como la
+  #     prueba real de cada ronda — nunca `test:e2e` a secas.
+  #   - `docs/BLOQUEOS.md` (B-09) señala que "`e2e-web` nunca ha pasado" en
+  #     CI (que sí usa `test:e2e` a secas) precisamente por fallos de tipo
+  #     "element(s) not found" — la firma de correr sin sesión contra
+  #     pantallas detrás de `RequireAuth` — y lo cataloga como deuda
+  #     preexistente a reparar, no como comportamiento esperado.
+  #   - `apps/web/scripts/e2e-full.mjs` (invocado por `test:e2e:full`) ya
+  #     orquesta TODO lo necesario por sí solo: arranca un proveedor OIDC
+  #     falso en loopback, levanta `apps/api` real con `DATABASE_URL=
+  #     pglite://memory` (Postgres embebido en memoria, sin servicio externo
+  #     que declarar aquí — a diferencia del job `db-postgres`, que sí
+  #     necesita Postgres real porque prueba el driver `pg`), siembra
+  #     organizaciones/usuarios reales llamando a la propia API, exporta
+  #     `E2E_API_URL` y sólo entonces corre Playwright — y apaga todo al
+  #     terminar, propagando el código de salida real.
   # ---------------------------------------------------------------------
   e2e-web:
-    name: e2e-web (Playwright)
+    name: e2e-web (Playwright, contra apps/api real)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -199,10 +227,10 @@ jobs:
       - name: Instalar dependencias (workspace completo)
         run: npm ci
 
-      - name: Verificar que apps/web define test:e2e
+      - name: Verificar que apps/web define test:e2e:full
         run: |
-          if ! npm run --workspace=apps/web 2>/dev/null | grep -q '^  test:e2e$'; then
-            echo "::error::apps/web ya no define el script test:e2e; ajusta este job." >&2
+          if ! npm run --workspace=apps/web 2>/dev/null | grep -q '^  test:e2e:full$'; then
+            echo "::error::apps/web ya no define el script test:e2e:full; ajusta este job." >&2
             exit 1
           fi
 
@@ -221,8 +249,11 @@ jobs:
         # revisando apt, pero no vuelve a descargar el binario del navegador).
         run: npx --prefix apps/web playwright install --with-deps chromium
 
-      - name: Build + Playwright + axe-core (test:e2e)
-        run: npm run test:e2e --workspace=apps/web
+      - name: Build + apps/api real (PGlite en memoria) + Playwright + axe-core (test:e2e:full)
+        # tsx (usado por scripts/e2e-full.mjs para arrancar apps/api desde TS)
+        # ya está disponible tras `npm ci` en la raíz — el mismo binario que
+        # usa el job db-postgres de arriba (`npx tsx scripts/db-postgres-*.mjs`).
+        run: npm run test:e2e:full --workspace=apps/web
 
       - name: Subir reporte de Playwright (si existe)
         if: always()
