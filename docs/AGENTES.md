@@ -137,3 +137,4 @@ Nota: la herramienta Agent de esta versión no expone el ID de modelo del subage
 | 130 | 2026-09-08 | Continuación de #125: AM-03 ALTA (webhook) y AM-05; AM-01 b70a1ea y AM-02 640ecce ya commiteados | model="sonnet" | pendiente | en curso |
 | 131 | 2026-09-08 | Continuación de #124 adaptación Supabase + Vercel (0090 rate limit en Postgres, entrada serverless, tick, docs) | model="sonnet" | pendiente | en curso |
 | 132 | 2026-09-08 | Continuación de #127 auditoría web r7/8a (worktree wt-web-r7r8a; rubros 5–6 ya verificados) | model="sonnet" | pendiente | en curso |
+| 133 | 2026-09-08 | fix infra IN-01 (paridad de variables compose ↔ config), IN-02 (check-secrets: falsos positivos, patrones Resend/JWT), IN-03 (.env.prod.example) y MEDIA/BAJA vigentes tras el 7-sep | model="sonnet" | pendiente | en curso |

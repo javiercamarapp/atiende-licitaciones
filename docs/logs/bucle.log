@@ -181,3 +181,4 @@
 2026-09-06 17:49  NOTIF  #117 api r6b cerrada (R6-09..14); Supabase CLI listado en background; en curso #118 #120 #121 #122 #123 #124.
 2026-09-06 17:55  INC-14  429 servidor cortó #120 #121 #122 → #125 #126 #127 Opus; Supabase login pendiente del usuario en Terminal.
 2026-09-08 20:59  DESPERTAR  INC-15 límite semanal (Sep 6 18:2x → Sep 8 20:00); infra acta recuperada af853d2; despachos #128–#132; Supabase token pendiente.
+2026-09-08 21:02  MERGE  2d06943 integra ~45 commits del 7-sep de otra sesión; agentes avisados; despacho #133 infra; en curso #128–#133.
