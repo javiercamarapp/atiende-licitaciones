@@ -490,4 +490,89 @@ describe('run_agent handler (esqueleto)', () => {
     expect(toolCallCorrelationIds.length).toBeGreaterThan(0);
     expect(toolCallCorrelationIds.every((c) => c === tenderId)).toBe(true);
   });
+
+  describe('WK6-04 (docs/auditoria-2/worker-agentes-reverificacion.md, MEDIA): correlationId se sanea ANTES de persistir en agent_runs', () => {
+    async function runWithCorrelationId(
+      db: DbClient,
+      orgId: string,
+      userId: string,
+      jobId: string,
+      correlationId: string,
+    ): Promise<{ agentRunId: string }> {
+      const { rows } = await db.query<{ id: string }>(
+        `insert into agent_runs (org_id, agent_name, input, status, started_by) values ($1, 'demo-agent', '{}'::jsonb, 'running', $2) returning id`,
+        [orgId, userId],
+      );
+      const agentRunId = rows[0].id;
+      const handler = createRunAgentHandler({ db, buildProvider: () => new FakeProvider() });
+      const job = {
+        id: jobId,
+        orgId,
+        kind: 'run_agent',
+        payload: {
+          agentRunId,
+          organizationId: orgId,
+          actorId: userId,
+          actorRole: 'licitador' as const,
+          agentName: 'demo-agent',
+          prompt: 'demo WK6-04',
+          correlationId,
+        },
+        status: 'running' as const,
+        attempts: 1,
+        maxAttempts: 5,
+        nextRunAt: new Date(),
+        lockedAt: new Date(),
+        lockedBy: 'worker-test',
+        lastError: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      await handler(job, makeCtx());
+      return { agentRunId };
+    }
+
+    it('un byte NUL en job.payload.correlationId nunca llega a agent_runs.correlation_id/output -- se sanea a un id derivado', async () => {
+      const { orgId, userId } = await seedOrgAndUser(db, 'wk604-nul');
+      const withNul = 'ok\0malo';
+
+      const { agentRunId } = await runWithCorrelationId(db, orgId, userId, 'job-wk604-nul', withNul);
+
+      const { rows } = await db.query<{ correlation_id: string | null; output: { correlationId: string | null } }>(
+        `select correlation_id, output from agent_runs where id = $1`,
+        [agentRunId],
+      );
+      expect(rows[0].correlation_id).not.toBe(withNul);
+      expect(rows[0].correlation_id).toMatch(/^sane-[0-9a-f]{16}$/);
+      expect(rows[0].output.correlationId).toBe(rows[0].correlation_id);
+    });
+
+    it('10 KB / ANSI / RTL en job.payload.correlationId se sanean antes de llegar a la fila -- nunca el valor crudo', async () => {
+      const { orgId, userId } = await seedOrgAndUser(db, 'wk604-huge');
+      const malicious = 'A'.repeat(10 * 1024) + '\x1b[31mROJO\x1b[0m';
+
+      const { agentRunId } = await runWithCorrelationId(db, orgId, userId, 'job-wk604-huge', malicious);
+
+      const { rows } = await db.query<{ correlation_id: string | null; output: { correlationId: string | null } }>(
+        `select correlation_id, output from agent_runs where id = $1`,
+        [agentRunId],
+      );
+      expect(rows[0].correlation_id).not.toBe(malicious);
+      expect(rows[0].correlation_id?.length).toBeLessThanOrEqual(64);
+      expect(rows[0].correlation_id).toMatch(/^sane-[0-9a-f]{16}$/);
+      expect(rows[0].output.correlationId).toBe(rows[0].correlation_id);
+    });
+
+    it('un correlationId ya valido (UUID) persiste intacto en la columna -- no hay sobre-saneamiento', async () => {
+      const { orgId, userId } = await seedOrgAndUser(db, 'wk604-valid');
+      const validUuid = '22222222-3333-4444-5555-666666666666';
+
+      const { agentRunId } = await runWithCorrelationId(db, orgId, userId, 'job-wk604-valid', validUuid);
+
+      const { rows } = await db.query<{ correlation_id: string | null }>(`select correlation_id from agent_runs where id = $1`, [
+        agentRunId,
+      ]);
+      expect(rows[0].correlation_id).toBe(validUuid);
+    });
+  });
 });

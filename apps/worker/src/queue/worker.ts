@@ -1,4 +1,5 @@
 import type { Logger } from '../logger.js';
+import { sanitizeCorrelationId } from '../lib/correlation-id.js';
 import { JobMetrics } from './metrics.js';
 import type { JobQueue } from './job-queue.js';
 import type { Job, JobHandler } from './types.js';
@@ -39,11 +40,23 @@ function describeError(error: unknown): string {
  * sin ese campo, se conserva el comportamiento anterior (`job.id`) para no
  * perder correlación alguna. `job_id` sigue siempre presente por separado
  * como identificador técnico de la cola (fencing, reintentos, etc.).
+ *
+ * WK6-04 (docs/auditoria-2/worker-agentes-reverificacion.md, MEDIA): antes
+ * de esta ronda el único filtro era "es un string no vacío" — sin tope de
+ * longitud ni filtro de caracteres, así que 10 KB, saltos de línea,
+ * overrides bidireccionales (RTL/LRO) o secuencias ANSI dentro del valor
+ * pasaban íntegros a cada línea de log. Ahora se sanea con
+ * `sanitizeCorrelationId` (`../lib/correlation-id.js`, ÚNICA función de
+ * saneamiento compartida con `agents/enqueue-agent-run.ts` y
+ * `handlers/run-agent.ts`): un valor que no es un UUID o un token
+ * `[A-Za-z0-9._-]{1,64}` se reemplaza por un id derivado determinista
+ * (`sane-<hash>`), nunca se propaga el valor crudo al logger.
  */
 function businessCorrelationId(payload: unknown): string | null {
   if (payload && typeof payload === 'object' && 'correlationId' in payload) {
     const value = (payload as { correlationId?: unknown }).correlationId;
-    if (typeof value === 'string' && value.length > 0) return value;
+    const sanitized = sanitizeCorrelationId(value);
+    if (sanitized) return sanitized.value;
   }
   return null;
 }

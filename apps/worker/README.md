@@ -899,6 +899,113 @@ arbitrario — subirlo solo en el que falló esa vez dejaría a los otros 4
 igual de frágiles. El default de 5000ms se conserva para el resto de la
 suite, para no enmascarar regresiones de rendimiento en otros archivos.
 
+### WK6-04: el `correlationId` de negocio se sanea en la frontera de `apps/worker` (docs/auditoria-2/worker-agentes-reverificacion.md, MEDIA)
+
+La reverificación de la ronda K encontró que, aunque WK6-02 ya hacía llegar
+el `correlationId` de negocio al log y a `agent_runs`, **nada dentro de
+`apps/worker` lo validaba ni lo saneaba**: 10 KB pasaban íntegros a cada
+línea de log y a la base, un valor con salto de línea/JSON falso, un
+override bidireccional RTL (U+202E) o secuencias de escape ANSI sobrevivían
+verbatim en el campo `correlation_id`, y un byte NUL rompía directamente el
+`INSERT` en Postgres (`unsupported Unicode escape sequence`: jsonb no admite
+el byte 0x00) para cualquier productor interno que lo escribiera en un payload
+nuevo. Hoy no era explotable desde fuera (`apps/api` ya sanea a UUID en su
+frontera, `plugins/correlation-id.plugin.ts`, y los dos productores internos
+de `run_agent` pasan UUIDs reales de la base), pero `apps/worker` no tenía
+NINGUNA defensa propia ni lo declaraba.
+
+**Contrato declarado (nuevo)**: el `correlationId` que llega en
+`payload.correlationId` de cualquier job es un dato de negocio de
+**confianza limitada**. `src/lib/correlation-id.ts` expone la ÚNICA función
+de saneamiento (`sanitizeCorrelationId`), aplicada en las tres fronteras
+donde ese valor puede cruzar hacia un log o una columna persistida:
+
+1. **`src/queue/worker.ts`** (`businessCorrelationId`) — al LEER el payload
+   de un job ya reclamado, antes de fijarlo como binding del logger hijo de
+   pino.
+2. **`src/agents/enqueue-agent-run.ts`** — al ESCRIBIR el payload de un job
+   `run_agent` nuevo, para que un valor con NUL nunca llegue a
+   `JobQueue.enqueue()` (evita el `INSERT` roto de raíz para este
+   productor).
+3. **`src/handlers/run-agent.ts`** — antes de construir `AgentRunRequest`,
+   para que `run.correlationId`/`ToolCallTrace.correlationId`/
+   `agent_runs.correlation_id` (columna real, E20) nunca reciban el valor
+   crudo.
+
+Acepta solo un **UUID** o un **token opaco** `[A-Za-z0-9._-]{1,64}`.
+Cualquier otro valor se reemplaza por un **id derivado determinista**
+(`sane-<16 hex de sha256 del valor crudo completo>`): el valor original
+NUNCA se propaga, pero el reemplazo es estable — el mismo valor crudo
+malformado siempre deriva el mismo id saneado, así que jobs relacionados del
+mismo productor (p. ej. reintentos con el mismo `correlationId` corrupto)
+siguen siendo agrupables entre sí. Cuando no hay NINGÚN valor usable (falta,
+no es `string`, o cadena vacía), `sanitizeCorrelationId` devuelve `null` y
+cada llamador conserva su propio respaldo ya existente (`job.id`, WK6-02) —
+esa caída no cambia.
+
+**Límite que sigue siendo cierto**: un byte NUL en un `correlationId`
+producido por un productor FUERA de `apps/worker` (p. ej. una llamada
+directa a `JobQueue.enqueue()` desde otro paquete/proceso) sigue rompiendo
+el `INSERT` de Postgres — el saneamiento de este paquete no puede proteger
+un `INSERT` que nunca pasa por su propio código de escritura
+(`enqueueAgentRun`). `test/worker-log-correlation.test.ts` documenta este
+límite con una prueba explícita (`queue.enqueue()` directo con NUL sigue
+lanzando).
+
+Tests: `test/correlation-id-sanitize.test.ts` (la función pura: UUID válido,
+token corto, 10 KB, ANSI, RTL, salto de línea + JSON falso, NUL, valores
+distintos derivan ids distintos, sin valor usable → `null`);
+`test/worker-log-correlation.test.ts` (WK6-04, camino real de
+`Worker.process()` con logger de pino real: ninguno de esos payloads
+adversariales sobrevive en `correlation_id`); `test/enqueue-agent-run.test.ts`
+(WK6-04: el payload escrito nunca lleva el valor crudo, un NUL nunca rompe
+el `INSERT`); `test/run-agent-handler.test.ts` (WK6-04: `agent_runs.correlation_id`/
+`output.correlationId` solo reciben valores saneados).
+
+#### WK6-04, hallazgo 1 (reverificación): `agent_runs.correlation_id` quedaba NULL hasta el final de la corrida — "audit gap" en la ruta de encolado
+
+`enqueueAgentRun()` (`src/agents/enqueue-agent-run.ts`) ya calculaba el
+`correlationId` saneado para el payload del job `run_agent`, pero el
+`INSERT` que abre la fila `agent_runs` (estado inicial `running`) no
+escribía esa misma columna — solo lo hacía `updateAgentRunRow`
+(`src/handlers/run-agent.ts`) al CERRAR la corrida. A diferencia de
+`apps/api/src/lib/agent-stores.pg.ts`, que sí puebla `correlation_id` desde
+su propio `INSERT` para las corridas que abre directamente, una corrida
+disparada por este camino que muriera antes de terminar (proceso caído,
+`fenced` por WK-02/WK-14, lease expirado) dejaba la fila en
+`status = 'running'` con `correlation_id is null` de forma PERMANENTE: un
+hueco real de auditoría (REQ-171 no podía encontrar, por `correlation_id`,
+una corrida abierta por este camino que nunca cerró). Corregido: el mismo
+`sanitizeCorrelationId(...)` ya calculado se reutiliza también en el
+`INSERT` inicial, así que la fila nace correlacionable desde el primer
+instante, no solo al final. Tests: `test/enqueue-agent-run.test.ts`
+(describe "audit gap": `correlation_id` presente en la fila `running` recién
+abierta, un valor malformado llega ya como el mismo id derivado que el
+payload del job, y sin `correlationId` la columna sigue NULL sin cambio de
+comportamiento).
+
+#### WK6-04, hallazgo 2 (reverificación): una 4ª frontera sin sanear — `discover-tenders.ts` hacia `source_runs` y la cabecera `X-Correlation-Id`
+
+El módulo de saneamiento (`src/lib/correlation-id.ts`) documentaba tres
+fronteras, pero `createDiscoverTendersHandler()` (`src/handlers/discover-tenders.ts`,
+REQ-171) usaba `job.payload.correlationId ?? job.id` SIN pasar por
+`sanitizeCorrelationId` antes de escribirlo en `source_runs.correlation_id`
+y de mandarlo tal cual como la cabecera saliente `X-Correlation-Id` hacia
+`POST /internal/tenders/ingest` (`src/ingest/ingest-client.ts`). Ahí un
+byte NUL rompe el mismo `INSERT` que en `agent_runs`/`jobs`, pero un salto
+de línea/CR en el valor es además **inyección de cabecera HTTP** hacia
+`apps/api`, no solo un dato sucio en un log. Hoy el único productor de jobs
+`discover_tenders` es el scheduler (`src/scheduler/scheduler.ts`), que
+nunca fija `correlationId` (cae siempre a `job.id`, un UUID real) — no
+explotable en la práctica hoy, mismo perfil de riesgo que las otras tres
+fronteras antes de esta corrección — pero el payload es JSONB sin esquema
+forzado igual que el de `run_agent`, así que se cierra por el mismo
+motivo. `src/lib/correlation-id.ts` ahora documenta esta cuarta frontera.
+Tests: `test/discover-tenders-handler.test.ts` (un `correlationId` con
+CRLF + 10 KB nunca llega a `source_runs.correlation_id` ni a la cabecera —
+ambos terminan con el mismo id derivado —; un UUID válido sigue pasando
+intacto, sin sobre-saneamiento).
+
 ## Pendientes / fuera de alcance de esta ronda
 
 - **Acoplamiento a un contrato "espejo", no importado directamente**:

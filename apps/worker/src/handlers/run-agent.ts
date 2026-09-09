@@ -22,6 +22,7 @@ import {
 } from '@atiende/agents';
 import type { JobHandler } from '../queue/types.js';
 import { JobQueue } from '../queue/job-queue.js';
+import { sanitizeCorrelationId } from '../lib/correlation-id.js';
 import { buildBusinessToolRegistry } from '../agents/business-tools.js';
 import { NAMED_AGENTS, buildNamedAgentPlan, isNamedAgent } from '../agents/named-agents.js';
 import { assertAgentNotDisabled, parseDisabledAgents } from '../agents/kill-switch.js';
@@ -460,13 +461,28 @@ export function createRunAgentHandler(deps: RunAgentHandlerDeps): JobHandler<Run
       ? buildNamedAgentPlan(agentName, job.payload.context ?? {})
       : [{ toolName: 'llm_complete', input: { prompt: job.payload.prompt ?? '', tier: job.payload.tier ?? 'economico' } }];
 
+    // WK6-04 (docs/auditoria-2/worker-agentes-reverificacion.md, MEDIA):
+    // antes de esta ronda `job.payload.correlationId` se usaba tal cual
+    // (solo con la caída a `job.id` de WK6-02) -- un valor mal formado (10
+    // KB, control chars, overrides bidireccionales RTL/LRO, ANSI) llegaba
+    // íntegro a `run.correlationId`, a cada `ToolCallTrace.correlationId` y
+    // finalmente a `agent_runs.output`/`agent_runs.correlation_id`. Se sanea
+    // aquí, ANTES de construir `AgentRunRequest` (misma función que
+    // `queue/worker.ts`/`agents/enqueue-agent-run.ts`), para que la columna
+    // `agent_runs.correlation_id` (E20, ya escrita desde
+    // `updateAgentRunRow` más abajo) solo reciba valores saneados: un UUID,
+    // un token `[A-Za-z0-9._-]{1,64}`, un id derivado determinista, o
+    // `job.id` de respaldo si no hay ningún valor usable (comportamiento de
+    // WK6-02 sin cambios para ese caso).
+    const sanitizedCorrelationId = sanitizeCorrelationId(job.payload.correlationId)?.value ?? job.id;
+
     const request: AgentRunRequest = {
       organizationId: job.payload.organizationId,
       actorId: job.payload.actorId,
       actorRole: job.payload.actorRole,
       agentName,
       steps,
-      correlationId: job.payload.correlationId ?? job.id,
+      correlationId: sanitizedCorrelationId,
     };
 
     const run = await runner.run(request);

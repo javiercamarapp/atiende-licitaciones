@@ -1,6 +1,7 @@
 import type { DbClient } from '@atiende/db';
 import type { Role } from '@atiende/agents';
 import type { JobQueue } from '../queue/job-queue.js';
+import { sanitizeCorrelationId } from '../lib/correlation-id.js';
 import { withWorkerAgentRunsInsertContext, SchemaGrantPendingError } from './db-context.js';
 import type { NamedAgent } from './named-agents.js';
 
@@ -36,19 +37,47 @@ export interface EnqueueAgentRunParams {
  * como limitación explícita mientras esa migración no se aplique — nunca se
  * pierde silenciosamente el EVENTO en sí (el job sigue encolándose), solo
  * su trazabilidad en `agent_runs`.
+ *
+ * WK6-04 (docs/auditoria-2/worker-agentes-reverificacion.md, MEDIA;
+ * reverificación de la ronda K, "audit gap" en la ruta de encolado): antes
+ * de esta corrección, `correlation_id` se dejaba NULL en este INSERT
+ * inicial y solo se escribía al FINAL de la corrida, en el `UPDATE` de
+ * `updateAgentRunRow` (`src/handlers/run-agent.ts`) — a diferencia de
+ * `apps/api/src/lib/agent-stores.pg.ts`, que sí puebla la columna desde el
+ * INSERT para las corridas que abre directamente. Si el proceso moría, el
+ * job quedaba huérfano/`fenced` (WK-02/WK-14) o la lease simplemente
+ * expiraba antes de llegar a ese `UPDATE` final, la fila quedaba con
+ * `status = 'running'` y `correlation_id is null` INDEFINIDAMENTE: un
+ * hueco de auditoría real (REQ-171: no hay forma de encontrar, por
+ * `correlation_id`, una corrida abierta por este camino que nunca
+ * terminó). El valor ya se sanea aquí mismo para el payload del job (ver
+ * más abajo); se reutiliza ese mismo resultado para que la fila nazca YA
+ * correlacionable, sin esperar a que la corrida termine.
  */
 export async function enqueueAgentRun(
   db: DbClient,
   queue: JobQueue,
   params: EnqueueAgentRunParams,
 ): Promise<{ jobId: string; deduped: boolean; agentRunId?: string; agentRunPersisted: boolean }> {
+  // WK6-04: única función de saneamiento (ver docstring de
+  // `../lib/correlation-id.ts`), calculada UNA vez y reutilizada tanto para
+  // el INSERT inicial de `agent_runs` (abajo) como para el payload del job
+  // `run_agent` (más abajo) -- ambos deben terminar con el MISMO valor
+  // saneado.
+  const sanitizedCorrelationId = sanitizeCorrelationId(params.correlationId)?.value;
+
   let agentRunId: string | undefined;
   let agentRunPersisted = false;
   try {
     const created = await withWorkerAgentRunsInsertContext(db, params.organizationId, (tx) =>
       tx.query<{ id: string }>(
-        `insert into agent_runs (org_id, agent_name, input, status) values ($1, $2, $3::jsonb, 'running') returning id`,
-        [params.organizationId, params.agentName, JSON.stringify({ context: params.context, eventKey: params.eventKey })],
+        `insert into agent_runs (org_id, agent_name, input, status, correlation_id) values ($1, $2, $3::jsonb, 'running', $4) returning id`,
+        [
+          params.organizationId,
+          params.agentName,
+          JSON.stringify({ context: params.context, eventKey: params.eventKey }),
+          sanitizedCorrelationId ?? null,
+        ],
       ),
     );
     agentRunId = created.rows[0]?.id;
@@ -68,7 +97,7 @@ export async function enqueueAgentRun(
       actorRole: params.actorRole,
       agentName: params.agentName,
       context: params.context,
-      correlationId: params.correlationId,
+      correlationId: sanitizedCorrelationId,
     },
     { orgId: params.organizationId, jobKey: `run_agent:${params.agentName}:${params.eventKey}` },
   );
