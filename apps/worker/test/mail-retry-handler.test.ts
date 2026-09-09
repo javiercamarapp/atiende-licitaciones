@@ -76,7 +76,22 @@ async function auditRows(db: DbClient, messageKey: string): Promise<{ action: st
   return rows;
 }
 
-describe('mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional', () => {
+/**
+ * Mismo patrón que `db-proposals/PROPOSAL-06-agent-business-tools-grants.test.ts`
+ * (README §WK6-03, "deja de ser flaky bajo carga completa"): bajo una corrida
+ * completa de la suite (>20 archivos con PGlite real en paralelo, host
+ * compartido con carga externa observada de hasta load average ~40) el test
+ * "éxito tras fallo" -- el único de este archivo que hace DOS ciclos
+ * completos de `createMailRetryHandler`/reserve()/reopen contra PGlite real,
+ * el doble de trabajo que cualquier otro test de este archivo -- expiró en
+ * `testTimeout` por defecto (5000ms) aunque pasa en ~6-9s aislado sin esa
+ * contención externa. Se sube a 20000ms para TODO el archivo (no solo ese
+ * test): los demás comparten el mismo riesgo de contención bajo la misma
+ * corrida, y cuál pierde la carrera es arbitrario. El default global de
+ * vitest.config.ts no se toca, para no enmascarar una regresión de
+ * rendimiento real en otro archivo.
+ */
+describe('mail_retry handler (REQ-188/S7): reintento diferido de un correo transaccional', { timeout: 20_000 }, () => {
   let db: DbClient | undefined;
 
   afterEach(async () => {
