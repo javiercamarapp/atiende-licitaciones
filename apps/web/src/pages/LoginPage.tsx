@@ -152,16 +152,27 @@ export default function LoginPage() {
 
       <section className="flex min-h-screen flex-col px-6 py-7 sm:px-10 lg:px-14 lg:py-10">
         <div className="mx-auto flex w-full max-w-[420px] flex-1 flex-col">
-          <header className="flex items-center">
+          <header className="login-entra flex items-center">
             <AtiendeWordmark />
           </header>
 
           <div className="flex flex-1 flex-col justify-center py-12">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Acceso al panel</p>
-            <h1 className="login-serif mt-5 text-[34px] font-medium leading-[1.15] text-foreground sm:text-[42px]">
+            <p
+              className="login-entra text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground"
+              style={{ animationDelay: "40ms" }}
+            >
+              Acceso al panel
+            </p>
+            <h1
+              className="login-entra login-serif mt-5 text-[34px] font-medium leading-[1.15] text-foreground sm:text-[42px]"
+              style={{ animationDelay: "90ms" }}
+            >
               Accede a tu panel de licitaciones
             </h1>
-            <p className="mt-4 text-[15px] leading-relaxed text-muted-foreground">
+            <p
+              className="login-entra mt-4 text-[15px] leading-relaxed text-muted-foreground"
+              style={{ animationDelay: "140ms" }}
+            >
               Gestiona convocatorias, evaluaciones y entregas en un solo lugar.
             </p>
 
@@ -174,7 +185,8 @@ export default function LoginPage() {
             <div
               id="login-form"
               tabIndex={-1}
-              className="mt-9 rounded-2xl ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="login-entra mt-9 rounded-2xl ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              style={{ animationDelay: "190ms" }}
             >
               <PasswordLoginForm />
 
@@ -203,18 +215,26 @@ export default function LoginPage() {
         </div>
       </section>
 
-      {/* Lámina decorativa: ver README.md. */}
-      <aside
-        aria-hidden="true"
-        className="relative hidden overflow-hidden bg-[linear-gradient(160deg,hsl(var(--primary))_0%,hsl(216_45%_9%)_100%)] lg:flex lg:flex-col lg:justify-end lg:p-10"
-      >
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,hsl(0_0%_100%/0.12),transparent_45%)]" />
-        <p className="relative text-xs font-semibold uppercase tracking-[0.16em] text-primary-foreground/70">
-          Licitaciones públicas en México
-        </p>
-        <p className="login-serif relative mt-3.5 max-w-sm text-[26px] leading-tight text-primary-foreground">
-          Convocatorias, evaluación y entrega, en un solo lugar.
-        </p>
+      {/* Lámina derecha: foto real (Higgsfield/gpt_image_2) con Ken Burns +
+          velo, mismo patrón que atiende-restaurantes/atiende-citas — ver
+          README.md § "Paridad del login con Restaurantes". */}
+      <aside aria-hidden="true" className="hidden lg:flex lg:flex-col lg:py-10 lg:pl-6 lg:pr-10">
+        <figure className="login-lamina min-h-0 flex-1 rounded-[22px] border border-border">
+          <img
+            src={`${import.meta.env.BASE_URL}images/login-hero.png`}
+            alt=""
+            className="login-foto-marca absolute inset-0 h-full w-full object-cover"
+          />
+          <div className="login-velo" />
+          <figcaption className="absolute inset-x-0 bottom-0 z-10 p-10">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary-foreground/70">
+              Licitaciones públicas en México
+            </p>
+            <p className="login-serif relative mt-3.5 max-w-sm text-[26px] leading-tight text-primary-foreground">
+              Convocatorias, evaluación y entrega, en un solo lugar.
+            </p>
+          </figcaption>
+        </figure>
       </aside>
     </main>
   );

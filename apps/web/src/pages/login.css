@@ -14,3 +14,47 @@
   font-family: "Fraunces", ui-serif, Georgia, serif;
   font-optical-sizing: auto;
 }
+
+/* Lámina derecha: mismo material que .login-lamina de atiende-restaurantes
+   (y, antes que eso, de Likida) — foto real (Higgsfield/gpt_image_2) + velo
+   de contraste para que el texto encima siga siendo legible. */
+.login-lamina {
+  position: relative;
+  overflow: hidden;
+}
+.login-velo {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, hsl(216 45% 9%) 78%, transparent) 0%,
+    color-mix(in srgb, hsl(216 45% 9%) 38%, transparent) 24%,
+    transparent 48%
+  );
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .login-foto-marca {
+    animation: login-kenburns 30s ease-in-out infinite alternate, login-revela 1.1s ease-out both;
+    transform-origin: 45% 60%;
+  }
+
+  .login-entra {
+    opacity: 0;
+    animation: login-sube 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+
+@keyframes login-kenburns {
+  from { transform: scale(1); }
+  to { transform: scale(1.08); }
+}
+@keyframes login-revela {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes login-sube {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
