@@ -19,6 +19,8 @@ import type { DbExecutor } from '@atiende/db';
 import { recordSecurityAudit } from '../../lib/audit.js';
 import { ConflictError, ForbiddenError, TooManyRequestsError } from '../../lib/errors.js';
 import { checkTwofaLockout, recordTwofaFailure, resetTwofaFailures } from '../../lib/twofa-lockout.js';
+import { sendTwoFactorEnabledEmail, sendBackupCodesGeneratedEmail } from '../../lib/mail/triggers.js';
+import { fireAndForgetMail } from '../../lib/mail/pending.js';
 import {
   encryptSecret,
   decryptSecret,
@@ -147,6 +149,7 @@ export async function twofaRoutes(app: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       const userId = request.userId!;
+      let recipientEmail = userId;
       const result = await withUserTx(app, userId, async (tx) => {
         const existing = await tx.query<{ verified_at: string | Date | null }>('select verified_at from user_totp_secrets where user_id = $1', [userId]);
         if (existing.rows.length > 0 && existing.rows[0].verified_at !== null) {
@@ -155,6 +158,7 @@ export async function twofaRoutes(app: FastifyInstance): Promise<void> {
 
         const userRes = await tx.query<{ email: string }>('select email from users where id = $1', [userId]);
         const email = userRes.rows[0]?.email ?? userId;
+        recipientEmail = email;
 
         const enrollment = generateTotpEnrollment(email);
         const ciphertext = encryptSecret(enrollment.secretBase32, app.config.totpEncryptionKey);
@@ -187,6 +191,16 @@ export async function twofaRoutes(app: FastifyInstance): Promise<void> {
 
         return { secretBase32: enrollment.secretBase32, otpauthUrl: enrollment.otpauthUrl, backupCodes };
       });
+
+      // REQ-181 (plantilla `backup-codes-generated`): ÚNICO momento en que
+      // los códigos existen en claro (ver `sendBackupCodesGeneratedEmail`
+      // en `lib/mail/triggers.ts`) -- se dispara en segundo plano, DESPUÉS
+      // de que el enrolamiento ya hizo commit, para no atar la latencia (ni
+      // el éxito) de esta respuesta a la del proveedor de correo.
+      fireAndForgetMail(app, 'backup-codes-generated', () =>
+        sendBackupCodesGeneratedEmail(app, { id: userId, email: recipientEmail }, result.backupCodes)
+      );
+
       reply.code(201);
       return result;
     }
@@ -252,9 +266,13 @@ export async function twofaRoutes(app: FastifyInstance): Promise<void> {
 
       // Éxito: se persiste todo en UNA transacción final (si algo aquí
       // fallara, sí queremos que se revierta como conjunto atómico).
-      return withUserTx(app, userId, async (tx) => {
+      let recipientEmail = userId;
+      const result = await withUserTx(app, userId, async (tx) => {
         await tx.query('update user_totp_secrets set verified_at = now(), last_used_time_step = $1 where user_id = $2', [verification.timeStep, userId]);
         await resetTwofaFailures(tx, userId);
+
+        const userRes = await tx.query<{ email: string }>('select email from users where id = $1', [userId]);
+        recipientEmail = userRes.rows[0]?.email ?? userId;
 
         // Confirmar el enrolamiento ya prueba posesión del TOTP -- se
         // emite de una vez una sesión de step-up (ver docstring del schema),
@@ -277,6 +295,13 @@ export async function twofaRoutes(app: FastifyInstance): Promise<void> {
         });
         return { enrolled: true as const, stepUpToken: stepUpId, expiresAt };
       });
+
+      // REQ-181 (plantilla `two-factor-enabled`): enviado tras confirmar el
+      // enrolamiento -- en segundo plano, DESPUÉS del commit de arriba (ver
+      // `sendTwoFactorEnabledEmail` en `lib/mail/triggers.ts`).
+      fireAndForgetMail(app, 'two-factor-enabled', () => sendTwoFactorEnabledEmail(app, { id: userId, email: recipientEmail }));
+
+      return result;
     }
   );
 

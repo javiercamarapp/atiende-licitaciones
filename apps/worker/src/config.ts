@@ -23,6 +23,18 @@ export interface WorkerConfig {
 
   /** Si está definido, run_agent usa OpenAIResponsesProvider real; si no, FakeProvider (ver README §Pendientes). */
   openaiApiKey?: string;
+
+  /**
+   * Base pública de `apps/web`, MISMA variable y MISMO valor por defecto que
+   * `apps/api` (`PUBLIC_URL`, ver `apps/api/src/config.ts`) -- usada por el
+   * handler `send_agent_alert` (REQ-181, plantilla `deadline-reminder`) para
+   * armar el CTA del correo y el enlace de preferencias, nunca para firmar
+   * enlaces (ver `mail/build-mail-service.ts`: este proceso no tiene
+   * `linkSigner`).
+   */
+  publicUrl: string;
+  /** MISMA variable y MISMO valor por defecto que `apps/api` (`MAIL_FROM`, ver `apps/api/src/config.ts`). */
+  supportEmail: string;
 }
 
 function num(env: NodeJS.ProcessEnv, key: string, fallback: number): number {
@@ -47,5 +59,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
     apiBaseUrl: env.API_BASE_URL ?? 'http://localhost:3000',
     platformApiKey: env.PLATFORM_API_KEY,
     openaiApiKey: env.OPENAI_API_KEY,
+    publicUrl: env.PUBLIC_URL ?? 'https://app.atiende.mx',
+    supportEmail: env.MAIL_FROM ?? 'soporte@atiende.mx',
   };
 }

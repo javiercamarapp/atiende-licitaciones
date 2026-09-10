@@ -5,6 +5,7 @@ import type { DbClient, DbExecutor } from '@atiende/db';
 import { ingestBodySchema, ingestResponseSchema, type TenderRecordIngest } from './schemas.js';
 import { fireAndForgetMail } from '../../lib/mail/pending.js';
 import { notifyTenderChangeToResponsibles } from '../../lib/mail/tender-change-notify.js';
+import { notifyNewTenderMatchToResponsibles } from '../../lib/mail/new-tender-match-notify.js';
 
 interface IngestOutcome {
   source: string;
@@ -74,8 +75,19 @@ export async function internalIngestRoutes(app: FastifyInstance): Promise<void> 
         for (const orgId of targetOrgIds) {
           const outcome = await ingestOneRecordForOrg(app.db, orgId, record, correlationId);
           results.push(outcome);
-          if (outcome.action === 'created') created += 1;
-          else if (outcome.action === 'updated') {
+          if (outcome.action === 'created') {
+            created += 1;
+            // REQ-181 (plantilla `new-tender-match`): el INSERT de
+            // `outcome.tenderId` ya hizo COMMIT (misma `ingestOneRecordForOrg`
+            // de arriba) -- primera vez que ESTA organización ve esta
+            // convocatoria, el único evento real al que puede engancharse
+            // "nuevo match" (ver docstring de `new-tender-match-notify.ts`:
+            // nunca en cada GET de la pantalla de matching). En segundo
+            // plano, nunca bloquea ni puede revertir la ingesta ya aplicada.
+            fireAndForgetMail(app, 'new-tender-match', () =>
+              notifyNewTenderMatchToResponsibles(app, { organizationId: orgId, tenderId: outcome.tenderId })
+            );
+          } else if (outcome.action === 'updated') {
             updated += 1;
             // REQ-155: la invalidación en cascada de `outcome.tenderId` ya
             // hizo COMMIT dentro de `ingestOneRecordForOrg` (el trigger

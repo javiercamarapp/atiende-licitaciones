@@ -19,6 +19,9 @@ import { withTx, requireTender, requireProposal, collectUsedInputs } from '../..
 import { loadApprovalEvents, replayWorkflow } from '../../lib/expediente/approval-store.pg.js';
 import { getCurrentSealedInputs } from '../../lib/expediente/inputs.js';
 import { writePackageZip, readPackageZip } from '../../lib/expediente/package-storage.js';
+import { fireAndForgetMail } from '../../lib/mail/pending.js';
+import { notifySubmissionPackageReadyToResponsibles } from '../../lib/mail/submission-package-notify.js';
+import { timestampToIso } from '../../lib/expediente/dates.js';
 import { packageAssembleResponseSchema } from './schemas.js';
 
 async function loadChecklistReport(tx: DbExecutor, orgId: string, proposalId: string): Promise<ChecklistReport> {
@@ -93,8 +96,8 @@ export async function expedientePackageRoutes(app: FastifyInstance): Promise<voi
       const userId = request.userId!;
       requireOrgRole(request, WRITE_ROLES, 'Se requiere un rol de escritura para ensamblar el paquete');
 
-      const { manifest } = await withTx(app.db, orgId, userId, async (tx) => {
-        await requireTender(tx, orgId, request.params.tenderId);
+      const { manifest, tenderTitle, submissionDeadlineIso } = await withTx(app.db, orgId, userId, async (tx) => {
+        const tender = await requireTender(tx, orgId, request.params.tenderId);
         const proposal = await requireProposal(tx, orgId, request.params.tenderId);
 
         const sectionsRes = await tx.query<Record<string, unknown>>('select * from proposal_sections where org_id = $1 and proposal_id = $2 order by section_key asc', [orgId, proposal.id]);
@@ -132,8 +135,33 @@ export async function expedientePackageRoutes(app: FastifyInstance): Promise<voi
 
         await recordAudit(tx, { orgId, actorId: userId, action: 'package.assemble', entity: 'package_manifests', entityId: proposal.id as string, after: { status: result.manifest.status, draftReasons: result.manifest.draftReasons }, requestId: request.id, correlationId: request.correlationId });
 
-        return { manifest: result.manifest, zip: result.zip };
+        return {
+          manifest: result.manifest,
+          zip: result.zip,
+          tenderTitle: String(tender.title),
+          submissionDeadlineIso: timestampToIso(tender.submission_deadline as string | Date | null),
+        };
       });
+
+      // REQ-181 (plantilla `submission-package-ready`): el paquete de esta
+      // llamada quedó REALMENTE "ready" (decidido por `PackageAssembler`
+      // arriba, nunca por esta ruta -- A13/A14) -- se notifica a los
+      // miembros responsables en segundo plano, DESPUÉS del commit. Un
+      // re-ensamblado posterior del MISMO expediente que sigue "ready" no
+      // manda un segundo correo: `sendSubmissionPackageReadyEmail` usa una
+      // `messageKey` estable por (usuario, convocatoria), idempotente por
+      // diseño (ver `triggers.ts`).
+      if (manifest.status === 'ready') {
+        fireAndForgetMail(app, 'submission-package-ready', () =>
+          notifySubmissionPackageReadyToResponsibles(app, {
+            organizationId: orgId,
+            tenderId: request.params.tenderId,
+            tenderTitle,
+            submissionDeadlineIso,
+            manifest,
+          })
+        );
+      }
 
       return {
         id: manifest.expedienteId,

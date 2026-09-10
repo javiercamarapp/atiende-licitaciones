@@ -13,10 +13,18 @@ import {
 } from './engine.js';
 import { matchResultSchema, matchListResponseSchema } from './schemas.js';
 
-/** Construye el perfil de matching real (E5) a partir del perfil de empresa
+/**
+ * Construye el perfil de matching real (E5) a partir del perfil de empresa
  * ya capturado por E2 (capabilities/products_services/locations), dentro de
- * la MISMA transacción de tenant ya abierta por el llamador. */
-async function buildProfileAndEligibility(
+ * la MISMA transacción de tenant ya abierta por el llamador.
+ *
+ * Exportada (además de usarse en las dos rutas de este archivo) para que
+ * `lib/mail/new-tender-match-notify.ts` calcule el MISMO matching real al
+ * conectar la plantilla `new-tender-match` a la ingesta de convocatorias
+ * (REQ-181) -- nunca un cómputo paralelo que pudiera divergir del que ve el
+ * usuario en `GET /tenders`/`GET /tenders/:tenderId`.
+ */
+export async function buildProfileAndEligibility(
   tx: DbExecutor,
   orgId: string
 ): Promise<{
@@ -81,7 +89,8 @@ async function buildProfileAndEligibility(
   return { profileInput: { keywords, states }, hardEligibility, missingProfileFields };
 }
 
-async function persistMatch(tx: DbExecutor, orgId: string, tenderId: string, result: FullMatchResult): Promise<void> {
+/** Exportada por el mismo motivo que `buildProfileAndEligibility` arriba: `new-tender-match-notify.ts` persiste el match calculado en la ingesta con la MISMA función (nunca un INSERT paralelo). */
+export async function persistMatch(tx: DbExecutor, orgId: string, tenderId: string, result: FullMatchResult): Promise<void> {
   await tx.query(
     `insert into tender_matches (org_id, tender_id, score, criteria, explanation)
      values ($1, $2, $3, $4::jsonb, $5)

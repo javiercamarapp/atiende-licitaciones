@@ -41,7 +41,7 @@ async function main(): Promise<void> {
       agentEventsQueue: queue,
     }),
     run_agent: createRunAgentHandler({ db, queue }),
-    send_agent_alert: createSendAgentAlertHandler(),
+    send_agent_alert: createSendAgentAlertHandler({ db, publicUrl: config.publicUrl, supportEmail: config.supportEmail }),
     // REQ-188 (S7): reintento diferido de un correo transaccional cuyo
     // primer envío (desde apps/api) agotó los reintentos internos de
     // MailService (ver src/handlers/mail-retry.ts).
