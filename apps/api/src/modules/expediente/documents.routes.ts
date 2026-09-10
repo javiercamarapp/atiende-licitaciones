@@ -7,13 +7,14 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { WRITE_ROLES } from '@atiende/db';
-import { RequirementMatrixBuilder, RuleBasedExtractor, type TenderDocumentText } from '@atiende/expediente';
+import { RequirementMatrixBuilder, RuleBasedExtractor, deriveSectionKeysFromRequirementMatrix, type TenderDocumentText } from '@atiende/expediente';
 import { requireOrgRole } from '../../lib/authorize.js';
 import { NotFoundError } from '../../lib/errors.js';
 import { recordAudit } from '../../lib/audit.js';
 import { decodeBase64Content, storeFile } from '../../lib/storage.js';
 import { extractDocumentText, splitPersistedTextIntoPages } from '../../lib/expediente/text-extraction.js';
 import { withTx, requireTender } from '../../lib/expediente/context.js';
+import { triggerNamedAgentRun } from '../../lib/agent-triggers.js';
 import {
   documentUploadSchema,
   tenderDocumentSchema,
@@ -160,6 +161,30 @@ export async function expedienteDocumentsRoutes(app: FastifyInstance): Promise<v
           after: { filename: request.body.filename, documentKind: request.body.documentKind, textExtractionStatus: extraction.status },
           requestId: request.id, correlationId: request.correlationId,
         });
+
+        // Ronda 6 (completar ciclo analista_bases -> redactor_borrador):
+        // un documento de "bases" con texto ya extraído es exactamente el
+        // evento que `analista_bases` (apps/worker/src/agents/
+        // named-agents.ts) necesita para proponer una matriz de requisitos
+        // (`proponer_requisitos_matriz`) -- se dispara automáticamente,
+        // deduplicado por documento (`document:<id>`, nunca se abren dos
+        // corridas activas para el mismo documento subido). Documentos sin
+        // texto extraído ('requires_ocr'/'failed') NUNCA disparan la
+        // corrida: no hay nada real que analizar todavía (mismo criterio
+        // de "no fabricar éxito" que `/matrix/build` ya aplica al saltarse
+        // esos documentos).
+        if (request.body.documentKind === 'bases' && extraction.status === 'extracted') {
+          await triggerNamedAgentRun(tx, {
+            orgId,
+            actorId: userId,
+            actorRole: request.orgRole!,
+            agentName: 'analista_bases',
+            context: { tenderId: request.params.tenderId },
+            correlationId: request.params.tenderId,
+            eventKey: `document:${id}`,
+          });
+        }
+
         return inserted.rows[0];
       });
 
@@ -278,6 +303,36 @@ export async function expedienteDocumentsRoutes(app: FastifyInstance): Promise<v
           after: { itemsCreated, conflictsCreated, documentsUsed: docs.length },
           requestId: request.id, correlationId: request.correlationId,
         });
+
+        // Ronda 6 (completar ciclo analista_bases -> redactor_borrador):
+        // este endpoint es el evento real de "matriz de requisitos
+        // completa" (única escritura que persiste `requirement_items`
+        // estructurados con `type`/`topicKey`/`status`) -- `sectionKeys` se
+        // deriva en código (`deriveSectionKeysFromRequirementMatrix`,
+        // @atiende/expediente) a partir de `result.items` EN MEMORIA (los
+        // mismos que se acaban de insertar arriba, no una relectura), nunca
+        // decidido por el modelo. Un tema en conflicto (`bloqueado`) se
+        // excluye ahí -- ver docstring de esa función -- así que puede dar
+        // `[]` (p. ej. matriz vacía o todo bloqueado): en ese caso NO se
+        // dispara `redactor_borrador` (`redactorContextSchema` exige al
+        // menos una sección; no tendría nada real que redactar todavía).
+        // Deduplicado por convocatoria (`matrix:<tenderId>`): una
+        // reconstrucción mientras la corrida anterior sigue activa
+        // (`queued`/`running`) no abre una segunda; una reconstrucción
+        // POSTERIOR a que la anterior ya terminó (p. ej. tras una nueva
+        // versión de bases) sí dispara una redacción nueva a propósito.
+        const sectionKeys = deriveSectionKeysFromRequirementMatrix(result.items);
+        if (sectionKeys.length > 0) {
+          await triggerNamedAgentRun(tx, {
+            orgId,
+            actorId: userId,
+            actorRole: request.orgRole!,
+            agentName: 'redactor_borrador',
+            context: { tenderId: request.params.tenderId, sectionKeys },
+            correlationId: request.params.tenderId,
+            eventKey: `matrix:${request.params.tenderId}`,
+          });
+        }
 
         return { itemsCreated, conflictsCreated, documentsUsed: docs.length, documentsSkipped };
       });

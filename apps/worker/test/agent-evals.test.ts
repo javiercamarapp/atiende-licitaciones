@@ -393,6 +393,110 @@ describe('Ronda 6: evals deterministas por agente nombrado', () => {
     });
   });
 
+  // ── providerId/simulated (punto 3, ciclo redactor_borrador) ────────────
+  describe('providerId/simulated: distinguir explícitamente FakeProvider de un proveedor real', () => {
+    async function fetchProviderMeta(agentRunId: string): Promise<{ providerId: string; simulated: boolean }> {
+      const { rows } = await db.query<{ output: { providerId: string; simulated: boolean } }>(
+        `select output from agent_runs where id = $1`,
+        [agentRunId],
+      );
+      return rows[0].output;
+    }
+
+    it('analista_bases (proponer_requisitos_matriz, determinista sin LLM) con FakeProvider construido: simulated=false pese a NO tener OPENAI_API_KEY -- el resultado es 100% real', async () => {
+      const { orgId, userId, tenderId } = await seedTenderWithFullData('eval-meta-ab');
+      const agentRunId = await createAgentRunRow(db, orgId, userId, 'analista_bases');
+      const handler = createRunAgentHandler(baseDeps());
+      await handler(
+        makeJob({ agentRunId, organizationId: orgId, actorId: userId, actorRole: 'licitador', agentName: 'analista_bases', context: { tenderId } }, orgId),
+        makeCtx(),
+      );
+      const meta = await fetchProviderMeta(agentRunId);
+      expect(meta.providerId).toBe('fake');
+      expect(meta.simulated).toBe(false);
+    });
+
+    it('redactor_borrador (proponer_seccion_propuesta, SÍ llama al LLM) con FakeProvider: simulated=true -- el texto de la sección es fabricado por el proveedor determinista, no un texto real', async () => {
+      const { orgId, userId } = await seedOrgAndUser(db, 'eval-meta-rb');
+      await db.query(`insert into experience_records (org_id, title, evidence_ref) values ($1, 'Construcción de puente', 'doc-1')`, [orgId]);
+      const agentRunId = await createAgentRunRow(db, orgId, userId, 'redactor_borrador');
+      const handler = createRunAgentHandler(baseDeps());
+      await handler(
+        makeJob(
+          {
+            agentRunId,
+            organizationId: orgId,
+            actorId: userId,
+            actorRole: 'licitador',
+            agentName: 'redactor_borrador',
+            context: { tenderId: '00000000-0000-0000-0000-000000000010', sectionKeys: ['experiencia'] },
+          },
+          orgId,
+        ),
+        makeCtx(),
+      );
+      const meta = await fetchProviderMeta(agentRunId);
+      expect(meta.providerId).toBe('fake');
+      expect(meta.simulated).toBe(true);
+    });
+
+    it('redactor_borrador BLOQUEADO por falta de evidencia (needs_data, nunca llega a llamar al LLM): simulated=false -- no hay ningún texto fabricado que distinguir', async () => {
+      const { orgId, userId } = await seedOrgAndUser(db, 'eval-meta-rb-blocked');
+      const agentRunId = await createAgentRunRow(db, orgId, userId, 'redactor_borrador');
+      const handler = createRunAgentHandler(baseDeps());
+      const job = makeJob(
+        {
+          agentRunId,
+          organizationId: orgId,
+          actorId: userId,
+          actorRole: 'licitador',
+          agentName: 'redactor_borrador',
+          context: { tenderId: '00000000-0000-0000-0000-000000000011', sectionKeys: ['experiencia'] },
+        },
+        orgId,
+      );
+      await expect(handler(job, makeCtx())).rejects.toThrow();
+      const meta = await fetchProviderMeta(agentRunId);
+      expect(meta.providerId).toBe('fake');
+      expect(meta.simulated).toBe(false);
+    });
+
+    it('con un proveedor real inyectado (buildProvider distinto de FakeProvider), redactor_borrador se marca simulated=false', async () => {
+      const { orgId, userId } = await seedOrgAndUser(db, 'eval-meta-rb-real');
+      await db.query(`insert into experience_records (org_id, title, evidence_ref) values ($1, 'Construcción de puente', 'doc-1')`, [orgId]);
+      const agentRunId = await createAgentRunRow(db, orgId, userId, 'redactor_borrador');
+      const realLikeProvider = {
+        id: 'openai',
+        countryOfResidence: 'US',
+        supportsToolCalls: true,
+        async complete() {
+          return { content: 'texto real', toolCalls: [], usage: { inputTokens: 1, outputTokens: 1 } };
+        },
+        async *stream() {
+          yield { type: 'done' as const, usage: { inputTokens: 1, outputTokens: 1 } };
+        },
+      };
+      const handler = createRunAgentHandler(baseDeps({ buildProvider: () => realLikeProvider }));
+      await handler(
+        makeJob(
+          {
+            agentRunId,
+            organizationId: orgId,
+            actorId: userId,
+            actorRole: 'licitador',
+            agentName: 'redactor_borrador',
+            context: { tenderId: '00000000-0000-0000-0000-000000000012', sectionKeys: ['experiencia'] },
+          },
+          orgId,
+        ),
+        makeCtx(),
+      );
+      const meta = await fetchProviderMeta(agentRunId);
+      expect(meta.providerId).toBe('openai');
+      expect(meta.simulated).toBe(false);
+    });
+  });
+
   // ── vigilante_cambios ─────────────────────────────────────────────────
   describe('vigilante_cambios', () => {
     it('camino feliz: resume cambios reales de la convocatoria', async () => {

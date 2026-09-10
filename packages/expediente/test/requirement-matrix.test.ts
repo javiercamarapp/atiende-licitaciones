@@ -3,6 +3,8 @@ import {
   RequirementMatrixBuilder,
   RuleBasedExtractor,
   resetRequirementCounters,
+  deriveSectionKeysFromRequirementMatrix,
+  type RequirementItem,
   type TenderDocumentText,
 } from "../src/requirement-matrix.js";
 
@@ -263,5 +265,62 @@ describe("EX-EXP-15: fecha numérica ambigua (día y mes ambos ≤12) baja confi
     const item = items.find((i) => i.text.includes("05/05/2026"));
     expect(item).toBeDefined();
     expect(item?.confidence).toBe(0.7);
+  });
+});
+
+/**
+ * Ronda 6 (completar ciclo analista_bases -> redactor_borrador):
+ * `deriveSectionKeysFromRequirementMatrix` es la función que conecta la
+ * matriz de requisitos ya construida con el `context.sectionKeys` que
+ * `redactor_borrador` necesita (ver `redactorContextSchema`,
+ * apps/worker/src/agents/named-agents.ts, y su disparo automático en
+ * `POST /tenders/:id/matrix/build`, apps/api/src/modules/expediente/
+ * documents.routes.ts).
+ */
+describe("deriveSectionKeysFromRequirementMatrix (Ronda 6)", () => {
+  function item(overrides: Partial<RequirementItem>): RequirementItem {
+    return {
+      id: overrides.id ?? "req-x",
+      text: overrides.text ?? "texto de prueba",
+      source: overrides.source ?? { documentId: "doc-1", documentLabel: "Bases", page: 1 },
+      obligatoriedad: overrides.obligatoriedad ?? "obligatorio",
+      type: overrides.type ?? "tecnico",
+      responsibleRole: overrides.responsibleRole ?? "licitador",
+      deadline: overrides.deadline ?? null,
+      requiredEvidence: overrides.requiredEvidence ?? [],
+      status: overrides.status ?? "pendiente",
+      extractedBy: overrides.extractedBy ?? "rule",
+      confidence: overrides.confidence,
+      topicKey: overrides.topicKey,
+    };
+  }
+
+  it("una sección por cada RequirementType presente, en orden alfabético determinista", () => {
+    const items = [item({ type: "tecnico" }), item({ type: "legal" }), item({ type: "economico" })];
+    expect(deriveSectionKeysFromRequirementMatrix(items)).toEqual(["economica", "legal", "tecnica"]);
+  });
+
+  it("deduplica: dos ítems del mismo tipo producen una sola sectionKey", () => {
+    const items = [item({ type: "tecnico" }), item({ type: "tecnico" })];
+    expect(deriveSectionKeysFromRequirementMatrix(items)).toEqual(["tecnica"]);
+  });
+
+  it("un ítem 'bloqueado' (conflicto sin resolver) se excluye — nunca se redacta citando un dato en disputa", () => {
+    const items = [item({ type: "tecnico", status: "bloqueado" }), item({ type: "legal", status: "pendiente" })];
+    expect(deriveSectionKeysFromRequirementMatrix(items)).toEqual(["legal"]);
+  });
+
+  it("si TODOS los ítems relevantes están bloqueados, regresa [] explícito (el llamador no debe disparar redactor_borrador)", () => {
+    const items = [item({ type: "tecnico", status: "bloqueado" }), item({ type: "legal", status: "bloqueado" })];
+    expect(deriveSectionKeysFromRequirementMatrix(items)).toEqual([]);
+  });
+
+  it("matriz vacía regresa [] explícito", () => {
+    expect(deriveSectionKeysFromRequirementMatrix([])).toEqual([]);
+  });
+
+  it("cubre los 5 RequirementType del dominio con su sección esperada", () => {
+    const items = (["tecnico", "economico", "legal", "administrativo", "anexo"] as const).map((type) => item({ type }));
+    expect(deriveSectionKeysFromRequirementMatrix(items)).toEqual(["administrativa", "anexos", "economica", "legal", "tecnica"]);
   });
 });

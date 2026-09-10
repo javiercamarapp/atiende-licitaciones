@@ -446,4 +446,49 @@ export function resetRequirementCounters(): void {
   conflictCounter = 0;
 }
 
+/**
+ * Mapa fijo `RequirementType` -> sección de la propuesta técnica que ese
+ * tipo de requisito debe cubrir (ver `proponer_seccion_propuesta`,
+ * apps/worker/src/agents/business-tools.ts). Fijo en código, nunca
+ * inferido por un LLM -- el agente `redactor_borrador` nunca decide qué
+ * secciones redactar, solo EJECUTA la lista que produce esta función.
+ */
+const SECTION_KEY_BY_REQUIREMENT_TYPE: Record<RequirementType, string> = {
+  tecnico: "tecnica",
+  economico: "economica",
+  legal: "legal",
+  administrativo: "administrativa",
+  anexo: "anexos",
+};
+
+/**
+ * Deriva, a partir de una matriz de requisitos YA CONSTRUIDA
+ * (`RequirementMatrixBuilder.build`), el conjunto de `sectionKeys` que debe
+ * redactar `redactor_borrador` (Ronda 6, tarea "completar ciclo
+ * analista_bases -> redactor_borrador"): una sección por cada
+ * `RequirementType` presente entre los ítems, en orden determinista
+ * (alfabético, para que el mismo insumo produzca siempre el mismo plan de
+ * tool_calls -- ver `buildNamedAgentPlan('redactor_borrador', ...)`,
+ * apps/worker/src/agents/named-agents.ts).
+ *
+ * Los ítems `bloqueado` (conflicto de plazo/obligatoriedad sin resolver,
+ * ver `detectConflicts`) se EXCLUYEN de este cálculo: redactar una sección
+ * citando un requisito todavía en disputa entre documentos sería fabricar
+ * certeza que no existe (REQ-166) -- esa sección solo se propone una vez
+ * que un humano resuelva el conflicto y la matriz se reconstruya sin ese
+ * bloqueo. Si TODOS los ítems relevantes están bloqueados (o la matriz
+ * viene vacía), regresa `[]` explícito: el llamador (apps/api,
+ * `documents.routes.ts`) no debe disparar `redactor_borrador` con una
+ * lista vacía (`redactorContextSchema` de named-agents.ts exige al menos
+ * una `sectionKey`).
+ */
+export function deriveSectionKeysFromRequirementMatrix(items: RequirementItem[]): string[] {
+  const sectionKeys = new Set<string>();
+  for (const item of items) {
+    if (item.status === "bloqueado") continue;
+    sectionKeys.add(SECTION_KEY_BY_REQUIREMENT_TYPE[item.type]);
+  }
+  return Array.from(sectionKeys).sort();
+}
+
 export { MEXICO_CITY_TZ };

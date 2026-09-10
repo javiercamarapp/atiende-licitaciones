@@ -37,16 +37,7 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
         await tx.query("select set_config('app.current_user_id', $1, true)", [request.userId]);
         return tx.query('select * from agent_runs where org_id = $1 order by created_at desc limit 100', [orgId]);
       });
-      return rows.map((r: any) => ({
-        id: r.id,
-        agentName: r.agent_name,
-        status: r.status,
-        totalSteps: r.total_steps,
-        completedSteps: r.completed_steps,
-        correlationId: r.correlation_id,
-        startedAt: r.started_at,
-        finishedAt: r.finished_at,
-      }));
+      return rows.map(mapAgentRunRow);
     }
   );
 
@@ -219,7 +210,33 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
   });
 }
 
-export { mapToolCall };
+export { mapToolCall, mapAgentRunRow };
+
+/**
+ * Punto 3 (completar ciclo redactor_borrador): `providerId`/`simulated` se
+ * derivan de `agent_runs.output` (jsonb ya existente, escrito por
+ * `updateAgentRunRow`/`computeProviderMeta`,
+ * apps/worker/src/handlers/run-agent.ts) — nunca de una columna nueva del
+ * enum `agent_run_status`. `output` es `null` mientras la corrida sigue
+ * `running` (o para corridas de antes de esta ronda que nunca lo
+ * escribieron): en ese caso ambos campos salen `null` explícito, nunca
+ * `false` (que afirmaría, sin base, que la corrida SÍ fue real).
+ */
+function mapAgentRunRow(r: any) {
+  const output = r.output ?? null;
+  return {
+    id: r.id,
+    agentName: r.agent_name,
+    status: r.status,
+    totalSteps: r.total_steps,
+    completedSteps: r.completed_steps,
+    correlationId: r.correlation_id,
+    startedAt: r.started_at,
+    finishedAt: r.finished_at,
+    providerId: output?.providerId ?? null,
+    simulated: typeof output?.simulated === 'boolean' ? output.simulated : null,
+  };
+}
 
 function mapToolCall(r: any) {
   return {

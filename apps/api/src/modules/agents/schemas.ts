@@ -10,6 +10,16 @@ export const agentRunSchema = z.object({
   correlationId: z.string().nullable(),
   startedAt: isoTimestamp,
   finishedAt: nullableIsoTimestamp,
+  /**
+   * Punto 3 (completar ciclo redactor_borrador): distingue explícitamente
+   * una corrida que usó `FakeProvider` (sin `OPENAI_API_KEY`) de una con
+   * proveedor real, derivado de `agent_runs.output` (ver
+   * `computeProviderMeta`, apps/worker/src/handlers/run-agent.ts) — `null`
+   * mientras la corrida no ha terminado (`output` todavía vacío) o para
+   * corridas de antes de esta ronda que no lo persistieron.
+   */
+  providerId: z.string().nullable(),
+  simulated: z.boolean().nullable(),
 });
 
 export const toolCallSchema = z.object({

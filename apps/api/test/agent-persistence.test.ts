@@ -171,4 +171,92 @@ describe('persistencia de packages/agents (RunStore/ToolCallStore sobre Postgres
     expect(listA.json().length).toBe(1);
     expect(listB.json().length).toBe(0);
   });
+
+  it('GET /agents/runs distingue explícitamente una corrida con FakeProvider de una real, sin exigir buscar el prefijo "[fake:" (punto 3, ciclo redactor_borrador)', async () => {
+    const owner = await registerAndLogin(app, 'agents-owner-fake-1@example.com');
+    const org = await createOrgFor(app, owner, 'Agents Org Fake', 'agents-org-fake-1');
+
+    // Corrida terminada con FakeProvider Y al menos un tool_call que SÍ
+    // llama al LLM (`proponer_seccion_propuesta`, ver
+    // `LLM_DEPENDENT_TOOL_NAMES`, apps/worker/src/handlers/run-agent.ts)
+    // terminado 'ok' -- exactamente lo que `computeProviderMeta` marca
+    // `simulated: true`.
+    await db.query(
+      `insert into agent_runs (org_id, agent_name, actor_id, actor_role, status, total_steps, output)
+       values ($1, 'redactor_borrador', $2, 'owner', 'succeeded', 1, $3::jsonb)`,
+      [
+        org.id,
+        owner.id,
+        JSON.stringify({
+          richStatus: 'completed',
+          providerId: 'fake',
+          simulated: true,
+          toolCalls: [{ stepIndex: 0, toolName: 'proponer_seccion_propuesta', status: 'ok' }],
+        }),
+      ]
+    );
+    // Corrida terminada con un proveedor REAL ('openai') -- `simulated: false` explícito.
+    await db.query(
+      `insert into agent_runs (org_id, agent_name, actor_id, actor_role, status, total_steps, output)
+       values ($1, 'redactor_borrador', $2, 'owner', 'succeeded', 1, $3::jsonb)`,
+      [
+        org.id,
+        owner.id,
+        JSON.stringify({
+          richStatus: 'completed',
+          providerId: 'openai',
+          simulated: false,
+          toolCalls: [{ stepIndex: 0, toolName: 'proponer_seccion_propuesta', status: 'ok' }],
+        }),
+      ]
+    );
+    // Corrida "analista_bases" con FakeProvider construido pero sin NINGÚN
+    // tool_call que llame al LLM (`proponer_requisitos_matriz` es
+    // determinista basado en reglas) -- `simulated: false`: el resultado
+    // es 100% real pese a que el proceso corrió sin `OPENAI_API_KEY`.
+    await db.query(
+      `insert into agent_runs (org_id, agent_name, actor_id, actor_role, status, total_steps, output)
+       values ($1, 'analista_bases', $2, 'owner', 'succeeded', 1, $3::jsonb)`,
+      [
+        org.id,
+        owner.id,
+        JSON.stringify({
+          richStatus: 'completed',
+          providerId: 'fake',
+          simulated: false,
+          toolCalls: [{ stepIndex: 0, toolName: 'proponer_requisitos_matriz', status: 'ok' }],
+        }),
+      ]
+    );
+    // Corrida todavía "running" (sin `output` -- el worker no la ha
+    // terminado): ni `providerId` ni `simulated` se conocen todavía, NUNCA
+    // se afirma `simulated: false` sin base.
+    await db.query(
+      "insert into agent_runs (org_id, agent_name, actor_id, actor_role, status, total_steps) values ($1, 'analista_convocatorias', $2, 'owner', 'running', 1)",
+      [org.id, owner.id]
+    );
+
+    const list = await app.inject({
+      method: 'GET',
+      url: '/agents/runs',
+      headers: { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id },
+    });
+    expect(list.statusCode).toBe(200);
+    const runs = list.json() as Array<{ agentName: string; providerId: string | null; simulated: boolean | null }>;
+    expect(runs).toHaveLength(4);
+
+    const fakeRedactor = runs.find((r) => r.agentName === 'redactor_borrador' && r.providerId === 'fake')!;
+    expect(fakeRedactor.simulated).toBe(true);
+
+    const realRedactor = runs.find((r) => r.agentName === 'redactor_borrador' && r.providerId === 'openai')!;
+    expect(realRedactor.simulated).toBe(false);
+
+    const analistaBases = runs.find((r) => r.agentName === 'analista_bases')!;
+    expect(analistaBases.providerId).toBe('fake');
+    expect(analistaBases.simulated).toBe(false);
+
+    const stillRunning = runs.find((r) => r.agentName === 'analista_convocatorias')!;
+    expect(stillRunning.providerId).toBeNull();
+    expect(stillRunning.simulated).toBeNull();
+  });
 });

@@ -237,6 +237,44 @@ class RunAgentInvalidActorError extends Error {
 const uuidSchema = z.string().uuid();
 
 /**
+ * Herramientas que de verdad invocan `LLMProvider.complete` (ver
+ * apps/worker/src/agents/business-tools.ts `completeText` y
+ * `buildDemoToolRegistry` `llm_complete` arriba) — las únicas para las que
+ * "¿esta corrida usó `FakeProvider`?" cambia el contenido real del
+ * resultado. El resto de herramientas de negocio (`leer_bases`,
+ * `proponer_requisitos_matriz`, `resumir_cambios_convocatoria`,
+ * `programar_alerta`, etc.) son deterministas basadas en reglas/Postgres:
+ * corren IDÉNTICO con o sin `OPENAI_API_KEY`, así que una corrida de
+ * `analista_bases` (que solo usa `proponer_requisitos_matriz`, sin LLM)
+ * nunca debe marcarse como "simulada" aunque el proceso haya construido un
+ * `FakeProvider` por falta de credenciales -- esa distinción se evalúa
+ * herramienta por herramienta, no a nivel de proceso.
+ */
+const LLM_DEPENDENT_TOOL_NAMES = new Set(['llm_complete', 'proponer_matching', 'proponer_seccion_propuesta']);
+
+/**
+ * Punto 3 (completar ciclo redactor_borrador): el enum `agent_run_status`
+ * (packages/db/migrations/0004/0017) no distingue una corrida con
+ * `FakeProvider` (sin `OPENAI_API_KEY`, ver `buildLlmProvider`) de una con
+ * un proveedor real -- ambas terminan `succeeded`/`completed` por igual.
+ * En vez de tocar ese enum (usado en producción, con datos reales ya
+ * escritos), la distinción se calcula aquí y se persiste dentro de
+ * `agent_runs.output` (jsonb ya existente, ver `updateAgentRunRow`):
+ * `providerId` (el `LLMProvider.id` real usado, `'fake'` o `'openai'`) y
+ * `simulated` (`true` solo si el proveedor es `'fake'` Y al menos un
+ * `tool_call` que SÍ llama al LLM -- `LLM_DEPENDENT_TOOL_NAMES` -- terminó
+ * `status: 'ok'`). `GET /agents/runs` (apps/api) expone ambos campos ya
+ * derivados -- ver `mapAgentRunRow`, apps/api/src/modules/agents/routes.ts
+ * -- para que un usuario nunca tenga que buscar el prefijo `[fake:tier:
+ * hash]` dentro del texto de una sección/explicación para saber si el
+ * resultado es real.
+ */
+function computeProviderMeta(providerId: string, toolCalls: ToolCallTrace[]): { providerId: string; simulated: boolean } {
+  const simulated = providerId === 'fake' && toolCalls.some((t) => t.status === 'ok' && LLM_DEPENDENT_TOOL_NAMES.has(t.toolName));
+  return { providerId, simulated };
+}
+
+/**
  * Ronda 6: resumen REDACTADO de cada `ToolCallTrace` (nunca el `input`/
  * `output` crudo — esos ya viven solo en memoria durante la vida del job,
  * ver README §Pendientes "tool_calls no persiste en Postgres") para que la
@@ -277,6 +315,7 @@ async function updateAgentRunRow(
   actorId: string,
   run: AgentRun,
   toolCalls: ToolCallTrace[],
+  providerMeta: { providerId: string; simulated: boolean },
 ): Promise<void> {
   if (!uuidSchema.safeParse(organizationId).success) {
     throw new AgentRunOrgMismatchError(
@@ -315,6 +354,11 @@ async function updateAgentRunRow(
     // INSERT/columnas nuevas de `tool_calls` (PROPOSAL-06 solo pide select
     // de negocio + insert/update de agent_runs para corridas autónomas).
     toolCalls: summarizeToolCalls(toolCalls),
+    // Punto 3 (ver `computeProviderMeta` arriba): distingue explícitamente
+    // una corrida con `FakeProvider` de una con proveedor real, sin tocar
+    // el enum `agent_run_status`.
+    providerId: providerMeta.providerId,
+    simulated: providerMeta.simulated,
   });
   const status = toDbAgentRunStatus(run.status);
   const finishedAt = run.finishedAt ?? new Date().toISOString();
@@ -487,6 +531,7 @@ export function createRunAgentHandler(deps: RunAgentHandlerDeps): JobHandler<Run
 
     const run = await runner.run(request);
     const toolCalls = await toolCallStore.listToolCalls(run.id);
+    const providerMeta = computeProviderMeta(provider.id, toolCalls);
 
     if (job.payload.agentRunId) {
       // El guard fail-closed de arriba (WK-16/WK-19) ya garantiza que, si
@@ -499,6 +544,7 @@ export function createRunAgentHandler(deps: RunAgentHandlerDeps): JobHandler<Run
         job.payload.actorId,
         run,
         toolCalls,
+        providerMeta,
       );
     }
 
