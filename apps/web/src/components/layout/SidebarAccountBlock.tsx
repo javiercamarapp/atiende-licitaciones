@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { CreditCard, HelpCircle, LogOut, Settings, UserRound } from "lucide-react";
+import { Bell, CreditCard, HelpCircle, LogOut, Settings, UserRound } from "lucide-react";
 
 import { useAuth } from "@/hooks/useAuth";
 import { ROLE_LABELS } from "@/lib/roles";
@@ -41,8 +41,12 @@ export function SidebarAccountBlock({ onNavigate, className }: SidebarAccountBlo
   };
 
   return (
-    <div className={cn("space-y-1.5", className)}>
-      <div className="space-y-0.5 rounded-xl bg-muted/60 p-1.5">
+    <div className={cn("relative", className)}>
+      {/* Zona hundida a todo lo ancho (mismo patrón que dashboard/chrome.tsx
+          de Likida: fondo bg-muted + sombra interior, no una caja redondeada
+          flotando dentro del padding) — la tarjeta de usuario queda montada
+          encima con margen negativo, ver más abajo. */}
+      <div className="space-y-0.5 rounded-xl bg-muted px-2 pt-2 pb-5 shadow-[inset_0_2px_5px_-2px_rgba(0,0,0,0.08)]">
         <button
           type="button"
           disabled
@@ -51,6 +55,24 @@ export function SidebarAccountBlock({ onNavigate, className }: SidebarAccountBlo
         >
           <HelpCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" strokeWidth={1.75} />
           Centro de ayuda
+        </button>
+
+        {/* Mismos 5 ítems y mismo orden que el bloque ABAJO real de Likida.
+            Activo = píldora sólida bg-primary (azul de atiende). Solo
+            "Configuración" tiene página real hoy en este repo. */}
+        <button
+          type="button"
+          disabled
+          title="Notificaciones: todavía no existe una sección propia — las alertas viven en el panel."
+          className="flex min-h-11 w-full items-center justify-between gap-2 rounded-full px-3 py-1.5 text-[13px] text-muted-foreground/50"
+        >
+          <span className="flex items-center gap-2.5">
+            <Bell className="h-4 w-4 shrink-0" aria-hidden="true" strokeWidth={1.75} />
+            Notificaciones
+          </span>
+          <Badge variant="outline" className="text-[9px] uppercase tracking-[0.06em] text-muted-foreground/60">
+            Pronto
+          </Badge>
         </button>
 
         <button
@@ -86,7 +108,12 @@ export function SidebarAccountBlock({ onNavigate, className }: SidebarAccountBlo
         <NavLink
           to="/configuracion"
           onClick={onNavigate}
-          className="flex min-h-11 w-full items-center gap-2.5 rounded-full px-3 py-1.5 text-[13px] text-foreground transition-colors hover:bg-background"
+          className={({ isActive }) =>
+            cn(
+              "flex min-h-11 w-full items-center gap-2.5 rounded-full px-3 py-1.5 text-[13px] transition-colors",
+              isActive ? "bg-primary text-primary-foreground font-medium" : "text-muted-foreground hover:bg-background",
+            )
+          }
         >
           <Settings className="h-4 w-4 shrink-0" aria-hidden="true" strokeWidth={1.75} />
           Configuración
@@ -97,27 +124,31 @@ export function SidebarAccountBlock({ onNavigate, className }: SidebarAccountBlo
         </div>
       </div>
 
-      {/* Tarjeta de usuario: identidad y rol reales (GET /me, GET /organizations — ver useAuth.tsx), logout real. */}
+      {/* Tarjeta de usuario: SOBREPUESTA sobre el gris de arriba (margen
+          negativo + fondo/borde/sombra propios), identidad y rol reales
+          (GET /me, GET /organizations — ver useAuth.tsx), logout real. */}
       {user && (
-        <div className="flex items-center gap-2 border-t border-border px-1 pt-1.5">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
-            {user.email.charAt(0).toUpperCase()}
+        <div className="relative -mt-3.5 px-0.5">
+          <div className="flex items-center gap-2 rounded-xl border border-border bg-card p-2 shadow-sm">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
+              {user.email.charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[13px] text-foreground">{user.email}</p>
+              <p className="font-mono text-[10px] uppercase tracking-[0.06em] text-muted-foreground">
+                {currentMembership ? (ROLE_LABELS[currentMembership.role] ?? currentMembership.role) : "Sin organización"}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleLogout()}
+              disabled={loggingOut}
+              aria-label="Cerrar sesión"
+              className="shrink-0 text-destructive hover:opacity-70 disabled:opacity-40"
+            >
+              <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[13px] text-foreground">{user.email}</p>
-            <p className="font-mono text-[10px] uppercase tracking-[0.06em] text-muted-foreground">
-              {currentMembership ? (ROLE_LABELS[currentMembership.role] ?? currentMembership.role) : "Sin organización"}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => void handleLogout()}
-            disabled={loggingOut}
-            aria-label="Cerrar sesión"
-            className="shrink-0 text-destructive hover:opacity-70 disabled:opacity-40"
-          >
-            <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
-          </button>
         </div>
       )}
     </div>
