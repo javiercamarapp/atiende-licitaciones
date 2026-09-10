@@ -47,7 +47,7 @@ export function SidebarAccountBlock({ onNavigate, className }: SidebarAccountBlo
           type="button"
           disabled
           title="Centro de ayuda: todavía no existe esta sección en Atiende Licitaciones."
-          className="mb-1 flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-[13px] text-muted-foreground/60"
+          className="mb-1 flex min-h-11 w-full cursor-not-allowed items-center justify-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-[13px] text-muted-foreground/60"
         >
           <HelpCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" strokeWidth={1.75} />
           Centro de ayuda
@@ -57,7 +57,7 @@ export function SidebarAccountBlock({ onNavigate, className }: SidebarAccountBlo
           type="button"
           disabled
           title="Mi perfil: todavía no existe esta pantalla en Atiende Licitaciones."
-          className="flex w-full items-center justify-between gap-2 rounded-full px-3 py-1.5 text-[13px] text-muted-foreground/50"
+          className="flex min-h-11 w-full items-center justify-between gap-2 rounded-full px-3 py-1.5 text-[13px] text-muted-foreground/50"
         >
           <span className="flex items-center gap-2.5">
             <UserRound className="h-4 w-4 shrink-0" aria-hidden="true" strokeWidth={1.75} />
@@ -72,7 +72,7 @@ export function SidebarAccountBlock({ onNavigate, className }: SidebarAccountBlo
           type="button"
           disabled
           title="Plan y facturación: todavía no existe esta pantalla en Atiende Licitaciones."
-          className="flex w-full items-center justify-between gap-2 rounded-full px-3 py-1.5 text-[13px] text-muted-foreground/50"
+          className="flex min-h-11 w-full items-center justify-between gap-2 rounded-full px-3 py-1.5 text-[13px] text-muted-foreground/50"
         >
           <span className="flex items-center gap-2.5">
             <CreditCard className="h-4 w-4 shrink-0" aria-hidden="true" strokeWidth={1.75} />
@@ -86,7 +86,7 @@ export function SidebarAccountBlock({ onNavigate, className }: SidebarAccountBlo
         <NavLink
           to="/configuracion"
           onClick={onNavigate}
-          className="flex w-full items-center gap-2.5 rounded-full px-3 py-1.5 text-[13px] text-foreground transition-colors hover:bg-background"
+          className="flex min-h-11 w-full items-center gap-2.5 rounded-full px-3 py-1.5 text-[13px] text-foreground transition-colors hover:bg-background"
         >
           <Settings className="h-4 w-4 shrink-0" aria-hidden="true" strokeWidth={1.75} />
           Configuración
