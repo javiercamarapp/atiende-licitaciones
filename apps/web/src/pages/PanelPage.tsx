@@ -16,6 +16,7 @@ import { KpiCard } from "@/components/dashboard/KpiCard";
 import { ChecklistCard } from "@/components/dashboard/ChecklistCard";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { AlertsList } from "@/components/dashboard/AlertsList";
+import { PanelHeaderActions } from "@/components/dashboard/PanelHeaderActions";
 import { useAuth, describeApiError } from "@/hooks/useAuth";
 import { usePostAwardAlerts } from "@/hooks/useExpediente";
 import { useDashboard, useRecentActivity } from "@/hooks/useDashboard";
@@ -59,6 +60,7 @@ export default function PanelPage() {
         icon={BarChart3}
         title="Panel"
         description={`Resumen en tiempo real de ${currentMembership?.name ?? "tu organización"}.`}
+        actions={<PanelHeaderActions alertsCount={alerts.isLoading ? undefined : (alerts.data ?? []).length} />}
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -109,7 +111,7 @@ export default function PanelPage() {
       </div>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-3">
-        <div className="space-y-4 lg:col-span-2">
+        <div id="alertas-post-adjudicacion" className="space-y-4 lg:col-span-2 scroll-mt-4">
           <AlertsList
             items={alerts.data ?? []}
             isLoading={alerts.isLoading}

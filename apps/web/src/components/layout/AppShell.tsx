@@ -4,8 +4,8 @@ import { Menu } from "lucide-react";
 
 import { AtiendeWordmark } from "@/components/AtiendeLogo";
 import { SkipLink } from "@/components/SkipLink";
-import { ThemeSelector } from "@/components/ThemeSelector";
 import { SidebarNav } from "@/components/layout/SidebarNav";
+import { SidebarAccountBlock } from "@/components/layout/SidebarAccountBlock";
 import { OrganizationSwitcher } from "@/components/layout/OrganizationSwitcher";
 import { UserMenu } from "@/components/layout/UserMenu";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,9 @@ export function AppShell() {
           <AtiendeWordmark />
         </div>
         <SidebarNav className="flex-1 overflow-y-auto" />
+        <div className="px-2 pt-2">
+          <SidebarAccountBlock />
+        </div>
       </aside>
 
       <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
@@ -60,11 +63,14 @@ export function AppShell() {
            * rango <768px (md, el mismo rango en que este drawer reemplaza a
            * la sidebar), el selector de tema vive aquí, en el drawer —
            * siempre visible y con espacio de sobra, sin depender de que el
-           * resto de controles del header se encojan lo suficiente.
+           * resto de controles del header se encojan lo suficiente. Ahora
+           * como parte del mismo SidebarAccountBlock que la sidebar de
+           * escritorio (bloque estilo Likida), en vez de un footer aislado
+           * de solo tema — el drawer móvil gana el mismo acceso real a
+           * Configuración/logout que ya tenía la sidebar fija.
            */}
-          <div className="flex items-center justify-between gap-2 border-t border-border px-4 py-3">
-            <span className="text-xs font-medium text-muted-foreground">Tema de la interfaz</span>
-            <ThemeSelector />
+          <div className="border-t border-border px-2 py-2">
+            <SidebarAccountBlock onNavigate={() => setMobileNavOpen(false)} />
           </div>
         </SheetContent>
       </Sheet>
@@ -99,11 +105,11 @@ export function AppShell() {
               de su contenido, que es exactamente el bug que causó W-21. */}
           <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5 sm:gap-2">
             <OrganizationSwitcher />
-            {/* ThemeSelector vive en el drawer para <md (ver arriba);
-                aquí solo se muestra desde md en adelante, donde sí hay
-                espacio real (sidebar fija, header sin hamburguesa/wordmark
-                móvil compitiendo por el mismo ancho). */}
-            <ThemeSelector className="hidden md:inline-flex" />
+            {/* ThemeSelector ya no vive aquí: desde md+ vive en el bloque
+                inferior de la sidebar fija (SidebarAccountBlock, estilo
+                Likida) y para <md vive en ese mismo bloque dentro del
+                drawer (arriba) — un solo selector visible a la vez, nunca
+                dos controles redundantes para lo mismo en el mismo layout. */}
             <UserMenu />
           </div>
         </header>

@@ -723,6 +723,53 @@ manteniendo divergencias deliberadas para el dominio de licitaciones:
 | Métodos de acceso | Solo enlace mágico + Google OAuth | Solo contraseña, sin tabs ni OAuth | **Ronda 3**: apps/api solo expone `/auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout` — no existe ningún endpoint `/auth/magic-link` ni equivalente. La ronda 2 había implementado una pestaña de "enlace mágico" que llamaba a un endpoint inexistente (nunca podía funcionar); se retiró en vez de mantener una acción de UI sin backend real detrás |
 | Roles / redirect post-login | Lógica de `superadmin` vs. `admin` específica de restaurantes | Redirección real a `/panel` tras `POST /auth/login`; sin lógica de rol en el login mismo (el rol se resuelve por organización, ver `OrganizationSwitcher`) | Atiende Licitaciones es multi-organización con rol POR organización (no un rol global de usuario) — no hay un análogo directo al `superadmin` de restaurantes en el login |
 
+## Unificación visual con la familia atiende (sidebar, header, modal shell)
+
+Tarea de unificación visual con `atiende-restaurantes` (referencia de solo
+lectura; ver también el intermedio ya adaptado a un stack no-Lovable en
+`atiende-citas-reservaciones`). Tres piezas nuevas, además del login (arriba,
+ya existente de una ronda anterior):
+
+**1. Bloque inferior del sidebar** (`SidebarAccountBlock.tsx`, montado desde
+`AppShell.tsx` bajo `SidebarNav` — tanto en la sidebar fija de escritorio
+como en el drawer móvil): centro de ayuda, "Mi perfil" y "Plan y
+facturación" **deshabilitados con "Pronto"** (no existe ninguna de esas tres
+pantallas en `App.tsx`/`apps/api`), "Configuración" como enlace real a
+`/configuracion` (ya existía como item de navegación; aquí se repite en el
+bloque de cuenta, patrón Likida), `ThemeSelector` centrado y una tarjeta de
+usuario con avatar/email/rol (`GET /me` + `GET /organizations`, mismas
+etiquetas de rol que `OrganizationSwitcher` — ver `lib/roles.ts`) y logout
+real. El `ThemeSelector` que antes vivía en el header (solo desde `md`) se
+retiró de ahí para no duplicar el mismo control dos veces en el mismo
+layout — desde `md` vive en este bloque; por debajo de `md` sigue viviendo
+en el drawer, ahora como parte del mismo bloque (antes era un footer de
+solo tema, ver W-21 más arriba, cuya razón de ubicación sigue aplicando).
+
+**2. Header del Panel** (`PanelHeaderActions.tsx`, vía el nuevo prop
+`actions` de `SectionHeader`, usado solo en `PanelPage.tsx`): "Chatea con
+tus datos" **deshabilitado con "Pronto"** (no existe ningún endpoint de
+chat/analítica conversacional en `apps/api`); la campana de notificaciones
+**sí usa un contador real** — no hay un feed de notificaciones dedicado en
+este repo, pero el panel ya carga alertas reales de vencimiento/seguimiento
+post-adjudicación (`usePostAwardAlerts`, la misma data que pinta
+`AlertsList`), así que la campana reutiliza ese conteo real y el clic hace
+scroll a esa sección (`#alertas-post-adjudicacion`) en vez de no hacer nada
+o inventar un número; píldora de fecha con `formatTodayMx()` (nuevo helper
+en `lib/datetime.ts`, mismo patrón `Intl.DateTimeFormat` del resto del
+archivo — no se agregó `date-fns` como dependencia nueva solo para esto).
+
+**3. Shell de modal reutilizable** (`ModalFormularioLateral.tsx`, en
+`src/components/`, sobre los primitivos `Dialog`/`DialogContent` de shadcn
+que ya existían aquí — sin librería de modales nueva): barra de gradiente,
+riel izquierdo con el logo + título/subtítulo, columna derecha con el
+contenido real y botones al pie. Se añadió `hideDefaultClose` a
+`components/ui/dialog.tsx` (prop opcional, default `false` — no cambia
+ningún uso existente de `DialogContent`) para que este shell pueda poner su
+propio botón de cierre sobre el riel en vez de la "X" por defecto. Es solo
+el componente reutilizable, listo para usarse — migrar los modales
+existentes del repo a este shell queda fuera de esta tarea; ningún call
+site existente se tocó.
+
 ## Seguridad de dependencias — `npm audit` (W-04)
 
 `npm audit --workspace apps/web` reporta actualmente "5 vulnerabilities (3

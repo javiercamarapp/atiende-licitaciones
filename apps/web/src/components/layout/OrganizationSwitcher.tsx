@@ -1,16 +1,8 @@
 import { Building2 } from "lucide-react";
 
 import { useAuth } from "@/hooks/useAuth";
+import { ROLE_LABELS } from "@/lib/roles";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
-const ROLE_LABELS: Record<string, string> = {
-  owner: "Propietario",
-  admin: "Administrador",
-  analyst: "Analista",
-  writer: "Editor",
-  reviewer: "Revisor",
-  viewer: "Solo lectura",
-};
 
 /**
  * Selector de organización del header, con datos reales de

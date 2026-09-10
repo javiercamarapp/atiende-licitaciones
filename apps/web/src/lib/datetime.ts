@@ -34,6 +34,11 @@ export function formatDateMx(iso: string | null | undefined): string {
   return dateFormatter.format(date);
 }
 
+/** Fecha de hoy en CDMX, formato corto ("10 sept 2026") — para la píldora de fecha del header (ver PanelHeaderActions). */
+export function formatTodayMx(): string {
+  return dateFormatter.format(new Date());
+}
+
 /** Días restantes hasta `iso` (redondeado hacia arriba), o `null` si no hay fecha. Negativo si ya pasó. */
 export function daysUntil(iso: string | null | undefined): number | null {
   if (!iso) return null;
