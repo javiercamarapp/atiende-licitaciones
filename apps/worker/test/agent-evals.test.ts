@@ -4,7 +4,6 @@ import { FakeProvider } from '@atiende/agents';
 import { createRunAgentHandler, type RunAgentHandlerDeps, type RunAgentPayload } from '../src/handlers/run-agent.js';
 import { buildBusinessToolRegistry } from '../src/agents/business-tools.js';
 import { createMigratedDb, seedOrgAndUser, silentLogger } from './helpers.js';
-import { applyProposal06 } from './proposal-06-helper.js';
 import { JobQueue } from '../src/queue/job-queue.js';
 import type { Job, JobHandlerContext } from '../src/queue/types.js';
 
@@ -61,7 +60,6 @@ describe('Ronda 6: evals deterministas por agente nombrado', () => {
 
   beforeEach(async () => {
     db = await createMigratedDb();
-    await applyProposal06(db);
     queue = new JobQueue({ db });
   });
 

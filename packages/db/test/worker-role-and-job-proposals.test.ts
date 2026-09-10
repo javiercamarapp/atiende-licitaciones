@@ -82,13 +82,35 @@ describe('PROPOSAL-03 (WK-08): worker_role con RLS real', () => {
     await db.close();
   });
 
-  it('worker_role tiene EXACTAMENTE grants sobre {jobs, source_runs, agent_runs}, ninguna otra tabla', async () => {
+  it('worker_role tiene EXACTAMENTE grants sobre {jobs, source_runs, agent_runs} + las 10 tablas de lectura de negocio de 0098 (E6/PROPOSAL-06), ninguna otra', async () => {
+    // Ampliado por 0098_e6_agent_business_tools_grants.sql (PROPOSAL-06,
+    // docs/BLOQUEOS.md "E6-ciclo-agentes"): antes de esa migración la
+    // lista era exactamente {agent_runs, jobs, source_runs} (WK-08). El
+    // resto de este describe ("ATAQUE: worker_role nunca ve...") cubre por
+    // qué conceder SELECT de tabla completa sobre estas 10 tablas nuevas
+    // es una decisión deliberada, no una regresión de aislamiento.
     const { rows } = await db.query<{ table_name: string }>(
       `select distinct table_name from information_schema.role_table_grants
        where grantee = 'worker_role' order by table_name`
     );
     const tables = rows.map((r) => r.table_name).sort();
-    expect(tables).toEqual(['agent_runs', 'jobs', 'source_runs']);
+    expect(tables).toEqual(
+      [
+        'agent_runs',
+        'jobs',
+        'source_runs',
+        'tenders',
+        'tender_documents',
+        'tender_versions',
+        'tender_change_events',
+        'requirement_items',
+        'company_profiles',
+        'capabilities',
+        'experience_records',
+        'compliance_items',
+        'proposals',
+      ].sort()
+    );
   });
 
   it('worker_role puede ver/crear jobs de PLATAFORMA (org_id NULL), no solo los de una organización', async () => {
@@ -112,7 +134,7 @@ describe('PROPOSAL-03 (WK-08): worker_role con RLS real', () => {
     expect(seen.rows.length).toBe(1);
   });
 
-  it('ATAQUE: worker_role nunca ve una fila real de tablas de datos de tenant fuera de su caso de uso (tenders, company_profiles, proposals, users, memberships)', async () => {
+  it('ATAQUE (vigente tras 0098): worker_role sigue sin ver NUNCA una fila real de users/memberships, ni de ninguna tabla de negocio NO listada en 0098', async () => {
     // worker_role hereda `app_role` (grant app_role to worker_role), que a
     // su vez tiene el privilegio de tabla por defecto de 0001 (`alter
     // default privileges ... grant select ... on tables to app_role`) sobre
@@ -124,34 +146,74 @@ describe('PROPOSAL-03 (WK-08): worker_role con RLS real', () => {
     // devueltas", no un error de permiso de tabla -- es la misma garantía
     // que ya protege a cualquier conexión app_role sin contexto (ver
     // rls-isolation.test.ts, caso "sin contexto de sesión").
+    //
+    // `tenders`/`company_profiles`/`proposals` salieron de este ataque tras
+    // 0098 (E6/PROPOSAL-06, ver test siguiente): esas 3 (+7 más) ahora
+    // tienen una política adicional `current_user = 'worker_role'` SIN
+    // condición de organización, deliberada -- la lectura de negocio de
+    // `apps/worker/src/agents/business-tools.ts` acota por organización
+    // con un `WHERE org_id = $orgId` explícito en cada query (defensa en
+    // profundidad en la capa de aplicación, documentado en
+    // `withWorkerBusinessReadContext`, apps/worker/src/agents/db-context.ts),
+    // no con RLS. `users`/`memberships` NUNCA se incluyeron en 0098 --
+    // siguen protegidas exactamente igual que antes.
     const org = await seedOrg(db, 'worker-role-attack-org');
-    await db.query("insert into tenders (org_id, source, external_id, title) values ($1, 'test', 'wr-1', 'X')", [org.orgId]);
-    await db.query("insert into company_profiles (org_id, legal_name) values ($1, 'Empresa X')", [org.orgId]);
     const ownerId = await seedMember(db, org.orgId, 'worker-attack-owner@example.com', 'owner');
 
-    for (const table of ['tenders', 'company_profiles', 'proposals']) {
-      const result = await runAsWorkerRole(db, (tx) => tx.query(`select * from ${table}`));
-      expect(result.rows.length).toBe(0);
-    }
-
-    // `users`/`memberships` tienen su propia política (no basada en
-    // org_id/has_role): un `select *` sin `current_user_id()` fijado
-    // tampoco expone ninguna fila real a worker_role.
     const usersResult = await runAsWorkerRole(db, (tx) => tx.query('select * from users where id = $1', [ownerId]));
     expect(usersResult.rows.length).toBe(0);
     const membershipsResult = await runAsWorkerRole(db, (tx) => tx.query('select * from memberships where org_id = $1', [org.orgId]));
     expect(membershipsResult.rows.length).toBe(0);
   });
 
-  it('ATAQUE: worker_role con app.current_org_id de la org A no puede actualizar una fila agent_runs de la org B, aun sin filtro explícito de org_id en la query', async () => {
+  it('0098 (E6/PROPOSAL-06): worker_role SÍ ve, sin contexto de organización, filas de las 10 tablas de negocio recién concedidas — mitigado en apps/worker por el WHERE org_id explícito de business-tools.ts, nunca por RLS', async () => {
+    // Documenta el cambio de contrato deliberado (ver 0098 y el test
+    // "EXACTAMENTE grants" de arriba): antes de 0098 este mismo `select *`
+    // devolvía 0 filas (RLS de organización sin excepción). 0098 añade,
+    // para estas 10 tablas exactas, una política PERMISSIVE adicional
+    // (`current_user = 'worker_role'`, sin `org_id`) que se combina con OR
+    // sobre la política de organización existente -- por eso ahora SÍ ve
+    // la fila de cualquier organización con una conexión `worker_role`
+    // desnuda, sin `app.current_org_id` fijado. No es un descuido: es la
+    // única forma de que un proceso de servicio (no un usuario humano con
+    // membresía) pueda leer datos de negocio de eventos de plataforma; el
+    // aislamiento real para las herramientas nombradas de
+    // `business-tools.ts` lo da el `WHERE org_id = $orgId` explícito de
+    // cada una de sus queries (`withWorkerBusinessReadContext`), revisable
+    // en ese archivo -- RLS aquí es un permiso amplio, no un aislador.
+    const org = await seedOrg(db, 'worker-role-0098-visible');
+    await db.query("insert into tenders (org_id, source, external_id, title) values ($1, 'test', 'wr-0098', 'X')", [org.orgId]);
+    await db.query("insert into company_profiles (org_id, legal_name) values ($1, 'Empresa 0098')", [org.orgId]);
+
+    for (const table of ['tenders', 'company_profiles']) {
+      const result = await runAsWorkerRole(db, (tx) => tx.query(`select * from ${table} where org_id = $1`, [org.orgId]));
+      expect(result.rows.length).toBe(1);
+    }
+  });
+
+  it('ATAQUE: worker_role con app.current_org_id de la org A no puede actualizar una fila agent_runs (started_by de un humano real) de la org B, aun sin filtro explícito de org_id en la query', async () => {
+    // `started_by` poblado a propósito (E6, hallazgo de la reverificación
+    // de 0098/PROPOSAL-06): antes de la corrección en
+    // `apps/api/src/lib/agent-stores.pg.ts`/`agent-triggers.ts` NINGÚN
+    // INSERT real de `agent_runs` poblaba esta columna -- ni siquiera las
+    // corridas humanas -- así que este mismo ataque, reproducido contra el
+    // esquema real, SÍ conseguía el UPDATE cross-tenant: la política
+    // adicional de 0098 (`... and started_by is null`), pensada
+    // EXCLUSIVAMENTE para corridas autónomas del worker, en la práctica
+    // también amparaba filas humanas. Este test simula ahora la fila tal
+    // como la crea el código real ya corregido (`started_by` = el usuario
+    // que la inició) -- ver el siguiente test para el caso
+    // `started_by is null` (corrida autónoma real), que SÍ debe seguir
+    // siendo alcanzable por worker_role sin importar el contexto de
+    // organización.
     const orgA = await seedOrg(db, 'worker-role-agent-a');
     const orgB = await seedOrg(db, 'worker-role-agent-b');
     const actorA = await seedMember(db, orgA.orgId, 'worker-actor-a@example.com', 'writer');
-    await seedMember(db, orgB.orgId, 'worker-actor-b@example.com', 'writer');
+    const actorB = await seedMember(db, orgB.orgId, 'worker-actor-b@example.com', 'writer');
 
     const { rows: runB } = await db.query<{ id: string }>(
-      "insert into agent_runs (org_id, agent_name) values ($1, 'redactor') returning id",
-      [orgB.orgId]
+      "insert into agent_runs (org_id, agent_name, started_by) values ($1, 'redactor', $2) returning id",
+      [orgB.orgId, actorB]
     );
 
     const updated = await db.transaction(async (tx) => {
@@ -166,6 +228,31 @@ describe('PROPOSAL-03 (WK-08): worker_role con RLS real', () => {
 
     const stillRunning = await db.query<{ status: string }>('select status from agent_runs where id = $1', [runB[0].id]);
     expect(stillRunning.rows[0].status).toBe('running');
+  });
+
+  it('0098 (E6/PROPOSAL-06): worker_role SÍ puede actualizar una fila agent_runs de CUALQUIER organización cuando started_by es null (corrida autónoma real) — comportamiento intencional, nunca alcanza filas humanas (started_by no nulo, ver test anterior)', async () => {
+    const orgA = await seedOrg(db, 'worker-role-agent-a-autonomo');
+    const orgB = await seedOrg(db, 'worker-role-agent-b-autonomo');
+    await seedMember(db, orgA.orgId, 'worker-actor-a-autonomo@example.com', 'writer');
+
+    // Sin `started_by` -- mismo INSERT que `enqueueAgentRun`
+    // (apps/worker/src/agents/enqueue-agent-run.ts) para una corrida
+    // disparada por un evento de plataforma, sin actor humano.
+    const { rows: runB } = await db.query<{ id: string }>(
+      "insert into agent_runs (org_id, agent_name) values ($1, 'redactor') returning id",
+      [orgB.orgId]
+    );
+
+    const updated = await db.transaction(async (tx) => {
+      await tx.query('set local role worker_role');
+      // Contexto de organización de OTRA org (o incluso ninguno) -- no
+      // debería importar para una fila `started_by is null`: el worker
+      // actúa como servicio de plataforma sobre sus PROPIAS filas
+      // autónomas, no "como" un usuario con membresía.
+      await tx.query("select set_config('app.current_org_id', $1, true)", [orgA.orgId]);
+      return tx.query("update agent_runs set status = 'succeeded' where id = $1", [runB[0].id]);
+    });
+    expect(updated.rowCount).toBe(1);
   });
 
   it('worker_role SÍ puede actualizar una corrida de SU PROPIA organización cuando fija el contexto del actor real', async () => {

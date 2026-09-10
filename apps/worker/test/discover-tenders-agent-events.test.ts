@@ -7,7 +7,6 @@ import { createDiscoverTendersHandler } from '../src/handlers/discover-tenders.j
 import { TenderIngestClient } from '../src/ingest/ingest-client.js';
 import { JobQueue } from '../src/queue/job-queue.js';
 import { createMigratedDb, seedOrgAndUser, silentLogger } from './helpers.js';
-import { applyProposal06 } from './proposal-06-helper.js';
 import type { Job, JobHandlerContext } from '../src/queue/types.js';
 
 /**
@@ -105,7 +104,6 @@ describe('discover_tenders + agentEventsQueue (Ronda 6, tarea 4)', () => {
 
   beforeEach(async () => {
     db = await createMigratedDb();
-    await applyProposal06(db);
     queue = new JobQueue({ db });
   });
 

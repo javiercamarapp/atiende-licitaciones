@@ -4,7 +4,6 @@ import { FakeProvider, type ToolExecutionContext } from '@atiende/agents';
 import { buildBusinessToolRegistry } from '../src/agents/business-tools.js';
 import { JobQueue } from '../src/queue/job-queue.js';
 import { createMigratedDb, seedOrgAndUser } from './helpers.js';
-import { applyProposal06 } from './proposal-06-helper.js';
 
 function makeCtx(organizationId: string | null): ToolExecutionContext {
   return { organizationId, actorId: 'actor-1', actorRole: 'licitador', runId: 'run-test' };
@@ -16,7 +15,6 @@ describe('business-tools.ts (Ronda 6): herramientas de negocio reales del worker
 
   beforeEach(async () => {
     db = await createMigratedDb();
-    await applyProposal06(db);
     queue = new JobQueue({ db });
   });
 

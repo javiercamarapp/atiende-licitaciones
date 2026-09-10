@@ -5,7 +5,6 @@ import { createRunAgentHandler } from '../src/handlers/run-agent.js';
 import { AgentKillSwitchError } from '../src/agents/kill-switch.js';
 import { JobQueue } from '../src/queue/job-queue.js';
 import { createMigratedDb, seedOrgAndUser, silentLogger } from './helpers.js';
-import { applyProposal06 } from './proposal-06-helper.js';
 import type { Job, JobHandlerContext } from '../src/queue/types.js';
 import type { RunAgentPayload } from '../src/handlers/run-agent.js';
 
@@ -37,7 +36,6 @@ describe('run_agent + kill-switch (Ronda 6, tarea 4)', () => {
 
   beforeEach(async () => {
     db = await createMigratedDb();
-    await applyProposal06(db);
     queue = new JobQueue({ db });
   });
 

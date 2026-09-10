@@ -37,14 +37,35 @@ describe('PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real', () => {
     }
   });
 
-  it('worker_role tiene EXACTAMENTE grants sobre {jobs, source_runs, agent_runs}, ninguna otra tabla', async () => {
+  it('worker_role tiene EXACTAMENTE grants sobre {jobs, source_runs, agent_runs} + las 10 tablas de lectura de negocio de 0098 (E6/PROPOSAL-06), ninguna otra', async () => {
+    // Ampliado por packages/db/migrations/0098_e6_agent_business_tools_grants.sql
+    // (E6, docs/BLOQUEOS.md "E6-ciclo-agentes") — ver
+    // packages/db/test/worker-role-and-job-proposals.test.ts para el mismo
+    // contrato con más profundidad (incluida la razón de negocio de cada
+    // tabla añadida).
     const db = await createMigratedDb();
     try {
       const { rows } = await db.query<{ table_name: string }>(
         `select distinct table_name from information_schema.role_table_grants
          where grantee = 'worker_role' order by table_name`,
       );
-      expect(rows.map((r) => r.table_name).sort()).toEqual(['agent_runs', 'jobs', 'source_runs']);
+      expect(rows.map((r) => r.table_name).sort()).toEqual(
+        [
+          'agent_runs',
+          'jobs',
+          'source_runs',
+          'tenders',
+          'tender_documents',
+          'tender_versions',
+          'tender_change_events',
+          'requirement_items',
+          'company_profiles',
+          'capabilities',
+          'experience_records',
+          'compliance_items',
+          'proposals',
+        ].sort(),
+      );
     } finally {
       await db.close();
     }
@@ -80,14 +101,22 @@ describe('PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real', () => {
    * correcto (`org_id = current_org_id()`), pero SIN `app.current_user_id`
    * fijado (el bug real de `updateAgentRunRow` antes de esta ronda). RLS
    * debe bloquear incluso una fila LEGÍTIMA del tenant correcto.
+   *
+   * `started_by` poblado a propósito (E6, hallazgo de la reverificación de
+   * 0098/PROPOSAL-06, ver `packages/db/test/worker-role-and-job-proposals.test.ts`
+   * para el mismo hallazgo con más detalle): esta fila representa una
+   * corrida HUMANA real (igual que la crean hoy `agent-stores.pg.ts`/
+   * `agent-triggers.ts`) -- sin esto, la política adicional de 0098 sobre
+   * `agent_runs` (`... and started_by is null`) también autorizaba este
+   * UPDATE, ocultando el bloqueo real de RLS que este test verifica.
    */
   it('WK-23: worker_role con org_id correcto pero SIN current_user_id fijado no puede actualizar agent_runs (ni siquiera su propio tenant)', async () => {
     const db = await createMigratedDb();
     try {
-      const { orgId } = await seedOrgAndUser(db, 'wk23-proposal03-noactor');
+      const { orgId, userId } = await seedOrgAndUser(db, 'wk23-proposal03-noactor');
       const { rows } = await db.query<{ id: string }>(
-        "insert into agent_runs (org_id, agent_name) values ($1, 'redactor') returning id",
-        [orgId],
+        "insert into agent_runs (org_id, agent_name, started_by) values ($1, 'redactor', $2) returning id",
+        [orgId, userId],
       );
       const runId = rows[0].id;
 
@@ -134,17 +163,24 @@ describe('PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real', () => {
     }
   });
 
-  /** ATAQUE cross-tenant: org_id de la org A, fila real de la org B — bloqueado sin importar current_user_id. */
+  /**
+   * ATAQUE cross-tenant: org_id de la org A, fila real de la org B —
+   * bloqueado sin importar current_user_id.
+   *
+   * `started_by` poblado (mismo hallazgo E6/0098 que el test anterior): la
+   * fila de la org B representa una corrida humana real de esa org (su
+   * propio dueño), no una corrida autónoma del worker.
+   */
   it('worker_role con app.current_org_id de la org A no puede actualizar una fila agent_runs de la org B', async () => {
     const db = await createMigratedDb();
     try {
       const { orgId: orgA } = await seedOrgAndUser(db, 'wk23-proposal03-orga');
-      const { orgId: orgB } = await seedOrgAndUser(db, 'wk23-proposal03-orgb');
+      const { orgId: orgB, userId: ownerB } = await seedOrgAndUser(db, 'wk23-proposal03-orgb');
       const actorA = await seedMember(db, orgA, 'wk23-proposal03-actora@example.test', 'writer');
 
       const { rows: runB } = await db.query<{ id: string }>(
-        "insert into agent_runs (org_id, agent_name) values ($1, 'redactor') returning id",
-        [orgB],
+        "insert into agent_runs (org_id, agent_name, started_by) values ($1, 'redactor', $2) returning id",
+        [orgB, ownerB],
       );
 
       const updated = await db.transaction(async (tx) => {

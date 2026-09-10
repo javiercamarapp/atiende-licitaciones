@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import type { DbClient } from '@atiende/db';
 import { FakeProvider } from '@atiende/agents';
 import { createRunAgentHandler } from '../src/handlers/run-agent.js';
-import { applyProposal06 } from './proposal-06-helper.js';
 import { createMigratedDb, seedOrgAndUser, silentLogger } from './helpers.js';
 import type { Job, JobHandlerContext } from '../src/queue/types.js';
 
@@ -247,11 +246,18 @@ describe('run_agent handler (esqueleto)', () => {
    */
   it('WK-23: organizationId correcto pero actorId sin membresía en esa organización — RLS bajo worker_role bloquea el update legítimo en apariencia', async () => {
     const { userId: userA } = await seedOrgAndUser(db, 'org-a-wk23-noaccess');
-    const { orgId: orgB } = await seedOrgAndUser(db, 'org-b-wk23-noaccess');
+    const { orgId: orgB, userId: ownerB } = await seedOrgAndUser(db, 'org-b-wk23-noaccess');
 
+    // `started_by = ownerB` (E6, hallazgo de la reverificación de
+    // 0098/PROPOSAL-06): esta fila representa una corrida HUMANA real de
+    // org B (igual que la insertan hoy `agent-stores.pg.ts`/
+    // `agent-triggers.ts`, ambos corregidos para poblar `started_by`) —
+    // sin esto, la política adicional de `worker_role` de 0098
+    // (`... and started_by is null`) también autorizaba este UPDATE,
+    // ocultando el bloqueo real de RLS que este test verifica.
     const { rows } = await db.query<{ id: string }>(
-      `insert into agent_runs (org_id, agent_name, input, status) values ($1, 'demo-agent', '{}'::jsonb, 'running') returning id`,
-      [orgB],
+      `insert into agent_runs (org_id, agent_name, input, status, started_by) values ($1, 'demo-agent', '{}'::jsonb, 'running', $2) returning id`,
+      [orgB, ownerB],
     );
     const agentRunId = rows[0].id;
 
@@ -411,7 +417,6 @@ describe('run_agent handler (esqueleto)', () => {
    */
   it('WK6-02/E20: correlationId de negocio persiste en agent_runs.correlation_id (columna) y en output (y en cada tool_call) — una sola consulta por columna reconstruye convocatoria -> matriz -> propuesta', async () => {
     const { orgId, userId } = await seedOrgAndUser(db, 'wk602-trace');
-    await applyProposal06(db);
 
     // Datos reales de UN expediente: convocatoria + perfil + bases + experiencia.
     const tenderRow = await db.query<{ id: string }>(

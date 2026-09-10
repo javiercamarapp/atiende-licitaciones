@@ -80,9 +80,19 @@ export async function triggerNamedAgentRun(tx: DbExecutor, params: TriggerNamedA
 
   const correlationId = params.correlationId ?? null;
 
+  // `started_by = actor_id` (E6, hallazgo de la reverificación de
+  // PROPOSAL-06/0098): igual que `agent-stores.pg.ts` (ver ese comentario
+  // para el detalle completo), `params.actorId` aquí SIEMPRE es el usuario
+  // humano real que disparó el evento (docstring de
+  // `TriggerNamedAgentRunParams.actorId` arriba) -- nunca un actor de
+  // sistema autónomo (esos pasan por `enqueue-agent-run.ts`, que deja
+  // `started_by` sin poblar a propósito). Sin esto, la política adicional
+  // de `worker_role` de 0098 (`... and started_by is null`) también
+  // alcanzaba a estas filas humanas, rompiendo el aislamiento de WK-23
+  // para cualquier conexión bajo `worker_role`.
   const runRes = await tx.query<{ id: string }>(
-    `insert into agent_runs (org_id, agent_name, actor_id, actor_role, status, correlation_id, input)
-     values ($1, $2, $3, $4, 'running', $5, $6::jsonb)
+    `insert into agent_runs (org_id, agent_name, actor_id, actor_role, status, correlation_id, input, started_by)
+     values ($1, $2, $3, $4, 'running', $5, $6::jsonb, $3)
      returning id`,
     [params.orgId, params.agentName, params.actorId, params.actorRole, correlationId, JSON.stringify(params.context)],
   );

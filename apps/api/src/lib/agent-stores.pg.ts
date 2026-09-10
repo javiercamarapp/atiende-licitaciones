@@ -127,8 +127,28 @@ export class PgRunStore implements RunStore {
     this.runContextCache.set(id, { orgId: input.organizationId, actorId: input.actorId });
     return this.withTenant(input.organizationId, input.actorId, async (tx) => {
       await tx.query(
-        `insert into agent_runs (id, org_id, agent_name, actor_id, actor_role, status, total_steps, completed_steps, correlation_id, estimated_cost_usd)
-         values ($1, $2, $3, $4, $5, 'in_progress', $6, 0, $7, 0)`,
+        // `started_by = actor_id` (E6, hallazgo de la reverificación de
+        // PROPOSAL-06/0098): esta corrida SIEMPRE la origina un usuario
+        // humano real ya autenticado (PgRunStore es el store de apps/api,
+        // nunca el de corridas autónomas del worker -- ver
+        // `apps/worker/src/agents/enqueue-agent-run.ts`, que
+        // deliberadamente deja `started_by` sin poblar). Antes de esta
+        // corrección NINGÚN INSERT de `agent_runs` en todo el repo poblaba
+        // `started_by` (columna existente desde 0004 pero nunca escrita),
+        // así que TODAS las filas -- humanas y autónomas por igual --
+        // cumplían `started_by is null`: la política adicional de
+        // `worker_role` de 0098 (`... and started_by is null`), pensada
+        // para acotarse EXCLUSIVAMENTE a corridas autónomas, en la
+        // práctica alcanzaba también a las humanas, devolviendo
+        // irrelevante el chequeo de membresía real de WK-23 para
+        // cualquier conexión que adoptara `worker_role` (confirmado
+        // reproduciendo el ataque cross-tenant real en
+        // `packages/db/test/worker-role-and-job-proposals.test.ts` antes
+        // de esta corrección). Poblar `started_by` aquí (y en
+        // `apps/api/src/lib/agent-triggers.ts`, la otra ruta humana) cierra
+        // ese hueco sin tocar el SQL de la migración 0098 en sí.
+        `insert into agent_runs (id, org_id, agent_name, actor_id, actor_role, status, total_steps, completed_steps, correlation_id, estimated_cost_usd, started_by)
+         values ($1, $2, $3, $4, $5, 'in_progress', $6, 0, $7, 0, $4)`,
         [id, input.organizationId, input.agentName, input.actorId, toOrgRole(input.actorRole), input.totalSteps, input.correlationId ?? null]
       );
       const run = await this.getRunInTx(tx, id);

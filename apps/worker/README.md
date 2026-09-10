@@ -68,7 +68,6 @@ src/
     source-runs-repository.ts  INSERT en `source_runs`
 test/
   helpers.ts                createMigratedDb (PGlite + migraciones reales), seedOrgAndUser, seedMember
-  proposal-06-helper.ts      Ronda 6: aplica PROPOSAL-06 sobre una base ya migrada, solo para pruebas
   job-queue.test.ts          Reclamo atómico, backoff+jitter, dead letter, lease, idempotencia, cancelación (WK-01/WK-10/WK-14/WK-22)
   scheduler.test.ts          Unicidad por (tipo, fuente, ventana), WK-04 (lógica secuencial en PGlite) + WK-15 (SQL emitido; concurrencia real de motor PENDIENTE, ref. B-03)
   ingest-client.test.ts      Contra un servidor HTTP real (node:http), no un mock de fetch; WK-09/WK-17/WK-20 (tabla de verdad exhaustiva 400-599)/WK-21 (407 vía undici)
@@ -76,10 +75,10 @@ test/
   discover-tenders-agent-events.test.ts  Ronda 6: run_agent encolado por ingesta (created/updated/unchanged)
   run-agent-handler.test.ts  run_agent (demo original) con FakeProvider; WK-08/WK-16/WK-19/WK-23
   run-agent-kill-switch.test.ts  Ronda 6: WORKER_DISABLED_AGENTS bloquea la ejecución
-  business-tools.test.ts    Ronda 6: las 8 herramientas contra Postgres real (PGlite + PROPOSAL-06)
+  business-tools.test.ts    Ronda 6: las 8 herramientas contra Postgres real (PGlite + migración 0098/E6)
   named-agents.test.ts      Ronda 6: los 5 planes fijos + validación de contexto
   kill-switch.test.ts       Ronda 6: parseDisabledAgents/assertAgentNotDisabled
-  enqueue-agent-run.test.ts Ronda 6: dedupe + fail-open sin PROPOSAL-06
+  enqueue-agent-run.test.ts Ronda 6: dedupe + fail-open (simulado revocando la política de 0098/E6)
   deadline-reminders.test.ts Ronda 6: escaneo de vencimientos, dedupe por día
   agent-evals.test.ts       Ronda 6, tarea 3: evals deterministas por agente (≥5 casos c/u, FakeProvider)
   send-agent-alert.test.ts  Ronda 6: log estructurado del job de alerta
@@ -88,10 +87,11 @@ test/
   worker-shutdown.test.ts    Cierre ordenado (SIGTERM), métricas, WK-02/WK-10/WK-14
   config.test.ts             loadConfig() con env vacío/completo/inválido
   schedule-config.test.ts    loadScheduleConfig() con WORKER_SCHEDULE_JSON válido/inválido/vacío
-db-proposals/                Las 3 migraciones propuestas (0026-0028) ya están aplicadas en
+db-proposals/                Las 4 migraciones propuestas (0026-0028, 0098) ya están aplicadas en
                               packages/db; sus tests acompañantes ya NO son .pending/describe.skip
-                              (activados en la ronda 4, WK-22) — ver docs/auditoria-1/worker-cierre.md.
-                              PROPOSAL-06 (Ronda 6) sigue PENDIENTE esquema — ver sección dedicada abajo.
+                              (0026-0028 activados en la ronda 4, WK-22; 0098/PROPOSAL-06 en E6) —
+                              ver docs/auditoria-1/worker-cierre.md y docs/BLOQUEOS.md
+                              ("E6-ciclo-agentes", CERRADA).
 ```
 
 ## Correcciones de la ronda 2 (auditoría adversarial)
@@ -650,8 +650,9 @@ ningún `packages/*`.
     que intenta abrir su PROPIA fila `agent_runs` (identidad
     `SYSTEM_ACTOR_ID`/`SYSTEM_ACTOR_ROLE`, `src/agents/system-actor.ts` —
     UUID nil, nunca un usuario real) y encola el job `run_agent`
-    deduplicado por `(agentName, eventKey)` — ver "PENDIENTE esquema" abajo
-    para el caso sin `PROPOSAL-06` aplicada.
+    deduplicado por `(agentName, eventKey)` — ver "E6: `PROPOSAL-06`
+    incorporada como `0098`" abajo para el caso (hoy solo simulado en
+    tests) sin esa política.
 - **Evals deterministas con `FakeProvider`** (`test/agent-evals.test.ts`,
   26 casos: ≥5 por cada uno de los 5 agentes): no-fabricación
   (`redactor_borrador` sin evidencia → `needs_data`), guardrail
@@ -669,39 +670,57 @@ ningún `packages/*`.
   `superadmin` — ninguna de las 8 herramientas reales tiene hoy un
   `actionKind` prohibido, por diseño.
 
-### PENDIENTE esquema: `PROPOSAL-06-agent-business-tools-grants.sql`
+### E6: `PROPOSAL-06-agent-business-tools-grants.sql` incorporada como `packages/db/migrations/0098_e6_agent_business_tools_grants.sql`
 
-Las lecturas de negocio adoptan `worker_role` (mismo patrón que
-`updateAgentRunRow`, WK-23) y verifican EXPLÍCITAMENTE contra el catálogo
-real `pg_policies` que la política RLS de `PROPOSAL-06` ya exista antes de
-correr cualquier `SELECT` de negocio (`src/agents/db-context.ts`,
-`SchemaGrantPendingError`). Esto se descubrió probando contra PGlite real,
-no por diseño a priori: `worker_role` YA hereda (`grant app_role to
-worker_role ... inherit`, 0028) los privilegios de TABLA por defecto de
-`app_role` (0001), así que un `SELECT` crudo sin política RLS que lo
-reconozca NO lanza ningún error — simplemente devuelve **cero filas en
-silencio** (RLS filtra, no bloquea la sentencia). Devolver esa lista vacía
-como un resultado real habría sido exactamente el tipo de fabricación de
-éxito que este proyecto prohíbe (REQ-150); por eso la verificación previa
-contra `pg_policies` es obligatoria, no un adorno.
+**CERRADO** (docs/BLOQUEOS.md, "E6-ciclo-agentes"). Las lecturas de negocio
+adoptan `worker_role` (mismo patrón que `updateAgentRunRow`, WK-23) y
+verifican EXPLÍCITAMENTE contra el catálogo real `pg_policies` que la
+política RLS de 0098 ya exista antes de correr cualquier `SELECT` de
+negocio (`src/agents/db-context.ts`, `SchemaGrantPendingError`). Esto se
+descubrió probando contra PGlite real, no por diseño a priori: `worker_role`
+YA hereda (`grant app_role to worker_role ... inherit`, 0028) los
+privilegios de TABLA por defecto de `app_role` (0001), así que un `SELECT`
+crudo sin política RLS que lo reconozca NO lanza ningún error —
+simplemente devuelve **cero filas en silencio** (RLS filtra, no bloquea la
+sentencia). Devolver esa lista vacía como un resultado real habría sido
+exactamente el tipo de fabricación de éxito que este proyecto prohíbe
+(REQ-150); por eso la verificación previa contra `pg_policies` sigue siendo
+obligatoria, no un adorno, incluso con la migración ya aplicada (defensa
+ante un futuro drift de esquema).
 
-Mientras `PROPOSAL-06` no se incorpore a `packages/db/migrations/` (fuera
-de mi ámbito esta ronda, igual que WK-04/WK-07/WK-08 en su momento):
+`0098` ya está aplicada en `packages/db/migrations/` (verificado: una base
+limpia migrada de punta a punta, incluida `0098`, queda consistente —
+`packages/db/test/migrate.test.ts`) y el ciclo real
+`analista_bases`→`redactor_borrador` (registro real, subida real de un
+documento de bases) ya NO falla con `SchemaGrantPendingError` contra esa
+base migrada:
 
-- Las 4 herramientas de lectura y `enqueueUpcomingDeadlineReminders`
-  fallan explícito con `SchemaGrantPendingError` (`permanent: true`) contra
-  un Postgres real — nunca "0 convocatorias" fabricado.
-- `enqueueAgentRun` (disparado por eventos de ingesta/vencimiento) es
-  **fail-open** solo para la apertura de su propia fila `agent_runs`: si
-  falla, el job `run_agent` se encola IGUAL (el evento nunca se pierde),
-  simplemente sin `agentRunId` — su resultado queda solo en el log
-  estructurado del proceso, no en Postgres, hasta que la migración se
-  aplique.
-- `test/` de este paquete aplican `PROPOSAL-06` directamente sobre una base
-  ya migrada (`test/proposal-06-helper.ts`, mismo patrón que
-  `PROPOSAL-01/02/03-*.test.ts`) para probar que el código es correcto una
-  vez que la migración real se incorpore — eso NO significa que ya esté
-  aplicada en ningún entorno real.
+- Las 4 herramientas de lectura y `enqueueUpcomingDeadlineReminders` ya
+  pueden completar sus consultas de negocio reales contra un Postgres
+  migrado con `0098` (antes fallaban explícito con
+  `SchemaGrantPendingError`, `permanent: true` — ese camino de error
+  SIGUE existiendo y cubierto por tests, simulado revocando la política a
+  mano, para el caso de un drift de esquema real).
+- `enqueueAgentRun` (disparado por eventos de ingesta/vencimiento) ya abre
+  su propia fila `agent_runs` de verdad contra una base migrada; el
+  fail-open (job encolado igual, sin `agentRunId`, si la política faltara)
+  sigue existiendo como defensa y tiene su propio test simulando la
+  ausencia.
+- **Hallazgo E6 durante la reverificación**: la política adicional de 0098
+  sobre `agent_runs` (`... and started_by is null`) asumía que TODA corrida
+  humana fija `started_by` — falso en el código real de esa fecha (NINGÚN
+  INSERT de `agent_runs`, ni en `apps/api` ni en `apps/worker`, poblaba esa
+  columna). Eso colapsaba el aislamiento de WK-23 para CUALQUIER fila bajo
+  una conexión `worker_role` (confirmado reproduciendo el ataque cross-tenant
+  real en `packages/db/test/worker-role-and-job-proposals.test.ts`).
+  Corregido poblando `started_by = actor_id` en los dos INSERT humanos
+  reales (`apps/api/src/lib/agent-stores.pg.ts`,
+  `apps/api/src/lib/agent-triggers.ts`) — `enqueue-agent-run.ts` (la única
+  ruta autónoma) sigue dejándolo `null` a propósito.
+- `test/` de este paquete ya NO aplican `PROPOSAL-06` a mano
+  (`applyProposal06`/`test/proposal-06-helper.ts`, eliminado): con la
+  migración real incorporada, `createMigratedDb()` la incluye siempre,
+  igual que ya ocurría con `PROPOSAL-01/02/03` desde WK-22.
 
 ### Qué es FAKE (determinista, no certifica integración real)
 
@@ -1097,11 +1116,6 @@ intacto, sin sobre-saneamiento).
   pendiente de credenciales en `docs/investigacion/paridad-producto.md
   §6.2`). Añadir un canal real es una extensión de ese mismo handler, sin
   cambiar el contrato del job ni de la herramienta que lo encola.
-- **`PROPOSAL-06-agent-business-tools-grants.sql` PENDIENTE esquema**
-  (Ronda 6): ver sección dedicada arriba — sin ella, las 4 herramientas de
-  lectura y el escáner de vencimientos fallan explícito
-  (`SchemaGrantPendingError`), y las corridas disparadas por evento de
-  plataforma no abren su propia fila `agent_runs` (fail-open documentado).
 - **Kill-switch por agente solo por variable de entorno** (Ronda 6,
   `WORKER_DISABLED_AGENTS`): una tabla dedicada para control dinámico sin
   reiniciar el proceso queda PROPUESTA, no implementada (ver

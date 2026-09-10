@@ -3,7 +3,6 @@ import type { DbClient } from '@atiende/db';
 import { enqueueUpcomingDeadlineReminders } from '../src/scheduler/deadline-reminders.js';
 import { JobQueue } from '../src/queue/job-queue.js';
 import { createMigratedDb, seedOrgAndUser, silentLogger } from './helpers.js';
-import { applyProposal06 } from './proposal-06-helper.js';
 
 describe('enqueueUpcomingDeadlineReminders (Ronda 6, tarea 4: run_agent por evento de vencimiento)', () => {
   let db: DbClient;
@@ -11,7 +10,6 @@ describe('enqueueUpcomingDeadlineReminders (Ronda 6, tarea 4: run_agent por even
 
   beforeEach(async () => {
     db = await createMigratedDb();
-    await applyProposal06(db);
     queue = new JobQueue({ db });
   });
 
@@ -78,8 +76,21 @@ describe('enqueueUpcomingDeadlineReminders (Ronda 6, tarea 4: run_agent por even
     expect(rows).toHaveLength(1);
   });
 
-  it('sin PROPOSAL-06 aplicada, falla explícito (SchemaGrantPendingError) en vez de reportar "0 vencimientos" fabricado', async () => {
+  it('sin la política de 0098 (E6/PROPOSAL-06) sobre tenders, falla explícito (SchemaGrantPendingError) en vez de reportar "0 vencimientos" fabricado', async () => {
+    // 0098_e6_agent_business_tools_grants.sql (packages/db/migrations) ya
+    // incorporó PROPOSAL-06 como migración real: `createMigratedDb()`
+    // SIEMPRE la incluye ahora, así que ya no existe una base "migrada
+    // pero sin PROPOSAL-06" de verdad. Se simula revocando a mano el
+    // grant/política exactos que 0098 añade sobre `tenders` -- conserva la
+    // cobertura real de `SchemaGrantPendingError` (WK-10: fail cerrado,
+    // nunca "0 filas" fabricado) como red de seguridad para el día en que
+    // ese grant falte por cualquier otra razón (drift de esquema, un
+    // entorno mal migrado), sin depender ya de `applyProposal06`.
     const dbSinPropuesta = await createMigratedDb();
+    await dbSinPropuesta.exec(`
+      drop policy if exists sel_tenders_worker_role on tenders;
+      revoke select on tenders from worker_role;
+    `);
     try {
       const { SchemaGrantPendingError } = await import('../src/agents/db-context.js');
       await expect(enqueueUpcomingDeadlineReminders(dbSinPropuesta, new JobQueue({ db: dbSinPropuesta }), silentLogger())).rejects.toBeInstanceOf(

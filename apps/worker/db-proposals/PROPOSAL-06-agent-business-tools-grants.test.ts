@@ -2,16 +2,31 @@ import { describe, it, expect } from 'vitest';
 import type { DbClient, DbExecutor } from '@atiende/db';
 import { withTenantContext } from '@atiende/db';
 import { createMigratedDb, seedOrgAndUser } from '../test/helpers.js';
-import { applyProposal06 } from '../test/proposal-06-helper.js';
 
 /**
- * Prueba PROPOSAL-06 (Ronda 6, agentes de negocio reales) contra una base
- * migrada real (PGlite + migraciones reales de packages/db), aplicando la
- * propuesta directamente en el test — mismo patrón que
- * PROPOSAL-01/02/03-*.test.ts. Esto NO implica que la propuesta ya esté
- * incorporada a packages/db/migrations/ (sigue PENDIENTE esquema, ver el
- * propio .sql).
+ * E6 (docs/BLOQUEOS.md, "E6-ciclo-agentes"): activa los tests que
+ * acompañaban a PROPOSAL-06 (Ronda 6, agentes de negocio reales) — mismo
+ * patrón que la activación WK-22 de PROPOSAL-01/02/03
+ * (`PROPOSAL-01/02/03-*.test.ts`, `packages/db/test/
+ * worker-role-and-job-proposals.test.ts`).
+ * `packages/db/migrations/0098_e6_agent_business_tools_grants.sql` YA está
+ * aplicada (`createMigratedDb()` la incluye siempre): los grants/políticas
+ * ya no se aplican a mano con `applyProposal06` dentro de cada test.
+ *
+ * Los dos tests que verificaban el comportamiento "SIN la propuesta
+ * aplicada" (fail-closed de `SchemaGrantPendingError`) ya no pueden
+ * construir esa base con el runner real de migraciones (que siempre
+ * incluye 0098) — simulan la ausencia revocando a mano el grant/política
+ * exactos que 0098 añade, conservando la cobertura real del código de
+ * `db-context.ts` como red de seguridad ante un drift de esquema futuro.
  */
+async function revokeProposal06Grant(db: DbClient, table: string): Promise<void> {
+  await db.exec(`
+    drop policy if exists sel_${table}_worker_role on ${table};
+    revoke select on ${table} from worker_role;
+  `);
+}
+
 async function runAsWorkerRole<T>(db: DbClient, fn: (tx: DbExecutor) => Promise<T>): Promise<T> {
   return db.transaction(async (tx) => {
     await tx.query('set local role worker_role');
@@ -44,7 +59,6 @@ describe('PROPOSAL-06: grants de solo-lectura de negocio + insert de agent_runs 
   it('worker_role puede leer tenders/company_profiles de CUALQUIER organización tras aplicar la propuesta', async () => {
     const db = await createMigratedDb();
     try {
-      await applyProposal06(db);
       const { orgId } = await seedOrgAndUser(db, 'proposal06-read-tenders');
       await db.query(
         `insert into tenders (org_id, source, external_id, title) values ($1, 'comprasmx', 'ext-1', 'Convocatoria de prueba')`,
@@ -80,9 +94,10 @@ describe('PROPOSAL-06: grants de solo-lectura de negocio + insert de agent_runs 
    * y solo entonces ejecuta la consulta de negocio — ver el segundo `it`
    * de este bloque.
    */
-  it('SIN la propuesta aplicada, un SELECT crudo de worker_role sobre tenders NO lanza error: devuelve 0 filas en silencio (RLS filtra, no bloquea la sentencia)', async () => {
+  it('SIN la política de 0098, un SELECT crudo de worker_role sobre tenders NO lanza error: devuelve 0 filas en silencio (RLS filtra, no bloquea la sentencia)', async () => {
     const db = await createMigratedDb();
     try {
+      await revokeProposal06Grant(db, 'tenders');
       const { orgId } = await seedOrgAndUser(db, 'proposal06-no-grant-yet');
       await db.query(`insert into tenders (org_id, source, external_id, title) values ($1, 'dof', 'ext-2', 'Otra convocatoria')`, [
         orgId,
@@ -97,9 +112,10 @@ describe('PROPOSAL-06: grants de solo-lectura de negocio + insert de agent_runs 
 
   // WK6-03: este es el test que la auditoría vio expirar bajo carga completa
   // (582ms aislado). El margen ahora viene del `timeout` del `describe`.
-  it('SIN la propuesta aplicada, withWorkerBusinessReadContext SÍ falla explícito (SchemaGrantPendingError vía pg_policies, nunca una lista vacía fabricada)', async () => {
+  it('SIN la política de 0098, withWorkerBusinessReadContext SÍ falla explícito (SchemaGrantPendingError vía pg_policies, nunca una lista vacía fabricada)', async () => {
     const db = await createMigratedDb();
     try {
+      await revokeProposal06Grant(db, 'tenders');
       const { orgId } = await seedOrgAndUser(db, 'proposal06-no-grant-yet-2');
       await db.query(`insert into tenders (org_id, source, external_id, title) values ($1, 'dof', 'ext-4', 'Convocatoria sin política')`, [
         orgId,
@@ -117,7 +133,6 @@ describe('PROPOSAL-06: grants de solo-lectura de negocio + insert de agent_runs 
   it('worker_role puede INSERTAR su propia fila en agent_runs (corrida disparada por evento de plataforma, sin agentRunId previo de apps/api)', async () => {
     const db = await createMigratedDb();
     try {
-      await applyProposal06(db);
       const { orgId } = await seedOrgAndUser(db, 'proposal06-agent-runs-insert');
 
       const inserted = await db.transaction(async (tx) => {
@@ -136,7 +151,6 @@ describe('PROPOSAL-06: grants de solo-lectura de negocio + insert de agent_runs 
   it('las políticas ADICIONALES no reemplazan las existentes: un miembro humano real de la organización sigue pudiendo leer sus propios tenders', async () => {
     const db = await createMigratedDb();
     try {
-      await applyProposal06(db);
       const { orgId, userId } = await seedOrgAndUser(db, 'proposal06-human-still-works');
       await db.query(`insert into tenders (org_id, source, external_id, title) values ($1, 'dof', 'ext-3', 'Convocatoria humana')`, [
         orgId,
