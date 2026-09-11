@@ -43,14 +43,51 @@ Bloqueo relacionado: `docs/BLOQUEOS.md` B-08 ("sin backend en producción").
   por defecto de `pg` y decenas de instancias vivas se agotarían las
   conexiones del pooler mucho antes de su propio límite.
 
-**Gap real:** ninguna de las dos variables está documentada en
-`apps/api/.env.example`, `apps/worker/.env.example` ni
-`infra/env/.env.prod.example`, y `infra/scripts/check-env-parity.mjs` **no
-las detecta** porque solo escanea `apps/api/src`, `apps/worker/src` y
+**Gap real, CERRADO 10-sep-2026 (auditoría de fusión con la familia
+"atiende", rama `agent/audit-fix`):** ninguna de las dos variables estaba
+documentada en `apps/api/.env.example`, `apps/worker/.env.example` ni
+`infra/env/.env.prod.example`, y `infra/scripts/check-env-parity.mjs` no
+las detectaba porque solo escaneaba `apps/api/src`, `apps/worker/src` y
 `packages/mail|whatsapp/src` — no `packages/db/src`, que es donde
-`driver.ts` las lee. `npm run ci:local` pasa igual (ver sección 5) porque
-ese script no cubre esta brecha. Antes de desplegar contra Supabase real,
-añadir ambas variables a los tres archivos.
+`driver.ts` las lee. Corregido: las tres variables ahora están documentadas
+en los tres archivos, y `packages/db/src` se agregó a los `sourceDirs` de
+`infra/scripts/check-env-parity.mjs` para `api`/`worker` (con
+`DATABASE_URL_POOL_MAX` en `allowMissing` -- tiene default seguro).
+
+**Bug real encontrado al cerrar el gap de arriba (no una formalidad de
+documentación):** `infra/compose/docker-compose.prod.yml` (la opción de
+despliegue en VPS, alternativa a Supabase+Vercel) **nunca fijaba
+`DATABASE_URL_NO_SSL`** para `api`/`worker`, y su propio servicio
+`postgres` (`postgres:16-alpine`, sin TLS configurado) tampoco lo soporta.
+Desde que `createDbClientFromEnv` activa TLS por defecto (D-11, commit
+`e121b54`, 2026-09-08 21:04) hasta hoy, `api`/`worker` habrían reventado en
+su primera query real contra ese Postgres con `"The server does not support
+SSL connections"` — confirmado reproduciendo el error en vivo contra un
+`postgres:16-alpine` real antes de aplicar el fix. La verificación Docker
+E2E de E17/S11 (`docs/BLOQUEOS.md`) es de 2026-09-07 20:31, **antes** de
+`e121b54` — nunca se volvió a correr con Docker real después de ese cambio
+(el hardening posterior, commit `990ed95`, se verificó explícitamente "sin
+Docker en este entorno"), así que la regresión pasó inadvertida ~2 días.
+Corregido fijando `DATABASE_URL_NO_SSL: "true"` en `migrate`/`api`/`worker`
+de `docker-compose.prod.yml`. Se encontró además un segundo bug real
+independiente al mismo tiempo (mismo mecanismo, agregar `packages/db/src` a
+`check-env-parity.mjs` lo hizo visible por primera vez): `worker` tampoco
+fijaba `PUBLIC_URL`/`MAIL_FROM` (los lee `apps/worker/src/config.ts` con
+default seguro `https://app.atiende.mx`/`soporte@atiende.mx` para las
+alertas que envía directo, `send-agent-alert.ts`) — nunca revienta, pero un
+despliegue real enviaría alertas con la URL/remitente de EJEMPLO en vez del
+dominio real del operador. Corregido con los mismos valores que ya usa
+`api` (`WEB_DOMAIN`/`MAIL_FROM`).
+
+**Verificación real aplicada (no solo `check-env-parity.mjs`, que ahora
+pasa OK):** `docker compose -f docker-compose.prod.yml build postgres
+migrate api worker` + `up -d` con un `.env` de prueba real (nunca
+commiteado): `postgres` y `api` quedan `healthy`, `migrate` aplica las 84
+migraciones reales y termina en 0, `worker` arranca y **consulta Postgres
+real con éxito** (jobs `discover_tenders` tomados de la cola y
+dead-letterizados por `NotConfiguredError` — el comportamiento honesto
+esperado de B-02, no un crash), `GET /readyz` responde `{"status":"ok"}`
+desde dentro del contenedor `api`. Stack bajado con `down -v` al terminar.
 
 ### 1.2 Tabla `rate_limit_buckets` (migración `packages/db/migrations/0097_rate_limit_buckets.sql`, ya en `main`)
 

@@ -41,24 +41,42 @@ const ENV_EXAMPLE_PATH = join(REPO_ROOT, 'infra', 'env', '.env.prod.example');
  * ver `apps/api/src/lib/mail/whatsapp-channel.ts`) -- confirmado por
  * `grep -r createWhatsAppProviderFromEnv apps/`.
  */
+// Bug real encontrado y corregido (10-sep-2026, ver docs/BLOQUEOS.md): este
+// script nunca escaneaba `packages/db/src`, así que no detectaba que
+// `createDbClientFromEnv` (D-11, commit e121b54) lee DATABASE_URL_NO_SSL /
+// DATABASE_URL_POOL_MAX -- docker-compose.prod.yml nunca fijó
+// DATABASE_URL_NO_SSL para `api`/`worker` y ambos revientan en cada query
+// real contra el propio Postgres del compose (sin TLS) con "The server does
+// not support SSL connections" (confirmado en vivo contra postgres:16-alpine
+// real). Corregido fijando DATABASE_URL_NO_SSL="true" en los tres servicios
+// que hablan con ese Postgres (`migrate`/`api`/`worker`) y agregando
+// `packages/db/src` aquí para que esta clase de regresión no vuelva a pasar
+// inadvertida.
+const DB_DRIVER_ALLOW_MISSING = new Set([
+  // DATABASE_URL_POOL_MAX: tiene un default seguro en código (3,
+  // deliberadamente bajo para serverless -- ver packages/db/src/driver.ts) y
+  // el valor por defecto también es correcto para este compose de un único
+  // proceso por servicio; no hace falta que un operador la complete.
+  'DATABASE_URL_POOL_MAX',
+]);
+
 const SERVICES = {
   api: {
-    sourceDirs: ['apps/api/src', 'packages/mail/src', 'packages/whatsapp/src'],
+    sourceDirs: ['apps/api/src', 'packages/mail/src', 'packages/whatsapp/src', 'packages/db/src'],
     composeServiceName: 'api',
-    // OIDC_ISSUER_URL: NUNCA debe definirse en el compose de producción --
-    // decisión de diseño explícita y documentada (ver
-    // apps/api/src/modules/auth/google/env.ts, cabecera del archivo, y
-    // apps/api/.env.example: "NUNCA definir esta variable en producción").
-    // Sin ella, `loadGoogleOidcEnv` usa el default seguro
-    // (https://accounts.google.com, Google real). Es la ÚNICA exclusión
-    // deliberada de este script -- cualquier otra variable que el código
-    // real lea debe estar en el compose Y en el .env.prod.example.
-    allowMissing: new Set(['OIDC_ISSUER_URL']),
+    // Exclusiones deliberadas -- cualquier otra variable que el código real
+    // lea debe estar en el compose Y en el .env.prod.example:
+    // - OIDC_ISSUER_URL: NUNCA debe definirse en el compose de producción
+    //   (decisión de diseño explícita, ver apps/api/src/modules/auth/google/env.ts
+    //   y apps/api/.env.example: "NUNCA definir esta variable en producción").
+    //   Sin ella, `loadGoogleOidcEnv` usa el default seguro (Google real).
+    // - DATABASE_URL_POOL_MAX: ver DB_DRIVER_ALLOW_MISSING arriba.
+    allowMissing: new Set(['OIDC_ISSUER_URL', ...DB_DRIVER_ALLOW_MISSING]),
   },
   worker: {
-    sourceDirs: ['apps/worker/src', 'packages/mail/src'],
+    sourceDirs: ['apps/worker/src', 'packages/mail/src', 'packages/db/src'],
     composeServiceName: 'worker',
-    allowMissing: new Set(),
+    allowMissing: new Set([...DB_DRIVER_ALLOW_MISSING]),
   },
 };
 

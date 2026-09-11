@@ -108,6 +108,18 @@ services:
     restart: "no"
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:?POSTGRES_USER es obligatoria}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD es obligatoria}@postgres:5432/${POSTGRES_DB:?POSTGRES_DB es obligatoria}
+      # Bug real encontrado y corregido (10-sep-2026): packages/db/src/driver.ts
+      # (createDbClientFromEnv, D-11 commit e121b54) activa TLS por defecto en
+      # TODA conexión postgres:// salvo que esta variable sea "true" -- el
+      # servicio `postgres` de este mismo compose es postgres:16-alpine SIN
+      # TLS configurado. Sin esto, `pg` revienta con "The server does not
+      # support SSL connections" (verificado en vivo contra un contenedor
+      # postgres:16-alpine real). `scripts/db-postgres-migrate.mjs` llama a
+      # createPgClient() directamente (sin ssl), así que a ESTE servicio no
+      # le hace falta para funcionar hoy -- se fija de todas formas por
+      # consistencia con `api`/`worker` (mismo Postgres local) y por si ese
+      # script cambia a createDbClientFromEnv más adelante.
+      DATABASE_URL_NO_SSL: "true"
     depends_on:
       postgres:
         condition: service_healthy
@@ -130,6 +142,14 @@ services:
       # Las migraciones ya las aplicó el servicio `migrate` de arriba.
       SKIP_MIGRATIONS: "true"
       DATABASE_URL: postgres://${POSTGRES_USER:?POSTGRES_USER es obligatoria}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD es obligatoria}@postgres:5432/${POSTGRES_DB:?POSTGRES_DB es obligatoria}
+      # Bug real encontrado y corregido (10-sep-2026): sin esto, `apps/api`
+      # (que SÍ usa createDbClientFromEnv, a diferencia de `migrate`) revienta
+      # en cada query real contra el `postgres` de este compose ("The server
+      # does not support SSL connections") -- ver la nota completa en el
+      # servicio `migrate` de arriba. `check-env-parity.mjs` no detectaba esta
+      # brecha porque no escaneaba packages/db/src -- corregido en el mismo
+      # commit.
+      DATABASE_URL_NO_SSL: "true"
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET es obligatoria -- apps/api/src/config.ts revienta al arrancar sin ella}
       STORAGE_DIR: /app/data/storage
       CORS_ORIGINS: https://${WEB_DOMAIN:?WEB_DOMAIN es obligatoria -- ver infra/README.md}
@@ -214,6 +234,9 @@ services:
       NODE_ENV: production
       SKIP_MIGRATIONS: "true"
       DATABASE_URL: postgres://${POSTGRES_USER:?POSTGRES_USER es obligatoria}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD es obligatoria}@postgres:5432/${POSTGRES_DB:?POSTGRES_DB es obligatoria}
+      # Bug real encontrado y corregido (10-sep-2026): mismo motivo que `api`
+      # arriba -- ver la nota completa en el servicio `migrate`.
+      DATABASE_URL_NO_SSL: "true"
       WORKER_ID: ${WORKER_ID:-}
       WORKER_POLL_INTERVAL_MS: ${WORKER_POLL_INTERVAL_MS:-1000}
       WORKER_LEASE_SECONDS: ${WORKER_LEASE_SECONDS:-60}
@@ -234,6 +257,18 @@ services:
       # infra/scripts/check-env-parity.mjs, IN-01).
       WORKER_DISABLED_AGENTS: ${WORKER_DISABLED_AGENTS:-}
       WORKER_AGENT_BUDGET_USD_PER_ORG: ${WORKER_AGENT_BUDGET_USD_PER_ORG:-5}
+      # Bug real encontrado y corregido (10-sep-2026, hallado al agregar
+      # packages/db/src a check-env-parity.mjs -- ver nota de DATABASE_URL_NO_SSL
+      # arriba): apps/worker/src/config.ts lee PUBLIC_URL/MAIL_FROM con
+      # defaults seguros en código (`https://app.atiende.mx`/
+      # `soporte@atiende.mx`) para las alertas que envía directamente
+      # (apps/worker/src/handlers/send-agent-alert.ts) -- sin fijarlas aquí,
+      # un despliegue real enviaría alertas con la URL/remitente de EJEMPLO
+      # en vez del dominio/remitente real del operador (nunca revienta, pero
+      # el enlace de la alerta apuntaría al lugar equivocado). MISMOS
+      # valores que usa `api` arriba (WEB_DOMAIN/MAIL_FROM), a propósito.
+      PUBLIC_URL: https://${WEB_DOMAIN:?WEB_DOMAIN es obligatoria -- ver infra/README.md}
+      MAIL_FROM: ${MAIL_FROM:-soporte@atiende.mx}
       # Reintento de correo (apps/worker/src/mail/build-mail-service.ts):
       # NUNCA necesita MAIL_LINK_SECRET (no genera enlaces firmados), solo
       # el mismo proveedor real que usa apps/api para que un reintento

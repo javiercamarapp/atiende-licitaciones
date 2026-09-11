@@ -16,6 +16,15 @@
 #   # o exporta esa misma DATABASE_URL en apps/api/.env / apps/worker/.env
 #   # y arranca `npm run -w apps/api dev` / `npm run -w apps/worker dev`
 #   # normalmente (SKIP_MIGRATIONS=false por defecto: las aplica solo).
+#   #
+#   # IMPORTANTE (bug real corregido 10-sep-2026, ver
+#   # docs/despliegue-supabase-vercel.md §1.1): este Postgres NO tiene TLS.
+#   # `scripts/db-postgres-migrate.mjs` no lo necesita (usa createPgClient()
+#   # directo, sin ssl), pero `apps/api`/`apps/worker` SÍ activan TLS por
+#   # defecto (createDbClientFromEnv) -- agrega también
+#   # DATABASE_URL_NO_SSL=true a ese mismo apps/api/.env / apps/worker/.env,
+#   # o `npm run -w apps/api dev` revienta con "The server does not support
+#   # SSL connections" en la primera query real.
 #
 # Puerto 5433 (no el 5432 por defecto) a propósito: evita chocar con un
 # Postgres que ya pudiera estar corriendo en el host de quien desarrolla.
