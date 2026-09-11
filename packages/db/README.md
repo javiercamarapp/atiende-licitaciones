@@ -175,7 +175,7 @@ cambios.
 
 - `migrate.test.ts`: las migraciones se aplican sin error y son idempotentes
   (aplicar dos veces no falla ni duplica).
-- `rls-isolation.test.ts`: **34 tablas de dominio** (bucle genérico sobre
+- `rls-isolation.test.ts`: **36 tablas de dominio** (bucle genérico sobre
   `DOMAIN_TABLES` en `test/helpers.ts`), 2 pruebas cada una: un owner de la
   organización A no ve/edita/borra filas de la organización B, y sin
   contexto de sesión no se ve nada.
