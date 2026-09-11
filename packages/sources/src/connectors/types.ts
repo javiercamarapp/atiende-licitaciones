@@ -74,6 +74,21 @@ export interface LiveVerification {
   verified: boolean;
   /** Evidencia de lo intentado (fecha, resultado, motivo si no se pudo verificar). Ver README para el detalle completo. */
   note: string;
+  /**
+   * REQ-070 (orquestador Radar→Analista→Redactor→Auditor→Mensajero): `true`
+   * ÚNICAMENTE para el conector sintético/offline de pruebas
+   * (`connectors/fixture/fixture-connector.ts`), que por diseño NUNCA puede
+   * alcanzar `verified: true` -- no existe ninguna fuente real detrás de él
+   * que verificar (a diferencia de las 5 fuentes de producción, bloqueadas
+   * hoy por B-02/reCAPTCHA, que SÍ son fuentes reales pendientes de
+   * verificación). Permite a `apps/worker/src/handlers/discover-tenders.ts`
+   * omitir el gate de REQ-150 (`liveVerification.verified`) SOLO para este
+   * conector -- sin fingir jamás `verified: true` sobre él ni sobre ninguna
+   * fuente real -- para poder probar el grafo COMPLETO de orquestación de
+   * punta a punta mientras B-02 sigue abierto. Todo conector real omite
+   * este campo (`undefined` se trata como `false`).
+   */
+  synthetic?: boolean;
 }
 
 export interface SourceConnector {

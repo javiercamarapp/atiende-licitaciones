@@ -252,7 +252,18 @@ export function createDiscoverTendersHandler(deps: DiscoverTendersHandlerDeps): 
       throw new NotConfiguredError(`fuente_no_configurada:${sourceId}`);
     }
 
-    if (!connector.liveVerification.verified) {
+    // REQ-070 (orquestador Radar→Analista→Redactor→Auditor→Mensajero):
+    // `liveVerification.synthetic` (packages/sources/src/connectors/types.ts)
+    // es el ÚNICO caso en el que este gate se omite con `verified: false` --
+    // reservado exclusivamente al conector sintético/offline de pruebas
+    // (`fixture-connector.ts`, id `fixture-offline`), que NUNCA se registra
+    // en `buildDefaultConnectorRegistry()` (abajo). Ninguna de las 5 fuentes
+    // reales (bloqueadas por B-02, docs/BLOQUEOS.md) obtiene este bypass: su
+    // `liveVerification.synthetic` siempre es `undefined`, así que siguen
+    // reportando `not_configured` exactamente igual que antes. Esto permite
+    // probar el grafo COMPLETO de orquestación de punta a punta sin fingir
+    // jamás que una fuente real está verificada cuando no lo está.
+    if (!connector.liveVerification.verified && !connector.liveVerification.synthetic) {
       await recordSourceRun(deps.db, {
         sourceId,
         correlationId,
@@ -359,6 +370,10 @@ export function createDiscoverTendersHandler(deps: DiscoverTendersHandlerDeps): 
             ? `Corrida exitosa: ${tenders.length} registros procesados. apps/api: ${JSON.stringify(ingestResponse?.summary ?? {})}.`
             : 'Corrida exitosa sin registros nuevos de la fuente.',
         responseHash: tenders.length > 0 ? hashRawPayload(tenders) : undefined,
+        // REQ-070: marca explícita cuando esta corrida vino del conector
+        // sintético/offline de pruebas, para que ninguna lectura posterior
+        // de `source_runs` confunda un fixture con una ingesta real.
+        synthetic: connector.liveVerification.synthetic ?? false,
       },
       // WK-05: `obtained` solo refleja éxito (registros efectivamente
       // enviados/persistidos), nunca extracción parcial sin persistir.

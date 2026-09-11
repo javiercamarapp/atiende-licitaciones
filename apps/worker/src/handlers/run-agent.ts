@@ -24,8 +24,11 @@ import type { JobHandler } from '../queue/types.js';
 import { JobQueue } from '../queue/job-queue.js';
 import { sanitizeCorrelationId } from '../lib/correlation-id.js';
 import { buildBusinessToolRegistry } from '../agents/business-tools.js';
-import { NAMED_AGENTS, buildNamedAgentPlan, isNamedAgent } from '../agents/named-agents.js';
+import { NAMED_AGENTS, buildNamedAgentPlan, isNamedAgent, type NamedAgent } from '../agents/named-agents.js';
 import { assertAgentNotDisabled, parseDisabledAgents } from '../agents/kill-switch.js';
+import { enqueueAgentRun } from '../agents/enqueue-agent-run.js';
+import { SYSTEM_ACTOR_ID, SYSTEM_ACTOR_ROLE } from '../agents/system-actor.js';
+import { computeAuditReport } from '../agents/audit-report.js';
 
 export interface RunAgentPayload {
   /** Si se da, el resultado se refleja en la fila `agent_runs` correspondiente (packages/db/migrations/0004_agents.sql). */
@@ -404,12 +407,112 @@ async function updateAgentRunRow(
   });
 }
 
-/** Registro combinado: la herramienta de demostración original del esqueleto + las 8 herramientas de negocio (Ronda 6). */
+/** Registro combinado: la herramienta de demostración original del esqueleto + las 10 herramientas de negocio (Ronda 6 + REQ-070: `auditar_expediente`/`notificar_expediente_listo`). */
 function buildFullToolRegistry(provider: LLMProvider, businessDeps: { db: DbClient; queue: JobQueue }): ToolRegistry {
   const registry = buildDemoToolRegistry(provider);
   const businessRegistry = buildBusinessToolRegistry({ db: businessDeps.db, queue: businessDeps.queue, provider });
   for (const tool of businessRegistry.list()) registry.register(tool);
   return registry;
+}
+
+/**
+ * REQ-070 — Orquestador determinista por CÓDIGO sobre colas:
+ * Radar→Analista→Redactor→Auditor→Mensajero.
+ *
+ * Este objeto ES el grafo de estados: para el agente nombrado que ACABA de
+ * terminar con `status: 'completed'`, dice cuál es el siguiente nodo
+ * automático de la cadena (o ausente si ese nodo es terminal, o si el
+ * siguiente paso requiere una decisión HUMANA explícita en vez de una
+ * llamada automática). Es una revisión de código, no una decisión del LLM,
+ * la que confirma que este grafo existe y está fijo: ningún tool_call ni
+ * ninguna salida de `LLMProvider` puede alterar esta tabla en tiempo de
+ * ejecución.
+ *
+ *  - Radar (`discover_tenders`, `packages/sources` +
+ *    `handlers/discover-tenders.ts`) → Analista (`analista_convocatorias`)
+ *    YA se encadena por código desde ESE handler
+ *    (`enqueueAgentEventsForIngestResults`) — no se repite aquí.
+ *  - Analista → Redactor NO se autoencaden: `redactor_borrador` requiere
+ *    `sectionKeys` explícitos y una decisión de "go/no-go" que ningún dato
+ *    persistido decide por sí solo — auto-encadenarlo violaría REQ-071 ("el
+ *    agente propone, nunca decide"). Un humano (vía `apps/api`) encola
+ *    `redactor_borrador` después de revisar la propuesta de matching/
+ *    matriz de `analista_convocatorias`/`analista_bases`.
+ *  - Redactor → Auditor SÍ se autoencaden aquí: correr el auditor
+ *    (solo LECTURA, `auditar_expediente`/`computeAuditReport`) no requiere
+ *    ninguna decisión humana previa — es seguro recalcularlo cada vez que
+ *    el redactor termina.
+ *  - Auditor → Mensajero SÍ se autoencaden aquí, pero condicionado: solo si
+ *    `computeAuditReport` (recalculado, nunca leído del `output` crudo del
+ *    tool_call — `ToolCallTrace` no lo persiste, ver docstring de
+ *    `computeAuditReport`) no reporta ningún bloqueo real. Si hay
+ *    bloqueos, la cadena se detiene para revisión humana y
+ *    `mensajero_notificaciones` NUNCA se encola — decidido en código, sobre
+ *    datos reales, nunca por el LLM.
+ */
+const ORCHESTRATION_NEXT_STAGE: Partial<Record<NamedAgent, NamedAgent>> = {
+  redactor_borrador: 'auditor_expediente',
+  auditor_expediente: 'mensajero_notificaciones',
+};
+
+/**
+ * Avanza el grafo de orquestación (REQ-070) tras una corrida `completed` de
+ * un agente nombrado. Best-effort estricto (mismo criterio que
+ * `enqueueAgentEventsForIngestResults` de `discover-tenders.ts`): la corrida
+ * que disparó este avance YA terminó con éxito — un fallo al encolar el
+ * SIGUIENTE nodo (grant pendiente, cola caída) nunca revierte ni hace
+ * fallar esa corrida ya exitosa, solo queda en el log para que un humano lo
+ * retome manualmente.
+ */
+async function advanceOrchestrationGraph(
+  db: DbClient,
+  queue: JobQueue,
+  agentName: string,
+  organizationId: string | null,
+  context: Record<string, unknown> | undefined,
+  correlationId: string | undefined,
+  logger: import('../logger.js').Logger,
+): Promise<void> {
+  if (!isNamedAgent(agentName)) return;
+  const nextAgent = ORCHESTRATION_NEXT_STAGE[agentName];
+  if (!nextAgent) return;
+  if (!organizationId || !uuidSchema.safeParse(organizationId).success) return;
+  const tenderId = typeof context?.tenderId === 'string' ? context.tenderId : undefined;
+  if (!tenderId) return;
+
+  try {
+    if (agentName === 'auditor_expediente') {
+      const report = await computeAuditReport(db, organizationId, tenderId, () => new Date());
+      if (report.blocking.length > 0) {
+        logger.info(
+          { tender_id: tenderId, organization_id: organizationId, blocking: report.blocking },
+          'orquestador REQ-070: auditor_expediente terminó con bloqueos reales — la cadena automática se detiene aquí para revisión humana (mensajero_notificaciones NO se encola)',
+        );
+        return;
+      }
+    }
+
+    await enqueueAgentRun(db, queue, {
+      agentName: nextAgent,
+      organizationId,
+      actorId: SYSTEM_ACTOR_ID,
+      actorRole: SYSTEM_ACTOR_ROLE,
+      context: { tenderId },
+      correlationId,
+      eventKey: `pipeline:${nextAgent}:${tenderId}`,
+    });
+  } catch (error) {
+    logger.warn(
+      {
+        tender_id: tenderId,
+        organization_id: organizationId,
+        agent_name: agentName,
+        next_agent: nextAgent,
+        err: error instanceof Error ? error.message : String(error),
+      },
+      'orquestador REQ-070: no se pudo encolar el siguiente nodo del grafo (la corrida actual ya terminó con éxito, esto no la afecta)',
+    );
+  }
 }
 
 /**
@@ -458,7 +561,7 @@ export function createRunAgentHandler(deps: RunAgentHandlerDeps): JobHandler<Run
   const env = deps.env ?? process.env;
   const budgetUsdPerOrg = deps.budgetUsdPerOrg ?? Number(env.WORKER_AGENT_BUDGET_USD_PER_ORG ?? '5');
 
-  return async (job) => {
+  return async (job, ctx) => {
     // WK-16 (docs/auditoria-1/worker-reverificacion.md) + WK-19
     // (docs/auditoria-1/worker-cierre.md): fail-closed ANTES de correr
     // nada. El guard original (`!organizationId`) cubría `null`,
@@ -545,6 +648,23 @@ export function createRunAgentHandler(deps: RunAgentHandlerDeps): JobHandler<Run
         run,
         toolCalls,
         providerMeta,
+      );
+    }
+
+    // REQ-070: solo una corrida REALMENTE completada avanza el grafo de
+    // orquestación — un `run.status` que requiera revisión humana o que
+    // haya fallado nunca dispara el siguiente nodo (`ORCHESTRATION_NEXT_STAGE`
+    // arriba). Best-effort (ver docstring de `advanceOrchestrationGraph`):
+    // esta llamada nunca hace fallar el job actual, que ya terminó bien.
+    if (run.status === 'completed') {
+      await advanceOrchestrationGraph(
+        deps.db,
+        queue,
+        agentName,
+        job.payload.organizationId,
+        job.payload.context,
+        run.correlationId ?? sanitizedCorrelationId,
+        ctx.logger,
       );
     }
 

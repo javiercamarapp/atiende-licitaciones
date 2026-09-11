@@ -37,9 +37,12 @@ describe('PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real', () => {
     }
   });
 
-  it('worker_role tiene EXACTAMENTE grants sobre {jobs, source_runs, agent_runs} + las 10 tablas de lectura de negocio de 0098 (E6/PROPOSAL-06), ninguna otra', async () => {
+  it('worker_role tiene EXACTAMENTE grants sobre {jobs, source_runs, agent_runs} + las 10 tablas de lectura de negocio de 0098 (E6/PROPOSAL-06) + proposal_sections de 0099 (REQ-070), ninguna otra', async () => {
     // Ampliado por packages/db/migrations/0098_e6_agent_business_tools_grants.sql
-    // (E6, docs/BLOQUEOS.md "E6-ciclo-agentes") — ver
+    // (E6, docs/BLOQUEOS.md "E6-ciclo-agentes") y por
+    // packages/db/migrations/0099_req070_orchestrator_grants.sql (REQ-070,
+    // nodo "Auditor" — `auditar_expediente`/`computeAuditReport` necesita
+    // leer `proposal_sections`) — ver
     // packages/db/test/worker-role-and-job-proposals.test.ts para el mismo
     // contrato con más profundidad (incluida la razón de negocio de cada
     // tabla añadida).
@@ -64,6 +67,7 @@ describe('PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real', () => {
           'experience_records',
           'compliance_items',
           'proposals',
+          'proposal_sections',
         ].sort(),
       );
     } finally {

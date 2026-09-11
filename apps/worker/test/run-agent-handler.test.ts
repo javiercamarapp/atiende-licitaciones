@@ -4,6 +4,7 @@ import { FakeProvider } from '@atiende/agents';
 import { createRunAgentHandler } from '../src/handlers/run-agent.js';
 import { createMigratedDb, seedOrgAndUser, silentLogger } from './helpers.js';
 import type { Job, JobHandlerContext } from '../src/queue/types.js';
+import { JobQueue } from '../src/queue/job-queue.js';
 
 function makeCtx(): JobHandlerContext {
   return { job: {} as Job, logger: silentLogger(), signal: new AbortController().signal };
@@ -405,15 +406,30 @@ describe('run_agent handler (esqueleto)', () => {
    * su propio índice; el backfill de filas viejas que solo la tenían en el
    * JSONB vive en `0088_e20_agent_runs_correlation_id.sql`) — la consulta
    * de auditoría de REQ-171 pasa de `output->>'correlationId' = $1` a
-   * `correlation_id = $1` (indexada). Este test corre TRES corridas de
-   * agentes nombrados distintos (analista_convocatorias, analista_bases,
-   * redactor_borrador) que representan, en la vida real, los pasos
-   * sucesivos de UN MISMO expediente (convocatoria -> matriz de requisitos
-   * -> borrador de propuesta), todas con el MISMO `correlationId` de
-   * negocio (`tenderId`), y confirma que una única consulta SQL por la
-   * COLUMNA reconstruye la cadena completa en el orden correcto (y que
-   * `output->>'correlationId'` sigue coincidiendo, por compatibilidad
-   * hacia atrás con cualquier lector que todavía consulte el JSONB).
+   * `correlation_id = $1` (indexada). Este test corre TRES corridas
+   * manuales de agentes nombrados distintos (analista_convocatorias,
+   * analista_bases, redactor_borrador) que representan, en la vida real,
+   * los pasos sucesivos de UN MISMO expediente (convocatoria -> matriz de
+   * requisitos -> borrador de propuesta), todas con el MISMO
+   * `correlationId` de negocio (`tenderId`), y confirma que una única
+   * consulta SQL por la COLUMNA reconstruye la cadena completa en el orden
+   * correcto (y que `output->>'correlationId'` sigue coincidiendo, por
+   * compatibilidad hacia atrás con cualquier lector que todavía consulte el
+   * JSONB).
+   *
+   * REQ-070 (orquestador Radar→Analista→Redactor→Auditor→Mensajero): la
+   * corrida de `redactor_borrador` ahora encadena por CÓDIGO (nunca por el
+   * LLM, `advanceOrchestrationGraph` en `handlers/run-agent.ts`) un CUARTO
+   * nodo automático, `auditor_expediente` — este test lo drena igual que lo
+   * haría el worker real (`JobQueue.claim` + el mismo `handler`) y confirma
+   * que también hereda el MISMO `correlationId`. Esta convocatoria de
+   * prueba nunca llegó a tener una `proposals`/`proposal_sections` real
+   * (nadie llamó a `apps/api` para guardar el borrador), así que
+   * `auditor_expediente` SIEMPRE reporta al menos un bloqueo real
+   * (`sin_expediente`) — el criterio negativo correcto es que, precisamente
+   * por eso, el QUINTO nodo (`mensajero_notificaciones`) NUNCA se encola:
+   * la decisión de detener la cadena para revisión humana también la toma
+   * el CÓDIGO, sobre datos reales, nunca el LLM.
    */
   it('WK6-02/E20: correlationId de negocio persiste en agent_runs.correlation_id (columna) y en output (y en cada tool_call) — una sola consulta por columna reconstruye convocatoria -> matriz -> propuesta', async () => {
     const { orgId, userId } = await seedOrgAndUser(db, 'wk602-trace');
@@ -472,6 +488,15 @@ describe('run_agent handler (esqueleto)', () => {
     await runNamedAgent('analista_bases', { tenderId });
     await runNamedAgent('redactor_borrador', { tenderId, sectionKeys: ['experiencia'] });
 
+    // REQ-070: `redactor_borrador` acaba de encadenar `auditor_expediente`
+    // por código — se drena EXACTAMENTE como lo haría el worker real
+    // (`JobQueue.claim` + el mismo `handler`), nunca invocando el handler
+    // de negocio "a mano" para este nodo.
+    const queue = new JobQueue({ db });
+    const auditorJob = await queue.claim('test-worker-req070', { kinds: ['run_agent'] });
+    expect(auditorJob?.payload).toMatchObject({ agentName: 'auditor_expediente', organizationId: orgId, correlationId: tenderId });
+    if (auditorJob) await handler(auditorJob as unknown as Parameters<typeof handler>[0], makeCtx());
+
     // El criterio verificable de REQ-171/E20: UNA sola consulta por la
     // COLUMNA `correlation_id` (indexada, no ya contra el JSONB) reconstruye
     // la cadena completa, en orden.
@@ -483,7 +508,12 @@ describe('run_agent handler (esqueleto)', () => {
       tenderId,
     ]);
 
-    expect(chain.map((r) => r.agent_name)).toEqual(['analista_convocatorias', 'analista_bases', 'redactor_borrador']);
+    expect(chain.map((r) => r.agent_name)).toEqual([
+      'analista_convocatorias',
+      'analista_bases',
+      'redactor_borrador',
+      'auditor_expediente',
+    ]);
     expect(chain.every((r) => r.correlation_id === tenderId)).toBe(true);
     // Compatibilidad hacia atrás: `output->>'correlationId'` sigue
     // coincidiendo (nada dejó de escribirse ahí).
@@ -494,6 +524,19 @@ describe('run_agent handler (esqueleto)', () => {
     const toolCallCorrelationIds = chain.flatMap((r) => r.output.toolCalls.map((t) => t.correlationId));
     expect(toolCallCorrelationIds.length).toBeGreaterThan(0);
     expect(toolCallCorrelationIds.every((c) => c === tenderId)).toBe(true);
+
+    // REQ-070 (negativo): esta convocatoria de prueba nunca tuvo una
+    // `proposals`/`proposal_sections` real guardada — `auditor_expediente`
+    // reporta un bloqueo real (`sin_expediente`) y el CÓDIGO (nunca el LLM)
+    // detiene ahí la cadena automática: `mensajero_notificaciones` no debe
+    // haberse encolado ni como fila de `agent_runs` ni como job pendiente.
+    const { rows: mensajeroRuns } = await db.query(
+      `select 1 from agent_runs where correlation_id = $1 and agent_name = 'mensajero_notificaciones'`,
+      [tenderId],
+    );
+    expect(mensajeroRuns).toHaveLength(0);
+    const noMoreJobs = await queue.claim('test-worker-req070', { kinds: ['run_agent'] });
+    expect(noMoreJobs).toBeUndefined();
   });
 
   describe('WK6-04 (docs/auditoria-2/worker-agentes-reverificacion.md, MEDIA): correlationId se sanea ANTES de persistir en agent_runs', () => {

@@ -22,13 +22,15 @@ describe('business-tools.ts (Ronda 6): herramientas de negocio reales del worker
     await db.close();
   });
 
-  it('registra las 8 herramientas con actionKind/declaredEffects consistentes (nunca external_send/sign/portal_action/contact_third_party)', () => {
+  it('registra las 10 herramientas (8 de la Ronda 6 + auditor_expediente/notificar_expediente_listo de REQ-070) con actionKind/declaredEffects consistentes (nunca external_send/sign/portal_action/contact_third_party)', () => {
     const registry = buildBusinessToolRegistry({ db, queue, provider: new FakeProvider() });
     const names = registry.list().map((t) => t.name).sort();
     expect(names).toEqual([
+      'auditar_expediente',
       'leer_bases',
       'leer_perfil_empresa',
       'listar_convocatorias',
+      'notificar_expediente_listo',
       'programar_alerta',
       'proponer_matching',
       'proponer_requisitos_matriz',
@@ -41,7 +43,7 @@ describe('business-tools.ts (Ronda 6): herramientas de negocio reales del worker
     }
   });
 
-  it('ninguna de las 8 herramientas acepta organizationId/orgId/tenantId del modelo: el esquema los descarta silenciosamente, nunca llegan al handler', () => {
+  it('ninguna de las 10 herramientas acepta organizationId/orgId/tenantId del modelo: el esquema los descarta silenciosamente, nunca llegan al handler', () => {
     const registry = buildBusinessToolRegistry({ db, queue, provider: new FakeProvider() });
     const forbiddenInjection = { organizationId: 'org-evil', org_id: 'org-evil-2', tenantId: 'tenant-evil' };
     const sampleInputByTool: Record<string, unknown> = {
@@ -58,6 +60,8 @@ describe('business-tools.ts (Ronda 6): herramientas de negocio reales del worker
         scheduledFor: new Date().toISOString(),
         message: 'x',
       },
+      auditar_expediente: { tenderId: '00000000-0000-0000-0000-000000000001' },
+      notificar_expediente_listo: { tenderId: '00000000-0000-0000-0000-000000000001' },
     };
     for (const tool of registry.list()) {
       const input = { ...(sampleInputByTool[tool.name] as Record<string, unknown>), ...forbiddenInjection };
@@ -251,6 +255,38 @@ describe('business-tools.ts (Ronda 6): herramientas de negocio reales del worker
     expect(rows[0].kind).toBe('send_agent_alert');
   });
 
+  it('auditar_expediente (REQ-070, nodo Auditor): delega en computeAuditReport — nunca fabrica un resultado propio', async () => {
+    const { orgId } = await seedOrgAndUser(db, 'bt-auditar');
+    const registry = buildBusinessToolRegistry({ db, queue, provider: new FakeProvider() });
+    const tool = registry.get('auditar_expediente');
+
+    const report = (await tool.handler(
+      { tenderId: '00000000-0000-0000-0000-000000000000' },
+      makeCtx(orgId),
+    )) as { tenderId: string; blocking: string[]; warnings: string[] };
+    expect(report.blocking).toEqual(['convocatoria_no_encontrada: no existe una convocatoria con este id en la organización activa']);
+  });
+
+  it('notificar_expediente_listo (REQ-070, nodo Mensajero): encola un job real (send_expediente_notification), deduplicado por (org, tender)', async () => {
+    const { orgId } = await seedOrgAndUser(db, 'bt-notificar');
+    const tenderRes = await db.query<{ id: string }>(
+      `insert into tenders (org_id, source, external_id, title) values ($1, 'dof', 'notif-1', 'Convocatoria') returning id`,
+      [orgId],
+    );
+    const registry = buildBusinessToolRegistry({ db, queue, provider: new FakeProvider() });
+    const tool = registry.get('notificar_expediente_listo');
+    const input = { tenderId: tenderRes.rows[0].id };
+
+    const first = (await tool.handler(input, makeCtx(orgId))) as { jobId: string; deduped: boolean };
+    expect(first.deduped).toBe(false);
+    const second = (await tool.handler(input, makeCtx(orgId))) as { jobId: string; deduped: boolean };
+    expect(second.deduped).toBe(true);
+    expect(second.jobId).toBe(first.jobId);
+
+    const { rows } = await db.query<{ kind: string }>(`select kind from jobs where id = $1`, [first.jobId]);
+    expect(rows[0].kind).toBe('send_expediente_notification');
+  });
+
   /**
    * WK6-01 (docs/auditoria-2/worker-agentes.md, ALTA): la auditoría
    * adversarial "Ronda K" confirmó que quitar el filtro `org_id` de
@@ -258,7 +294,8 @@ describe('business-tools.ts (Ronda 6): herramientas de negocio reales del worker
    * única aserción de aislamiento de `proponer_matching` miraba
    * `status === 'ok'`, nunca el CONTENIDO real (score/explanation/
    * matchedKeywords) — exactamente donde viviría una fuga cross-org. Este
-   * bloque añade, para cada una de las 8 herramientas de negocio, un test
+   * bloque añade, para cada una de las 8 herramientas de negocio originales
+   * de esta ronda (+ `auditar_expediente` de REQ-070 más abajo), un test
    * DIRECTO con DOS organizaciones y datos distinguibles ("SECRETO-ORGA")
    * que verifica que el resultado de orgB NUNCA contiene título/texto/
    * evidencia real de orgA, no solo que la llamada "terminó bien". Repetir
@@ -458,6 +495,23 @@ describe('business-tools.ts (Ronda 6): herramientas de negocio reales del worker
       const { rows } = await db.query<{ org_id: string }>(`select org_id from jobs where id = $1`, [output.jobId]);
       expect(rows[0].org_id).toBe(orgB);
       expect(rows[0].org_id).not.toBe(orgA);
+    });
+
+    it('auditar_expediente (REQ-070): tenderId real de orgA desde el contexto de orgB -> "convocatoria no encontrada", nunca el reporte real de orgA', async () => {
+      const { orgId: orgA } = await seedOrgAndUser(db, 'wk601-auditor-a');
+      const { orgId: orgB } = await seedOrgAndUser(db, 'wk601-auditor-b');
+      const tenderRow = await db.query<{ id: string }>(
+        `insert into tenders (org_id, source, external_id, title) values ($1, 'dof', 'wk601-aud', $2) returning id`,
+        [orgA, `${SECRET} obra civil`],
+      );
+      const tenderIdOfOrgA = tenderRow.rows[0].id;
+
+      const registry = buildBusinessToolRegistry({ db, queue, provider: new FakeProvider() });
+      const tool = registry.get('auditar_expediente');
+      const output = (await tool.handler({ tenderId: tenderIdOfOrgA }, makeCtx(orgB))) as { blocking: string[] };
+
+      expect(output.blocking).toEqual(['convocatoria_no_encontrada: no existe una convocatoria con este id en la organización activa']);
+      expect(JSON.stringify(output)).not.toContain(SECRET);
     });
   });
 });
