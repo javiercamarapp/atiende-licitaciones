@@ -4,6 +4,7 @@ import { ToolRegistry, CrossTenantSimilarityDetector, type LLMProvider, type Sou
 import type { JobQueue } from '../queue/job-queue.js';
 import { withWorkerBusinessReadContext } from './db-context.js';
 import { PgFingerprintStore } from './similarity-store.pg.js';
+import { computeAuditReport } from './audit-report.js';
 
 /**
  * Herramientas de negocio REALES para los agentes nombrados de este worker
@@ -607,6 +608,51 @@ export function buildBusinessToolRegistry(deps: BusinessToolDeps): ToolRegistry 
         { orgId, jobKey, runAt: new Date(input.scheduledFor) },
       );
       return { jobId: job.id, deduped, scheduledFor: input.scheduledFor };
+    },
+  });
+
+  registry.register({
+    name: 'auditar_expediente',
+    description:
+      'Calcula un reporte determinista de bloqueos/advertencias (REQ-070) sobre el expediente de una convocatoria: matriz completa, cada requisito obligatorio con su sección, y cada sección con al menos una fuente citada. Nunca decide "aprobar" nada -- solo reporta.',
+    inputSchema: z.object({ tenderId: z.string().uuid() }),
+    outputSchema: z.object({
+      tenderId: z.string(),
+      blocking: z.array(z.string()),
+      warnings: z.array(z.string()),
+      checkedAt: z.string(),
+    }),
+    riskLevel: 'read',
+    actionKind: 'read',
+    declaredEffects: ['read_only'],
+    idempotent: true,
+    tenantScoped: true,
+    handler: async (input: { tenderId: string }, ctx) => {
+      const orgId = requireOrganizationId(ctx.organizationId, 'auditar_expediente');
+      return computeAuditReport(deps.db, orgId, input.tenderId, now);
+    },
+  });
+
+  registry.register({
+    name: 'notificar_expediente_listo',
+    description:
+      'Encola la notificación (correo real, plantilla "pending-approval") a los miembros con rol de escritura de que un expediente pasó la auditoría automática y espera revisión humana. Nunca envía nada a un tercero externo a la organización ni decide aprobar/rechazar.',
+    inputSchema: z.object({ tenderId: z.string().uuid() }),
+    outputSchema: z.object({ jobId: z.string(), deduped: z.boolean() }),
+    riskLevel: 'write',
+    actionKind: 'write',
+    declaredEffects: ['internal_write'],
+    idempotent: true,
+    tenantScoped: true,
+    handler: async (input: { tenderId: string }, ctx) => {
+      const orgId = requireOrganizationId(ctx.organizationId, 'notificar_expediente_listo');
+      const jobKey = `expediente_listo:${orgId}:${input.tenderId}`;
+      const { job, deduped } = await deps.queue.enqueue(
+        'send_expediente_notification',
+        { organizationId: orgId, tenderId: input.tenderId },
+        { orgId, jobKey },
+      );
+      return { jobId: job.id, deduped };
     },
   });
 

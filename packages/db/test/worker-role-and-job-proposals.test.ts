@@ -82,7 +82,7 @@ describe('PROPOSAL-03 (WK-08): worker_role con RLS real', () => {
     await db.close();
   });
 
-  it('worker_role tiene EXACTAMENTE grants sobre {jobs, source_runs, agent_runs} + las 10 tablas de lectura de negocio de 0098 (E6/PROPOSAL-06) + las 2 tablas de huellas de 0099 (REQ-032), ninguna otra', async () => {
+  it('worker_role tiene EXACTAMENTE grants sobre {jobs, source_runs, agent_runs} + las 10 tablas de lectura de negocio de 0098 (E6/PROPOSAL-06) + las 2 tablas de huellas de REQ-032 (idempotente con el re-grant de proposal_sections de REQ-070), ninguna otra', async () => {
     // Ampliado por 0098_e6_agent_business_tools_grants.sql (PROPOSAL-06,
     // docs/BLOQUEOS.md "E6-ciclo-agentes"): antes de esa migración la
     // lista era exactamente {agent_runs, jobs, source_runs} (WK-08). El
@@ -90,14 +90,18 @@ describe('PROPOSAL-03 (WK-08): worker_role con RLS real', () => {
     // qué conceder SELECT de tabla completa sobre estas 10 tablas nuevas
     // es una decisión deliberada, no una regresión de aislamiento.
     //
-    // Ampliado de nuevo por 0099_req032_proposal_section_fingerprints.sql
-    // (REQ-032): `proposal_section_fingerprints` (huellas MinHash SIN
+    // Ampliado de nuevo por la migración de REQ-032:
+    // `proposal_section_fingerprints` (huellas MinHash SIN
     // contenido -- worker_role las lee/escribe para comparar huellas ENTRE
     // organizaciones, ver `req032-similarity-fingerprints.test.ts`) y
     // `proposal_similarity_flags` (evento de cumplimiento, worker_role
     // solo select/insert -- la LECTURA vía RLS sigue reservada a
     // superadmin, el grant de tabla por sí solo no basta, ver ese mismo
-    // test).
+    // test). La migración de REQ-070 (nodo "Auditor" —
+    // `auditar_expediente`/`computeAuditReport` necesita leer
+    // `proposal_sections` para decidir bloqueos reales) re-otorga SELECT
+    // sobre `proposal_sections`, ya concedida por 0098 -- idempotente, no
+    // añade una tabla nueva a esta lista.
     const { rows } = await db.query<{ table_name: string }>(
       `select distinct table_name from information_schema.role_table_grants
        where grantee = 'worker_role' order by table_name`
@@ -116,6 +120,7 @@ describe('PROPOSAL-03 (WK-08): worker_role con RLS real', () => {
         'company_profiles',
         'capabilities',
         'experience_records',
+        'proposal_sections',
         'compliance_items',
         'proposals',
         'proposal_section_fingerprints',
@@ -200,6 +205,25 @@ describe('PROPOSAL-03 (WK-08): worker_role con RLS real', () => {
       const result = await runAsWorkerRole(db, (tx) => tx.query(`select * from ${table} where org_id = $1`, [org.orgId]));
       expect(result.rows.length).toBe(1);
     }
+  });
+
+  it('0099 (REQ-070): worker_role SÍ ve, sin contexto de organización, filas de proposal_sections — mismo patrón exacto que 0098, para que auditar_expediente/computeAuditReport pueda leer secciones reales', async () => {
+    const org = await seedOrg(db, 'worker-role-0099-visible');
+    const tender = await db.query<{ id: string }>(
+      "insert into tenders (org_id, source, external_id, title) values ($1, 'test', 'wr-0099', 'X') returning id",
+      [org.orgId]
+    );
+    const proposal = await db.query<{ id: string }>(
+      "insert into proposals (org_id, tender_id, title) values ($1, $2, 'Propuesta 0099') returning id",
+      [org.orgId, tender.rows[0].id]
+    );
+    await db.query(
+      "insert into proposal_sections (org_id, proposal_id, section_key, title, content) values ($1, $2, 'technical:x', 'Sección', 'texto')",
+      [org.orgId, proposal.rows[0].id]
+    );
+
+    const result = await runAsWorkerRole(db, (tx) => tx.query('select * from proposal_sections where org_id = $1', [org.orgId]));
+    expect(result.rows.length).toBe(1);
   });
 
   it('ATAQUE: worker_role con app.current_org_id de la org A no puede actualizar una fila agent_runs (started_by de un humano real) de la org B, aun sin filtro explícito de org_id en la query', async () => {

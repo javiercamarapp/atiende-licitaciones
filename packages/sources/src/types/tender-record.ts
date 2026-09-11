@@ -23,6 +23,14 @@ export const SourceIdSchema = z.enum([
   "pdn-s6",
   "state-portal",
   "compras-mx-historico",
+  // REQ-070: fuente SINTÉTICA/offline exclusiva de pruebas de orquestación
+  // (`connectors/fixture/fixture-connector.ts`) -- nunca una fuente real,
+  // nunca registrada en `buildDefaultConnectorRegistry()` de producción
+  // (apps/worker/src/handlers/discover-tenders.ts). Existe para poder
+  // probar el grafo Radar→Analista→Redactor→Auditor→Mensajero de punta a
+  // punta mientras B-02 (docs/BLOQUEOS.md) bloquea el acceso real a las 5
+  // fuentes de arriba.
+  "fixture-offline",
 ]);
 export type SourceId = z.infer<typeof SourceIdSchema>;
 

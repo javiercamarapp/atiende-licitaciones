@@ -35,6 +35,10 @@ export * from "./connectors/dof/dof-mapper.js";
 export * from "./connectors/dof/dof-connector.js";
 export * from "./connectors/pdn-s6/pdn-s6-connector.js";
 export * from "./connectors/state-portal/state-portal-connector.js";
+// REQ-070: conector sintético/offline exclusivo de pruebas de orquestación
+// -- ver docstring en fixture-connector.ts. NUNCA se agrega a
+// `buildDefaultConnectorRegistry()` (apps/worker).
+export * from "./connectors/fixture/fixture-connector.js";
 
 // Pipeline
 export * from "./pipeline/repository.js";

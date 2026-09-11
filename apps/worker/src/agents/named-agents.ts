@@ -16,6 +16,12 @@ export const NAMED_AGENTS = [
   'redactor_borrador',
   'vigilante_cambios',
   'recordatorios',
+  // REQ-070 (orquestador Radar→Analista→Redactor→Auditor→Mensajero): los 2
+  // nodos que cierran el grafo. Ambos se encadenan automáticamente por
+  // CÓDIGO (nunca por decisión del LLM) desde `handlers/run-agent.ts` — ver
+  // el docstring de `createRunAgentHandler` ahí para el grafo completo.
+  'auditor_expediente',
+  'mensajero_notificaciones',
 ] as const;
 
 export type NamedAgent = (typeof NAMED_AGENTS)[number];
@@ -38,6 +44,8 @@ const ESTIMATED_COST_USD: Record<string, number> = {
   proponer_seccion_propuesta: 0.03,
   resumir_cambios_convocatoria: 0.01,
   programar_alerta: 0.005,
+  auditar_expediente: 0.005,
+  notificar_expediente_listo: 0.005,
 };
 
 function withCost(step: Omit<PlannedToolCall, 'estimatedCostUsd'>): PlannedToolCall {
@@ -137,6 +145,29 @@ export function buildNamedAgentPlan(agentName: NamedAgent, context: unknown): Pl
           input: { tenderId, kind: alert.kind, scheduledFor: alert.scheduledFor, message: alert.message },
           idempotencyKey: `alerta:${tenderId}:${alert.kind}:${alert.scheduledFor}`,
         }),
+      ];
+    }
+    case 'auditor_expediente': {
+      const { tenderId } = parseOrThrow(tenderContextSchema, context, agentName);
+      // REQ-070, nodo "Auditor": reporte determinista de bloqueos/
+      // advertencias (business-tools.ts `auditar_expediente` /
+      // `audit-report.ts` `computeAuditReport`). `handlers/run-agent.ts`
+      // decide, ya con la corrida terminada, si encadena hacia
+      // `mensajero_notificaciones` recalculando el MISMO reporte.
+      return [withCost({ toolName: 'auditar_expediente', input: { tenderId }, idempotencyKey: `auditoria:${tenderId}` })];
+    }
+    case 'mensajero_notificaciones': {
+      const { tenderId } = parseOrThrow(tenderContextSchema, context, agentName);
+      // REQ-070, nodo "Mensajero": encola la notificación real (correo,
+      // plantilla `pending-approval`) a los miembros con rol de escritura —
+      // nunca envía nada directamente desde esta herramienta (actionKind
+      // `write`/`internal_write`, nunca `external_send`), el envío real lo
+      // hace el JOB `send_expediente_notification`
+      // (`handlers/send-expediente-notification.ts`), fuera de
+      // `AuthorizationPolicy`, mismo patrón que `programar_alerta` →
+      // `send_agent_alert`.
+      return [
+        withCost({ toolName: 'notificar_expediente_listo', input: { tenderId }, idempotencyKey: `notificacion:${tenderId}` }),
       ];
     }
     default: {
