@@ -82,7 +82,7 @@ describe('PROPOSAL-03 (WK-08): worker_role con RLS real', () => {
     await db.close();
   });
 
-  it('worker_role tiene EXACTAMENTE grants sobre {jobs, source_runs, agent_runs} + las 10 tablas de lectura de negocio de 0098 (E6/PROPOSAL-06) + las 2 tablas de huellas de REQ-032 (idempotente con el re-grant de proposal_sections de REQ-070), ninguna otra', async () => {
+  it('worker_role tiene EXACTAMENTE grants sobre {jobs, source_runs, agent_runs} + las 10 tablas de lectura de negocio de 0098 (E6/PROPOSAL-06) + las 2 tablas de huellas de REQ-032 (idempotente con el re-grant de proposal_sections de REQ-070) + las tablas de KYC/fingerprint de REQ-026/111/112, ninguna otra', async () => {
     // Ampliado por 0098_e6_agent_business_tools_grants.sql (PROPOSAL-06,
     // docs/BLOQUEOS.md "E6-ciclo-agentes"): antes de esa migración la
     // lista era exactamente {agent_runs, jobs, source_runs} (WK-08). El
@@ -101,7 +101,16 @@ describe('PROPOSAL-03 (WK-08): worker_role con RLS real', () => {
     // `auditar_expediente`/`computeAuditReport` necesita leer
     // `proposal_sections` para decidir bloqueos reales) re-otorga SELECT
     // sobre `proposal_sections`, ya concedida por 0098 -- idempotente, no
-    // añade una tabla nueva a esta lista.
+    // añade una tabla nueva a esta lista. Ampliado de nuevo por las
+    // migraciones de REQ-026/REQ-111/REQ-112 (KYC negativo 69-B y
+    // fingerprint de interpósita persona): el job nocturno necesita (a)
+    // select/insert/update sobre las 5 tablas de compliance nuevas
+    // (sanctions_69b_snapshots/entries, tenant_kyc_checks/status,
+    // entity_fingerprint_matches) y (b) SOLO select cross-tenant sobre
+    // organizations/locations/authorized_signatories/company_stakeholders
+    // (`company_profiles` ya estaba concedido desde 0098) -- las señales de
+    // identidad que `packages/kyc` compara entre tenants. Nunca escritura
+    // sobre estas últimas 4: el worker no modifica el perfil de una empresa.
     const { rows } = await db.query<{ table_name: string }>(
       `select distinct table_name from information_schema.role_table_grants
        where grantee = 'worker_role' order by table_name`
@@ -125,6 +134,15 @@ describe('PROPOSAL-03 (WK-08): worker_role con RLS real', () => {
         'proposals',
         'proposal_section_fingerprints',
         'proposal_similarity_flags',
+        'organizations',
+        'locations',
+        'authorized_signatories',
+        'company_stakeholders',
+        'sanctions_69b_snapshots',
+        'sanctions_69b_entries',
+        'tenant_kyc_checks',
+        'tenant_kyc_status',
+        'entity_fingerprint_matches',
       ].sort()
     );
   });

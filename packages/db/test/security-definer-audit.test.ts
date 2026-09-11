@@ -155,6 +155,15 @@ const SECURITY_DEFINER_WHITELIST: Record<string, string> = {
     'Trigger sobre organizations (before update of kind): impide cambiar de "bando" una organización que ya tiene membresías del otro tipo. SECURITY DEFINER para que el exists(...) sobre memberships/oic_memberships no dependa de que quien ejecuta el UPDATE tenga esa organización como current_org_id (p.ej. un superadmin). Sin parámetros de llamador: opera sobre NEW/OLD.',
   'app.enforce_oic_watch_item_requires_comprador_org()':
     'Trigger sobre oic_watch_items (defensa en profundidad adicional a la RLS de app.apply_oic_org_rls, que ya exige has_oic_role): exige kind="comprador" en el org_id de la fila. Mismo motivo SECURITY DEFINER que los anteriores; sin parámetros de llamador.',
+  // --- REQ-026/REQ-111/REQ-112 (0099_req026_kyc_negativo_69b_fingerprint.sql): KYC negativo 69-B y fingerprint de interpósita persona ---
+  'app.tenant_kyc_verdict(uuid)':
+    'Expone SOLO el veredicto vigente (enum kyc_verdict) de UNA organización, nunca la fila cruda de tenant_kyc_status (RLS de esa tabla es exclusiva de superadmin/worker_role). p_org_id no es un identificador ajeno sin verificar: apps/api la invoca siempre con request.orgId, ya autorizado por app.requireOrg (el llamador ya demostró ser miembro de esa organización antes de llegar aquí) -- equivalente a "cuál es MI veredicto", nunca el de un tercero.',
+  'app.lookup_negative_list_entry(text)':
+    'Expone SOLO la fila de UN RFC puntual de sanctions_69b_entries (nunca la tabla completa, que es de solo superadmin/worker_role). p_rfc no es información nueva sobre un tercero: es el RFC que la propia organización que llama ya declaró en su perfil de empresa -- equivalente a "¿mi propio RFC aparece en la lista?".',
+  'app.latest_69b_snapshot_id()':
+    'Sin parámetros de identidad; expone únicamente el id de la corrida de ingesta más reciente de una lista pública (metadato de frescura, mismo criterio que app.source_freshness(), 0018), nunca contenido de la lista en sí.',
+  'app.record_tenant_kyc_check(uuid,uuid,text,text,kyc_verdict,text)':
+    'Guardia explícita DENTRO de la función (mismo patrón que app.create_refresh_token/DB-08): si hay una organización activa en la sesión (app.current_org_id() no nulo -- el caso de apps/api, una petición de un tenant autenticado), p_org_id DEBE coincidir con ella o lanza excepción sin escribir nada -- un tenant nunca puede registrar un check de KYC para otra organización. Sin organización activa (app.current_org_id() nulo -- el caso de apps/worker, un proceso de plataforma sin sesión de tenant que evalúa TODOS los tenants en la corrida nocturna, REQ-112) se permite cualquier p_org_id: es justo el caso de uso legítimo del job nocturno.',
 };
 
 async function fetchSecurityDefinerFunctions(db: DbClient): Promise<SecdefRow[]> {

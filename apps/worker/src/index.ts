@@ -1,10 +1,12 @@
 import { applyMigrations, createDbClientFromEnv } from '@atiende/db';
+import { createSat69BHttpConnector } from '@atiende/kyc';
 import { loadConfig } from './config.js';
 import { createLogger } from './logger.js';
 import { JobQueue } from './queue/job-queue.js';
 import { Worker } from './queue/worker.js';
 import { Scheduler } from './scheduler/scheduler.js';
 import { loadScheduleConfig } from './scheduler/schedule-config.js';
+import { KycScheduler } from './scheduler/kyc-scheduler.js';
 import {
   buildDefaultConnectorRegistry,
   buildDefaultHttpClient,
@@ -14,6 +16,7 @@ import { createRunAgentHandler } from './handlers/run-agent.js';
 import { createSendAgentAlertHandler } from './handlers/send-agent-alert.js';
 import { createSendExpedienteNotificationHandler } from './handlers/send-expediente-notification.js';
 import { createMailRetryHandler } from './handlers/mail-retry.js';
+import { createKycScreeningHandler } from './handlers/kyc-screening.js';
 import { TenderIngestClient } from './ingest/ingest-client.js';
 import { enqueueUpcomingDeadlineReminders } from './scheduler/deadline-reminders.js';
 
@@ -55,6 +58,13 @@ async function main(): Promise<void> {
     // primer envío (desde apps/api) agotó los reintentos internos de
     // MailService (ver src/handlers/mail-retry.ts).
     mail_retry: createMailRetryHandler({ db }),
+    // REQ-026/REQ-111/REQ-112: KYC negativo (lista 69-B del SAT) +
+    // fingerprint de interpósita persona, job de PLATAFORMA (sin org_id),
+    // ver src/handlers/kyc-screening.ts.
+    kyc_negative_screening: createKycScreeningHandler({
+      db,
+      connector: createSat69BHttpConnector({ http: buildDefaultHttpClient() }),
+    }),
   };
 
   const worker = new Worker({
@@ -70,6 +80,9 @@ async function main(): Promise<void> {
 
   const scheduler = new Scheduler({ queue, schedules: loadScheduleConfig(), logger });
   const stopScheduler = scheduler.start(config.pollIntervalMs * 10);
+
+  const kycScheduler = new KycScheduler({ queue, intervalMs: config.kycScreeningIntervalMs, logger });
+  const stopKycScheduler = kycScheduler.start(config.pollIntervalMs * 10);
 
   // Ronda 6, tarea 4 ("run_agent encola por evento... de vencimiento"):
   // escaneo periódico de convocatorias con vencimiento próximo. Un fallo
@@ -96,6 +109,7 @@ async function main(): Promise<void> {
     shuttingDown = true;
     logger.info({ signal }, 'señal de apagado recibida: cierre ordenado en curso');
     stopScheduler();
+    stopKycScheduler();
     clearInterval(deadlineReminderTimer);
     await worker.stop(config.shutdownTimeoutMs);
     await db.close();

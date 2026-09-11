@@ -55,6 +55,55 @@ export const adminOrgSchema = z.object({
   memberCount: z.number(),
 });
 
+// ---------------------------------------------------------------------------
+// REQ-026/REQ-111/REQ-112: KYC negativo (lista 69-B) y fingerprint de
+// interpósita persona -- visibilidad de compliance para superadmin (las
+// tablas crudas de packages/db/migrations/0099/0100 son de solo
+// superadmin/worker_role, ver README de packages/kyc).
+// ---------------------------------------------------------------------------
+/**
+ * `sanctions_69b_snapshots.list_as_of_date` es una columna `date` (no
+ * `timestamptz`): el driver (pg/PGlite) la devuelve como `Date`, igual que
+ * documenta `isoTimestamp` arriba, pero a diferencia de un timestamp
+ * completo, aquí el valor de negocio es solo "YYYY-MM-DD" (la fecha de
+ * corte que el propio SAT publica) -- `.toISOString()` añadiría un
+ * componente de hora falso (`T00:00:00.000Z`) que nunca existió.
+ */
+const nullableDateOnly = z
+  .union([z.string(), z.date()])
+  .nullable()
+  .transform((v) => (v instanceof Date ? v.toISOString().slice(0, 10) : v));
+
+export const adminKycListFreshnessSchema = z.object({
+  snapshotId: z.string().uuid().nullable(),
+  fetchedAt: nullableIsoTimestamp,
+  listAsOfDate: nullableDateOnly,
+  recordCount: z.number().nullable(),
+  ageSeconds: z.number().nullable(),
+  // REQ-026 literal: "alerta si listas >48h desactualizadas" -- mismo
+  // criterio que `adminConnectorFreshnessSchema.isStale` (REQ-149).
+  isStale: z.boolean(),
+});
+
+export const adminKycTenantStatusSchema = z.object({
+  orgId: z.string().uuid(),
+  orgName: z.string(),
+  verdict: z.enum(['clear', 'flagged', 'suspended']),
+  reason: z.string().nullable(),
+  updatedAt: isoTimestamp,
+});
+
+export const adminKycFingerprintMatchSchema = z.object({
+  orgIdA: z.string().uuid(),
+  orgNameA: z.string(),
+  orgIdB: z.string().uuid(),
+  orgNameB: z.string(),
+  score: z.number(),
+  matchedFields: z.array(z.object({ field: z.string(), value: z.string() })),
+  detectedAt: isoTimestamp,
+  status: z.string(),
+});
+
 export const adminConnectorFreshnessSchema = z.object({
   sourceId: z.string(),
   status: z.string(),

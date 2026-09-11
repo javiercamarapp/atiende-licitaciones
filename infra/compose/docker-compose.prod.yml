@@ -261,6 +261,9 @@ services:
       WORKER_SHUTDOWN_TIMEOUT_MS: ${WORKER_SHUTDOWN_TIMEOUT_MS:-30000}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       WORKER_SCHEDULE_JSON: ${WORKER_SCHEDULE_JSON:-}
+      # REQ-112: cadencia del job de KYC negativo (lista 69-B)/fingerprint
+      # de interpósita persona (default 24h, ver src/scheduler/kyc-scheduler.ts).
+      WORKER_KYC_SCREENING_INTERVAL_MS: ${WORKER_KYC_SCREENING_INTERVAL_MS:-86400000}
       API_BASE_URL: http://api:3000
       PLATFORM_API_KEY: ${PLATFORM_API_KEY:?PLATFORM_API_KEY es obligatoria -- debe coincidir con la de "api"}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
