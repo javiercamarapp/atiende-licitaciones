@@ -161,6 +161,12 @@ describe('canal adicional de WhatsApp (tender_matches / submission)', () => {
       async send(): Promise<SendResult> {
         return { ok: false, kind: 'not_configured' };
       },
+      async sendInteractiveList(): Promise<SendResult> {
+        return { ok: false, kind: 'not_configured' };
+      },
+      async sendText(): Promise<SendResult> {
+        return { ok: false, kind: 'not_configured' };
+      },
     };
     const custom = await createTestApp({}, { whatsappProvider: notConfiguredProvider });
     try {
@@ -182,6 +188,12 @@ describe('canal adicional de WhatsApp (tender_matches / submission)', () => {
     const throwingProvider: WhatsAppProvider = {
       name: 'fake-throwing',
       async send(_message: OutboundWhatsAppMessage): Promise<SendResult> {
+        throw new Error('Fallo simulado del proveedor de WhatsApp (prueba)');
+      },
+      async sendInteractiveList(): Promise<SendResult> {
+        throw new Error('Fallo simulado del proveedor de WhatsApp (prueba)');
+      },
+      async sendText(): Promise<SendResult> {
         throw new Error('Fallo simulado del proveedor de WhatsApp (prueba)');
       },
     };

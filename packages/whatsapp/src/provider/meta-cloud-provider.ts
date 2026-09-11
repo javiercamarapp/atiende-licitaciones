@@ -1,4 +1,5 @@
-import { classifyHttpStatus, type OutboundWhatsAppMessage, type SendResult, type WhatsAppProvider } from "./types";
+import { validateButtonPayloads, validateInteractiveListMessage } from "./content-limits";
+import { classifyHttpStatus, type OutboundInteractiveListMessage, type OutboundWhatsAppMessage, type SendResult, type WhatsAppProvider } from "./types";
 
 export interface MetaCloudProviderOptions {
   accessToken: string | undefined;
@@ -49,74 +50,139 @@ function buildTemplateParameters(templateParams: Record<string, string>): Array<
   return entries.map(([, value]) => ({ type: "text" as const, text: value }));
 }
 
+/** Componentes `button`/`quick_reply` con `payload` dinámico por envío — ver
+ *  el comentario de `OutboundWhatsAppMessage.buttonPayloads` en `./types`
+ *  para el porqué (Meta sí permite parametrizar el `payload`, no el texto). */
+function buildButtonComponents(buttonPayloads: string[] | undefined): Array<{
+  type: "button";
+  sub_type: "quick_reply";
+  index: string;
+  parameters: Array<{ type: "payload"; payload: string }>;
+}> {
+  if (!buttonPayloads || buttonPayloads.length === 0) return [];
+  return buttonPayloads.map((payload, index) => ({
+    type: "button" as const,
+    sub_type: "quick_reply" as const,
+    index: String(index),
+    parameters: [{ type: "payload" as const, payload }],
+  }));
+}
+
 /**
  * Adaptador REAL de Meta WhatsApp Business Cloud API — `POST
  * https://graph.facebook.com/{version}/{phone-number-id}/messages` con
- * `Authorization: Bearer {access-token}` y un payload `type: "template"`.
- * Mismo patrón que `createResendProvider` de `@atiende/mail`: `fetch`
- * directo (sin SDK del proveedor), timeout explícito, y la misma
- * clasificación retryable/permanent de códigos HTTP (`classifyHttpStatus`
- * de `./types`, replicada del criterio de `@atiende/mail` — ver el
- * comentario de `SendResult` en `./types` para el porqué de replicar en vez
- * de importar — 429/5xx son transitorios, el resto de los 4xx son un
- * rechazo definitivo del payload o la configuración, igual en Meta que en
- * un proveedor de correo).
+ * `Authorization: Bearer {access-token}`. Mismo patrón que
+ * `createResendProvider` de `@atiende/mail`: `fetch` directo (sin SDK del
+ * proveedor), timeout explícito, y la misma clasificación
+ * retryable/permanent de códigos HTTP (`classifyHttpStatus` de `./types`,
+ * replicada del criterio de `@atiende/mail` — ver el comentario de
+ * `SendResult` en `./types` para el porqué de replicar en vez de importar —
+ * 429/5xx son transitorios, el resto de los 4xx son un rechazo definitivo
+ * del payload o la configuración, igual en Meta que en un proveedor de
+ * correo).
  *
  * NUNCA falsifica un envío exitoso: si faltan `accessToken`/`phoneNumberId`
  * devuelve `{ok:false, kind:"not_configured"}` sin lanzar y sin tocar la
  * red — no hay credenciales reales de Meta disponibles en este entorno
  * todavía (pendientes de que Javier las conecte), así que este camino es el
  * único que puede ejercitarse hoy fuera de pruebas con `fetchImpl` mockeado.
+ * Tampoco hay una plantilla real con botones `QUICK_REPLY` aprobada en el
+ * WhatsApp Manager todavía (REQ-140: "aprobación de plantillas de WhatsApp
+ * ante el proveedor" — bloqueo externo conocido, ver docs/BLOQUEOS.md) —
+ * `send()` con `buttonPayloads` está completo y probado con `fetchImpl`
+ * mockeado, pero **verificado_contra_real=false** hasta que exista esa
+ * plantilla aprobada y credenciales reales.
  */
 export function createMetaCloudProvider(options: MetaCloudProviderOptions): WhatsAppProvider {
   const apiVersion = options.apiVersion ?? DEFAULT_API_VERSION;
   const defaultLanguageCode = options.defaultLanguageCode ?? DEFAULT_LANGUAGE_CODE;
   const timeoutMs = options.timeoutMs ?? 5_000;
   const fetchImpl = options.fetchImpl ?? fetch;
+  const messagesUrl = () => `https://graph.facebook.com/${apiVersion}/${options.phoneNumberId}/messages`;
+
+  async function postToMeta(body: Record<string, unknown>): Promise<SendResult> {
+    if (!options.accessToken || !options.phoneNumberId) {
+      return { ok: false, kind: "not_configured" };
+    }
+    try {
+      const response = await fetchImpl(messagesUrl(), {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${options.accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+
+      if (!response.ok) {
+        const detail = (await response.text().catch(() => "")).slice(0, 200);
+        return { ok: false, kind: classifyHttpStatus(response.status), statusCode: response.status, detail: detail || `HTTP ${response.status}` };
+      }
+
+      const json = (await response.json().catch(() => null)) as { messages?: Array<{ id?: string }> } | null;
+      return { ok: true, providerMessageId: json?.messages?.[0]?.id ?? "" };
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      return { ok: false, kind: "retryable", detail };
+    }
+  }
 
   return {
     name: "meta",
+
     async send(message: OutboundWhatsAppMessage): Promise<SendResult> {
-      if (!options.accessToken || !options.phoneNumberId) {
-        return { ok: false, kind: "not_configured" };
-      }
-      const url = `https://graph.facebook.com/${apiVersion}/${options.phoneNumberId}/messages`;
-      try {
-        const response = await fetchImpl(url, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${options.accessToken}`,
-            "Content-Type": "application/json",
+      // REQ-080: validar el contrato de contenido ANTES de tocar la red —
+      // ver `./content-limits.ts`. Se hace ANTES de comprobar credenciales:
+      // un mensaje inválido lo es sin importar si hay proveedor real detrás.
+      const buttonsCheck = validateButtonPayloads(message.buttonPayloads);
+      if (!buttonsCheck.ok) return { ok: false, kind: "permanent", detail: buttonsCheck.detail };
+
+      return postToMeta({
+        messaging_product: "whatsapp",
+        to: toMetaPhoneFormat(message.to),
+        type: "template",
+        template: {
+          name: message.templateName,
+          language: { code: message.languageCode ?? defaultLanguageCode },
+          components: [
+            { type: "body", parameters: buildTemplateParameters(message.templateParams) },
+            ...buildButtonComponents(message.buttonPayloads),
+          ],
+        },
+      });
+    },
+
+    async sendInteractiveList(message: OutboundInteractiveListMessage): Promise<SendResult> {
+      const check = validateInteractiveListMessage(message);
+      if (!check.ok) return { ok: false, kind: "permanent", detail: check.detail };
+
+      return postToMeta({
+        messaging_product: "whatsapp",
+        to: toMetaPhoneFormat(message.to),
+        type: "interactive",
+        interactive: {
+          type: "list",
+          body: { text: message.bodyText },
+          ...(message.footerText ? { footer: { text: message.footerText } } : {}),
+          action: {
+            button: message.buttonText,
+            sections: message.sections.map((s) => ({
+              ...(s.title ? { title: s.title } : {}),
+              rows: s.rows.map((r) => ({ id: r.id, title: r.title, ...(r.description ? { description: r.description } : {}) })),
+            })),
           },
-          body: JSON.stringify({
-            messaging_product: "whatsapp",
-            to: toMetaPhoneFormat(message.to),
-            type: "template",
-            template: {
-              name: message.templateName,
-              language: { code: message.languageCode ?? defaultLanguageCode },
-              components: [
-                {
-                  type: "body",
-                  parameters: buildTemplateParameters(message.templateParams),
-                },
-              ],
-            },
-          }),
-          signal: AbortSignal.timeout(timeoutMs),
-        });
+        },
+      });
+    },
 
-        if (!response.ok) {
-          const detail = (await response.text().catch(() => "")).slice(0, 200);
-          return { ok: false, kind: classifyHttpStatus(response.status), statusCode: response.status, detail: detail || `HTTP ${response.status}` };
-        }
-
-        const json = (await response.json().catch(() => null)) as { messages?: Array<{ id?: string }> } | null;
-        return { ok: true, providerMessageId: json?.messages?.[0]?.id ?? "" };
-      } catch (error) {
-        const detail = error instanceof Error ? error.message : String(error);
-        return { ok: false, kind: "retryable", detail };
-      }
+    async sendText(to: string, body: string): Promise<SendResult> {
+      return postToMeta({
+        messaging_product: "whatsapp",
+        to: toMetaPhoneFormat(to),
+        type: "text",
+        text: { body },
+      });
     },
   };
 }

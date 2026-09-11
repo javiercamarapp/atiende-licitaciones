@@ -1,11 +1,66 @@
 # @atiende/whatsapp
 
-Canal de notificación por WhatsApp de **Atiende Licitaciones**, vía Meta
-WhatsApp Business Cloud API. Es un canal **ADICIONAL** al correo
-(`@atiende/mail`) — nunca lo reemplaza. Mismo criterio arquitectónico que
-`@atiende/mail`: librería TypeScript **pura** (sin base de datos ni
-dependencia de `apps/api`/`apps/worker`), solo contratos e implementaciones
-en memoria para pruebas.
+Canal de notificación **y decisión** por WhatsApp de **Atiende
+Licitaciones**, vía Meta WhatsApp Business Cloud API. El correo
+(`@atiende/mail`) sigue siendo el canal de registro; WhatsApp es **ADICIONAL**
+para avisar Y, desde REQ-090, la interfaz de trabajo primaria para DECIDIR
+(botones/listas) — nunca para editar la matriz de requisitos ni la
+propuesta, que solo se editan en el portal autenticado. Mismo criterio
+arquitectónico que `@atiende/mail`: librería TypeScript **pura** (sin base
+de datos ni dependencia de `apps/api`/`apps/worker`), solo contratos e
+implementaciones en memoria para pruebas.
+
+## REQ-090/074/080: WhatsApp interactivo de doble vía
+
+Estado real (2026-09-10): **puerto + lógica de negocio completos y
+probados; `verificado_contra_real=false`** — no hay app de Meta, App
+Secret, ni plantilla con botones `QUICK_REPLY` aprobada todavía (bloqueo
+externo conocido, ver `docs/BLOQUEOS.md` y REQ-140). Lo que sí es real y
+verificable hoy, sin ninguna credencial de Meta:
+
+- **Saliente con decisión** (`OutboundWhatsAppMessage.buttonPayloads`,
+  ≤3, REQ-080): una plantilla ya aprobada puede llevar hasta 3 botones
+  `QUICK_REPLY` cuyo `payload` se parametriza por envío (el TEXTO del botón
+  lo fija Meta al aprobar la plantilla; el `payload` codifica de qué
+  decisión concreta se trata, ver `apps/api/src/lib/whatsapp/decision-payload.ts`).
+- **Saliente de lista** (`sendInteractiveList`, ≤10 filas EN TOTAL, REQ-080):
+  mensaje interactivo LIBRE (no plantilla), solo válido dentro de la
+  ventana de 24h que Meta abre cuando el usuario escribió primero — usado
+  para elegir un motivo cerrado (nunca texto libre) de una lista corta.
+- **Confirmación** (`sendText`): texto libre, también solo dentro de esa
+  ventana de 24h, usado exclusivamente para confirmar una decisión ya
+  tomada.
+- **Webhook entrante** (`src/webhook/`): `parseWhatsAppWebhookPayload`
+  (formas reales de Meta: `type:"button"` de una plantilla, o
+  `type:"interactive"` con `button_reply`/`list_reply` de un mensaje
+  libre), `verifyMetaWebhookSignature` (esquema real `X-Hub-Signature-256`,
+  HMAC-SHA256 del cuerpo crudo con el App Secret, hex — DISTINTO del Svix
+  de `@atiende/mail`), `WamidReplayGuard` (REQ-074: idempotencia
+  PERMANENTE por `wamid`, sin ventana de tiempo — un `wamid` nunca se
+  reutiliza) y `resolveWebhookSubscriptionChallenge` (el handshake `GET`
+  que Meta exige para activar la URL del webhook).
+- **`apps/api`** conecta todo esto a la ÚNICA decisión de negocio real que
+  hoy tiene equivalente HTTP (`go_no_go_decisions`, `POST
+  /tenders/:id/go-no-go`): tocar "Go" en la plantilla de nuevo match
+  decide directo; tocar "No-Go" abre una lista de motivos cerrados; elegir
+  una fila decide con ese motivo. Ver
+  `apps/api/src/modules/whatsapp/webhook.routes.ts` para el flujo completo,
+  incluida la resolución de identidad (`whatsapp_phone_e164` -> usuario ->
+  membresía -> rol, NUNCA solo la firma del webhook) y las pruebas
+  adversariales en `apps/api/test/whatsapp-webhook.test.ts`.
+
+Lo que falta para pasar a `verificado_contra_real=true` (fuera del alcance
+de este paquete, depende de Javier/producto):
+1. Dar de alta la app de Meta (WhatsApp Business Platform) y obtener el App
+   Secret real -> `WHATSAPP_WEBHOOK_APP_SECRET`.
+2. Someter `nuevo_match_licitacion` a revisión de Meta CON dos botones
+   `QUICK_REPLY` ("Go" / "No-Go") y esperar su aprobación editorial.
+3. Registrar la URL pública de `POST /webhooks/whatsapp` en el panel de la
+   app, con un `hub.verify_token` elegido -> `WHATSAPP_WEBHOOK_VERIFY_TOKEN`.
+4. Una vez con eso: un ciclo E2E real (mandar, tocar el botón de verdad
+   desde un teléfono, confirmar que el webhook de Meta llega) para cerrar
+   el criterio de aceptación de REQ-090 con evidencia contra el proveedor
+   real, no solo contra `CaptureProvider`/`fetchImpl` mockeado.
 
 ## Qué NO es este paquete
 

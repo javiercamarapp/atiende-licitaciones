@@ -220,6 +220,11 @@ services:
       # hasta tener esta clave real). Mismo valor que ya usa `worker` más
       # abajo (una sola cuenta de OpenAI para todo el despliegue).
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # REQ-090/074/080: webhook ENTRANTE de WhatsApp (POST/GET
+      # /webhooks/whatsapp) -- sin WHATSAPP_WEBHOOK_APP_SECRET ese endpoint
+      # responde 503 y nunca procesa nada (falla cerrado).
+      WHATSAPP_WEBHOOK_APP_SECRET: ${WHATSAPP_WEBHOOK_APP_SECRET:-}
+      WHATSAPP_WEBHOOK_VERIFY_TOKEN: ${WHATSAPP_WEBHOOK_VERIFY_TOKEN:-}
     volumes:
       - api_storage:/app/data/storage
     depends_on:

@@ -118,6 +118,8 @@ const SECURITY_DEFINER_WHITELIST: Record<string, string> = {
     'Lectura completa de la entrada de supresión de un email -- mismo criterio que mail_suppression_check.',
   'app.mail_webhook_claim(text,integer)':
     'Anti-replay (ML-05, packages/mail) por p_svix_id -- un identificador opaco emitido por el proveedor del webhook (Resend/Svix), nunca un identificador de usuario/organización; compare-and-set atómico (INSERT ... ON CONFLICT DO NOTHING).',
+  'app.whatsapp_webhook_claim(text)':
+    'REQ-074/090 (packages/whatsapp): anti-replay PERMANENTE (sin ventana de tiempo, a diferencia de mail_webhook_claim) por p_wamid -- un identificador opaco emitido por Meta (el id del mensaje de WhatsApp), nunca un identificador de usuario/organización; compare-and-set atómico (INSERT ... ON CONFLICT DO NOTHING) sobre whatsapp_webhook_events_seen, tabla de sistema con RLS sin políticas.',
   'app.set_notification_preference_unsigned(uuid,text,boolean)':
     'p_user_id llega YA verificado por la firma HMAC de un enlace de baja de un clic (MailService.verifySignedLink, imposible de forjar sin el secreto MAIL_LINK_SECRET) -- nunca de un valor de entrada de cliente sin verificar; p_category restringido en SQL a la lista cerrada de columnas de notification_preferences.',
   'app.create_email_verification_token(uuid,uuid,text,timestamp with time zone)':

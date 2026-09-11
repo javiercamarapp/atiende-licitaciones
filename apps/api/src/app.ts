@@ -41,6 +41,7 @@ import { buildWhatsAppProviderFromEnv } from './lib/mail/whatsapp-channel.js';
 import { PendingMailTracker } from './lib/mail/pending.js';
 import { mailRoutes } from './modules/mail/routes.js';
 import { mailWebhookRoutes } from './modules/mail/webhook.routes.js';
+import { whatsappWebhookRoutes } from './modules/whatsapp/webhook.routes.js';
 import { publicContactRoutes } from './modules/public/contact.routes.js';
 import { expedienteDocumentsRoutes } from './modules/expediente/documents.routes.js';
 import { expedienteProposalRoutes } from './modules/expediente/proposal.routes.js';
@@ -323,6 +324,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   // contacto es anónimo) -- ver cada módulo para su anti-abuso.
   await app.register(mailRoutes, { prefix: '/mail' });
   await app.register(mailWebhookRoutes, { prefix: '/webhooks/mail' });
+  await app.register(whatsappWebhookRoutes, { prefix: '/webhooks/whatsapp' });
   await app.register(publicContactRoutes, { prefix: '/public' });
 
   // E6-E9/E11 (ronda 3): expediente de participación real sobre
