@@ -88,6 +88,16 @@ export interface AppConfig {
    * **PENDIENTE del usuario**, mismo bloqueo que `whatsappWebhookAppSecret`.
    */
   whatsappWebhookVerifyToken: string | undefined;
+  /**
+   * REQ-067 (ChatGPT App / MCP, `modules/chatgpt-app/`): base pública de
+   * ESTA API (nunca la de `apps/web` -- para eso está `publicUrl`), usada
+   * solo para componer `mcp_endpoint` en `GET /chatgpt-app/manifest.json`.
+   * `undefined` por defecto a propósito: un despliegue serverless (Vercel)
+   * no conoce su propio host público de forma fiable, así que sin esta
+   * variable el manifiesto declara el endpoint como ruta relativa en vez
+   * de fabricar una URL absoluta que podría ser la equivocada.
+   */
+  apiPublicUrl: string | undefined;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -136,5 +146,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     mailWebhookSecret: env.RESEND_WEBHOOK_SECRET,
     whatsappWebhookAppSecret: env.WHATSAPP_WEBHOOK_APP_SECRET,
     whatsappWebhookVerifyToken: env.WHATSAPP_WEBHOOK_VERIFY_TOKEN,
+    apiPublicUrl: env.API_PUBLIC_URL,
   };
 }

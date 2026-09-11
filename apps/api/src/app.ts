@@ -57,6 +57,7 @@ import { expedienteInconformidadRoutes } from './modules/expediente/inconformida
 import { expedienteFalloAutopsyRoutes } from './modules/expediente/fallo-autopsy.routes.js';
 import { expedienteRenewalRadarRoutes } from './modules/expediente/renewal-radar.routes.js';
 import { expedienteJuntaQuestionsRoutes } from './modules/expediente/junta-questions.routes.js';
+import { chatGptAppRoutes } from './modules/chatgpt-app/mcp.routes.js';
 import { MAX_BASE64_LENGTH } from './lib/storage.js';
 import './types.js';
 
@@ -355,6 +356,11 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   // REQ-041: generador de preguntas de junta de aclaraciones con fuente
   // verificable (nunca una pregunta sin cita real).
   await app.register(expedienteJuntaQuestionsRoutes, { prefix: '/expediente' });
+
+  // REQ-067: superficie MCP de solo lectura que una ChatGPT App (Apps SDK)
+  // consumiría -- ver modules/chatgpt-app/mcp.routes.ts para el alcance
+  // exacto (allowlist de herramientas, nunca documentos firmables).
+  await app.register(chatGptAppRoutes, { prefix: '/chatgpt-app' });
 
   return app;
 }

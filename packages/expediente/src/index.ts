@@ -13,3 +13,4 @@ export * from "./approval-workflow.js";
 export * from "./package-assembler.js";
 export * from "./manifest-template.js";
 export * from "./war-room-checklist.js";
+export * from "./chatgpt-app.js";
