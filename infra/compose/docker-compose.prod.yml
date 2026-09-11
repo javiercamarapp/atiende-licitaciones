@@ -212,6 +212,19 @@ services:
       WHATSAPP_API_VERSION: ${WHATSAPP_API_VERSION:-}
       WHATSAPP_DEFAULT_LANGUAGE: ${WHATSAPP_DEFAULT_LANGUAGE:-}
       WHATSAPP_CAPTURE_FILE: ${WHATSAPP_CAPTURE_FILE:-}
+      # REQ-006 (motor de matching semántico/pgvector): sin ella,
+      # `resolveEmbeddingProvider` (apps/api/src/modules/matching/semantic.ts)
+      # usa FakeEmbeddingProvider -- determinista y sin red, el mismo
+      # comportamiento honesto que el resto del repo ante credenciales
+      # ausentes (ver README.md "Pendientes": verificado_contra_real=false
+      # hasta tener esta clave real). Mismo valor que ya usa `worker` más
+      # abajo (una sola cuenta de OpenAI para todo el despliegue).
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # REQ-090/074/080: webhook ENTRANTE de WhatsApp (POST/GET
+      # /webhooks/whatsapp) -- sin WHATSAPP_WEBHOOK_APP_SECRET ese endpoint
+      # responde 503 y nunca procesa nada (falla cerrado).
+      WHATSAPP_WEBHOOK_APP_SECRET: ${WHATSAPP_WEBHOOK_APP_SECRET:-}
+      WHATSAPP_WEBHOOK_VERIFY_TOKEN: ${WHATSAPP_WEBHOOK_VERIFY_TOKEN:-}
     volumes:
       - api_storage:/app/data/storage
     depends_on:
@@ -248,6 +261,9 @@ services:
       WORKER_SHUTDOWN_TIMEOUT_MS: ${WORKER_SHUTDOWN_TIMEOUT_MS:-30000}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       WORKER_SCHEDULE_JSON: ${WORKER_SCHEDULE_JSON:-}
+      # REQ-112: cadencia del job de KYC negativo (lista 69-B)/fingerprint
+      # de interpósita persona (default 24h, ver src/scheduler/kyc-scheduler.ts).
+      WORKER_KYC_SCREENING_INTERVAL_MS: ${WORKER_KYC_SCREENING_INTERVAL_MS:-86400000}
       API_BASE_URL: http://api:3000
       PLATFORM_API_KEY: ${PLATFORM_API_KEY:?PLATFORM_API_KEY es obligatoria -- debe coincidir con la de "api"}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}

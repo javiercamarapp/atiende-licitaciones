@@ -1,5 +1,6 @@
 import { MatchingEngine } from '@atiende/sources';
 import type { MatchResult, OrganizationProfile, TenderRecord, EligibilityStatus } from '@atiende/sources';
+import { SEMANTIC_RELEVANCE_WEIGHT, type SemanticRelevanceResult } from './semantic.js';
 
 /**
  * Adaptador de relevancia (REQ-006/E5): reutiliza el `MatchingEngine`
@@ -177,28 +178,92 @@ function combineStatus(statuses: EligibilityStatus[]): EligibilityStatus {
   return 'cumple';
 }
 
+/**
+ * Igual que `MatchCriterionResult` de `@atiende/sources`, pero con `criterion`
+ * ampliado para admitir `"semantic_similarity"` (REQ-006): el motor léxico
+ * puro de `packages/sources` no conoce ese criterio -- lo añade
+ * `blendRelevance` aquí, en la capa que sí tiene acceso a embeddings/BD.
+ */
+export type RelevanceCriterion = Omit<MatchResult['criteria'][number], 'criterion'> & {
+  criterion: MatchResult['criteria'][number]['criterion'] | 'semantic_similarity';
+};
+
 export interface FullMatchResult {
   tenderKey: string;
-  relevance: { score: number; criteria: MatchResult['criteria'] };
+  relevance: { score: number; criteria: RelevanceCriterion[] };
   eligibility: EligibilityResult;
   missingProfileFields: string[];
+}
+
+/**
+ * REQ-006 (matching híbrido): combina la relevancia léxica/de reglas
+ * (`base.score`, de `packages/sources`, sin tocar) con la relevancia
+ * semántica (embeddings/pgvector, `apps/api/src/modules/matching/semantic.ts`)
+ * cuando esta última está disponible. `semantic === null` (perfil o
+ * convocatoria sin texto utilizable) deja el comportamiento IDÉNTICO al de
+ * antes de esta ronda: 100% léxico, sin rescalar ni añadir criterios --
+ * nunca se inventa una señal semántica que no se pudo calcular.
+ *
+ * Cuando sí hay semántica, cada criterio léxico existente se reescala por
+ * `1 - SEMANTIC_RELEVANCE_WEIGHT` (conserva sus proporciones relativas) y se
+ * añade UN criterio nuevo "semantic_similarity" con el resto del peso, de
+ * modo que `sum(criteria[].score) === relevance.score` se mantiene como
+ * invariante explicable (REQ-168: cada punto del score tiene un criterio
+ * visible que lo respalda).
+ */
+export function blendRelevance(
+  lexical: { score: number; criteria: MatchResult['criteria'] },
+  semantic: SemanticRelevanceResult | null
+): { score: number; criteria: RelevanceCriterion[] } {
+  if (!semantic) return lexical;
+
+  const lexicalWeight = 1 - SEMANTIC_RELEVANCE_WEIGHT;
+  const rescaledLexical: RelevanceCriterion[] = lexical.criteria.map((c) => ({
+    ...c,
+    score: round2(c.score * lexicalWeight),
+    maxScore: round2(c.maxScore * lexicalWeight),
+  }));
+  const semanticMaxScore = round2(100 * SEMANTIC_RELEVANCE_WEIGHT);
+  const semanticScore = round2((semantic.score0to100 / 100) * semanticMaxScore);
+  const semanticCriterion: RelevanceCriterion = {
+    criterion: 'semantic_similarity',
+    score: semanticScore,
+    maxScore: semanticMaxScore,
+    explanation:
+      `Similitud semántica (embeddings, modelo "${semantic.model}") entre el perfil de la organización y el ` +
+      `texto de la convocatoria (título, entidad, clasificadores y anexos técnicos disponibles): coseno ` +
+      `${round2(semantic.cosine)} sobre escala 0-100 -> ${round2(semantic.score0to100)}.`,
+  };
+  const criteria = [...rescaledLexical, semanticCriterion];
+  const score = round2(criteria.reduce((sum, c) => sum + c.score, 0));
+  return { score: clamp(score, 0, 100), criteria };
 }
 
 export function computeMatch(
   record: TenderRecord,
   profile: OrganizationProfile,
   hardCriteria: EligibilityCriterion[],
-  missingProfileFields: string[]
+  missingProfileFields: string[],
+  semantic: SemanticRelevanceResult | null = null
 ): FullMatchResult {
   const base = engine.score(record, profile);
   const combinedCriteria: EligibilityCriterion[] = [...base.eligibility.criteria, ...hardCriteria];
+  const relevance = blendRelevance({ score: base.score, criteria: base.criteria }, semantic);
   return {
     tenderKey: base.tenderKey,
-    relevance: { score: base.score, criteria: base.criteria },
+    relevance,
     eligibility: {
       status: combineStatus(combinedCriteria.map((c) => c.status)),
       criteria: combinedCriteria,
     },
     missingProfileFields,
   };
+}
+
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }

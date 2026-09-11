@@ -44,7 +44,7 @@ echo "Reproduce .github/workflows/quality.yml EXCEPTO db-postgres (requiere Post
 [ "$RUN_E2E" -eq 1 ] && echo "Incluye e2e-web (--e2e)." || echo "NO incluye e2e-web (pasa --e2e para incluirlo)."
 echo ""
 
-WORKSPACES=(apps/api apps/web apps/worker packages/db packages/agents packages/expediente packages/sources)
+WORKSPACES=(apps/api apps/web apps/worker packages/db packages/agents packages/expediente packages/evals packages/sources)
 
 # Nota de portabilidad: NO se usan arrays asociativos (`declare -A`) porque
 # el bash 3.2 que trae macOS por defecto (sin homebrew) no los soporta y este
@@ -102,6 +102,11 @@ for ws in "${WORKSPACES[@]}"; do
 
   run_step "$ws:build" npm run build --workspace="$ws" --if-present
 done
+
+echo "=================================================================="
+echo "evals-gate (REQ-087/REQ-097/REQ-138, mismo job que .github/workflows/quality.yml)"
+echo "=================================================================="
+run_step "evals-gate" npm run evals --workspace=packages/evals
 
 if [ "$RUN_E2E" -eq 1 ]; then
   echo "=================================================================="

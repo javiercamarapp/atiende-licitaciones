@@ -35,6 +35,16 @@ export interface WorkerConfig {
   publicUrl: string;
   /** MISMA variable y MISMO valor por defecto que `apps/api` (`MAIL_FROM`, ver `apps/api/src/config.ts`). */
   supportEmail: string;
+
+  /**
+   * REQ-112: cadencia del job de KYC negativo/fingerprint de interpósita
+   * persona (`kyc_negative_screening`). Por defecto 24h -- mismo criterio
+   * que `scheduler/schedule-config.ts` documenta para `discover_tenders`:
+   * una ventana de tiempo fija (no una expresión cron real) es suficiente
+   * para el alcance de esta ronda. Configurable por env para pruebas/
+   * operación sin tocar código.
+   */
+  kycScreeningIntervalMs: number;
 }
 
 function num(env: NodeJS.ProcessEnv, key: string, fallback: number): number {
@@ -61,5 +71,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
     openaiApiKey: env.OPENAI_API_KEY,
     publicUrl: env.PUBLIC_URL ?? 'https://app.atiende.mx',
     supportEmail: env.MAIL_FROM ?? 'soporte@atiende.mx',
+    kycScreeningIntervalMs: num(env, 'WORKER_KYC_SCREENING_INTERVAL_MS', 24 * 60 * 60_000),
   };
 }

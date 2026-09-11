@@ -35,6 +35,9 @@ src/
   tool-registry.ts            ToolRegistry: esquemas zod, riskLevel, idempotent, tenantScoped
   authorization.ts            AuthorizationPolicy: auto/pending/denied + prohibiciones duras
   guardrails/anticorruption.ts AntiCorruptionGuardrail: patrones + hooks extensibles
+  guardrails/voice.ts          REQ-092/REQ-093: classifyVoiceInteraction (voz/Realtime) --
+                               "confirmo" registra intención, nunca ejecuta; disclosure +
+                               respuesta fija a "¿eres humano?"
   no-fabrication.ts           NoFabricationPolicy: valores sensibles con approvedSourceRef
   dependency-invalidation.ts  DependencyInvalidationRegistry: invalida runs por cambio de origen
   idempotency.ts              IdempotencyStore en memoria por [organizationId, key]
@@ -51,7 +54,84 @@ src/
     fake-provider.ts           FakeProvider determinista (sin red) para tests/dev
     openai-responses-provider.ts OpenAIResponsesProvider real (fetch a Responses API)
     router.ts                  ProviderRouter: tolerancia cero + 5 gates de modelo alternativo
+  analytics/
+    decimal.ts                 Aritmética decimal half-up (copia intencional de packages/expediente/src/money.ts, ver docstring)
+    price-band.ts               REQ-030: banda legal de precio [prom_IM×0.60, mediana_IM×1.10]
+    score-simulator.ts          REQ-020/REQ-038: simulador determinista de puntaje + "0 falsos cumple"
+    cucop-classifier.ts         REQ-002: clasificador léxico (TF-IDF) de CUCoP/COG + precision@k
+    win-probability.ts          REQ-009: regresión logística P(ganar)/P(desierta) + AUC
+  similarity/
+    minhash.ts                  MinHash + LSH real (REQ-032): shingling, firma, estimador de
+                                 Jaccard, bandas LSH — puro, sin dependencia de Postgres
+    cross-tenant-detector.ts    CrossTenantSimilarityDetector: decide "misma plantilla entre
+                                 tenants" vía el puerto FingerprintStore (adaptador Postgres real
+                                 en apps/worker/src/agents/similarity-store.pg.ts, adaptador en
+                                 memoria InMemoryFingerprintStore solo para test unitario)
 ```
+
+### analytics/ (REQ-002/REQ-009/REQ-020/REQ-030/REQ-038: motores estadísticos/deterministas, nunca un LLM)
+
+Cuatro motores que nunca delegan a un LLM el cálculo de dinero, puntaje o
+probabilidad (mismo ADR que REQ-069 "el LLM... nunca calcula precio, tarifa,
+impuesto ni disponibilidad", extendido aquí a puntaje y probabilidad):
+
+- **`computePriceBand`** (REQ-030): aplica literalmente `[promedio_IM×0.60,
+  mediana_IM×1.10]` sobre cifras de investigación de mercado que el
+  llamador ya recopiló (nunca las inventa), con la misma aritmética
+  half-up en centavos `bigint` que `packages/expediente/src/money.ts`
+  (copia intencional, no importada -- ver docstring de `decimal.ts`:
+  ningún `packages/*` depende de otro `packages/*` en este repo).
+  `computeMarketResearchStats` es un auxiliar opcional para cuando ya se
+  tiene la lista de cotizaciones reales y solo falta el promedio/mediana.
+  Reporta `degenerate: true` (sin intercambiar los valores en silencio)
+  cuando el promedio supera tanto a la mediana que `min > max`.
+- **`simulateTechnicalScore`/`runScoreSimulatorBenchmark`** (REQ-020/
+  REQ-038): valida que la suma de rubros técnicos sea exactamente 50 o 60
+  (`validateRubric`), aplica la evidencia ya evaluada de cada rubro y
+  **rechaza a 0 cualquier rubro con puntos > 0 sin ninguna referencia de
+  evidencia citada** (`rejectedUnsourcedClaim: true`, "0 falsos cumple" de
+  REQ-038) en vez de aceptar la cifra reportada a ciegas.
+- **`classifyCucop`/`runCucopBenchmark`** (REQ-002): TF-IDF léxico
+  determinista (IDF calculado sobre el propio catálogo, sin servicio
+  externo) que rankea códigos de un `CucopCatalogPort` por similitud con
+  el texto de la convocatoria. El PDF fuente describe este componente como
+  "usando LLM"; se construyó determinista por instrucción explícita de
+  esta ronda y por el mismo ADR de arriba.
+- **`LogisticRegressionModel` / `WinDesertionEngine` / `computeAUC`**
+  (REQ-009): regresión logística real (descenso de gradiente determinista,
+  sin `Math.random()`) entrenada sobre un `WinDesertionGoldCase[]`
+  etiquetado, con cálculo de AUC por el método de rangos (Mann-Whitney).
+  `predictProba()`/`predict()` lanzan si el modelo no fue entrenado --
+  nunca fabrican una probabilidad.
+
+**Estado honesto (estos 4 motores, no solo uno):** todos están completos y
+probados de punta a punta (`test/analytics/*.test.ts`) contra fixtures
+**explícitamente marcados SINTÉTICOS** en sus propios archivos y
+docstrings (`test/analytics/fixtures/synthetic-*.ts`: un catálogo CUCoP de
+prueba con códigos `TEST-…` que nunca podrían confundirse con el catálogo
+oficial, un gold set de licitaciones generado por una fórmula conocida +
+PRNG con semilla fija, y un gold matrix de rúbricas inventado a mano). Eso
+demuestra que el PIPELINE funciona -- no certifica los criterios de
+aceptación reales de docs/REQUISITOS.md, que exigen datos que no existen
+todavía en ningún tenant real del producto:
+
+- REQ-002 exige el catálogo OFICIAL CUCoP/COG vigente + un gold set de
+  300-500 procedimientos reales anotados a mano.
+- REQ-009 exige un gold set histórico de licitaciones en las que un tenant
+  real participó, con resultado conocido (ganó/perdió/desierta). Se
+  verificó explícitamente que el único dataset histórico real del repo
+  (`packages/sources`, conector `compras-mx-historico`) es contratos ya
+  ADJUDICADOS a nivel de todo el gobierno -- no la perspectiva de un
+  proveedor específico que este REQ necesita, y por construcción no
+  incluye ningún procedimiento desierto. No se usa como gold set de este
+  REQ. `WinDesertionCalibrationResult.verificadoContraReal` es siempre
+  `false` salvo que el llamador pase `goldSetIsReal: true` explícitamente
+  (una bandera que solo debe activar un humano con el gold set real, nunca
+  este código).
+- REQ-038 exige un gold matrix de convocatorias reales evaluadas por un
+  comité real (mismo gold set humano de REQ-021, "100-300 convocatorias
+  anotadas").
+- Ningún dato de estos tres puntos se fabricó para simular que existe.
 
 ### ToolRegistry (REQ-069)
 
@@ -291,6 +371,45 @@ hook de un clasificador LLM/juez calibrado (REQ-127) sigue pendiente en
 código en `packages/agents` puede cerrar esta brecha sin dejar de ser una
 capa determinista.
 
+### classifyVoiceInteraction (REQ-092/REQ-093, canal de voz/Realtime)
+
+Módulo de dominio puro reutilizado por `apps/api/src/modules/voice/routes.ts`
+(webhook de ElevenLabs Conversational AI, ver `docs/agente-voz/README.md`).
+Clasifica el texto YA TRANSCRITO de un tool-call de voz en tres categorías,
+ANTES de que se ejecute cualquier efecto: (a) "¿eres humano?" → respuesta
+FIJA nunca generada por el modelo; (b) un intento de acción fuera de
+alcance de REQ-092 (fijar precio -- `set_final_price`, firmar, actuar en un
+portal oficial, contactar a un tercero), con o sin la palabra "confirmo";
+(c) "confirmo" en primera persona sin ninguna acción sensible adjunta → se
+registra como intención, nunca como ejecución. Devuelve `null` cuando nada
+de esto aplica (consulta o recordatorio normal, el único tráfico que
+REQ-092 permite ejecutar).
+
+Fail-closed por diseño (mismo criterio que `AntiCorruptionGuardrail`): la
+categoría (b) se dispara sin importar si "confirmo" está presente, porque
+la prohibición de REQ-092 no depende de esa palabra exacta -- es el caso
+más peligroso, no el único. `test/voice-guardrail.test.ts` cubre ambos
+lados explícitamente (con/sin "confirmo") y distingue gramaticalmente
+"confirmo" (primera persona, se bloquea) de "confírmame"/"puedes
+confirmar" (el llamador pidiendo una consulta legítima, sigue su curso
+normal) -- mismo límite honesto que el resto de guards de texto libre de
+este paquete: patrones representativos de frases conocidas, no un
+clasificador semántico.
+
+**Límite arquitectónico explícito** (documentado también en
+`docs/agente-voz/README.md` §4): a diferencia del canal de WhatsApp (donde
+`apps/api` intercepta cada mensaje entrante antes de llamar al LLM), este
+webhook solo se invoca cuando el modelo de ElevenLabs decide llamar una de
+las 5 tools del catálogo cerrado -- nunca en cada turno de la conversación.
+El disclosure de primer turno y la respuesta fija a "¿eres humano?" tienen
+aquí una única fuente de verdad versionada (`DISCLOSURE_MESSAGE_VOZ`/
+`RESPUESTA_FIJA_ES_HUMANO`), pero que ElevenLabs efectivamente las
+reproduzca en cada llamada real depende de la configuración manual del
+agente en su dashboard (runbook, `docs/agente-voz/README.md` §5) -- ninguna
+reparación de código en este paquete puede cerrar esa brecha sin que
+ElevenLabs exponga un mecanismo de intercepción de turno que hoy no se
+verificó contra una cuenta real.
+
 ### NoFabricationPolicy (ampliación back office §6)
 
 Cualquier valor de precio, certificación, experiencia, referencia, firma o
@@ -497,6 +616,30 @@ nivel de proceso/sandbox en `apps/api`.
 
 ## Pendientes
 
+- **`analytics/` (REQ-002/REQ-009/REQ-038): calibración contra datos
+  reales.** Los 4 motores (banda de precio, simulador de puntaje,
+  clasificador CUCoP, P(ganar)/P(desierta)) están completos y probados
+  contra fixtures sintéticos (ver §analytics/ arriba). Falta, en orden de
+  quién lo provee:
+  1. El catálogo OFICIAL CUCoP/COG vigente (humano/negocio — fuente
+     oficial de la autoridad de la materia, hoy SABG).
+  2. El gold set de 300-500 procedimientos reales anotados a mano para
+     REQ-002 y el de 100-300 convocatorias anotadas de REQ-021 (para
+     REQ-038) — ambos requieren anotación humana, no se pueden derivar del
+     código.
+  3. Un gold set histórico real de licitaciones en las que un tenant real
+     participó con resultado conocido (ganó/perdió/desierta) para REQ-009
+     — no existe todavía porque ningún tenant real ha operado el producto
+     el tiempo suficiente; se verificó explícitamente que el dataset
+     histórico real ya disponible (`compras-mx-historico`) no sirve para
+     esto (contratos ya adjudicados a nivel de todo el gobierno, no la
+     perspectiva de un proveedor específico, sin ningún caso desierto por
+     construcción).
+  Ninguno de los tres se fabricó para simular que existe. Cuando existan,
+  conectarlos vía `CucopCatalogPort`/`runCucopBenchmark`/
+  `WinDesertionEngine.evaluate({goldSetIsReal: true})`/
+  `runScoreSimulatorBenchmark` — el código no necesita cambiar, solo los
+  datos de entrada.
 - **Integración real con OpenAI Responses API sin ejercitar contra
   credenciales de producción.** `OpenAIResponsesProvider` está implementado
   contra la forma documentada de la API y probado con `fetch` simulado

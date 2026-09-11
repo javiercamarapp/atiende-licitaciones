@@ -7,6 +7,7 @@ import { registeredUserRecipient, invitedRecipient, internalInboxRecipient } fro
 import { buildPreferencesUrl, buildUnsubscribeUrl } from './links.js';
 import { readNotificationPreferences } from './preferences.js';
 import { sendWhatsAppSideChannel } from './whatsapp-channel.js';
+import { encodeGoPayload, encodeNoGoPayload } from '../whatsapp/decision-payload.js';
 
 const EMAIL_VERIFICATION_TTL_MINUTES = 30;
 const PASSWORD_RESET_TTL_MINUTES = 30;
@@ -359,6 +360,13 @@ export async function sendNewTenderMatchEmail(
       '1': params.tenderTitle,
       '2': formatFechaEs(params.submissionDeadlineIso),
     },
+    // REQ-090 (WhatsApp decide vía botones): la plantilla, una vez aprobada
+    // en Meta, debe llevar 2 botones QUICK_REPLY ("Go"/"No-Go") -- el
+    // `payload` de cada uno codifica la convocatoria concreta (ver
+    // `lib/whatsapp/decision-payload.ts`), el texto lo fija la aprobación
+    // de la plantilla en Meta. `POST /webhooks/whatsapp`
+    // (`modules/whatsapp/webhook.routes.ts`) procesa la respuesta.
+    buttonPayloads: [encodeGoPayload(params.tenderId), encodeNoGoPayload(params.tenderId)],
   });
 
   return outcome;

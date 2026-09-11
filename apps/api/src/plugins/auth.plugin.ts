@@ -2,7 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import fp from 'fastify-plugin';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { verifyAccessToken } from '../lib/jwt.js';
-import { UnauthorizedError, ForbiddenError, BadRequestError } from '../lib/errors.js';
+import { UnauthorizedError, ForbiddenError, BadRequestError, KycSuspendedError } from '../lib/errors.js';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -46,14 +46,73 @@ async function authPluginImpl(app: FastifyInstance): Promise<void> {
       // `p_user_id` arbitrario que permitiera consultar el rol de otro
       // usuario. Ver packages/db/migrations/0019_fix_db01_security_definer_scope.sql.
       await tx.query("select set_config('app.current_user_id', $1, true)", [request.userId]);
-      return tx.query<{ role: string | null }>('select app.membership_role($1) as role', [orgId]);
+      // REQ-026: se resuelve en la MISMA consulta (sin round trip extra) el
+      // veredicto de KYC vigente del tenant -- `app.tenant_kyc_verdict` es
+      // SECURITY DEFINER (packages/db/migrations/0099_*.sql) y no expone
+      // nada más que ese único valor.
+      return tx.query<{ role: string | null; kyc_verdict: string | null }>(
+        'select app.membership_role($1) as role, app.tenant_kyc_verdict($1) as kyc_verdict',
+        [orgId]
+      );
     });
     const role = rows[0]?.role;
     if (!role) {
       throw new ForbiddenError('No eres miembro de esta organización');
     }
+    // REQ-026 (tolerancia cero): un tenant con veredicto de KYC "suspended"
+    // (su RFC apareció en la lista 69-B del SAT con situación "Definitivo",
+    // al capturarlo o en el cruce nocturno de apps/worker) queda bloqueado
+    // en TODA ruta que dependa de `requireOrg` -- no solo en la que
+    // capturó el RFC. `kyc_verdict === null` ("nunca verificado") NUNCA se
+    // trata como suspendido: solo el valor explícito 'suspended' bloquea.
+    if (rows[0]?.kyc_verdict === 'suspended') {
+      throw new KycSuspendedError();
+    }
     request.orgId = orgId;
     request.orgRole = role as FastifyRequest['orgRole'];
+  });
+
+  // REQ-060: paralelo de `requireOrg`, pero para el lado comprador (OIC).
+  // Usa una cabecera PROPIA (`X-Oic-Org-Id`, nunca `X-Org-Id`) y resuelve el
+  // rol contra `app.oic_membership_role` (oic_memberships), nunca contra
+  // `app.membership_role` (memberships) -- ningún camino de código puede
+  // confundir un id de organización compradora con uno proveedor, ni por
+  // typo ni por copiar/pegar de `requireOrg`. Además de la RLS real
+  // (última línea de defensa, packages/db/migrations/0099), se verifica
+  // aquí explícitamente que la organización sea kind='comprador': si un
+  // actor con oic_memberships en alguna organización manda por error (o a
+  // propósito) el id de una organización proveedora, el mensaje de error es
+  // claro (403) en vez de un "no eres miembro" genérico que no distingue
+  // el motivo.
+  app.decorate('requireOicOrg', async function requireOicOrg(request: FastifyRequest): Promise<void> {
+    if (!request.userId) {
+      throw new UnauthorizedError();
+    }
+    const orgId = request.headers['x-oic-org-id'];
+    if (!orgId || typeof orgId !== 'string') {
+      throw new ForbiddenError('Falta encabezado X-Oic-Org-Id');
+    }
+    if (!UUID_PATTERN.test(orgId)) {
+      throw new BadRequestError('X-Oic-Org-Id no es un UUID válido');
+    }
+    const { rows } = await app.db.transaction(async (tx) => {
+      await tx.query('set local role app_role');
+      await tx.query("select set_config('app.current_user_id', $1, true)", [request.userId]);
+      return tx.query<{ role: string | null; kind: string | null }>(
+        `select app.oic_membership_role($1) as role,
+                (select kind from organizations where id = $1) as kind`,
+        [orgId]
+      );
+    });
+    const row = rows[0];
+    if (row?.kind !== 'comprador') {
+      throw new ForbiddenError('Esta organización no es de lado comprador (OIC)');
+    }
+    if (!row?.role) {
+      throw new ForbiddenError('No eres miembro OIC de esta organización');
+    }
+    request.oicOrgId = orgId;
+    request.oicRole = row.role as FastifyRequest['oicRole'];
   });
 
   // Autenticación de servicios internos (p.ej. apps/worker) vía cabecera

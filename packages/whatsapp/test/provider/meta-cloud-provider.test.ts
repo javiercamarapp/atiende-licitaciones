@@ -117,4 +117,102 @@ describe("createMetaCloudProvider", () => {
     const body = JSON.parse(init.body as string);
     expect(body.template.language).toEqual({ code: "en_US" });
   });
+
+  // REQ-090/044: botones QUICK_REPLY con payload dinámico sobre una plantilla.
+  describe("buttonPayloads (REQ-090/044/080)", () => {
+    it("agrega componentes button/quick_reply con el payload dado, en orden posicional", async () => {
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, { messages: [{ id: "wamid.1" }] }));
+      const provider = createMetaCloudProvider({ accessToken: "token", phoneNumberId: "123456", fetchImpl });
+      await provider.send({ ...BASE_MESSAGE, buttonPayloads: ["GO:t1", "NOGO:t1"] });
+      const [, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(init.body as string);
+      expect(body.template.components).toEqual([
+        { type: "body", parameters: expect.any(Array) },
+        { type: "button", sub_type: "quick_reply", index: "0", parameters: [{ type: "payload", payload: "GO:t1" }] },
+        { type: "button", sub_type: "quick_reply", index: "1", parameters: [{ type: "payload", payload: "NOGO:t1" }] },
+      ]);
+    });
+
+    it("REQ-080: más de 3 buttonPayloads se rechaza SIN llamar a fetch (permanent, no red)", async () => {
+      const fetchImpl = vi.fn();
+      const provider = createMetaCloudProvider({ accessToken: "token", phoneNumberId: "123456", fetchImpl });
+      const result = await provider.send({ ...BASE_MESSAGE, buttonPayloads: ["a", "b", "c", "d"] });
+      expect(result).toMatchObject({ ok: false, kind: "permanent" });
+      expect(fetchImpl).not.toHaveBeenCalled();
+    });
+
+    it("sin buttonPayloads no agrega componentes de botón (compatibilidad con plantillas existentes)", async () => {
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, { messages: [{ id: "wamid.1" }] }));
+      const provider = createMetaCloudProvider({ accessToken: "token", phoneNumberId: "123456", fetchImpl });
+      await provider.send(BASE_MESSAGE);
+      const [, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(init.body as string);
+      expect(body.template.components).toHaveLength(1);
+    });
+  });
+
+  describe("sendInteractiveList (REQ-090/080)", () => {
+    const LIST_MESSAGE = {
+      to: "+525512345678",
+      bodyText: "¿Por qué decides No-Go?",
+      buttonText: "Elegir razón",
+      sections: [{ title: "Razones", rows: [{ id: "r1", title: "Plazo insuficiente", description: "No hay tiempo" }] }],
+    };
+
+    it("arma el payload interactivo type:list real de Meta", async () => {
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, { messages: [{ id: "wamid.list1" }] }));
+      const provider = createMetaCloudProvider({ accessToken: "token", phoneNumberId: "123456", fetchImpl });
+      const result = await provider.sendInteractiveList(LIST_MESSAGE);
+      expect(result).toEqual({ ok: true, providerMessageId: "wamid.list1" });
+
+      const [, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(init.body as string);
+      expect(body.type).toBe("interactive");
+      expect(body.interactive).toEqual({
+        type: "list",
+        body: { text: "¿Por qué decides No-Go?" },
+        action: {
+          button: "Elegir razón",
+          sections: [{ title: "Razones", rows: [{ id: "r1", title: "Plazo insuficiente", description: "No hay tiempo" }] }],
+        },
+      });
+    });
+
+    it("REQ-080: más de 10 filas se rechaza SIN llamar a fetch", async () => {
+      const fetchImpl = vi.fn();
+      const provider = createMetaCloudProvider({ accessToken: "token", phoneNumberId: "123456", fetchImpl });
+      const result = await provider.sendInteractiveList({
+        ...LIST_MESSAGE,
+        sections: [{ rows: Array.from({ length: 11 }, (_, i) => ({ id: `r${i}`, title: `R${i}` })) }],
+      });
+      expect(result).toMatchObject({ ok: false, kind: "permanent" });
+      expect(fetchImpl).not.toHaveBeenCalled();
+    });
+
+    it("devuelve not_configured sin credenciales, sin llamar a fetch", async () => {
+      const fetchImpl = vi.fn();
+      const provider = createMetaCloudProvider({ accessToken: undefined, phoneNumberId: undefined, fetchImpl });
+      const result = await provider.sendInteractiveList(LIST_MESSAGE);
+      expect(result).toEqual({ ok: false, kind: "not_configured" });
+      expect(fetchImpl).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("sendText (REQ-090: confirmación dentro de la ventana de 24h)", () => {
+    it("manda type:text con el cuerpo dado", async () => {
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, { messages: [{ id: "wamid.txt1" }] }));
+      const provider = createMetaCloudProvider({ accessToken: "token", phoneNumberId: "123456", fetchImpl });
+      const result = await provider.sendText("+525512345678", "Listo: registramos tu decisión Go.");
+      expect(result).toEqual({ ok: true, providerMessageId: "wamid.txt1" });
+      const [, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(init.body as string);
+      expect(body).toMatchObject({ type: "text", to: "525512345678", text: { body: "Listo: registramos tu decisión Go." } });
+    });
+
+    it("devuelve not_configured sin credenciales", async () => {
+      const provider = createMetaCloudProvider({ accessToken: undefined, phoneNumberId: undefined });
+      const result = await provider.sendText("+525512345678", "hola");
+      expect(result).toEqual({ ok: false, kind: "not_configured" });
+    });
+  });
 });

@@ -3,10 +3,11 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { MEMBERSHIP_ADMIN_ROLES, WRITE_ROLES, type DbExecutor } from '@atiende/db';
-import { NotFoundError, ConflictError, ValidationAppError } from '../../lib/errors.js';
+import { NotFoundError, ConflictError, ValidationAppError, KycSuspendedError } from '../../lib/errors.js';
 import { recordAudit } from '../../lib/audit.js';
 import { requireOrgRole } from '../../lib/authorize.js';
 import { recordFieldProvenance, getFieldProvenance } from '../../lib/provenance.js';
+import { screenCompanyProfileRfc } from '../../lib/kyc.js';
 import { requireStepUp } from '../../lib/step-up.js';
 import { registerSimpleCrud } from '../../lib/company-crud.js';
 import { decodeBase64Content, storeFile, computeDocumentStatus } from '../../lib/storage.js';
@@ -32,6 +33,9 @@ import {
   signatoryCreateSchema,
   signatoryUpdateSchema,
   signatorySchema,
+  stakeholderCreateSchema,
+  stakeholderUpdateSchema,
+  stakeholderSchema,
   restrictionCreateSchema,
   restrictionUpdateSchema,
   restrictionSchema,
@@ -117,6 +121,43 @@ export async function companyRoutes(app: FastifyInstance): Promise<void> {
       requireOrgRole(request, MEMBERSHIP_ADMIN_ROLES, 'Solo owner/admin pueden editar el perfil de empresa');
 
       const b = request.body;
+
+      // REQ-026 (tolerancia cero): al capturar/actualizar el RFC del
+      // perfil de empresa ("al alta"), cruzarlo contra la lista 69-B ya
+      // ingerida por el job nocturno (REQ-112, apps/worker) ANTES de
+      // persistir nada. Se ejecuta en su PROPIA transacción -- si el
+      // veredicto es "suspended" el registro del check debe sobrevivir
+      // aunque el perfil de empresa NUNCA se guarde con ese RFC (dos
+      // efectos independientes: "quedó registrado que se intentó" vs. "el
+      // perfil quedó con ese RFC" -- solo el segundo se aborta).
+      if (b.taxId) {
+        const screening = await app.db.transaction(async (tx) => {
+          await tx.query('set local role app_role');
+          await tx.query("select set_config('app.current_org_id', $1, true)", [orgId]);
+          await tx.query("select set_config('app.current_user_id', $1, true)", [userId]);
+          return screenCompanyProfileRfc(tx, { orgId, rfc: b.taxId! });
+        });
+
+        if (screening.verdict === 'suspended') {
+          await app.db.transaction(async (tx) => {
+            await tx.query('set local role app_role');
+            await tx.query("select set_config('app.current_org_id', $1, true)", [orgId]);
+            await tx.query("select set_config('app.current_user_id', $1, true)", [userId]);
+            await recordAudit(tx, {
+              orgId,
+              actorId: userId,
+              action: 'company_profile.kyc_suspended',
+              entity: 'company_profiles',
+              entityId: orgId,
+              after: { taxId: b.taxId, matchedSituacion: screening.matchedSituacion },
+              requestId: request.id,
+              correlationId: request.correlationId,
+            });
+          });
+          throw new KycSuspendedError();
+        }
+      }
+
       const row = await app.db.transaction(async (tx) => {
         await tx.query('set local role app_role');
         await tx.query("select set_config('app.current_org_id', $1, true)", [orgId]);
@@ -381,6 +422,37 @@ export async function companyRoutes(app: FastifyInstance): Promise<void> {
         idDocumentRef: 'id_document_ref',
         validFrom: 'valid_from',
         validUntil: 'valid_until',
+        createdAt: 'created_at',
+        updatedAt: 'updated_at',
+      }),
+  });
+
+  // REQ-111 (docs/REQUISITOS.md): socios/accionistas -- señal de identidad
+  // que `@atiende/kyc` usa junto con RFC/domicilio/representantes para el
+  // fingerprint de interpósita persona entre tenants (ver
+  // packages/db/migrations/0100). Sensibilidad equivalente a
+  // `authorized_signatories`/`registrations`: solo owner/admin escriben.
+  registerSimpleCrud(app, {
+    path: 'stakeholders',
+    table: 'company_stakeholders',
+    entity: 'company_stakeholders',
+    createSchema: stakeholderCreateSchema,
+    updateSchema: stakeholderUpdateSchema,
+    responseSchema: stakeholderSchema,
+    writeRoles: MEMBERSHIP_ADMIN_ROLES,
+    toColumns: (b: any) => ({
+      ...(b.kind !== undefined && { kind: b.kind }),
+      ...(b.fullName !== undefined && { full_name: b.fullName }),
+      ...(b.rfc !== undefined && { rfc: b.rfc }),
+      ...(b.participationPct !== undefined && { participation_pct: b.participationPct }),
+    }),
+    fromRow: (r) =>
+      toCamelRow(r, {
+        id: 'id',
+        kind: 'kind',
+        fullName: 'full_name',
+        rfc: 'rfc',
+        participationPct: 'participation_pct',
         createdAt: 'created_at',
         updatedAt: 'updated_at',
       }),

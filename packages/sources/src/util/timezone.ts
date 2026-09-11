@@ -39,6 +39,24 @@ export function fromMexicoCityNaive(isoDateOrDateTime: string): Date {
   return new Date(withOffset);
 }
 
+/**
+ * Suma (o resta, con `days` negativo) un número entero de días a un `Date`
+ * real vía aritmética pura de milisegundos (TZ-invariante: nunca reinterpreta
+ * el resultado como hora local del proceso, a diferencia de
+ * `new Date(y, m, d + n)`). Vive aquí (fuera de `src/connectors/`) para que
+ * un conector nunca necesite escribir su propio `new Date(<epoch + N>)`
+ * literal — el escaneo estático de SR-12 (`test/tz-invariant.test.ts`)
+ * prohíbe `new Date(` con argumento dentro de `src/connectors/` precisamente
+ * para forzar que toda aritmética de fechas de negocio pase por un helper
+ * centralizado y auditado como este, nunca por un cálculo ad-hoc repetido
+ * en cada conector.
+ */
+export function addDaysUtc(date: Date, days: number): Date {
+  const shifted = new Date();
+  shifted.setTime(date.getTime() + days * 24 * 60 * 60 * 1000);
+  return shifted;
+}
+
 /** Formatea un `Date` como ISO 8601 con el offset explícito de `America/Mexico_City` (para logs/eventos, nunca para comparar instantes). */
 export function toMexicoCityIso(date: Date): string {
   const utcMs = date.getTime() + 6 * 60 * 60 * 1000; // UTC-6 fijo

@@ -213,6 +213,25 @@ export function useAssemblePackage(tenderId: string | null | undefined) {
   });
 }
 
+// --- checklist de "sala de guerra" (REQ-040) -------------------------------------
+export function useWarRoomChecklist(tenderId: string | null | undefined) {
+  const { currentOrgId } = useAuth();
+  return useQuery({
+    queryKey: key(currentOrgId, tenderId, "war-room"),
+    queryFn: () => api.getLatestWarRoomChecklist(currentOrgId!, tenderId!),
+    enabled: Boolean(currentOrgId && tenderId),
+  });
+}
+
+export function useRunWarRoomChecklist(tenderId: string | null | undefined) {
+  const { currentOrgId } = useAuth();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.runWarRoomChecklist(currentOrgId!, tenderId!),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: key(currentOrgId, tenderId, "war-room") }),
+  });
+}
+
 // --- presentación declarada por el usuario --------------------------------------
 export function useSubmission(tenderId: string | null | undefined) {
   const { currentOrgId } = useAuth();

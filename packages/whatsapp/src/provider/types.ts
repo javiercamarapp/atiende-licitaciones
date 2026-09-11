@@ -89,9 +89,76 @@ export interface OutboundWhatsAppMessage {
    *  aprueban solo en español de México: si se omite, `MetaCloudProvider`
    *  usa `defaultLanguageCode` (default `"es_MX"`). */
   languageCode?: string;
+  /**
+   * REQ-090/REQ-044 (doble confirmación, 1/2 técnica-legal vía WhatsApp con
+   * máx. 3 botones): payloads posicionales (índice 0, 1, 2...) para los
+   * componentes `QUICK_REPLY` que la plantilla YA tiene aprobados en el
+   * WhatsApp Manager de Meta — el TEXTO de cada botón lo fija Meta al
+   * aprobar la plantilla (fuera de este repo); esto SOLO manda el `payload`
+   * (el identificador que el webhook entrante recibirá de vuelta en
+   * `messages[].button.payload` cuando alguien lo toque, ver
+   * `./webhook/parse-payload.ts`) de forma dinámica por envío — Meta sí
+   * permite parametrizar el `payload` de un botón `quick_reply` por
+   * mensaje, a diferencia del texto del botón, que es fijo por plantilla.
+   * `undefined`/`[]` manda la plantilla sin botones (compatibilidad con las
+   * plantillas existentes que no los tienen). Ver `MAX_QUICK_REPLY_BUTTONS`
+   * en `./content-limits.ts` para el límite real de la plataforma (REQ-080).
+   */
+  buttonPayloads?: string[];
+}
+
+/** Una fila seleccionable de una lista interactiva (REQ-090/080). */
+export interface InteractiveListRow {
+  /** Identificador que el webhook entrante recibirá de vuelta en
+   *  `messages[].interactive.list_reply.id` cuando el usuario elija esta
+   *  fila — este paquete no le da ningún significado, es responsabilidad de
+   *  quien arma la lista codificar aquí lo que necesite (ver
+   *  `apps/api/src/lib/whatsapp/decision-payload.ts`). */
+  id: string;
+  title: string;
+  description?: string;
+}
+
+export interface InteractiveListSection {
+  title?: string;
+  rows: InteractiveListRow[];
+}
+
+/**
+ * Mensaje interactivo de lista, LIBRE (no plantilla) — solo válido dentro de
+ * la ventana de 24h de "servicio al cliente" que Meta abre cuando el número
+ * de destino nos escribió primero (ver README §La restricción real de la
+ * plataforma). A diferencia de `OutboundWhatsAppMessage`, este SÍ es texto
+ * arbitrario definido por nosotros, porque Meta lo permite en ese contexto
+ * concreto: una respuesta dentro de una conversación que el usuario abrió,
+ * nunca un aviso proactivo. Quien arma este mensaje es responsable de haber
+ * verificado que está respondiendo dentro de esa ventana (en la práctica:
+ * solo se manda desde el webhook entrante, en reacción a un mensaje que
+ * ACABA de llegar).
+ */
+export interface OutboundInteractiveListMessage {
+  to: string;
+  bodyText: string;
+  /** Texto del botón que despliega la lista (p. ej. "Elegir razón"). */
+  buttonText: string;
+  sections: InteractiveListSection[];
+  footerText?: string;
 }
 
 export interface WhatsAppProvider {
   readonly name: string;
   send(message: OutboundWhatsAppMessage): Promise<SendResult>;
+  /** REQ-090/080: lista interactiva (≤10 filas en total, ver `./content-limits.ts`). */
+  sendInteractiveList(message: OutboundInteractiveListMessage): Promise<SendResult>;
+  /**
+   * Texto libre — SOLO válido dentro de la ventana de 24h abierta por un
+   * mensaje entrante (ver docstring de `OutboundInteractiveListMessage`).
+   * Usado exclusivamente para confirmar una decisión ya tomada por botón o
+   * lista (`apps/api/src/modules/whatsapp/webhook.routes.ts`) — NUNCA por
+   * los disparadores proactivos (`tender_matches`/`submission`), que siguen
+   * modelados solo con `send()` (plantilla). Fingir esta capacidad fuera de
+   * una respuesta real sería mandar texto libre proactivo, algo que Meta no
+   * permite para este caso de uso (ver README).
+   */
+  sendText(to: string, body: string): Promise<SendResult>;
 }

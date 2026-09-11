@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
+import { isNegativeListStale } from '@atiende/kyc';
 import { NotFoundError, ConflictError } from '../../lib/errors.js';
 import { recordAudit } from '../../lib/audit.js';
 import { requireStepUp } from '../../lib/step-up.js';
@@ -14,6 +15,9 @@ import { mapAuditLogRow, parseDateFilter } from '../audit/routes.js';
 import {
   adminOrgSchema,
   adminConnectorFreshnessSchema,
+  adminKycListFreshnessSchema,
+  adminKycTenantStatusSchema,
+  adminKycFingerprintMatchSchema,
   adminJobSchema,
   adminCostByOrgSchema,
   incidentCreateSchema,
@@ -676,6 +680,109 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       });
       reply.code(201);
       return mapCalendarHoliday(row as Record<string, unknown>);
+    }
+  );
+
+  // -------------------------------------------------------------------------
+  // REQ-026/REQ-111/REQ-112: KYC negativo (lista 69-B) + fingerprint de
+  // interpósita persona -- las tablas crudas (packages/db/migrations/
+  // 0099/0100) son de solo superadmin/worker_role; estas 3 rutas son la
+  // única forma en que un humano puede ver el resultado del job nocturno
+  // de `apps/worker` (mismo criterio que `/connectors/freshness` para
+  // fuentes de descubrimiento).
+  // -------------------------------------------------------------------------
+  server.get(
+    '/kyc/freshness',
+    {
+      preHandler: [app.authenticate, app.requireSuperadmin],
+      schema: { response: { 200: adminKycListFreshnessSchema } },
+    },
+    async (request) => {
+      const { rows } = await app.db.transaction(async (tx) => {
+        await tx.query('set local role app_role');
+        await tx.query("select set_config('app.current_user_id', $1, true)", [request.userId]);
+        return tx.query<{ id: string; fetched_at: string; list_as_of_date: string | null; record_count: number }>(
+          'select id, fetched_at, list_as_of_date, record_count from sanctions_69b_snapshots order by fetched_at desc limit 1'
+        );
+      });
+      const row = rows[0];
+      const fetchedAt = row ? new Date(row.fetched_at) : null;
+      const ageSeconds = fetchedAt ? Math.floor((Date.now() - fetchedAt.getTime()) / 1000) : null;
+      return {
+        snapshotId: row?.id ?? null,
+        fetchedAt: row?.fetched_at ?? null,
+        listAsOfDate: row?.list_as_of_date ?? null,
+        recordCount: row ? Number(row.record_count) : null,
+        ageSeconds,
+        // REQ-026 literal ("alerta si listas >48h desactualizadas"): nunca
+        // hubo corrida (fetchedAt null) también cuenta como obsoleta.
+        isStale: isNegativeListStale(fetchedAt),
+      };
+    }
+  );
+
+  server.get(
+    '/kyc/tenants',
+    {
+      preHandler: [app.authenticate, app.requireSuperadmin],
+      schema: { response: { 200: z.array(adminKycTenantStatusSchema) } },
+    },
+    async (request) => {
+      const { rows } = await app.db.transaction(async (tx) => {
+        await tx.query('set local role app_role');
+        await tx.query("select set_config('app.current_user_id', $1, true)", [request.userId]);
+        // Solo tenants con algo que revisar (flagged/suspended) -- una
+        // organización 'clear' no es una alerta de compliance.
+        return tx.query<{ org_id: string; org_name: string; verdict: string; reason: string | null; updated_at: string }>(
+          `select s.org_id, o.name as org_name, s.verdict, s.reason, s.updated_at
+           from tenant_kyc_status s
+           join organizations o on o.id = s.org_id
+           where s.verdict <> 'clear'
+           order by s.updated_at desc`
+        );
+      });
+      return rows.map((r) => ({ orgId: r.org_id, orgName: r.org_name, verdict: r.verdict as 'flagged' | 'suspended', reason: r.reason, updatedAt: r.updated_at }));
+    }
+  );
+
+  server.get(
+    '/kyc/fingerprint-matches',
+    {
+      preHandler: [app.authenticate, app.requireSuperadmin],
+      schema: { response: { 200: z.array(adminKycFingerprintMatchSchema) } },
+    },
+    async (request) => {
+      const { rows } = await app.db.transaction(async (tx) => {
+        await tx.query('set local role app_role');
+        await tx.query("select set_config('app.current_user_id', $1, true)", [request.userId]);
+        return tx.query<{
+          org_id_a: string;
+          org_name_a: string;
+          org_id_b: string;
+          org_name_b: string;
+          score: string;
+          matched_fields: Array<{ field: string; value: string }>;
+          detected_at: string;
+          status: string;
+        }>(
+          `select m.org_id_a, oa.name as org_name_a, m.org_id_b, ob.name as org_name_b, m.score, m.matched_fields, m.detected_at, m.status
+           from entity_fingerprint_matches m
+           join organizations oa on oa.id = m.org_id_a
+           join organizations ob on ob.id = m.org_id_b
+           where m.status = 'open'
+           order by m.score desc`
+        );
+      });
+      return rows.map((r) => ({
+        orgIdA: r.org_id_a,
+        orgNameA: r.org_name_a,
+        orgIdB: r.org_id_b,
+        orgNameB: r.org_name_b,
+        score: Number(r.score),
+        matchedFields: r.matched_fields,
+        detectedAt: r.detected_at,
+        status: r.status,
+      }));
     }
   );
 }

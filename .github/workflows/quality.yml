@@ -52,8 +52,12 @@ jobs:
           - packages/db
           - packages/agents
           - packages/expediente
+          - packages/evals
           - packages/sources
           - packages/whatsapp
+          - packages/kyc
+          - packages/ocr
+          - packages/webhooks
     steps:
       - uses: actions/checkout@v4
 
@@ -89,7 +93,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-${{ matrix.workspace == 'apps/api' && 'apps-api' || matrix.workspace == 'apps/web' && 'apps-web' || matrix.workspace == 'apps/worker' && 'apps-worker' || matrix.workspace == 'packages/db' && 'packages-db' || matrix.workspace == 'packages/agents' && 'packages-agents' || matrix.workspace == 'packages/expediente' && 'packages-expediente' || matrix.workspace == 'packages/sources' && 'packages-sources' || 'packages-whatsapp' }}
+          name: coverage-${{ matrix.workspace == 'apps/api' && 'apps-api' || matrix.workspace == 'apps/web' && 'apps-web' || matrix.workspace == 'apps/worker' && 'apps-worker' || matrix.workspace == 'packages/db' && 'packages-db' || matrix.workspace == 'packages/agents' && 'packages-agents' || matrix.workspace == 'packages/expediente' && 'packages-expediente' || matrix.workspace == 'packages/evals' && 'packages-evals' || matrix.workspace == 'packages/sources' && 'packages-sources' || matrix.workspace == 'packages/whatsapp' && 'packages-whatsapp' || matrix.workspace == 'packages/kyc' && 'packages-kyc' || matrix.workspace == 'packages/ocr' && 'packages-ocr' || 'packages-webhooks' }}
           path: ${{ matrix.workspace }}/coverage/**
           if-no-files-found: ignore
           retention-days: 14
@@ -265,6 +269,46 @@ jobs:
             apps/web/test-results/**
           if-no-files-found: ignore
           retention-days: 14
+
+  # ---------------------------------------------------------------------
+  # Gate real de evals (REQ-087/REQ-097/REQ-138): corre el runner de
+  # `packages/evals` como PROCESO REAL (no solo como suite de vitest
+  # incluida arriba en `workspace-checks`) y falla el job -- por lo tanto
+  # el check requerido del PR -- si CUALQUIER categoría de umbral
+  # (anticorrupción/anticolusión, red-teaming de inyección de prompt,
+  # no-fabricación, autorización por rol, juicio de calidad) cae por
+  # debajo de lo configurado en `packages/evals/src/thresholds.ts`. Las
+  # cuatro categorías de cumplimiento legal exigen 100% con tolerancia
+  # cero: un solo caso adversarial que deje de bloquearse (p. ej. alguien
+  # debilita `AntiCorruptionGuardrail` o quita un check de
+  # `AuthorizationPolicy` al tocar un prompt/esquema/modelo) rompe este
+  # job, no solo lo reporta -- ver `packages/evals/src/cli.ts`
+  # (`process.exit(1)` real) y README.md de este paquete para el mapeo
+  # completo requisito -> mecanismo.
+  #
+  # Sin secretos: corre con `FakeCalibratedJudge` (sin `OPENAI_API_KEY`,
+  # ver `packages/evals/src/graders/llm-judge.ts`) -- pasar aquí NO
+  # certifica un juicio de calidad calibrado contra el gold set humano
+  # real de REQ-021 (que no existe todavía, ver docs/ACEPTACION.md), pero
+  # SÍ certifica que el guardrail/no-fabricación/autorización REALES de
+  # producción siguen bloqueando lo que deben bloquear hoy.
+  # ---------------------------------------------------------------------
+  evals-gate:
+    name: evals-gate (REQ-087/REQ-097/REQ-138)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Instalar dependencias (workspace completo)
+        run: npm ci
+
+      - name: Correr el gate real de evals (falla el build si algún umbral no se cumple)
+        run: npm run evals --workspace=packages/evals
 
   # ---------------------------------------------------------------------
   # Auditoría de dependencias de producción (sin devDependencies). No baja

@@ -73,6 +73,60 @@ export const matrixBuildResponseSchema = z.object({
 });
 
 // ---------------------------------------------------------------------------
+// Preguntas de junta de aclaraciones con fuente (REQ-041)
+// ---------------------------------------------------------------------------
+export const juntaQuestionSourceSchema = z.object({
+  documentId: z.string().uuid(),
+  documentLabel: z.string(),
+  page: z.number().int().positive(),
+  clause: z.string().nullable(),
+  quote: z.string(),
+});
+
+export const juntaQuestionSchema = z.object({
+  id: z.string(),
+  reason: z.enum(['conflicto_plazo', 'conflicto_obligatoriedad', 'fecha_ambigua']),
+  topicKey: z.string().nullable(),
+  question: z.string(),
+  numeral: z.string().nullable(),
+  alternativaPropuesta: z.string(),
+  // Invariante de REQ-041/REQ-082: nunca vacío -- el generador lo garantiza
+  // en código; el `.min(1)` aquí es defensa adicional a nivel de contrato de
+  // API (si algún día llegara vacío por un bug, la respuesta falla la
+  // validación de esquema en vez de mostrarse silenciosamente al usuario).
+  sources: z.array(juntaQuestionSourceSchema).min(1),
+});
+
+export const juntaQuestionRejectedSchema = z.object({ reason: z.string(), detail: z.string() });
+
+/** ISO 8601 con offset horario EXPLÍCITO ("Z" o "±HH:MM") y calendáricamente válido -- mismo criterio que `assertExplicitOffset` de `@atiende/expediente`, reaplicado aquí para rechazar con un 400 de validación en vez de dejar que `generateJuntaQuestions` lance un 500 dentro de la transacción. */
+const isoDateTimeWithOffset = z
+  .string()
+  .min(1)
+  .refine((v) => /(?:Z|[+-]\d{2}:\d{2})$/.test(v.trim()) && !Number.isNaN(new Date(v.trim()).getTime()), {
+    message: 'debe ser una fecha/hora ISO 8601 con offset horario explícito (p. ej. "2026-11-01T10:00:00-06:00")',
+  });
+
+export const juntaQuestionsGenerateRequestSchema = z.object({
+  /** Fecha/hora real de la junta de aclaraciones — provista por quien genera, nunca inferida. */
+  juntaAclaracionesAt: isoDateTimeWithOffset,
+});
+
+export const juntaQuestionRunSchema = z.object({
+  id: z.string().uuid(),
+  tenderId: z.string().uuid(),
+  juntaAclaracionesAt: isoTimestamp,
+  questionsDueAt: isoTimestamp,
+  withinWindow: z.boolean(),
+  questions: z.array(juntaQuestionSchema),
+  rejected: z.array(juntaQuestionRejectedSchema),
+  documentsUsed: z.number(),
+  computedAt: isoTimestamp,
+});
+
+export const juntaQuestionRunsListSchema = z.array(juntaQuestionRunSchema);
+
+// ---------------------------------------------------------------------------
 // Propuesta técnica/económica (E7)
 // ---------------------------------------------------------------------------
 export const proposalSchema = z.object({
@@ -814,4 +868,26 @@ export const renewalUpcomingResponseSchema = z.object({
   /** true si se alcanzó `limit` contratos evaluados (ordenados por vencimiento más próximo primero) -- puede haber más contratos con `end_date` futura sin evaluar todavía. Reintentar con un `limit` mayor si aplica. */
   truncated: z.boolean(),
   groups: z.array(renewalUpcomingGroupSchema),
+});
+
+// ---------------------------------------------------------------------------
+// Checklist de "sala de guerra" (REQ-040) -- gate final antes del acto de
+// apertura, independiente del checklist de integridad (REQ-160).
+// ---------------------------------------------------------------------------
+export const warRoomItemSchema = z.object({
+  dimension: z.enum(['checklist_anti_desechamiento', 'cuenta_regresiva', 'hash_zip', 'holgura_24h']),
+  status: z.enum(['verde', 'ambar', 'rojo']),
+  detail: z.string(),
+  evidence: z.array(z.string()),
+});
+
+export const warRoomReportSchema = z.object({
+  id: z.string().uuid(),
+  overallStatus: z.enum(['verde', 'ambar', 'rojo']),
+  items: z.array(warRoomItemSchema),
+  /** Horas (con fracción) hasta la fecha límite de presentación al momento de esta corrida; negativo si ya venció; `null` si la convocatoria no tiene fecha límite fijada. */
+  hoursUntilDeadline: z.number().nullable(),
+  submissionDeadlineIso: nullableIsoTimestamp,
+  computedAt: isoTimestamp,
+  runBy: z.string().uuid().nullable(),
 });

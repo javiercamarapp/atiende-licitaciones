@@ -2,7 +2,7 @@ import { createPgliteClient } from '../src/driver.js';
 import { applyMigrations } from '../src/migrate.js';
 import { withTenantContext, type TenantContext } from '../src/context.js';
 import type { DbClient, DbExecutor } from '../src/driver.js';
-import type { OrgRole } from '../src/roles.js';
+import type { OrgRole, OicRole } from '../src/roles.js';
 
 /** Crea una base PGlite en memoria y aplica todas las migraciones reales. */
 export async function createMigratedDb(): Promise<DbClient> {
@@ -53,6 +53,22 @@ export async function seedMember(db: DbClient, orgId: string, email: string, rol
 export async function seedSuperadmin(db: DbClient, email: string): Promise<string> {
   const userId = await seedUser(db, email);
   await db.query('insert into platform_admins (user_id) values ($1)', [userId]);
+  return userId;
+}
+
+/** REQ-060: crea una organización kind='comprador' (OIC/contraloría) directamente (sin RLS). */
+export async function seedOicOrg(db: DbClient, slug: string, name = slug): Promise<SeededOrg> {
+  const { rows } = await db.query<{ id: string }>(
+    "insert into organizations (name, slug, kind) values ($1, $2, 'comprador') returning id",
+    [name, slug]
+  );
+  return { orgId: rows[0].id, slug };
+}
+
+/** REQ-060: crea un usuario y lo hace miembro OIC (oic_memberships) de una organización compradora. */
+export async function seedOicMember(db: DbClient, orgId: string, email: string, role: OicRole): Promise<string> {
+  const userId = await seedUser(db, email);
+  await db.query('insert into oic_memberships (org_id, user_id, role) values ($1, $2, $3)', [orgId, userId, role]);
   return userId;
 }
 
@@ -195,6 +211,18 @@ export const DOMAIN_TABLES: DomainTableSpec[] = [
     async insertRow(db, orgId, aux) {
       const { rows } = await db.query<{ id: string }>(
         "insert into proposal_sections (org_id, proposal_id, section_key, title) values ($1, $2, 'intro', 'Intro') returning id",
+        [orgId, aux.proposalId]
+      );
+      return rows[0].id;
+    },
+  },
+  {
+    table: 'proposal_facts',
+    seedAux: insertProposalAux,
+    async insertRow(db, orgId, aux) {
+      const { rows } = await db.query<{ id: string }>(
+        `insert into proposal_facts (org_id, proposal_id, fact_key, section_key, rendered_value, source_kind, doc_id, page)
+         values ($1, $2, 'technical:req-1:0', 'technical:req-1', 'La empresa cuenta con la capacidad "Auditoría".', 'clause', 'doc-bases-1', 12) returning id`,
         [orgId, aux.proposalId]
       );
       return rows[0].id;
@@ -476,6 +504,19 @@ export const DOMAIN_TABLES: DomainTableSpec[] = [
       return rows[0].id;
     },
   },
+  // --- REQ-032 (0100_req032_proposal_section_fingerprints.sql) ---
+  {
+    table: 'proposal_section_fingerprints',
+    seedAux: insertTenderAux,
+    async insertRow(db, orgId, aux) {
+      const { rows } = await db.query<{ id: string }>(
+        `insert into proposal_section_fingerprints (org_id, tender_id, section_key, algorithm_version, signature, band_hashes, shingle_count)
+         values ($1, $2, 'experiencia', 1, '{1,2,3}', '{"0:1","1:2"}', 3) returning id`,
+        [orgId, aux.tenderId]
+      );
+      return rows[0].id;
+    },
+  },
   // --- Ronda 2 (0017_ronda2_extensions.sql) ---
   {
     table: 'incidents',
@@ -483,6 +524,30 @@ export const DOMAIN_TABLES: DomainTableSpec[] = [
       const { rows } = await db.query<{ id: string }>(
         "insert into incidents (org_id, title) values ($1, 'Incidente de prueba') returning id",
         [orgId]
+      );
+      return rows[0].id;
+    },
+  },
+  // --- REQ-006 (0099_req006_semantic_matching_pgvector.sql) ---
+  {
+    table: 'tender_embeddings',
+    seedAux: insertTenderAux,
+    async insertRow(db, orgId, aux) {
+      const { rows } = await db.query<{ id: string }>(
+        `insert into tender_embeddings (org_id, tender_id, source_text_hash, model, dims, embedding_fallback)
+         values ($1, $2, 'seed-hash', 'seed-model', 2, $3) returning id`,
+        [orgId, aux.tenderId, [0.1, 0.2]]
+      );
+      return rows[0].id;
+    },
+  },
+  {
+    table: 'company_profile_embeddings',
+    async insertRow(db, orgId) {
+      const { rows } = await db.query<{ id: string }>(
+        `insert into company_profile_embeddings (org_id, source_text_hash, model, dims, embedding_fallback)
+         values ($1, 'seed-hash', 'seed-model', 2, $2) returning id`,
+        [orgId, [0.1, 0.2]]
       );
       return rows[0].id;
     },

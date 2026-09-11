@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PDFDocument, PDFName, PDFNumber, PDFPageLeaf, PDFRef } from 'pdf-lib';
+import { FakeOcrAdapter } from '@atiende/ocr';
 import { extractDocumentText } from '../src/lib/expediente/text-extraction.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -196,5 +197,107 @@ describe('extractDocumentText (E6 + R6-01/R6-02)', () => {
     expect(result.pageCount).toBe(20_000);
     expect(result.text).toBeNull();
     expect(result.pages).toBeNull();
+  });
+});
+
+/** Firma PNG mínima (magic bytes reales) -- suficiente para `looksLikeImage`; el contenido real del PNG no importa porque `FakeOcrAdapter` nunca lo decodifica de verdad (ver `packages/ocr`). */
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x01, 0x02, 0x03]);
+
+/**
+ * OCR (REQ-014/018/129): `extractDocumentText` acepta un tercer argumento
+ * `OcrPort` opcional (`@atiende/ocr`). Estas pruebas usan `FakeOcrAdapter`
+ * -- el motor real (`TesseractOcrAdapter`, `tesseract.js`) ya se prueba de
+ * verdad, sin mocks, en `packages/ocr/test/tesseract-adapter.test.ts`; aquí
+ * se prueba la LÓGICA DE NEGOCIO de esta función (qué hace con cada
+ * resultado posible del puerto), no el motor de OCR en sí -- mismo criterio
+ * que el resto del repo (se mockea el borde externo, nunca la lógica que lo
+ * consume).
+ */
+describe('extractDocumentText + OcrPort (REQ-014/018/129)', () => {
+  it('sin `ocr`, una imagen suelta sigue siendo "failed" -- comportamiento IDÉNTICO al de antes de este paquete', async () => {
+    const result = await extractDocumentText(PNG_SIGNATURE, { filename: 'foto.png', mimeType: 'image/png' });
+    expect(result.status).toBe('failed');
+    expect(result.detail).not.toContain('OCR');
+  });
+
+  it('con un `ocr` real que reconoce texto, una imagen suelta queda "extracted" con bbox por palabra y el motor anotado', async () => {
+    const fake = new FakeOcrAdapter({
+      respond: {
+        ok: true,
+        page: {
+          imageWidth: 800,
+          imageHeight: 200,
+          text: 'REQUISITO: garantia de cumplimiento obligatoria',
+          meanConfidence: 92,
+          lines: [
+            {
+              text: 'REQUISITO: garantia de cumplimiento obligatoria',
+              confidence: 92,
+              bbox: { x0: 10, y0: 10, x1: 500, y1: 40 },
+              words: [
+                { text: 'REQUISITO:', confidence: 95, bbox: { x0: 10, y0: 10, x1: 120, y1: 40 } },
+                { text: 'garantia', confidence: 90, bbox: { x0: 125, y0: 10, x1: 220, y1: 40 } },
+              ],
+            },
+          ],
+        },
+      },
+    });
+
+    const result = await extractDocumentText(PNG_SIGNATURE, { filename: 'foto.png', mimeType: 'image/png' }, fake);
+
+    expect(result.status).toBe('extracted');
+    expect(result.text).toContain('garantia de cumplimiento');
+    expect(result.pageCount).toBe(1);
+    expect(result.ocrEngine).toBe('fake');
+    expect(result.ocrMeanConfidence).toBe(92);
+    expect(result.pages).toHaveLength(1);
+    expect(result.pages![0].words).toHaveLength(2);
+    expect(result.pages![0].words![0]).toMatchObject({ text: 'REQUISITO:', confidence: 95 });
+    // El puerto se invocó con la imagen real pasada a la función.
+    expect(fake.calls).toHaveLength(1);
+    expect(fake.calls[0].image).toBe(PNG_SIGNATURE);
+  });
+
+  it('con `ocr` pero sin texto reconocido, queda "requires_ocr" -- NUNCA "extracted" con texto vacío (REQ-166)', async () => {
+    const fake = new FakeOcrAdapter(); // sin `respond`: página vacía, confidence 0.
+    const result = await extractDocumentText(PNG_SIGNATURE, { filename: 'foto.png', mimeType: 'image/png' }, fake);
+    expect(result.status).toBe('requires_ocr');
+    expect(result.text).toBeNull();
+    expect(result.pages).toBeNull();
+    expect(result.detail).toContain('fake');
+  });
+
+  it('con `ocr` en estado not_configured, queda "requires_ocr" con el detalle del motor -- nunca "failed" (el documento no tiene la culpa)', async () => {
+    const fake = new FakeOcrAdapter({ respond: { ok: false, kind: 'not_configured', detail: 'sin credencial Mistral configurada' } });
+    const result = await extractDocumentText(PNG_SIGNATURE, { filename: 'foto.png', mimeType: 'image/png' }, fake);
+    expect(result.status).toBe('requires_ocr');
+    expect(result.detail).toContain('sin credencial Mistral configurada');
+  });
+
+  it('con `ocr` que falla de verdad (imagen corrupta para el motor), queda "failed" con el detalle del motor', async () => {
+    const fake = new FakeOcrAdapter({ respond: { ok: false, kind: 'failed', detail: 'imagen corrupta' } });
+    const result = await extractDocumentText(PNG_SIGNATURE, { filename: 'foto.png', mimeType: 'image/png' }, fake);
+    expect(result.status).toBe('failed');
+    expect(result.detail).toContain('imagen corrupta');
+  });
+
+  it('un PDF escaneado (sin capa de texto) sigue "requires_ocr" incluso con un `ocr` real disponible -- rasterizar PDF a imagen queda fuera de esta ronda (ver packages/ocr/README.md), nunca se promete silenciosamente más de lo que se construyó', async () => {
+    const doc = await PDFDocument.create();
+    doc.addPage([400, 400]); // sin drawText: sin capa de texto.
+    const buffer = Buffer.from(await doc.save());
+    const fake = new FakeOcrAdapter({ respond: { ok: true, page: { imageWidth: 1, imageHeight: 1, text: 'no debería llegar aquí', meanConfidence: 99, lines: [] } } });
+
+    const result = await extractDocumentText(buffer, { filename: 'escaneado.pdf', mimeType: 'application/pdf' }, fake);
+
+    expect(result.status).toBe('requires_ocr');
+    expect(fake.calls).toHaveLength(0); // el puerto NUNCA se invoca para un PDF en esta ronda.
+  });
+
+  it('detecta una imagen por firma de archivo (magic bytes) aunque el mimeType declarado sea incorrecto/ausente', async () => {
+    const fake = new FakeOcrAdapter({ respond: { ok: true, page: { imageWidth: 1, imageHeight: 1, text: 'texto real', meanConfidence: 80, lines: [] } } });
+    const result = await extractDocumentText(PNG_SIGNATURE, { filename: 'sin-extension', mimeType: null }, fake);
+    expect(result.status).toBe('extracted');
+    expect(fake.calls).toHaveLength(1);
   });
 });

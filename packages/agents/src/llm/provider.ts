@@ -32,6 +32,18 @@ export interface LLMCompletionRequest {
   messages: LLMMessage[];
   tools?: LLMToolSpec[];
   maxOutputTokens?: number;
+  /**
+   * Temperatura de muestreo. Opcional: la mayoría de las herramientas de
+   * negocio no la necesitan y la omiten (queda a la temperatura por
+   * defecto del proveedor). Componentes que requieren salida determinista
+   * (p. ej. `auditor_juez`, REQ-037/REQ-039/REQ-127: "juez LLM
+   * determinista") deben fijarla explícitamente en `0` — ver
+   * `packages/agents/src/audit/judge.ts`. No es una garantía criptográfica
+   * de determinismo (ningún proveedor la ofrece hoy), pero es el mecanismo
+   * estándar de la industria ("temperatura 0 o equivalente") para maximizar
+   * la reproducibilidad de la salida.
+   */
+  temperature?: number;
   signal?: AbortSignal;
 }
 

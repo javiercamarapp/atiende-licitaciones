@@ -17,6 +17,7 @@ import {
   checklistReportSchema,
   approvalStateSchema,
   packageAssembleResponseSchema,
+  warRoomReportSchema,
   submissionSchema,
   followupSchema,
   type TenderDocument,
@@ -28,6 +29,7 @@ import {
   type ChecklistReport,
   type ApprovalState,
   type PackageAssembleResponse,
+  type WarRoomReport,
   type Submission,
   type Followup,
   type DocumentKind,
@@ -200,6 +202,22 @@ export async function getLatestPackage(orgId: string, tenderId: string): Promise
     if (err instanceof ApiError && err.status === 404) return null;
     throw err;
   }
+}
+
+// --- checklist de "sala de guerra" (REQ-040) --------------------------------------
+export async function getLatestWarRoomChecklist(orgId: string, tenderId: string): Promise<WarRoomReport | null> {
+  try {
+    const raw = await apiRequest<unknown>(`${base(tenderId)}/war-room`, { orgId });
+    return warRoomReportSchema.parse(raw);
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null;
+    throw err;
+  }
+}
+
+export async function runWarRoomChecklist(orgId: string, tenderId: string): Promise<WarRoomReport> {
+  const raw = await apiRequest<unknown>(`${base(tenderId)}/war-room/run`, { method: "POST", orgId });
+  return warRoomReportSchema.parse(raw);
 }
 
 /**

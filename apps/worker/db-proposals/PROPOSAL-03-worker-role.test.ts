@@ -37,9 +37,14 @@ describe('PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real', () => {
     }
   });
 
-  it('worker_role tiene EXACTAMENTE grants sobre {jobs, source_runs, agent_runs} + las 10 tablas de lectura de negocio de 0098 (E6/PROPOSAL-06), ninguna otra', async () => {
+  it('worker_role tiene EXACTAMENTE grants sobre {jobs, source_runs, agent_runs} + las 10 tablas de lectura de negocio de 0098 (E6/PROPOSAL-06) + las 2 tablas de huellas de REQ-032 + proposal_sections de REQ-070 + las tablas de KYC/fingerprint de REQ-026/111/112, ninguna otra', async () => {
     // Ampliado por packages/db/migrations/0098_e6_agent_business_tools_grants.sql
-    // (E6, docs/BLOQUEOS.md "E6-ciclo-agentes") — ver
+    // (E6, docs/BLOQUEOS.md "E6-ciclo-agentes"), por la migración de
+    // REQ-032 (proposal_section_fingerprints/proposal_similarity_flags), por
+    // la migración de REQ-070 (proposal_sections, nodo "Auditor" —
+    // `auditar_expediente`/`computeAuditReport` necesita leerla) y por las
+    // migraciones de REQ-026/REQ-111/REQ-112 (KYC negativo 69-B y
+    // fingerprint de interpósita persona) — ver
     // packages/db/test/worker-role-and-job-proposals.test.ts para el mismo
     // contrato con más profundidad (incluida la razón de negocio de cada
     // tabla añadida).
@@ -64,6 +69,18 @@ describe('PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real', () => {
           'experience_records',
           'compliance_items',
           'proposals',
+          'proposal_section_fingerprints',
+          'proposal_similarity_flags',
+          'proposal_sections',
+          'organizations',
+          'locations',
+          'authorized_signatories',
+          'company_stakeholders',
+          'sanctions_69b_snapshots',
+          'sanctions_69b_entries',
+          'tenant_kyc_checks',
+          'tenant_kyc_status',
+          'entity_fingerprint_matches',
         ].sort(),
       );
     } finally {

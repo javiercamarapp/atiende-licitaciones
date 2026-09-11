@@ -1,7 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import type { DbExecutor } from '@atiende/db';
 import { toTenderRecord, toOrganizationProfile, computeMatch, type TenderRowForMatching } from '../../modules/matching/engine.js';
-import { buildProfileAndEligibility, persistMatch } from '../../modules/matching/routes.js';
+import { buildProfileAndEligibility, persistMatch, fetchAttachmentTexts } from '../../modules/matching/routes.js';
+import { computeSemanticRelevance, buildProfileEmbeddingText, buildTenderEmbeddingText } from '../../modules/matching/semantic.js';
 import { sendNewTenderMatchEmail, type MinimalUserWithPhone } from './triggers.js';
 import { timestampToIso } from '../expediente/dates.js';
 
@@ -85,7 +86,21 @@ export async function notifyNewTenderMatchToResponsibles(app: FastifyInstance, i
     const { profileInput, hardEligibility, missingProfileFields } = await buildProfileAndEligibility(tx, orgId);
     const record = toTenderRecord(row);
     const profile = toOrganizationProfile(profileInput);
-    const result = computeMatch(record, profile, hardEligibility, missingProfileFields);
+
+    const attachmentTexts = await fetchAttachmentTexts(tx, orgId, tenderId);
+    const semantic = await computeSemanticRelevance(
+      tx,
+      orgId,
+      tenderId,
+      buildProfileEmbeddingText(profileInput.keywords),
+      buildTenderEmbeddingText({
+        title: row.title,
+        contractingBody: row.contracting_body,
+        cpvCodes: row.cpv_codes,
+        attachmentTexts,
+      })
+    );
+    const result = computeMatch(record, profile, hardEligibility, missingProfileFields, semantic);
 
     await persistMatch(tx, orgId, tenderId, result);
 

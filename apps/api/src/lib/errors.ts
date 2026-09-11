@@ -57,6 +57,20 @@ export class EmailNotVerifiedError extends AppError {
   }
 }
 
+/**
+ * REQ-026 (docs/REQUISITOS.md, tolerancia cero): el RFC capturado/
+ * actualizado en el perfil de empresa aparece en la lista 69-B del SAT con
+ * situación "Definitivo". `type` propio (no `ForbiddenError` genérico) para
+ * que `apps/web` pueda mostrar un mensaje de compliance específico en vez
+ * de un "no autorizado" genérico -- este NO es un problema de permisos del
+ * usuario, es un bloqueo legal del propio tenant.
+ */
+export class KycSuspendedError extends AppError {
+  constructor(message = 'Esta organización quedó suspendida: su RFC aparece en la lista 69-B del SAT con situación "Definitivo".') {
+    super(403, 'https://atiende.example/errors/kyc-suspended', message);
+  }
+}
+
 export class NotFoundError extends AppError {
   constructor(message = 'Recurso no encontrado') {
     super(404, 'https://atiende.example/errors/not-found', message);

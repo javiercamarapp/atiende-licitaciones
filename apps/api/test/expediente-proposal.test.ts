@@ -304,4 +304,119 @@ describe('expediente — propuesta técnica/económica (E7)', () => {
     });
     expect(gen3.statusCode).toBe(200);
   });
+
+  it('REQ-035: la propuesta técnica puebla proposal_facts con el SourceRef real de cada statement -- sin fuente real, sin fila; una sección bloqueada no deja hechos', async () => {
+    const owner = await registerAndLogin(app, 'prop-owner-facts-1@example.com');
+    const org = await createOrgFor(app, owner, 'Prop Org Facts 1', 'prop-org-facts-1');
+    const tenderId = await createTender(app, org.id, 'prop-facts-001');
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id };
+
+    await app.inject({ method: 'PUT', url: '/company/profile', headers, payload: { legalName: 'Consultores Facts SA de CV', taxId: 'CFA010101AAA' } });
+    const cap = await app.inject({ method: 'POST', url: '/company/capabilities', headers, payload: { name: 'Auditoría de facts', description: 'evidencia real', isVerified: true } });
+    expect(cap.statusCode).toBe(201);
+    const capabilityId = cap.json().id as string;
+
+    const reqMapped = await insertRequirement(db, org.id, tenderId, { description: 'El licitante debe acreditar capacidad de auditoría de facts.' });
+    const reqUnmapped = await insertRequirement(db, org.id, tenderId, { description: 'El licitante debe acreditar otra capacidad no declarada.' });
+
+    const generate = await app.inject({
+      method: 'POST',
+      url: `/expediente/tenders/${tenderId}/proposal/technical/generate`,
+      headers,
+      payload: { mappings: [{ requirementId: reqMapped, kind: 'capability', refKey: 'Auditoría de facts' }] },
+    });
+    expect(generate.statusCode).toBe(200);
+
+    const factsMapped = await db.query<{ fact_key: string; rendered_value: string; source_kind: string; doc_id: string; page: number | null }>(
+      'select fact_key, rendered_value, source_kind, doc_id, page from proposal_facts where org_id = $1 and section_key = $2 order by fact_key',
+      [org.id, `technical:${reqMapped}`]
+    );
+    // Exactamente un hecho por statement realmente renderizado (aquí, 1),
+    // con la MISMA procedencia (SourceRef.docId) que resolvió la capacidad
+    // real -- nunca un doc_id inventado por la capa de persistencia.
+    expect(factsMapped.rows.length).toBe(1);
+    expect(factsMapped.rows[0].rendered_value).toContain('Auditoría de facts');
+    expect(factsMapped.rows[0].source_kind).toBe('company_data');
+    expect(factsMapped.rows[0].doc_id).toBe(capabilityId);
+    expect(factsMapped.rows[0].page).toBeNull();
+
+    // La sección bloqueada (sin mapeo declarado, contenido "PENDIENTE") NO
+    // tiene ningún hecho: un placeholder de dato faltante no es un hecho
+    // verificable -- "0 hechos sin fuente" también significa "ningún hecho
+    // fabricado para lo que no se pudo verificar".
+    const factsUnmapped = await db.query('select id from proposal_facts where org_id = $1 and section_key = $2', [
+      org.id,
+      `technical:${reqUnmapped}`,
+    ]);
+    expect(factsUnmapped.rows.length).toBe(0);
+
+    // Regenerar sin ningún mapeo: el hecho previamente poblado para
+    // reqMapped debe desaparecer (reemplazo completo por sección, no un
+    // hecho obsoleto trazando algo que ya no se renderiza).
+    const regenerate = await app.inject({
+      method: 'POST',
+      url: `/expediente/tenders/${tenderId}/proposal/technical/generate`,
+      headers,
+      payload: { mappings: [] },
+    });
+    expect(regenerate.statusCode).toBe(200);
+    const factsAfterRegenerate = await db.query('select id from proposal_facts where org_id = $1 and section_key = $2', [
+      org.id,
+      `technical:${reqMapped}`,
+    ]);
+    expect(factsAfterRegenerate.rows.length).toBe(0);
+  });
+
+  it('REQ-035: la propuesta económica puebla proposal_facts con la tarifa aprobada real por línea; A8 (tarifa bloqueada) deja la sección sin hechos, nunca uno parcial', async () => {
+    const owner = await registerAndLogin(app, 'prop-owner-facts-2@example.com');
+    const org = await createOrgFor(app, owner, 'Prop Org Facts 2', 'prop-org-facts-2');
+    const tenderId = await createTender(app, org.id, 'prop-facts-002');
+    const { stepUpToken } = await enrollTwoFactor(app, owner.accessToken, { orgId: org.id, purpose: 'company.rate_approval' });
+    const headers = { authorization: `Bearer ${owner.accessToken}`, 'x-org-id': org.id, 'x-step-up': stepUpToken };
+
+    const rateRes = await app.inject({
+      method: 'POST',
+      url: '/company/rates',
+      headers,
+      payload: { itemCode: 'hora-facts', description: 'Hora de consultoría (facts)', unitPrice: 850, validFrom: '2020-01-01' },
+    });
+    expect(rateRes.statusCode).toBe(201);
+    const rateId = rateRes.json().id as string;
+
+    // Tarifa aún NO aprobada: el generate queda bloqueado (A8) -- ningún hecho económico debe registrarse.
+    const blockedGenerate = await app.inject({
+      method: 'POST',
+      url: `/expediente/tenders/${tenderId}/proposal/economic/generate`,
+      headers,
+      payload: { lineItems: [{ concept: 'hora-facts', quantity: 10 }] },
+    });
+    expect(blockedGenerate.statusCode).toBe(200);
+    expect(blockedGenerate.json().economicTotals).toBeNull();
+    const factsBeforeApproval = await db.query('select id from proposal_facts where org_id = $1 and section_key = $2', [
+      org.id,
+      'economic:anexo',
+    ]);
+    expect(factsBeforeApproval.rows.length).toBe(0);
+
+    await app.inject({ method: 'POST', url: `/company/rates/${rateId}/approve`, headers });
+
+    const okGenerate = await app.inject({
+      method: 'POST',
+      url: `/expediente/tenders/${tenderId}/proposal/economic/generate`,
+      headers,
+      payload: { lineItems: [{ concept: 'hora-facts', quantity: 10 }] },
+    });
+    expect(okGenerate.statusCode).toBe(200);
+    expect(okGenerate.json().economicTotals).not.toBeNull();
+
+    const factsAfterApproval = await db.query<{ rendered_value: string; source_kind: string; doc_id: string; page: number | null }>(
+      'select rendered_value, source_kind, doc_id, page from proposal_facts where org_id = $1 and section_key = $2',
+      [org.id, 'economic:anexo']
+    );
+    expect(factsAfterApproval.rows.length).toBe(1);
+    expect(factsAfterApproval.rows[0].rendered_value).toBe('8500.00'); // 850 * 10, subtotal real sin IVA
+    expect(factsAfterApproval.rows[0].source_kind).toBe('company_data');
+    expect(factsAfterApproval.rows[0].doc_id).toBe(rateId); // procedencia real: la tarifa aprobada usada
+    expect(factsAfterApproval.rows[0].page).toBeNull();
+  });
 });

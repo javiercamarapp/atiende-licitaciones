@@ -70,6 +70,35 @@ export interface AppConfig {
    */
   mailWebhookSecret: string | undefined;
   /**
+   * REQ-090/074/080 (WhatsApp interactivo de doble vía): App Secret de la
+   * app de Meta usado para verificar `X-Hub-Signature-256` en
+   * `POST /webhooks/whatsapp` (ver `@atiende/whatsapp` `verifyMetaWebhookSignature`,
+   * esquema real de Meta, distinto del Svix de `mailWebhookSecret`). SIN
+   * él, el webhook responde 503 y NUNCA procesa nada -- mismo criterio de
+   * "falla cerrado" que `mailWebhookSecret`. **PENDIENTE del usuario**
+   * (bloqueo externo, ver docs/BLOQUEOS.md B-04/REQ-140: no hay app de Meta
+   * ni plantillas con botones aprobadas todavía).
+   */
+  whatsappWebhookAppSecret: string | undefined;
+  /**
+   * REQ-090: `hub.verify_token` que Meta exige en el handshake `GET
+   * /webhooks/whatsapp?hub.mode=subscribe&hub.verify_token=...` al dar de
+   * alta la URL del webhook en el panel de la app -- un valor elegido por
+   * Javier al configurar el webhook en Meta, no un secreto criptográfico.
+   * **PENDIENTE del usuario**, mismo bloqueo que `whatsappWebhookAppSecret`.
+   */
+  whatsappWebhookVerifyToken: string | undefined;
+  /**
+   * REQ-067 (ChatGPT App / MCP, `modules/chatgpt-app/`): base pública de
+   * ESTA API (nunca la de `apps/web` -- para eso está `publicUrl`), usada
+   * solo para componer `mcp_endpoint` en `GET /chatgpt-app/manifest.json`.
+   * `undefined` por defecto a propósito: un despliegue serverless (Vercel)
+   * no conoce su propio host público de forma fiable, así que sin esta
+   * variable el manifiesto declara el endpoint como ruta relativa en vez
+   * de fabricar una URL absoluta que podría ser la equivocada.
+   */
+  apiPublicUrl: string | undefined;
+  /**
    * Patrón Likida/atiende.ai #7 (onboarding conversacional): si está
    * definida, `modules/onboarding/routes.ts` usa `OpenAIResponsesProvider`
    * real; si no, `FakeProvider` (mismo criterio que `apps/worker`
@@ -124,6 +153,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     contactInbox: env.CONTACT_INBOX ?? supportEmail,
     requireEmailVerification: env.REQUIRE_EMAIL_VERIFICATION !== 'false',
     mailWebhookSecret: env.RESEND_WEBHOOK_SECRET,
+    whatsappWebhookAppSecret: env.WHATSAPP_WEBHOOK_APP_SECRET,
+    whatsappWebhookVerifyToken: env.WHATSAPP_WEBHOOK_VERIFY_TOKEN,
+    apiPublicUrl: env.API_PUBLIC_URL,
     openaiApiKey: env.OPENAI_API_KEY,
   };
 }

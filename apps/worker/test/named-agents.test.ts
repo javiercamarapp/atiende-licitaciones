@@ -4,8 +4,16 @@ import { NAMED_AGENTS, buildNamedAgentPlan, isNamedAgent, InvalidNamedAgentConte
 const VALID_UUID = '00000000-0000-0000-0000-000000000001';
 
 describe('named-agents.ts (Ronda 6): planes fijos, sin improvisación del modelo', () => {
-  it('isNamedAgent reconoce exactamente los 5 agentes nombrados', () => {
-    expect(NAMED_AGENTS).toEqual(['analista_convocatorias', 'analista_bases', 'redactor_borrador', 'vigilante_cambios', 'recordatorios']);
+  it('isNamedAgent reconoce exactamente los 7 agentes nombrados (5 de la Ronda 6 + auditor_expediente/mensajero_notificaciones de REQ-070)', () => {
+    expect(NAMED_AGENTS).toEqual([
+      'analista_convocatorias',
+      'analista_bases',
+      'redactor_borrador',
+      'vigilante_cambios',
+      'recordatorios',
+      'auditor_expediente',
+      'mensajero_notificaciones',
+    ]);
     for (const name of NAMED_AGENTS) expect(isNamedAgent(name)).toBe(true);
     expect(isNamedAgent('demo-agent')).toBe(false);
     expect(isNamedAgent('cualquier_otro_nombre')).toBe(false);
@@ -30,6 +38,18 @@ describe('named-agents.ts (Ronda 6): planes fijos, sin improvisación del modelo
     expect(plan.map((s) => s.toolName)).toEqual(['leer_perfil_empresa', 'proponer_seccion_propuesta', 'proponer_seccion_propuesta']);
     expect((plan[1].input as { sectionKey: string }).sectionKey).toBe('experiencia');
     expect((plan[2].input as { sectionKey: string }).sectionKey).toBe('capacidad_tecnica');
+  });
+
+  it('auditor_expediente (REQ-070): un único paso de auditoría determinista', () => {
+    const plan = buildNamedAgentPlan('auditor_expediente', { tenderId: VALID_UUID });
+    expect(plan.map((s) => s.toolName)).toEqual(['auditar_expediente']);
+    expect(plan[0].idempotencyKey).toBe(`auditoria:${VALID_UUID}`);
+  });
+
+  it('mensajero_notificaciones (REQ-070): un único paso que encola la notificación real', () => {
+    const plan = buildNamedAgentPlan('mensajero_notificaciones', { tenderId: VALID_UUID });
+    expect(plan.map((s) => s.toolName)).toEqual(['notificar_expediente_listo']);
+    expect(plan[0].idempotencyKey).toBe(`notificacion:${VALID_UUID}`);
   });
 
   it('vigilante_cambios: un único paso de resumen', () => {

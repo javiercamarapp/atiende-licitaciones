@@ -25,6 +25,7 @@ import { authPasswordRoutes } from './modules/auth/password.routes.js';
 import { twofaRoutes } from './modules/twofa/routes.js';
 import { legalRoutes } from './modules/legal/routes.js';
 import { organizationRoutes } from './modules/organizations/routes.js';
+import { oicRoutes } from './modules/oic/routes.js';
 import { meRoutes } from './modules/me/routes.js';
 import { companyRoutes } from './modules/company/routes.js';
 import { tenderRoutes } from './modules/tenders/routes.js';
@@ -32,6 +33,7 @@ import { internalIngestRoutes } from './modules/tenders/internal-ingest.routes.j
 import { matchingRoutes } from './modules/matching/routes.js';
 import { goNoGoRoutes } from './modules/matching/go-no-go.routes.js';
 import { agentRoutes } from './modules/agents/routes.js';
+import { voiceRoutes } from './modules/voice/routes.js';
 import { adminRoutes } from './modules/admin/routes.js';
 import { auditLogRoutes } from './modules/audit/routes.js';
 import { getRateLimitSettings } from './lib/rate-limit-settings.js';
@@ -41,12 +43,14 @@ import { buildWhatsAppProviderFromEnv } from './lib/mail/whatsapp-channel.js';
 import { PendingMailTracker } from './lib/mail/pending.js';
 import { mailRoutes } from './modules/mail/routes.js';
 import { mailWebhookRoutes } from './modules/mail/webhook.routes.js';
+import { whatsappWebhookRoutes } from './modules/whatsapp/webhook.routes.js';
 import { publicContactRoutes } from './modules/public/contact.routes.js';
 import { expedienteDocumentsRoutes } from './modules/expediente/documents.routes.js';
 import { expedienteProposalRoutes } from './modules/expediente/proposal.routes.js';
 import { expedienteChecklistRoutes } from './modules/expediente/checklist.routes.js';
 import { expedienteApprovalRoutes } from './modules/expediente/approval.routes.js';
 import { expedientePackageRoutes } from './modules/expediente/package.routes.js';
+import { expedienteWarRoomRoutes } from './modules/expediente/war-room.routes.js';
 import { expedienteSubmissionRoutes } from './modules/expediente/submission.routes.js';
 import { expedientePostAwardRoutes } from './modules/expediente/post-award.routes.js';
 import { expedienteCollectionRoutes } from './modules/expediente/collection.routes.js';
@@ -54,6 +58,8 @@ import { expedienteContractRoutes } from './modules/expediente/contract.routes.j
 import { expedienteInconformidadRoutes } from './modules/expediente/inconformidad.routes.js';
 import { expedienteFalloAutopsyRoutes } from './modules/expediente/fallo-autopsy.routes.js';
 import { expedienteRenewalRadarRoutes } from './modules/expediente/renewal-radar.routes.js';
+import { expedienteJuntaQuestionsRoutes } from './modules/expediente/junta-questions.routes.js';
+import { chatGptAppRoutes } from './modules/chatgpt-app/mcp.routes.js';
 import { onboardingRoutes } from './modules/onboarding/routes.js';
 import { MAX_BASE64_LENGTH } from './lib/storage.js';
 import { buildLlmProvider } from './lib/llm-provider.js';
@@ -306,6 +312,9 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   await app.register(sessionsRoutes, { prefix: '/auth' });
   await app.register(authPasswordRoutes, { prefix: '/auth' });
   await app.register(organizationRoutes, { prefix: '/organizations' });
+  // REQ-060: módulo de lado comprador (OIC/contraloría), aislado del lado
+  // proveedor -- ver modules/oic/routes.ts.
+  await app.register(oicRoutes, { prefix: '/oic' });
   await app.register(meRoutes);
   await app.register(companyRoutes, { prefix: '/company' });
   // Patrón Likida/atiende.ai #7: capa conversacional de solo lectura sobre
@@ -316,6 +325,11 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   await app.register(matchingRoutes, { prefix: '/matching' });
   await app.register(goNoGoRoutes, { prefix: '/tenders' });
   await app.register(agentRoutes, { prefix: '/agents' });
+  // REQ-092/REQ-093: agente de voz/Realtime (ElevenLabs Conversational AI) --
+  // GET/PATCH /voice/config (staff owner/admin) + POST /webhooks/voz/:orgId/:toolName
+  // (público, secreto por organización, ver módulo para el "esqueleto honesto" completo).
+  // Rutas absolutas propias (mismo patrón que meRoutes/auditLogRoutes), sin prefix aquí.
+  await app.register(voiceRoutes);
   await app.register(adminRoutes, { prefix: '/admin' });
   // Ronda 4: bitácora de auditoría por organización (reviewer/admin/owner).
   // La contraparte de plataforma (`GET /admin/audit-log`, superadmin) vive
@@ -330,6 +344,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   // contacto es anónimo) -- ver cada módulo para su anti-abuso.
   await app.register(mailRoutes, { prefix: '/mail' });
   await app.register(mailWebhookRoutes, { prefix: '/webhooks/mail' });
+  await app.register(whatsappWebhookRoutes, { prefix: '/webhooks/whatsapp' });
   await app.register(publicContactRoutes, { prefix: '/public' });
 
   // E6-E9/E11 (ronda 3): expediente de participación real sobre
@@ -340,6 +355,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   await app.register(expedienteChecklistRoutes, { prefix: '/expediente' });
   await app.register(expedienteApprovalRoutes, { prefix: '/expediente' });
   await app.register(expedientePackageRoutes, { prefix: '/expediente' });
+  // REQ-040: checklist de "sala de guerra" antes de cada acto de apertura.
+  await app.register(expedienteWarRoomRoutes, { prefix: '/expediente' });
   await app.register(expedienteSubmissionRoutes, { prefix: '/expediente' });
   await app.register(expedientePostAwardRoutes, { prefix: '/expediente' });
   // REQ-051 (máquina de estados de COBRANZA para post_award_followups de
@@ -353,6 +370,14 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   await app.register(expedienteInconformidadRoutes, { prefix: '/expediente' });
   await app.register(expedienteFalloAutopsyRoutes, { prefix: '/expediente' });
   await app.register(expedienteRenewalRadarRoutes, { prefix: '/expediente' });
+  // REQ-041: generador de preguntas de junta de aclaraciones con fuente
+  // verificable (nunca una pregunta sin cita real).
+  await app.register(expedienteJuntaQuestionsRoutes, { prefix: '/expediente' });
+
+  // REQ-067: superficie MCP de solo lectura que una ChatGPT App (Apps SDK)
+  // consumiría -- ver modules/chatgpt-app/mcp.routes.ts para el alcance
+  // exacto (allowlist de herramientas, nunca documentos firmables).
+  await app.register(chatGptAppRoutes, { prefix: '/chatgpt-app' });
 
   return app;
 }
