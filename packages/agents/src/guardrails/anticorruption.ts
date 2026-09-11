@@ -9,6 +9,50 @@ import { isoNow } from "../types.js";
  */
 const MAX_EXCERPT_LENGTH = 160;
 
+/**
+ * AG-24 (REQ-097, red-teaming de inyección de prompt): normaliza el texto
+ * ANTES de compararlo contra los patrones de `DEFAULT_PATTERNS`/hooks, para
+ * que una técnica trivial de evasión no baste para colar una palabra
+ * prohibida disfrazada:
+ *  - `NFKC` unifica formas de compatibilidad Unicode (dígitos/letras de
+ *    ancho completo, ligaduras, etc.) con su forma canónica ASCII — sin
+ *    esto, la variante de ancho completo de "mordida" nunca empataba
+ *    `/\bmordida\b/i` pese a leerse idéntico a simple vista.
+ *  - Se eliminan los caracteres de ancho cero U+200B..U+200D (ZERO WIDTH
+ *    SPACE/NON-JOINER/JOINER) y U+FEFF (BOM/ZERO WIDTH NO-BREAK SPACE) que
+ *    un atacante puede insertar DENTRO de una palabra prohibida
+ *    ("mor" + U+200B + "dida") para partirla en fragmentos que ningún
+ *    regex por sí solo reconoce, sin que el texto se vea distinto al
+ *    copiarlo/leerlo.
+ *
+ * Los propios puntos de código se construyen con `String.fromCharCode(...)`
+ * (nunca como caracteres invisibles literales en este archivo fuente, ni
+ * como escapes `\u` que un editor/terminal puede volver a renderizar como
+ * el carácter invisible real) para que el patrón sea auditable a simple
+ * vista en un diff/PR: cada codepoint queda como un número decimal/hex
+ * legible, no como un espacio en blanco que no se puede ver ni copiar bien.
+ *
+ * Esto NO resuelve homoglifos entre alfabetos distintos (p. ej. una letra
+ * cirílica sustituyendo una latina): NFKC no unifica esos pares porque son
+ * puntos de código con identidad propia, no formas de compatibilidad del
+ * mismo carácter — cerrar esa vía exigiría una tabla de "confusables"
+ * (Unicode TR39) que este cambio no incluye para no fabricar cobertura no
+ * verificada; ver README.md "Pendientes" para dejarlo explícito.
+ */
+// Alternación de codepoints exactos en vez de una clase de caracteres
+// `[...]`: eslint(no-misleading-character-class) marca como engañosa una
+// clase que junta U+200D (ZERO WIDTH JOINER) con codepoints vecinos (por
+// cómo se renderizan secuencias ZWJ agrupadas); la alternación evita esa
+// ambigüedad y sigue matcheando cada codepoint de forma individual, que es
+// exactamente lo que se necesita aquí (nunca una secuencia de grafema
+// completa).
+const ZERO_WIDTH_AND_BOM_CODEPOINTS = [0x200b, 0x200c, 0x200d, 0xfeff];
+const ZERO_WIDTH_AND_BOM_PATTERN = new RegExp(ZERO_WIDTH_AND_BOM_CODEPOINTS.map((code) => String.fromCharCode(code)).join("|"), "g");
+
+function normalizeForMatching(text: string): string {
+  return text.normalize("NFKC").replace(ZERO_WIDTH_AND_BOM_PATTERN, "");
+}
+
 /** Enmascara secuencias de 4+ dígitos consecutivos (posibles cuentas/tarjetas/teléfonos). */
 function redactLongDigitRuns(text: string): string {
   return text.replace(/\d{4,}/g, (run) => "#".repeat(run.length));
@@ -131,14 +175,22 @@ export class AntiCorruptionGuardrail {
    */
   check(text: string, ctx: GuardrailCheckContext = {}): GuardrailCheckResult {
     const matched = new Set<string>();
+    // AG-24: los patrones (y los hooks) siempre comparan contra el texto
+    // NORMALIZADO -- nunca el crudo -- para no depender de que cada patrón
+    // regex individual reimplemente su propia defensa contra ancho
+    // completo/caracteres de ancho cero. `recordEvent` más abajo sigue
+    // usando el texto ORIGINAL (sin normalizar) para el hash/extracto: la
+    // normalización es solo una vista para decidir el match, nunca
+    // reemplaza la evidencia real auditada.
+    const normalizedText = normalizeForMatching(text);
 
     for (const pattern of this.patterns) {
-      if (pattern.regex.test(text)) matched.add(pattern.name);
+      if (pattern.regex.test(normalizedText)) matched.add(pattern.name);
     }
 
     for (const hook of this.hooks) {
       try {
-        const extra = hook(text);
+        const extra = hook(normalizedText);
         if (extra) for (const name of extra) matched.add(name);
       } catch {
         // Un hook roto nunca debe bloquear ni tumbar la verificación de guardrail.
