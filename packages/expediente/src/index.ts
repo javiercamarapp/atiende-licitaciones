@@ -10,3 +10,4 @@ export * from "./proposal-version.js";
 export * from "./integrity-checklist.js";
 export * from "./approval-workflow.js";
 export * from "./package-assembler.js";
+export * from "./manifest-template.js";
