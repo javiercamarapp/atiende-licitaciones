@@ -201,6 +201,18 @@ export const DOMAIN_TABLES: DomainTableSpec[] = [
     },
   },
   {
+    table: 'proposal_facts',
+    seedAux: insertProposalAux,
+    async insertRow(db, orgId, aux) {
+      const { rows } = await db.query<{ id: string }>(
+        `insert into proposal_facts (org_id, proposal_id, fact_key, section_key, rendered_value, source_kind, doc_id, page)
+         values ($1, $2, 'technical:req-1:0', 'technical:req-1', 'La empresa cuenta con la capacidad "Auditoría".', 'clause', 'doc-bases-1', 12) returning id`,
+        [orgId, aux.proposalId]
+      );
+      return rows[0].id;
+    },
+  },
+  {
     table: 'reviews',
     seedAux: insertProposalAux,
     async insertRow(db, orgId, aux) {

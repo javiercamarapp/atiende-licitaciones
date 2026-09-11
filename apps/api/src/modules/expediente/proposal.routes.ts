@@ -10,11 +10,12 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import type { DbExecutor } from '@atiende/db';
 import { WRITE_ROLES } from '@atiende/db';
-import { CompanyDataService, EconomicProposalBuilder, TechnicalProposalBuilder, type RequirementFulfillmentMapping } from '@atiende/expediente';
+import { CompanyDataService, EconomicProposalBuilder, TechnicalProposalBuilder, fromCents, type RequirementFulfillmentMapping } from '@atiende/expediente';
 import { requireOrgRole } from '../../lib/authorize.js';
 import { recordAudit } from '../../lib/audit.js';
 import { NotFoundError, ValidationAppError } from '../../lib/errors.js';
 import { withTx, requireTender, getOrCreateProposal } from '../../lib/expediente/context.js';
+import { recordProposalFacts } from '../../lib/expediente/proposal-facts.js';
 import { loadCompanyDataResolver } from '../../lib/expediente/company-data-resolver.pg.js';
 import { loadApprovalEvents, replayWorkflow, appendApprovalEvent, persistApprovalSnapshot } from '../../lib/expediente/approval-store.pg.js';
 import { nowIso, timestampToIso, resolveExpedienteAsOfIso } from '../../lib/expediente/dates.js';
@@ -231,7 +232,22 @@ export async function expedienteProposalRoutes(app: FastifyInstance): Promise<vo
             const mapping = mappings.find((m) => m.requirementId === section.requirementId);
             if (mapping?.kind === 'document') usedCompanyDocumentIds.add(stmt.sourceRef.kind === 'company_data' ? stmt.sourceRef.refId : '');
           }
-          await upsertSection(tx, { orgId, proposalId: proposal.id as string, sectionKey: `technical:${section.requirementId}`, title: section.title, content, sources, userId });
+          const sectionKey = `technical:${section.requirementId}`;
+          await upsertSection(tx, { orgId, proposalId: proposal.id as string, sectionKey, title: section.title, content, sources, userId });
+          // REQ-035: un hecho por statement REALMENTE renderizado, con su
+          // SourceRef real (nunca uno fabricado aquí -- ver proposal-facts.ts).
+          // Una sección bloqueada (0 statements) queda sin hechos: el texto
+          // "PENDIENTE" no es un dato verificable, es la ausencia explícita de uno.
+          await recordProposalFacts(tx, {
+            orgId,
+            proposalId: proposal.id as string,
+            sectionKey,
+            facts: section.statements.map((stmt, index) => ({
+              factKey: `${sectionKey}:${index}`,
+              renderedValue: stmt.text,
+              sourceRef: stmt.sourceRef,
+            })),
+          });
         }
 
         const existingReport = (proposal.generation_report as Record<string, unknown> | null) ?? {};
@@ -333,6 +349,27 @@ export async function expedienteProposalRoutes(app: FastifyInstance): Promise<vo
             userId,
           });
         }
+
+        // REQ-035: un hecho por línea económica REALMENTE cobrada (con
+        // totales resueltos), con su SourceRef real (la tarifa aprobada que
+        // la respalda). Si `result.totals` es null (algún concepto bloqueado
+        // -- A8, sin total parcial), no hay ningún hecho verificado que
+        // registrar; se limpian los de una generación anterior que sí haya
+        // tenido totales, para no dejar procedencia de un cálculo que la
+        // regeneración actual ya invalidó.
+        await recordProposalFacts(tx, {
+          orgId,
+          proposalId: proposal.id as string,
+          sectionKey: 'economic:anexo',
+          facts:
+            result.totals !== null
+              ? result.lineItems.map((li, index) => ({
+                  factKey: `economic:anexo:${index}:${li.concept}`,
+                  renderedValue: fromCents(li.subtotalCents),
+                  sourceRef: li.sourceRef,
+                }))
+              : [],
+        });
 
         const usedRateConcepts = result.lineItems.map((li) => li.concept);
         const existingReport = (proposal.generation_report as Record<string, unknown> | null) ?? {};
