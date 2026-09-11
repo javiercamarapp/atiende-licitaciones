@@ -1,5 +1,5 @@
 import type { FastifyRequest } from 'fastify';
-import type { OrgRole } from '@atiende/db';
+import type { OrgRole, OicRole } from '@atiende/db';
 import { ForbiddenError } from './errors.js';
 
 /**
@@ -13,6 +13,14 @@ export function requireOrgRole(request: FastifyRequest, allowed: OrgRole[], mess
   const role = request.orgRole;
   if (!role || !allowed.includes(role)) {
     throw new ForbiddenError(message ?? `Esta acción requiere uno de estos roles: ${allowed.join(', ')}`);
+  }
+}
+
+/** REQ-060: paralelo de `requireOrgRole`, pero para `request.oicRole` (lado comprador/OIC). */
+export function requireOicRole(request: FastifyRequest, allowed: OicRole[], message?: string): void {
+  const role = request.oicRole;
+  if (!role || !allowed.includes(role)) {
+    throw new ForbiddenError(message ?? `Esta acción requiere uno de estos roles OIC: ${allowed.join(', ')}`);
   }
 }
 

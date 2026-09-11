@@ -134,6 +134,23 @@ const SECURITY_DEFINER_WHITELIST: Record<string, string> = {
     'REQ-188 (0087): el handler `mail_retry` de apps/worker (mismo motivo que app.enqueue_mail_retry, 0086) necesita dejar rastro en audit_log para un job sin organización (correo de verificación/restablecimiento de contraseña), y la política de audit_log exige app.is_superadmin() cuando org_id es null -- worker_role/app_role nunca lo es. Mismo patrón que app.record_auth_event/app.record_security_event: SIEMPRE inserta actor_id=null (nunca acepta un actor externo) y p_action está ACOTADA en SQL a la lista fija de eventos de este único flujo (entity siempre "mail_retry", fijo en el cuerpo de la función, nunca un parámetro); p_org_id/p_entity_id son solo metadatos informativos (igual que p_org_id de mail_outbox_reserve), no deciden ningún acceso.',
   'app.mail_outbox_reopen_for_retry(text)':
     'REQ-188 (0087): reabre deliberadamente una reserva `dead` de `mail_outbox` (transición SOLO dead -> pending, retrocediendo updated_at) para que el job `mail_retry` de apps/worker pueda reclamarla de nuevo vía app.mail_outbox_reserve() -- sin esto, una fila `dead` queda atascada para siempre (ninguna función de 0080 puede des-marcarla). Opera por p_dedupe_key (la misma llave de idempotencia de negocio que mail_outbox_reserve/mail_outbox_get, generada por apps/api, nunca un secreto ajeno); nunca toca `sent` (el correo ya se mandó) ni `failed_permanent` (WK-10: un rechazo ya clasificado como no-reintentable) porque el WHERE exige status = "dead" exacto.',
+  // --- REQ-060 (0099_req060_oic_module.sql): módulo de lado comprador (OIC/contraloría) ---
+  'app.has_oic_role(uuid,oic_role[])':
+    'Paralelo exacto de app.has_role, para el catálogo de roles OIC: resuelve el rol del propio app.current_user_id() en p_org_id sobre oic_memberships (nunca memberships); p_org_id no expone datos de otro usuario.',
+  'app.oic_org_has_no_memberships(uuid)':
+    'Paralelo exacto de app.org_has_no_memberships, para oic_memberships: booleano de bootstrap ("esa organización compradora no tiene ningún miembro OIC aún"), usado solo dentro de la política RLS de bootstrap de oic_memberships (0099).',
+  'app.oic_membership_role(uuid)':
+    'Paralelo exacto de app.membership_role (ya endurecida por DB-01/0019): un solo argumento, resuelve SIEMPRE la membresía OIC del propio app.current_user_id(), nunca un p_user_id de un tercero.',
+  'app.my_oic_organizations()':
+    'Paralelo exacto de app.my_organizations (ya endurecida por DB-12/0041): sin parámetros de identidad externos, resuelve siempre sobre el propio app.current_user_id().',
+  'app.enforce_membership_requires_proveedor_org()':
+    'Trigger (no expone datos, solo lee organizations.kind del org_id de la fila que se está insertando/actualizando y aborta con excepción si no es "proveedor"); SECURITY DEFINER únicamente para poder ver esa fila durante el bootstrap de una organización nueva en la MISMA transacción, antes de que el actor sea miembro (si no, sel_organizations la ocultaría bajo app_role y produciría un falso "kind incorrecto" -- ver org-bootstrap.test.ts). No acepta ningún parámetro: opera sobre NEW, fijado por Postgres, nunca por el llamador.',
+  'app.enforce_oic_membership_requires_comprador_org()':
+    'Trigger simétrico del anterior, para oic_memberships (exige kind="comprador"); mismo motivo de SECURITY DEFINER (bootstrap del primer director_oic) y misma ausencia de parámetros de llamador.',
+  'app.enforce_org_kind_immutable_if_membered()':
+    'Trigger sobre organizations (before update of kind): impide cambiar de "bando" una organización que ya tiene membresías del otro tipo. SECURITY DEFINER para que el exists(...) sobre memberships/oic_memberships no dependa de que quien ejecuta el UPDATE tenga esa organización como current_org_id (p.ej. un superadmin). Sin parámetros de llamador: opera sobre NEW/OLD.',
+  'app.enforce_oic_watch_item_requires_comprador_org()':
+    'Trigger sobre oic_watch_items (defensa en profundidad adicional a la RLS de app.apply_oic_org_rls, que ya exige has_oic_role): exige kind="comprador" en el org_id de la fila. Mismo motivo SECURITY DEFINER que los anteriores; sin parámetros de llamador.',
 };
 
 async function fetchSecurityDefinerFunctions(db: DbClient): Promise<SecdefRow[]> {
