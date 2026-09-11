@@ -35,6 +35,9 @@ src/
   tool-registry.ts            ToolRegistry: esquemas zod, riskLevel, idempotent, tenantScoped
   authorization.ts            AuthorizationPolicy: auto/pending/denied + prohibiciones duras
   guardrails/anticorruption.ts AntiCorruptionGuardrail: patrones + hooks extensibles
+  guardrails/voice.ts          REQ-092/REQ-093: classifyVoiceInteraction (voz/Realtime) --
+                               "confirmo" registra intención, nunca ejecuta; disclosure +
+                               respuesta fija a "¿eres humano?"
   no-fabrication.ts           NoFabricationPolicy: valores sensibles con approvedSourceRef
   dependency-invalidation.ts  DependencyInvalidationRegistry: invalida runs por cambio de origen
   idempotency.ts              IdempotencyStore en memoria por [organizationId, key]
@@ -360,6 +363,45 @@ hook de un clasificador LLM/juez calibrado (REQ-127) sigue pendiente en
 `apps/api`, fuera del alcance de este paquete puro — ninguna reparación de
 código en `packages/agents` puede cerrar esta brecha sin dejar de ser una
 capa determinista.
+
+### classifyVoiceInteraction (REQ-092/REQ-093, canal de voz/Realtime)
+
+Módulo de dominio puro reutilizado por `apps/api/src/modules/voice/routes.ts`
+(webhook de ElevenLabs Conversational AI, ver `docs/agente-voz/README.md`).
+Clasifica el texto YA TRANSCRITO de un tool-call de voz en tres categorías,
+ANTES de que se ejecute cualquier efecto: (a) "¿eres humano?" → respuesta
+FIJA nunca generada por el modelo; (b) un intento de acción fuera de
+alcance de REQ-092 (fijar precio -- `set_final_price`, firmar, actuar en un
+portal oficial, contactar a un tercero), con o sin la palabra "confirmo";
+(c) "confirmo" en primera persona sin ninguna acción sensible adjunta → se
+registra como intención, nunca como ejecución. Devuelve `null` cuando nada
+de esto aplica (consulta o recordatorio normal, el único tráfico que
+REQ-092 permite ejecutar).
+
+Fail-closed por diseño (mismo criterio que `AntiCorruptionGuardrail`): la
+categoría (b) se dispara sin importar si "confirmo" está presente, porque
+la prohibición de REQ-092 no depende de esa palabra exacta -- es el caso
+más peligroso, no el único. `test/voice-guardrail.test.ts` cubre ambos
+lados explícitamente (con/sin "confirmo") y distingue gramaticalmente
+"confirmo" (primera persona, se bloquea) de "confírmame"/"puedes
+confirmar" (el llamador pidiendo una consulta legítima, sigue su curso
+normal) -- mismo límite honesto que el resto de guards de texto libre de
+este paquete: patrones representativos de frases conocidas, no un
+clasificador semántico.
+
+**Límite arquitectónico explícito** (documentado también en
+`docs/agente-voz/README.md` §4): a diferencia del canal de WhatsApp (donde
+`apps/api` intercepta cada mensaje entrante antes de llamar al LLM), este
+webhook solo se invoca cuando el modelo de ElevenLabs decide llamar una de
+las 5 tools del catálogo cerrado -- nunca en cada turno de la conversación.
+El disclosure de primer turno y la respuesta fija a "¿eres humano?" tienen
+aquí una única fuente de verdad versionada (`DISCLOSURE_MESSAGE_VOZ`/
+`RESPUESTA_FIJA_ES_HUMANO`), pero que ElevenLabs efectivamente las
+reproduzca en cada llamada real depende de la configuración manual del
+agente en su dashboard (runbook, `docs/agente-voz/README.md` §5) -- ninguna
+reparación de código en este paquete puede cerrar esa brecha sin que
+ElevenLabs exponga un mecanismo de intercepción de turno que hoy no se
+verificó contra una cuenta real.
 
 ### NoFabricationPolicy (ampliación back office §6)
 

@@ -3,6 +3,7 @@ export * from "./errors.js";
 export * from "./tool-registry.js";
 export * from "./authorization.js";
 export * from "./guardrails/anticorruption.js";
+export * from "./guardrails/voice.js";
 export * from "./idempotency.js";
 export * from "./retry.js";
 export * from "./budget-ledger.js";
