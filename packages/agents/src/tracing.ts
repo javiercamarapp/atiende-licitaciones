@@ -7,8 +7,15 @@ export function hashValue(value: unknown): string {
   return createHash("sha256").update(serialized).digest("hex");
 }
 
-/** JSON.stringify con claves ordenadas, para que el hash sea estable sin importar el orden de inserción. */
-function stableStringify(value: unknown): string {
+/**
+ * JSON.stringify con claves ordenadas, para que el hash sea estable sin
+ * importar el orden de inserción. Se exporta (además de usarse en
+ * `hashValue`) porque `audit/judge.ts` (REQ-037/REQ-039: "juez LLM
+ * determinista") la reutiliza para construir un prompt canónico: la misma
+ * entrada de auditoría debe producir siempre el mismo texto de prompt,
+ * sin importar el orden en que el llamador haya construido el objeto.
+ */
+export function stableStringify(value: unknown): string {
   return JSON.stringify(sortKeysDeep(value));
 }
 

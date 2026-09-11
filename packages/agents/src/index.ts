@@ -24,3 +24,6 @@ export * from "./embeddings/fake-embedding-provider.js";
 export * from "./embeddings/openai-embedding-provider.js";
 export * from "./similarity/minhash.js";
 export * from "./similarity/cross-tenant-detector.js";
+export * from "./audit/gates.js";
+export * from "./audit/judge.js";
+export * from "./audit/audit-report.js";
