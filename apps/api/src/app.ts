@@ -31,6 +31,7 @@ import { internalIngestRoutes } from './modules/tenders/internal-ingest.routes.j
 import { matchingRoutes } from './modules/matching/routes.js';
 import { goNoGoRoutes } from './modules/matching/go-no-go.routes.js';
 import { agentRoutes } from './modules/agents/routes.js';
+import { voiceRoutes } from './modules/voice/routes.js';
 import { adminRoutes } from './modules/admin/routes.js';
 import { auditLogRoutes } from './modules/audit/routes.js';
 import { getRateLimitSettings } from './lib/rate-limit-settings.js';
@@ -303,6 +304,11 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   await app.register(matchingRoutes, { prefix: '/matching' });
   await app.register(goNoGoRoutes, { prefix: '/tenders' });
   await app.register(agentRoutes, { prefix: '/agents' });
+  // REQ-092/REQ-093: agente de voz/Realtime (ElevenLabs Conversational AI) --
+  // GET/PATCH /voice/config (staff owner/admin) + POST /webhooks/voz/:orgId/:toolName
+  // (público, secreto por organización, ver módulo para el "esqueleto honesto" completo).
+  // Rutas absolutas propias (mismo patrón que meRoutes/auditLogRoutes), sin prefix aquí.
+  await app.register(voiceRoutes);
   await app.register(adminRoutes, { prefix: '/admin' });
   // Ronda 4: bitácora de auditoría por organización (reviewer/admin/owner).
   // La contraparte de plataforma (`GET /admin/audit-log`, superadmin) vive
