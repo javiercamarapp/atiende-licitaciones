@@ -69,6 +69,15 @@ export interface AppConfig {
    * `platformApiKey`).
    */
   mailWebhookSecret: string | undefined;
+  /**
+   * Patrón Likida/atiende.ai #7 (onboarding conversacional): si está
+   * definida, `modules/onboarding/routes.ts` usa `OpenAIResponsesProvider`
+   * real; si no, `FakeProvider` (mismo criterio que `apps/worker`
+   * `config.ts`/`handlers/run-agent.ts::buildLlmProvider` -- pasar la
+   * suite con `FakeProvider` NO certifica ninguna integración real, ver
+   * packages/agents/README.md).
+   */
+  openaiApiKey?: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -115,5 +124,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     contactInbox: env.CONTACT_INBOX ?? supportEmail,
     requireEmailVerification: env.REQUIRE_EMAIL_VERIFICATION !== 'false',
     mailWebhookSecret: env.RESEND_WEBHOOK_SECRET,
+    openaiApiKey: env.OPENAI_API_KEY,
   };
 }
