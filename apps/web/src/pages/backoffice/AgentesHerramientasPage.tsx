@@ -29,6 +29,15 @@ const AUTH_STATUS_CONFIG: Record<ToolCall["authorizationStatus"], { label: strin
  * orquestación de agentes en sí (proveedores LLM reales) queda fuera de esta
  * ronda — esta pantalla es honesta sobre eso: si no hay corridas, dice
  * exactamente eso, no inventa actividad.
+ *
+ * REQ-193 (docs/REQUISITOS.md): el EmptyState de "Corridas de agentes" decía
+ * "Aún no hay agentes configurados", lo que prometía una acción de
+ * configuración que no existe en ninguna pantalla (no hay endpoint ni botón
+ * para iniciar una corrida manualmente -- se disparan solo desde el backend,
+ * ver apps/api/src/lib/agent-triggers.ts). Se corrigió la copia para no
+ * prometer esa acción en vez de inventar un botón que no haría nada real; el
+ * estado "Selecciona una organización" de arriba no cambia porque su acción
+ * real ya existe (el selector del encabezado).
  */
 export default function AgentesHerramientasPage() {
   const { currentOrgId, currentMembership } = useAuth();
@@ -159,7 +168,11 @@ export default function AgentesHerramientasPage() {
               {loadingRuns && <LoadingState label="Cargando corridas…" rows={2} />}
               {runsError && <ErrorState message={describeApiError(runsErr)} onRetry={() => refetchRuns()} />}
               {!loadingRuns && !runsError && (!runs || runs.length === 0) && (
-                <EmptyState icon={Bot} title="Aún no hay agentes configurados" description="Las corridas de agentes que se ejecuten para esta organización aparecerán aquí." />
+                <EmptyState
+                  icon={Bot}
+                  title="Aún no hay corridas de agentes"
+                  description="Esta pantalla no tiene ninguna acción para iniciar una corrida manualmente: en cuanto la plataforma dispare una para esta organización, aparecerá aquí."
+                />
               )}
               {!loadingRuns && !runsError && runs && runs.length > 0 && (
                 <Table>

@@ -1,0 +1,49 @@
+REQ-193 -- cierre de sesión, apps/web
+Fecha: 2026-09-11 (madrugada CST)
+Worktree: /tmp/wf-lic-req-193 (rama closure/req-193, base origin/main @ 102b796)
+
+Cambio de esta ronda: apps/web/src/pages/backoffice/AgentesHerramientasPage.tsx
+("Aún no hay agentes configurados" -> "Aún no hay corridas de agentes", sin
+botón fabricado) + test nuevo en AgentesHerramientasPage.test.tsx.
+
+=== npm run typecheck (apps/web, repo completo) ===
+> @atiende/web@0.1.0 typecheck
+> tsc -b --noEmit
+
+EXIT:0
+
+=== npm run lint (apps/web, repo completo) ===
+> @atiende/web@0.1.0 lint
+> eslint .
+
+EXIT:0
+
+=== npx vitest run src/pages/backoffice/AgentesHerramientasPage.test.tsx (archivo tocado) ===
+ RUN  v4.1.11 /private/tmp/wf-lic-req-193/apps/web
+
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+   Start at  00:16:22
+   Duration  17.01s
+
+EXIT:0
+
+=== Suite completa de apps/web (npx vitest run) -- NO concluida en este cierre ===
+Se intentó dos veces (una con concurrencia normal, otra forzando CI=true para
+activar el timeout triplicado de los tests de Select, ver commit 147d02c) y
+ambas quedaron sin terminar dentro de un tiempo razonable, no por ningún fallo
+del cambio de esta ronda sino por contención real de la máquina: en el momento
+del segundo intento había >=35 procesos "node (vitest ...)" corriendo en
+paralelo de OTRAS sesiones/worktrees sobre este mismo repo (confirmado con
+`ps aux`, ver /tmp/wf-lic-req-060, /tmp/wf-lic-kyc-negativo-*, /tmp/wf-lic-gate-real-*
+entre otros). En el primer intento se observó explícitamente una prueba
+preexistente y no relacionada (JobsPage.test.tsx, filtro de estado) tardando
+138s+reintento antes de que el proceso se matara por contención -- consistente
+con timeouts de UI (`findBy...`) estirados por CPU compartida, no con un bug
+de esta sesión. Ninguno de los dos intentos llegó a imprimir un resultado
+final (ni verde ni rojo) antes de ser detenido.
+Conclusión honesta: el cambio de esta ronda está verificado de forma aislada
+y completa (typecheck+lint del repo completo, test del archivo tocado en
+verde); la corrida de la suite completa de apps/web queda pendiente de
+repetirse en un entorno sin contención de otras sesiones concurrentes -- no
+es un hallazgo de regresión, es una corrida no completada.
