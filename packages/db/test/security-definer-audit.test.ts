@@ -118,6 +118,8 @@ const SECURITY_DEFINER_WHITELIST: Record<string, string> = {
     'Lectura completa de la entrada de supresión de un email -- mismo criterio que mail_suppression_check.',
   'app.mail_webhook_claim(text,integer)':
     'Anti-replay (ML-05, packages/mail) por p_svix_id -- un identificador opaco emitido por el proveedor del webhook (Resend/Svix), nunca un identificador de usuario/organización; compare-and-set atómico (INSERT ... ON CONFLICT DO NOTHING).',
+  'app.webhook_claim(text,text,integer)':
+    'REQ-096 (0099): versión GENÉRICA de app.mail_webhook_claim de arriba, reutilizable por cualquier webhook entrante nuevo (@atiende/webhooks, apps/api/src/lib/webhooks/pg-webhook-replay-guard.ts) -- p_provider/p_event_id son identificadores opacos (el nombre del proveedor y el id de entrega que ese proveedor emite), nunca un identificador de usuario/organización; namespaced por p_provider precisamente para que dos proveedores distintos no puedan colisionar entre sí si coincidieran en el mismo event_id. Compare-and-set atómico, mismo patrón que mail_webhook_claim.',
   'app.set_notification_preference_unsigned(uuid,text,boolean)':
     'p_user_id llega YA verificado por la firma HMAC de un enlace de baja de un clic (MailService.verifySignedLink, imposible de forjar sin el secreto MAIL_LINK_SECRET) -- nunca de un valor de entrada de cliente sin verificar; p_category restringido en SQL a la lista cerrada de columnas de notification_preferences.',
   'app.create_email_verification_token(uuid,uuid,text,timestamp with time zone)':

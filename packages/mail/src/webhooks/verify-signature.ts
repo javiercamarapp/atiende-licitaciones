@@ -14,9 +14,26 @@
  *
  * El cuerpo debe ser el texto CRUDO recibido (antes de `JSON.parse`): un
  * solo espacio de diferencia en el re-serializado invalida la firma.
+ *
+ * REQ-096: la parte de esto que NO es específica de Resend/Svix —comparar
+ * el HMAC en tiempo constante (`matchesAnyHmacSignature`) y aplicar la
+ * ventana de tiempo (`isWithinTolerance`)— se generalizó a
+ * `@atiende/webhooks` para que un webhook entrante NUEVO no tenga que
+ * reimplementarla ni volver a acertar los mismos detalles delicados
+ * (comparación en tiempo constante, longitudes de buffer, etc.). Este
+ * archivo queda como el ADAPTADOR de ese esquema concreto: qué cabeceras
+ * son obligatorias, cómo se separan los candidatos de `svix-signature` y
+ * cómo se decodifica el secreto `whsec_`. El comportamiento observable no
+ * cambió — `test/webhooks/verify-signature.test.ts` sigue pasando sin
+ * modificarse.
+ *
+ * `verifyResendWebhookSignature` se mantiene SÍNCRONA a propósito (parte de
+ * su API pública desde antes de este paquete) — por eso compone los
+ * primitivos síncronos de `@atiende/webhooks` directamente en vez de
+ * `verifyHmacWebhookSignature` (que es `async`, por el `WebhookReplayGuard`
+ * opcional que puede recibir).
  */
-import { createHmac, timingSafeEqual } from "node:crypto";
-import type { WebhookReplayGuard } from "./replay-guard";
+import { isWithinTolerance, matchesAnyHmacSignature, type WebhookReplayGuard } from "@atiende/webhooks";
 
 export interface WebhookSignatureHeaders {
   svixId: string;
@@ -69,31 +86,20 @@ export function verifyResendWebhookSignature(
   if (secretBytes.length === 0) return { ok: false, reason: "secreto_invalido" };
 
   const tolerance = options.toleranceSeconds ?? 300;
-  const now = options.now ?? (() => Date.now());
+  const now = options.now ? options.now() : Date.now();
   const timestampSeconds = Number(headers.svixTimestamp);
   if (!Number.isFinite(timestampSeconds)) return { ok: false, reason: "cabeceras_incompletas" };
-  const skewSeconds = Math.abs(now() / 1000 - timestampSeconds);
-  if (skewSeconds > tolerance) return { ok: false, reason: "timestamp_fuera_de_rango" };
+  if (!isWithinTolerance(timestampSeconds, now, tolerance)) {
+    return { ok: false, reason: "timestamp_fuera_de_rango" };
+  }
 
   const signedContent = `${headers.svixId}.${headers.svixTimestamp}.${rawBody}`;
-  const expected = createHmac("sha256", secretBytes).update(signedContent).digest("base64");
-  const expectedBuf = Buffer.from(expected, "base64");
-
   const candidates = headers.svixSignature
     .split(" ")
     .map((part) => part.split(",")[1])
     .filter((v): v is string => Boolean(v));
 
-  const matches = candidates.some((candidate) => {
-    let candidateBuf: Buffer;
-    try {
-      candidateBuf = Buffer.from(candidate, "base64");
-    } catch {
-      return false;
-    }
-    return candidateBuf.length === expectedBuf.length && timingSafeEqual(candidateBuf, expectedBuf);
-  });
-
+  const matches = matchesAnyHmacSignature(signedContent, candidates, secretBytes, "base64");
   return matches ? { ok: true } : { ok: false, reason: "firma_invalida" };
 }
 
