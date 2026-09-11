@@ -82,13 +82,22 @@ describe('PROPOSAL-03 (WK-08): worker_role con RLS real', () => {
     await db.close();
   });
 
-  it('worker_role tiene EXACTAMENTE grants sobre {jobs, source_runs, agent_runs} + las 10 tablas de lectura de negocio de 0098 (E6/PROPOSAL-06), ninguna otra', async () => {
+  it('worker_role tiene EXACTAMENTE grants sobre {jobs, source_runs, agent_runs} + las 10 tablas de lectura de negocio de 0098 (E6/PROPOSAL-06) + las 2 tablas de huellas de 0099 (REQ-032), ninguna otra', async () => {
     // Ampliado por 0098_e6_agent_business_tools_grants.sql (PROPOSAL-06,
     // docs/BLOQUEOS.md "E6-ciclo-agentes"): antes de esa migración la
     // lista era exactamente {agent_runs, jobs, source_runs} (WK-08). El
     // resto de este describe ("ATAQUE: worker_role nunca ve...") cubre por
     // qué conceder SELECT de tabla completa sobre estas 10 tablas nuevas
     // es una decisión deliberada, no una regresión de aislamiento.
+    //
+    // Ampliado de nuevo por 0099_req032_proposal_section_fingerprints.sql
+    // (REQ-032): `proposal_section_fingerprints` (huellas MinHash SIN
+    // contenido -- worker_role las lee/escribe para comparar huellas ENTRE
+    // organizaciones, ver `req032-similarity-fingerprints.test.ts`) y
+    // `proposal_similarity_flags` (evento de cumplimiento, worker_role
+    // solo select/insert -- la LECTURA vía RLS sigue reservada a
+    // superadmin, el grant de tabla por sí solo no basta, ver ese mismo
+    // test).
     const { rows } = await db.query<{ table_name: string }>(
       `select distinct table_name from information_schema.role_table_grants
        where grantee = 'worker_role' order by table_name`
@@ -109,6 +118,8 @@ describe('PROPOSAL-03 (WK-08): worker_role con RLS real', () => {
         'experience_records',
         'compliance_items',
         'proposals',
+        'proposal_section_fingerprints',
+        'proposal_similarity_flags',
       ].sort()
     );
   });

@@ -60,6 +60,13 @@ src/
     score-simulator.ts          REQ-020/REQ-038: simulador determinista de puntaje + "0 falsos cumple"
     cucop-classifier.ts         REQ-002: clasificador léxico (TF-IDF) de CUCoP/COG + precision@k
     win-probability.ts          REQ-009: regresión logística P(ganar)/P(desierta) + AUC
+  similarity/
+    minhash.ts                  MinHash + LSH real (REQ-032): shingling, firma, estimador de
+                                 Jaccard, bandas LSH — puro, sin dependencia de Postgres
+    cross-tenant-detector.ts    CrossTenantSimilarityDetector: decide "misma plantilla entre
+                                 tenants" vía el puerto FingerprintStore (adaptador Postgres real
+                                 en apps/worker/src/agents/similarity-store.pg.ts, adaptador en
+                                 memoria InMemoryFingerprintStore solo para test unitario)
 ```
 
 ### analytics/ (REQ-002/REQ-009/REQ-020/REQ-030/REQ-038: motores estadísticos/deterministas, nunca un LLM)

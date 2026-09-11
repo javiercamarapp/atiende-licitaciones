@@ -1,8 +1,9 @@
 import { z } from 'zod';
 import type { DbClient, DbExecutor } from '@atiende/db';
-import { ToolRegistry, type LLMProvider, type SourcedValue } from '@atiende/agents';
+import { ToolRegistry, CrossTenantSimilarityDetector, type LLMProvider, type SourcedValue } from '@atiende/agents';
 import type { JobQueue } from '../queue/job-queue.js';
 import { withWorkerBusinessReadContext } from './db-context.js';
+import { PgFingerprintStore } from './similarity-store.pg.js';
 
 /**
  * Herramientas de negocio REALES para los agentes nombrados de este worker
@@ -91,6 +92,11 @@ async function fetchTender(tx: DbExecutor, orgId: string, tenderId: string): Pro
 export function buildBusinessToolRegistry(deps: BusinessToolDeps): ToolRegistry {
   const registry = new ToolRegistry();
   const now = deps.now ?? (() => new Date());
+  // REQ-032 (MinHash/LSH real, `@atiende/agents`): detector de similitud
+  // ENTRE tenants para `proponer_seccion_propuesta`, abajo. El adaptador
+  // (`PgFingerprintStore`) es el único borde que toca Postgres/RLS -- la
+  // decisión de negocio (umbral, regenerar, avisar) vive en el detector.
+  const similarityDetector = new CrossTenantSimilarityDetector(new PgFingerprintStore(deps.db));
 
   registry.register({
     name: 'listar_convocatorias',
@@ -407,7 +413,8 @@ export function buildBusinessToolRegistry(deps: BusinessToolDeps): ToolRegistry 
   registry.register({
     name: 'proponer_seccion_propuesta',
     description:
-      'Redacta un borrador de una sección de la propuesta técnica citando datos reales del perfil de empresa (source_ref). Si falta evidencia aprobada, bloquea la sección en vez de inventar el dato.',
+      'Redacta un borrador de una sección de la propuesta técnica citando datos reales del perfil de empresa (source_ref). Si falta evidencia aprobada, bloquea la sección en vez de inventar el dato. ' +
+      'REQ-032: si el borrador resulta demasiado similar (MinHash) al de OTRO tenant, se regenera una vez con estilo propio y se avisa (`collusionRisk`) — nunca se bloquea silenciosamente ni se decide colusión por sí solo, queda para revisión humana/cumplimiento.',
     inputSchema: z.object({ tenderId: z.string().uuid(), sectionKey: z.string().min(1).max(80) }),
     outputSchema: z.object({
       tenderId: z.string(),
@@ -415,6 +422,14 @@ export function buildBusinessToolRegistry(deps: BusinessToolDeps): ToolRegistry 
       draft: z.string(),
       blocked: z.boolean(),
       missingData: z.array(z.string()),
+      collusionRisk: z.object({
+        /** `true` si la huella MinHash de este borrador superó el umbral de similitud contra la de OTRA organización (ver `DEFAULT_SIMILARITY_THRESHOLD`, `@atiende/agents`). */
+        flagged: z.boolean(),
+        /** Máxima similitud (Jaccard estimado, 0-1) encontrada contra cualquier otra organización. 0 si no hubo candidatos o la sección está bloqueada. */
+        similarityScore: z.number(),
+        /** `true` si se intentó regenerar el borrador (una sola vez) por haber superado el umbral en la primera pasada. */
+        regenerated: z.boolean(),
+      }),
     }),
     riskLevel: 'write',
     actionKind: 'write',
@@ -442,6 +457,7 @@ export function buildBusinessToolRegistry(deps: BusinessToolDeps): ToolRegistry 
           draft: '',
           blocked: true,
           missingData: ['experience_records.evidence_ref'],
+          collusionRisk: { flagged: false, similarityScore: 0, regenerated: false },
         };
       }
 
@@ -450,9 +466,36 @@ export function buildBusinessToolRegistry(deps: BusinessToolDeps): ToolRegistry 
         deps.provider,
         `Redacta un párrafo breve para la sección "${input.sectionKey}" de una propuesta técnica, citando esta experiencia real:\n${bullets}`,
       );
-      const draft = `${narrative}\n\nExperiencia citada:\n${bullets}`;
+      let draft = `${narrative}\n\nExperiencia citada:\n${bullets}`;
 
-      return { tenderId: input.tenderId, sectionKey: input.sectionKey, draft, blocked: false, missingData: [] };
+      // REQ-032: huella MinHash del borrador contra las de OTROS tenants
+      // (nunca contra el propio -- ver `CrossTenantSimilarityDetector`).
+      // Sobre el umbral -> se regenera UNA vez con instrucción explícita
+      // de estilo propio (nunca se inventa evidencia nueva: las mismas
+      // "bullets" reales, solo cambia la redacción) y se avisa vía
+      // `collusionRisk` -- nunca se decide colusión ni se bloquea la
+      // sección por sí solo; el evento de cumplimiento
+      // (`proposal_similarity_flags`) queda para revisión humana.
+      let assessment = await similarityDetector.assess(draft, { orgId, tenderId: input.tenderId, sectionKey: input.sectionKey });
+      let regenerated = false;
+      if (assessment.flagged) {
+        const distinctiveNarrative = await completeText(
+          deps.provider,
+          `Redacta OTRA versión, con redacción y estilo PROPIOS y distintivos (evita frases genéricas de plantilla), del mismo párrafo para la sección "${input.sectionKey}" de una propuesta técnica, citando ÚNICAMENTE esta misma experiencia real (no agregues ninguna otra):\n${bullets}`,
+        );
+        draft = `${distinctiveNarrative}\n\nExperiencia citada:\n${bullets}`;
+        regenerated = true;
+        assessment = await similarityDetector.assess(draft, { orgId, tenderId: input.tenderId, sectionKey: input.sectionKey }, { regenerated: true });
+      }
+
+      return {
+        tenderId: input.tenderId,
+        sectionKey: input.sectionKey,
+        draft,
+        blocked: false,
+        missingData: [],
+        collusionRisk: { flagged: assessment.flagged, similarityScore: assessment.similarity, regenerated },
+      };
     },
     extractSensitiveValues: (output: { draft: string; blocked: boolean; missingData: string[] }): SourcedValue[] => {
       // No-fabricación (AMPLIACION-BACKOFFICE §6): esta sección puede citar
