@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
+import type { DbExecutor } from '@atiende/db';
 import { DECISION_ROLES, type OrgRole } from '@atiende/db';
 import { NotFoundError } from '../../lib/errors.js';
 import { recordAudit } from '../../lib/audit.js';
@@ -15,8 +16,14 @@ import { goNoGoDecisionCreateSchema, goNoGoDecisionSchema } from './go-no-go.sch
  * para esta decisión específica (ver packages/db/migrations/
  * 0024_go_no_go_reviewer.sql, que amplía la política RLS en el mismo
  * sentido: la aplicación y la base de datos coinciden).
+ *
+ * Exportado (además de usarse en la ruta HTTP de este archivo) para que
+ * `apps/api/src/lib/whatsapp/resolve-decision-actor.ts` (REQ-090: la MISMA
+ * decisión, disparada desde un botón/lista de WhatsApp en vez de
+ * `POST /tenders/:id/go-no-go`) aplique EXACTAMENTE la misma regla de
+ * autorización -- nunca una copia que pudiera divergir.
  */
-const GO_NO_GO_ROLES: OrgRole[] = [...DECISION_ROLES, 'reviewer'];
+export const GO_NO_GO_ROLES: OrgRole[] = [...DECISION_ROLES, 'reviewer'];
 
 function mapRow(r: Record<string, unknown>): any {
   return {
@@ -27,6 +34,63 @@ function mapRow(r: Record<string, unknown>): any {
     decidedBy: r.decided_by,
     decidedAt: r.decided_at,
   };
+}
+
+export interface DecideGoNoGoParams {
+  orgId: string;
+  userId: string;
+  tenderId: string;
+  decision: 'go' | 'no_go';
+  reasons: string[];
+  requestId?: string | null;
+  correlationId?: string | null;
+  /** Origen de la decisión, para `audit_log.after` -- 'http' (la ruta de
+   *  abajo) o 'whatsapp' (REQ-090, `modules/whatsapp/webhook.routes.ts`).
+   *  Nunca cambia la regla de negocio, solo deja rastro de por dónde entró. */
+  source?: 'http' | 'whatsapp';
+}
+
+export interface GoNoGoDecisionRow {
+  id: string;
+  tenderId: string;
+  decision: 'go' | 'no_go';
+  reasons: string[];
+  decidedBy: string;
+  decidedAt: string;
+}
+
+/**
+ * Inserta una decisión Go/No-Go real y su auditoría, dentro de una
+ * transacción que YA tiene `set local role app_role` y
+ * `app.current_org_id`/`app.current_user_id` fijados por el llamador (mismo
+ * contrato que `persistMatch`/`buildProfileAndEligibility` en
+ * `modules/matching/routes.ts`) -- esta función nunca abre su propia
+ * transacción ni decide el contexto de sesión, así que RLS (0024) protege
+ * IGUAL sin importar si el llamador es la ruta HTTP o el webhook de
+ * WhatsApp. Devuelve `null` si el tender no existe en esta organización
+ * (nunca inserta una decisión "huérfana").
+ */
+export async function decideGoNoGo(tx: DbExecutor, params: DecideGoNoGoParams): Promise<GoNoGoDecisionRow | null> {
+  const tenderRes = await tx.query('select id from tenders where id = $1 and org_id = $2', [params.tenderId, params.orgId]);
+  if (tenderRes.rows.length === 0) return null;
+
+  const id = randomUUID();
+  const inserted = await tx.query(
+    `insert into go_no_go_decisions (id, org_id, tender_id, decision, reasons, decided_by)
+     values ($1, $2, $3, $4, $5, $6) returning *`,
+    [id, params.orgId, params.tenderId, params.decision, params.reasons, params.userId]
+  );
+  await recordAudit(tx, {
+    orgId: params.orgId,
+    actorId: params.userId,
+    action: 'go_no_go.decide',
+    entity: 'go_no_go_decisions',
+    entityId: id,
+    after: { decision: params.decision, reasons: params.reasons, source: params.source ?? 'http' },
+    requestId: params.requestId ?? null,
+    correlationId: params.correlationId ?? null,
+  });
+  return mapRow(inserted.rows[0] as Record<string, unknown>);
 }
 
 export async function goNoGoRoutes(app: FastifyInstance): Promise<void> {
@@ -71,39 +135,27 @@ export async function goNoGoRoutes(app: FastifyInstance): Promise<void> {
       requireOrgRole(request, GO_NO_GO_ROLES, 'Se requiere rol reviewer/analyst/admin/owner para decidir go/no-go');
 
       const { decision, reasons } = request.body;
-      const id = randomUUID();
 
       const row = await app.db.transaction(async (tx) => {
         await tx.query('set local role app_role');
         await tx.query("select set_config('app.current_org_id', $1, true)", [orgId]);
         await tx.query("select set_config('app.current_user_id', $1, true)", [userId]);
 
-        const tenderRes = await tx.query('select id from tenders where id = $1 and org_id = $2', [
-          request.params.tenderId,
+        return decideGoNoGo(tx, {
           orgId,
-        ]);
-        if (tenderRes.rows.length === 0) return null;
-
-        const inserted = await tx.query(
-          `insert into go_no_go_decisions (id, org_id, tender_id, decision, reasons, decided_by)
-           values ($1, $2, $3, $4, $5, $6) returning *`,
-          [id, orgId, request.params.tenderId, decision, reasons, userId]
-        );
-        await recordAudit(tx, {
-          orgId,
-          actorId: userId,
-          action: 'go_no_go.decide',
-          entity: 'go_no_go_decisions',
-          entityId: id,
-          after: { decision, reasons },
-          requestId: request.id, correlationId: request.correlationId,
+          userId,
+          tenderId: request.params.tenderId,
+          decision,
+          reasons,
+          requestId: request.id,
+          correlationId: request.correlationId,
+          source: 'http',
         });
-        return inserted.rows[0];
       });
 
       if (!row) throw new NotFoundError('Convocatoria no encontrada');
       reply.code(201);
-      return mapRow(row as Record<string, unknown>);
+      return row;
     }
   );
 }

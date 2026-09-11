@@ -212,6 +212,11 @@ services:
       WHATSAPP_API_VERSION: ${WHATSAPP_API_VERSION:-}
       WHATSAPP_DEFAULT_LANGUAGE: ${WHATSAPP_DEFAULT_LANGUAGE:-}
       WHATSAPP_CAPTURE_FILE: ${WHATSAPP_CAPTURE_FILE:-}
+      # REQ-090/074/080: webhook ENTRANTE de WhatsApp (POST/GET
+      # /webhooks/whatsapp) -- sin WHATSAPP_WEBHOOK_APP_SECRET ese endpoint
+      # responde 503 y nunca procesa nada (falla cerrado).
+      WHATSAPP_WEBHOOK_APP_SECRET: ${WHATSAPP_WEBHOOK_APP_SECRET:-}
+      WHATSAPP_WEBHOOK_VERIFY_TOKEN: ${WHATSAPP_WEBHOOK_VERIFY_TOKEN:-}
     volumes:
       - api_storage:/app/data/storage
     depends_on:

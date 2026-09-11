@@ -52,6 +52,11 @@ export interface WhatsAppSideChannelInput {
   templateName: string;
   templateParams: Record<string, string>;
   languageCode?: string;
+  /** REQ-090: botones QUICK_REPLY de decisión (payload dinámico, texto fijo
+   *  ya aprobado por Meta en la plantilla) -- ver el comentario de
+   *  `OutboundWhatsAppMessage.buttonPayloads` en `@atiende/whatsapp` para el
+   *  porqué. `undefined` manda la plantilla sin botones, igual que hoy. */
+  buttonPayloads?: string[];
 }
 
 /**
@@ -82,6 +87,7 @@ export async function sendWhatsAppSideChannel(app: FastifyInstance, input: Whats
       templateName: input.templateName,
       templateParams: input.templateParams,
       ...(input.languageCode ? { languageCode: input.languageCode } : {}),
+      ...(input.buttonPayloads ? { buttonPayloads: input.buttonPayloads } : {}),
     });
     if (!result.ok) {
       app.log.warn(
