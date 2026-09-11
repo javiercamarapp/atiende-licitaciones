@@ -61,6 +61,7 @@ const AprobacionesPage = lazy(() => import("@/pages/preparacion/AprobacionesPage
 const EntregasPage = lazy(() => import("@/pages/entrega/EntregasPage"));
 const PaqueteDescargablePage = lazy(() => import("@/pages/entrega/PaqueteDescargablePage"));
 const SeguimientoPage = lazy(() => import("@/pages/entrega/SeguimientoPage"));
+const SalaDeGuerraPage = lazy(() => import("@/pages/entrega/SalaDeGuerraPage"));
 const OrganizacionesPage = lazy(() => import("@/pages/backoffice/OrganizacionesPage"));
 const UsuariosRolesPage = lazy(() => import("@/pages/backoffice/UsuariosRolesPage"));
 const AgentesHerramientasPage = lazy(() => import("@/pages/backoffice/AgentesHerramientasPage"));
@@ -228,6 +229,7 @@ export default function App() {
                       <Route path="/entrega/entregas" element={<EntregasPage />} />
                       <Route path="/entrega/paquete-descargable" element={<PaqueteDescargablePage />} />
                       <Route path="/entrega/seguimiento" element={<SeguimientoPage />} />
+                      <Route path="/entrega/sala-de-guerra" element={<SalaDeGuerraPage />} />
                       <Route path="/backoffice/organizaciones" element={<OrganizacionesPage />} />
                       <Route path="/backoffice/usuarios-roles" element={<UsuariosRolesPage />} />
                       <Route path="/backoffice/agentes-herramientas" element={<AgentesHerramientasPage />} />
