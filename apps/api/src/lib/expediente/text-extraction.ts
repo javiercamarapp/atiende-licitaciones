@@ -7,13 +7,41 @@
  *  - Texto plano (`.txt`, mime `text/plain` o sin mime reconocible que
  *    decodifique como UTF-8 imprimible): se usa tal cual, como una única
  *    "página" virtual (no hay noción de página real en texto plano).
- *  - PDF SIN capa de texto (escaneado / solo imagen): NO se hace OCR en esta
- *    ronda. El resultado es el estado EXPLÍCITO `"requires_ocr"` -- nunca se
- *    deja `extractedText` vacío como si el documento no tuviera contenido
+ *  - PDF SIN capa de texto (escaneado / solo imagen): sigue sin OCR de PDF
+ *    en esta ronda (rasterizar cada página a imagen es una pieza propia, con
+ *    su propio riesgo tipo "PDF bomb" -- ver `packages/ocr/README.md`). El
+ *    resultado es el estado EXPLÍCITO `"requires_ocr"` -- nunca se deja
+ *    `extractedText` vacío como si el documento no tuviera contenido
  *    relevante (REQ-166: ausencia de dato nunca se traduce en "cumple"/"sin
  *    requisitos").
- *  - Cualquier otro formato (docx, imagen suelta, etc.): `"failed"` con
- *    detalle explícito; tampoco se inventa texto.
+ *  - Imagen suelta (PNG/JPEG, por `mimeType` o firma de archivo): con un
+ *    tercer argumento `ocr` (`OcrPort` de `@atiende/ocr`, REQ-014/018/129) se
+ *    reconoce con OCR real -- ver "OCR (REQ-014/018/129)" más abajo. Sin
+ *    `ocr` (el caso de HOY en los dos call sites reales,
+ *    `documents.routes.ts`/`contract.routes.ts`), sigue siendo `"failed"`,
+ *    comportamiento IDÉNTICO al de antes de este paquete.
+ *  - Cualquier otro formato (docx, etc.): `"failed"` con detalle explícito;
+ *    tampoco se inventa texto.
+ *
+ * ## OCR (REQ-014/018/129)
+ *
+ * `extractDocumentText(buffer, opts, ocr?)` acepta un `OcrPort` opcional
+ * (`@atiende/ocr`, puerto + adaptador real `tesseract.js` + fake para
+ * pruebas). Sin él, el comportamiento no cambia ni un bit frente a antes de
+ * ese paquete. Con un `ocr` real:
+ *  - Imagen suelta: se reconoce con `ocr.recognize()`. Texto vacío o
+ *    `not_configured` → `"requires_ocr"` explícito (NUNCA `"extracted"` con
+ *    texto vacío, REQ-166); `kind: "failed"` → `"failed"`; texto real →
+ *    `"extracted"` con `pages[0].words` (bbox + confianza por palabra, lo
+ *    que REQ-014 pide) y `ocrEngine` anotado -- la procedencia del texto
+ *    nunca se oculta.
+ *  - PDF sin capa de texto: sigue devolviendo `"requires_ocr"` SIN usar
+ *    `ocr` -- rasterizar PDF a imagen queda deliberadamente fuera de esta
+ *    ronda (ver `packages/ocr/README.md` para el porqué exacto).
+ * `packages/ocr/README.md` documenta el estado honesto completo: qué
+ * adaptador es real, por qué `verificado_contra_real=false`, y por qué
+ * `createOcrPortFromEnv()` nunca activa el motor local por defecto (REQ-018
+ * prohíbe que Tesseract sea el ÚNICO OCR de producción).
  *
  * R6-01/R6-02 (docs/auditoria-2/api-ronda6.md, ALTA): `pdf-parse@1.1.1`
  * empaqueta una versión de `pdf.js` de 2017 (v1.10.100) que NO soporta el
@@ -109,13 +137,16 @@ import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 import zlib from 'node:zlib';
+import type { OcrPort, OcrWord } from '@atiende/ocr';
 
 export type TextExtractionStatus = 'extracted' | 'requires_ocr' | 'failed';
 
 export interface ExtractedPageText {
-  /** Número de página REAL (1-based) tal como lo reporta el propio PDF; para texto plano siempre es 1 (página virtual única). */
+  /** Número de página REAL (1-based) tal como lo reporta el propio PDF; para texto plano o una imagen suelta siempre es 1 (página virtual única). */
   page: number;
   text: string;
+  /** Presente SOLO cuando `text` de esta página vino de OCR (ver `ocrEngine` en `TextExtractionResult`) -- bbox + confianza por palabra tal como las reportó el motor (REQ-014). Páginas de texto nativo (PDF con capa de texto, texto plano) no tienen bbox por palabra en esta ronda. */
+  words?: OcrWord[];
 }
 
 /** R6-11: cuál de los límites anti "PDF bomb" (AE-05) provocó un `status: 'failed'`. `undefined` para cualquier otro `'failed'` (formato corrupto, cifrado, etc.) -- explícito y verificable por código, no solo por el texto libre de `detail`. No se añade como valor de `TextExtractionStatus` porque esa columna tiene un `check` en `packages/db` (`text_extraction_status in ('extracted','requires_ocr','failed')`, migraciones 0029/0067) que este agente no está autorizado a tocar; el estado "rechazado por límite" es 'failed' + este campo + un `detail` explícito. */
@@ -131,6 +162,10 @@ export interface TextExtractionResult {
   detail?: string;
   /** Ver `PdfBombLimit`. Presente y con estado explícito ("rechazado_por_limite" en `detail`) solo cuando `status === 'failed'` por AE-05/R6-11. */
   limitExceeded?: PdfBombLimit;
+  /** Nombre del `OcrPort` (`OcrPort.name`, p. ej. `"tesseract"`/`"fake"`) que produjo `text`/`pages`, SOLO presente cuando `status === 'extracted'` vino de OCR -- nunca se oculta que el texto no vino de una capa de texto nativa (REQ-014/018). */
+  ocrEngine?: string;
+  /** Confianza media (0-100) reportada por el motor de OCR para esta página -- SOLO presente junto con `ocrEngine`. */
+  ocrMeanConfidence?: number;
 }
 
 /**
@@ -240,6 +275,17 @@ function estimateFastPdfPageCount(buffer: Buffer): number {
 
 function looksLikePdf(buffer: Buffer): boolean {
   return buffer.subarray(0, 5).toString('latin1') === '%PDF-';
+}
+
+/** Firma de archivo (magic bytes) de los formatos de imagen que `TesseractOcrAdapter`/`tesseract.js` soportan -- PNG, JPEG, y BMP/TIFF por si acaso, aunque los dos primeros son los reales en escaneos subidos desde un teléfono/scanner. Nunca se confía SOLO en `mimeType` (un cliente puede mentir sobre él) ni SOLO en la extensión del nombre de archivo. */
+function looksLikeImage(buffer: Buffer, mimeType: string | null | undefined, filename: string): boolean {
+  if (mimeType?.startsWith('image/')) return true;
+  if (/\.(png|jpe?g|bmp|tiff?)$/.test(filename)) return true;
+  const sig = buffer.subarray(0, 8);
+  if (sig[0] === 0x89 && sig[1] === 0x50 && sig[2] === 0x4e && sig[3] === 0x47) return true; // PNG
+  if (sig[0] === 0xff && sig[1] === 0xd8 && sig[2] === 0xff) return true; // JPEG
+  if (sig[0] === 0x42 && sig[1] === 0x4d) return true; // BMP
+  return false;
 }
 
 /** Heurística simple de "texto plano": decodifica UTF-8 y verifica que la proporción de caracteres de control (fuera de espacios/saltos) sea baja. */
@@ -365,7 +411,11 @@ async function extractPdfPages(buffer: Buffer): Promise<PdfExtractionResult> {
   }
 }
 
-export async function extractDocumentText(buffer: Buffer, opts: { mimeType?: string | null; filename?: string | null } = {}): Promise<TextExtractionResult> {
+export async function extractDocumentText(
+  buffer: Buffer,
+  opts: { mimeType?: string | null; filename?: string | null } = {},
+  ocr?: OcrPort
+): Promise<TextExtractionResult> {
   const filename = (opts.filename ?? '').toLowerCase();
   const isPdfByHint = opts.mimeType === 'application/pdf' || filename.endsWith('.pdf') || looksLikePdf(buffer);
 
@@ -442,11 +492,51 @@ export async function extractDocumentText(buffer: Buffer, opts: { mimeType?: str
     return { status: 'extracted', text: sanitized, pages: [{ page: 1, text: sanitized }], pageCount: null };
   }
 
+  // REQ-014/018/129: imagen suelta (foto/escaneo de una sola página) + un
+  // OcrPort real disponible -- ver "OCR (REQ-014/018/129)" en el docstring
+  // del módulo. Sin `ocr`, este bloque no se ejecuta y el comportamiento es
+  // el de siempre (cae al `"failed"` final, sin cambio alguno).
+  if (ocr && looksLikeImage(buffer, opts.mimeType, filename)) {
+    const result = await ocr.recognize({ image: buffer });
+    if (!result.ok) {
+      if (result.kind === 'not_configured') {
+        // Mismo criterio que un PDF escaneado sin `ocr`: ausencia de
+        // capacidad real de OCR es `requires_ocr`, nunca `failed` (que
+        // sugeriría un problema del documento) ni `extracted` vacío.
+        return { status: 'requires_ocr', text: null, pages: null, pageCount: null, detail: `OCR no disponible (${ocr.name}): ${result.detail}` };
+      }
+      return { status: 'failed', text: null, pages: null, pageCount: null, detail: `OCR (${ocr.name}) falló al reconocer la imagen: ${result.detail}` };
+    }
+    const rawText = result.page.text.trim();
+    if (rawText.length === 0) {
+      // REQ-166: una imagen sin texto reconocible NUNCA se traduce en
+      // "extracted" con texto vacío -- mismo criterio que un PDF escaneado.
+      return { status: 'requires_ocr', text: null, pages: null, pageCount: null, detail: `OCR (${ocr.name}) se ejecutó pero no reconoció texto en la imagen (confianza media 0 o página en blanco).` };
+    }
+    const sanitized = sanitizePlainText(result.page.text);
+    if (sanitized.trim().length === 0) {
+      return { status: 'failed', text: null, pages: null, pageCount: null, detail: 'El texto reconocido por OCR quedó vacío después de sanitizar HTML/script embebido (AE-04); no se persiste como "extracted" un texto vacío.' };
+    }
+    // AE-04 solo sanea `text` (concatenado); las palabras de `words` quedan
+    // tal como las reportó el motor (bbox real, sin reescribir) -- un
+    // texto de OCR real nunca trae HTML embebido, a diferencia del caso de
+    // texto plano subido por un usuario que sí puede traerlo.
+    const words = result.page.lines.flatMap((l) => l.words);
+    return {
+      status: 'extracted',
+      text: sanitized,
+      pages: [{ page: 1, text: sanitized, words }],
+      pageCount: 1,
+      ocrEngine: ocr.name,
+      ocrMeanConfidence: result.page.meanConfidence,
+    };
+  }
+
   return {
     status: 'failed',
     text: null,
     pages: null,
     pageCount: null,
-    detail: `Formato no soportado en esta ronda (solo PDF con texto y texto plano). mimeType=${opts.mimeType ?? 'desconocido'}`,
+    detail: `Formato no soportado en esta ronda (solo PDF con texto, texto plano${ocr ? ', e imágenes vía OCR' : ''}). mimeType=${opts.mimeType ?? 'desconocido'}`,
   };
 }

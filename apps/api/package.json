@@ -16,6 +16,7 @@
     "@atiende/db": "*",
     "@atiende/expediente": "*",
     "@atiende/mail": "*",
+    "@atiende/ocr": "*",
     "@atiende/sources": "*",
     "@atiende/whatsapp": "*",
     "@fastify/cors": "^11.3.0",
