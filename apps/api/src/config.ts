@@ -69,6 +69,16 @@ export interface AppConfig {
    * `platformApiKey`).
    */
   mailWebhookSecret: string | undefined;
+  /**
+   * REQ-067 (ChatGPT App / MCP, `modules/chatgpt-app/`): base pública de
+   * ESTA API (nunca la de `apps/web` -- para eso está `publicUrl`), usada
+   * solo para componer `mcp_endpoint` en `GET /chatgpt-app/manifest.json`.
+   * `undefined` por defecto a propósito: un despliegue serverless (Vercel)
+   * no conoce su propio host público de forma fiable, así que sin esta
+   * variable el manifiesto declara el endpoint como ruta relativa en vez
+   * de fabricar una URL absoluta que podría ser la equivocada.
+   */
+  apiPublicUrl: string | undefined;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -115,5 +125,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     contactInbox: env.CONTACT_INBOX ?? supportEmail,
     requireEmailVerification: env.REQUIRE_EMAIL_VERIFICATION !== 'false',
     mailWebhookSecret: env.RESEND_WEBHOOK_SECRET,
+    apiPublicUrl: env.API_PUBLIC_URL,
   };
 }

@@ -53,6 +53,7 @@ import { expedienteContractRoutes } from './modules/expediente/contract.routes.j
 import { expedienteInconformidadRoutes } from './modules/expediente/inconformidad.routes.js';
 import { expedienteFalloAutopsyRoutes } from './modules/expediente/fallo-autopsy.routes.js';
 import { expedienteRenewalRadarRoutes } from './modules/expediente/renewal-radar.routes.js';
+import { chatGptAppRoutes } from './modules/chatgpt-app/mcp.routes.js';
 import { MAX_BASE64_LENGTH } from './lib/storage.js';
 import './types.js';
 
@@ -340,6 +341,11 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   await app.register(expedienteInconformidadRoutes, { prefix: '/expediente' });
   await app.register(expedienteFalloAutopsyRoutes, { prefix: '/expediente' });
   await app.register(expedienteRenewalRadarRoutes, { prefix: '/expediente' });
+
+  // REQ-067: superficie MCP de solo lectura que una ChatGPT App (Apps SDK)
+  // consumiría -- ver modules/chatgpt-app/mcp.routes.ts para el alcance
+  // exacto (allowlist de herramientas, nunca documentos firmables).
+  await app.register(chatGptAppRoutes, { prefix: '/chatgpt-app' });
 
   return app;
 }
