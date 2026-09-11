@@ -21,3 +21,4 @@ export * from "./agents";
 export * from "./admin";
 export * from "./audit";
 export * from "./expediente";
+export * from "./onboarding";

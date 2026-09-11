@@ -1,4 +1,4 @@
-import type { DbExecutor } from '@atiende/db';
+import type { DbClient, DbExecutor } from '@atiende/db';
 
 export interface AuditEntry {
   /**
@@ -163,4 +163,65 @@ export async function recordSecurityAudit(tx: DbExecutor, entry: SecurityAuditEn
     entry.requestId ?? null,
     entry.correlationId ?? null,
   ]);
+}
+
+export interface AccessDeniedAuditEntry {
+  actorId: string;
+  /** `null` cuando no hay contexto de organización resuelto para esta request (p.ej. una ruta de superadmin, o `app.requireOrg` denegando ANTES de fijar `request.orgId`). */
+  orgId: string | null;
+  /** Ruta HTTP denegada (`request.url`) -- ver `plugins/error-handler.ts`. */
+  entity: string;
+  requestId?: string | null;
+  correlationId?: string | null;
+  /** Metadatos de diagnóstico -- NUNCA credenciales/tokens (mismo criterio que `AuthAuditEntry.after`). */
+  detail?: unknown;
+}
+
+/**
+ * Patrón Likida/atiende.ai #6: complemento del mapa ruta/rol que YA existe
+ * y YA se refuerza en la aplicación (`requireOrgRole`/`APPROVER_ROLES`/
+ * `MEMBERSHIP_ADMIN_ROLES`, `app.requireSuperadmin`) -- registra CADA
+ * intento de acceso denegado por rol en `audit_log`, no solo en el log
+ * efímero de la request. Llamada centralizadamente desde
+ * `plugins/error-handler.ts` para todo `AppError` con `statusCode === 403`,
+ * en vez de instrumentar cada punto de la aplicación que lanza
+ * `ForbiddenError`.
+ *
+ * A diferencia de `recordAudit` (recibe una transacción YA abierta por la
+ * ruta de negocio), esta función abre su PROPIA transacción: el manejador
+ * de errores corre FUERA de esa transacción -- de hecho la ruta pudo
+ * fallar precisamente porque nunca llegó a abrir una (`app.requireOrg`
+ * deniega antes de fijar contexto de org; `app.requireSuperadmin` deniega
+ * cuando el actor NO es superadmin). Por eso usa
+ * `app.record_access_denied_event` (SECURITY DEFINER, migración
+ * 0099_patron6_access_denied_audit.sql): el actor denegado casi siempre
+ * NO cumple la política RLS normal de `audit_log` (no es miembro de
+ * `orgId`, o no es superadmin) -- que es justo la razón de la denegación,
+ * así que un INSERT directo bajo RLS fallaría ahí también.
+ *
+ * NUNCA lanza: un fallo al auditar no debe tumbar la respuesta 403 real
+ * que ya se le debe al cliente. `onAuditFailure` (si se pasa) recibe el
+ * error para que el llamador lo registre en su logger de request.
+ */
+export async function recordAccessDenied(
+  db: DbClient,
+  entry: AccessDeniedAuditEntry,
+  onAuditFailure?: (err: unknown) => void
+): Promise<void> {
+  try {
+    await db.transaction(async (tx) => {
+      await tx.query('set local role app_role');
+      await tx.query("select set_config('app.current_user_id', $1, true)", [entry.actorId]);
+      await tx.query('select app.record_access_denied_event($1, $2, $3, $4, $5, $6::jsonb)', [
+        entry.actorId,
+        entry.orgId,
+        entry.entity,
+        entry.requestId ?? null,
+        entry.correlationId ?? null,
+        entry.detail !== undefined ? JSON.stringify(entry.detail) : null,
+      ]);
+    });
+  } catch (err) {
+    onAuditFailure?.(err);
+  }
 }

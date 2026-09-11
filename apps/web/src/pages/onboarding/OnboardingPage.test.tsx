@@ -9,6 +9,53 @@ import { setTokens } from "@/lib/api/session";
 import type { MyOrg } from "@/lib/api/schemas";
 import OnboardingPage from "@/pages/onboarding/OnboardingPage";
 
+/**
+ * Patrón Likida/atiende.ai #7: respuesta de `GET /onboarding/state`
+ * derivada de las MISMAS variables mutables (`orgs`/`profile`) que ya usan
+ * los demás handlers de cada mock de sesión -- refleja el progreso real
+ * del wizard en cada momento, en vez de una respuesta fija que se
+ * desincronizaría del resto de la simulación.
+ */
+function buildOnboardingState(orgs: MyOrg[], profile: Record<string, unknown> | null) {
+  const legalName = (profile?.legalName as string | undefined) ?? null;
+  const taxId = (profile?.taxId as string | undefined) ?? null;
+  const sector = (profile?.sector as string | undefined) ?? null;
+  const missingRequired: string[] = [];
+  if (orgs.length === 0) missingRequired.push("organization");
+  if (!legalName) missingRequired.push("legalName");
+  if (!taxId) missingRequired.push("taxId");
+  if (!sector) missingRequired.push("sector");
+  const nextField = missingRequired[0] ?? null;
+  const questionByField: Record<string, string> = {
+    organization: "¿Cómo se llama tu organización?",
+    legalName: "¿Cuál es la razón social completa de tu empresa?",
+    taxId: "¿Cuál es tu RFC?",
+    sector: "¿A qué giro o sector se dedica tu empresa?",
+  };
+  const nextActionByField: Record<string, { method: string; path: string; hint: string }> = {
+    organization: { method: "POST", path: "/organizations", hint: "Crea la organización." },
+    legalName: { method: "PUT", path: "/company/profile", hint: "Guarda el perfil." },
+    taxId: { method: "PUT", path: "/company/profile", hint: "Guarda el perfil." },
+    sector: { method: "PUT", path: "/company/profile", hint: "Guarda el perfil." },
+  };
+  return {
+    orgId: orgs[0]?.id ?? null,
+    hasOrganization: orgs.length > 0,
+    legalName,
+    taxId,
+    sector,
+    teamInvited: false,
+    firstDocumentUploaded: false,
+    missingRequired,
+    missingOptional: ["team", "document"],
+    isComplete: missingRequired.length === 0,
+    nextField,
+    question: nextField ? questionByField[nextField] : "Tu organización está lista.",
+    questionSource: "canned" as const,
+    nextAction: nextField ? nextActionByField[nextField] : null,
+  };
+}
+
 function mockNewAccountSession() {
   setTokens({ accessToken: null, refreshToken: "ref-1" });
   let orgs: MyOrg[] = [];
@@ -40,6 +87,7 @@ function mockNewAccountSession() {
         updatedAt: "2026-01-01T00:00:00Z",
       });
     }),
+    http.get("*/onboarding/state", () => HttpResponse.json(buildOnboardingState(orgs, null))),
   );
 }
 
@@ -71,6 +119,7 @@ function mockExistingOrgSession() {
       };
       return HttpResponse.json(profile);
     }),
+    http.get("*/onboarding/state", () => HttpResponse.json(buildOnboardingState(orgs, profile))),
   );
 }
 
@@ -157,5 +206,31 @@ describe("OnboardingPage", () => {
     await screen.findByRole("heading", { level: 2, name: "Crea tu organización" });
     const results = await axe(document.body);
     expect(results).toHaveNoViolations();
+  }, 15000);
+
+  /**
+   * Patrón Likida/atiende.ai #7: la tira conversacional (`OnboardingAssistant`)
+   * muestra la pregunta que devuelve `GET /onboarding/state` -- SOLO
+   * complementa al wizard (que sigue siendo la forma real de capturar cada
+   * dato), nunca lo reemplaza ni bloquea su envío.
+   */
+  it("la tira conversacional muestra la pregunta del backend y el checklist de campos obligatorios", async () => {
+    mockNewAccountSession();
+    renderWithProviders(<OnboardingPage />);
+
+    const assistant = await screen.findByTestId("onboarding-assistant");
+    expect(await screen.findByText("¿Cómo se llama tu organización?")).toBeInTheDocument();
+    // Ninguno de los 4 campos obligatorios está marcado todavía.
+    expect(assistant).toHaveTextContent("Organización");
+    expect(assistant).toHaveTextContent("Razón social");
+    expect(assistant).toHaveTextContent("RFC");
+    expect(assistant).toHaveTextContent("Giro");
+  }, 15000);
+
+  it("la tira conversacional avanza de pregunta según el progreso ya guardado (organización con perfil vacío)", async () => {
+    mockExistingOrgSession();
+    renderWithProviders(<OnboardingPage />);
+
+    expect(await screen.findByText("¿Cuál es la razón social completa de tu empresa?")).toBeInTheDocument();
   }, 15000);
 });

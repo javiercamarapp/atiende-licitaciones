@@ -3,9 +3,11 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Link, useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { Building2, CheckCircle2, FileClock, IdCard, PartyPopper, UserPlus, Upload, Check } from "lucide-react";
 
 import { AtiendeWordmark } from "@/components/AtiendeLogo";
+import { OnboardingAssistant } from "@/pages/onboarding/OnboardingAssistant";
 import { SkipLink } from "@/components/SkipLink";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -79,6 +81,7 @@ function fileToBase64(file: File): Promise<string> {
  */
 export default function OnboardingPage() {
   const { currentOrgId, memberships } = useAuth();
+  const queryClient = useQueryClient();
   // WB-10: capturado UNA SOLA VEZ en un ref (nunca releído de
   // `sessionStorage` más adelante) -- el efecto de persistencia de abajo
   // reescribe la clave en cuanto este componente monta, con el `step`
@@ -98,6 +101,15 @@ export default function OnboardingPage() {
   });
 
   useDocumentMeta({ title: "Bienvenido a Atiende Licitaciones" });
+
+  // Patrón Likida/atiende.ai #7: cada avance de paso ya implica que la
+  // mutación correspondiente (crear organización, guardar perfil, invitar,
+  // subir documento) tuvo éxito -- se invalida la query conversacional para
+  // que refleje el dato recién capturado en el siguiente render, en vez de
+  // esperar su propio intervalo de refetch.
+  useEffect(() => {
+    void queryClient.invalidateQueries({ queryKey: ["onboarding", "state"] });
+  }, [step, queryClient]);
 
   // Si otra pestaña/paso ya creó la organización activa mientras este
   // componente estaba montado, no se fuerza el avance de vuelta al paso 1.
@@ -164,7 +176,11 @@ export default function OnboardingPage() {
             ))}
           </ol>
 
-          <div className="mt-8">
+          <div className="mt-6">
+            <OnboardingAssistant />
+          </div>
+
+          <div className="mt-2">
             {step === 1 && <StepOrganizacion onDone={() => setStep(2)} />}
             {step === 2 && <StepPerfil onDone={() => setStep(3)} />}
             {step === 3 && <StepEquipo onDone={() => setStep(4)} onSkip={() => setStep(4)} />}

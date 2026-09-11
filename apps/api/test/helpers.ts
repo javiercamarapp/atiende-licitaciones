@@ -6,6 +6,7 @@ import type { DbClient } from '@atiende/db';
 import type { FastifyInstance } from 'fastify';
 import type { MailProvider } from '@atiende/mail';
 import type { WhatsAppProvider } from '@atiende/whatsapp';
+import type { LLMProvider } from '@atiende/agents';
 import { buildApp } from '../src/app.js';
 import { loadConfig, type AppConfig } from '../src/config.js';
 import { generateTotpCodeForTesting } from '../src/lib/step-up.js';
@@ -31,6 +32,8 @@ export interface CreateTestAppOptions {
   mailProvider?: MailProvider;
   /** Canal ADICIONAL de WhatsApp: `WhatsAppProvider` explícito -- mismo criterio que `mailProvider` (sin él, `CaptureProvider`, nunca sale a la red). */
   whatsappProvider?: WhatsAppProvider;
+  /** Patrón Likida/atiende.ai #7: `LLMProvider` explícito para `modules/onboarding/routes.ts` -- sin él, `FakeProvider` por defecto (mismo criterio que `mailProvider`/`whatsappProvider`). */
+  llmProvider?: LLMProvider;
 }
 
 export async function createTestApp(
@@ -52,7 +55,14 @@ export async function createTestApp(
     autoMigrate: true,
     ...overrides,
   };
-  const app = await buildApp({ db, config, logger: false, mailProvider: options.mailProvider, whatsappProvider: options.whatsappProvider });
+  const app = await buildApp({
+    db,
+    config,
+    logger: false,
+    mailProvider: options.mailProvider,
+    whatsappProvider: options.whatsappProvider,
+    llmProvider: options.llmProvider,
+  });
   await app.ready();
   return { app, db };
 }
