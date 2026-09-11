@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { renderWithProviders } from "@/test/utils";
@@ -48,6 +48,28 @@ async function approveViaStepUp(user: ReturnType<typeof userEvent.setup>) {
 describe("AgentesHerramientasPage (RF-01: step-up 2FA en aprobar/denegar tool_calls)", () => {
   beforeEach(() => {
     mockAuthenticatedSessionWithOrgAdmin();
+  });
+
+  /**
+   * REQ-193: el EmptyState de "Corridas de agentes" no debe prometer una
+   * acción de "configurar" un agente que no existe en ninguna pantalla de
+   * esta app -- se corrigió la copia (antes: "Aún no hay agentes
+   * configurados") en vez de fabricar un botón que no dispararía nada real.
+   */
+  it("sin corridas, el EmptyState de agentes es honesto y no ofrece ninguna acción inexistente", async () => {
+    server.use(http.get("*/agents/runs", () => HttpResponse.json([])));
+
+    renderWithProviders(<AgentesHerramientasPage />);
+
+    const emptyState = await screen.findByText("Aún no hay corridas de agentes");
+    expect(emptyState).toBeInTheDocument();
+    expect(screen.queryByText("Aún no hay agentes configurados")).not.toBeInTheDocument();
+
+    const statusContainer = emptyState.closest('[role="status"]');
+    expect(statusContainer).not.toBeNull();
+    if (statusContainer) {
+      expect(within(statusContainer as HTMLElement).queryByRole("button")).not.toBeInTheDocument();
+    }
   });
 
   it("pide el step-up (X-Org-Id + purpose exacto) y envía X-Step-Up real al aprobar", async () => {
