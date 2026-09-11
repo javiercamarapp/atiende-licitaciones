@@ -8,6 +8,7 @@ import type { DbClient } from '@atiende/db';
 import { applyMigrations } from '@atiende/db';
 import type { MailProvider } from '@atiende/mail';
 import type { WhatsAppProvider } from '@atiende/whatsapp';
+import type { LLMProvider } from '@atiende/agents';
 import type { AppConfig } from './config.js';
 import { authPlugin } from './plugins/auth.plugin.js';
 import { superadminPlugin } from './plugins/superadmin.plugin.js';
@@ -59,7 +60,9 @@ import { expedienteFalloAutopsyRoutes } from './modules/expediente/fallo-autopsy
 import { expedienteRenewalRadarRoutes } from './modules/expediente/renewal-radar.routes.js';
 import { expedienteJuntaQuestionsRoutes } from './modules/expediente/junta-questions.routes.js';
 import { chatGptAppRoutes } from './modules/chatgpt-app/mcp.routes.js';
+import { onboardingRoutes } from './modules/onboarding/routes.js';
 import { MAX_BASE64_LENGTH } from './lib/storage.js';
+import { buildLlmProvider } from './lib/llm-provider.js';
 import './types.js';
 
 export interface BuildAppOptions {
@@ -70,6 +73,8 @@ export interface BuildAppOptions {
   mailProvider?: MailProvider;
   /** Canal ADICIONAL de WhatsApp: `WhatsAppProvider` explícito en vez del que resuelve `WHATSAPP_PROVIDER` -- ver `lib/mail/whatsapp-channel.ts`, misma costura de inyección que `mailProvider`. */
   whatsappProvider?: WhatsAppProvider;
+  /** Patrón Likida/atiende.ai #7: `LLMProvider` explícito en vez del que resuelve `config.openaiApiKey` -- ver `lib/llm-provider.ts::buildLlmProvider`, misma costura de inyección que `mailProvider`/`whatsappProvider` (las pruebas pasan un `FakeProvider` con script propio para afirmar el texto exacto sin red). */
+  llmProvider?: LLMProvider;
 }
 
 // AE-15 (docs/auditoria-2/api-expediente-reverificacion.md, BAJA): el
@@ -107,6 +112,11 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   // reales de Meta, que este entorno todavía no tiene) degrada a
   // CaptureProvider, nunca sale a Internet por accidente.
   app.decorate('whatsapp', buildWhatsAppProviderFromEnv({ provider: options.whatsappProvider }));
+  // Patrón Likida/atiende.ai #7 (onboarding conversacional): mismo criterio
+  // que mailProvider/whatsapp -- sin OPENAI_API_KEY (ni un llmProvider
+  // explícito de prueba), degrada a FakeProvider, nunca sale a la red por
+  // accidente.
+  app.decorate('llmProvider', options.llmProvider ?? buildLlmProvider(options.config.openaiApiKey));
   const pendingMail = new PendingMailTracker();
   app.decorate('pendingMail', pendingMail);
   app.decorate('waitForPendingMail', () => pendingMail.wait());
@@ -307,6 +317,9 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   await app.register(oicRoutes, { prefix: '/oic' });
   await app.register(meRoutes);
   await app.register(companyRoutes, { prefix: '/company' });
+  // Patrón Likida/atiende.ai #7: capa conversacional de solo lectura sobre
+  // el onboarding -- ver modules/onboarding/routes.ts.
+  await app.register(onboardingRoutes, { prefix: '/onboarding' });
   await app.register(tenderRoutes, { prefix: '/tenders' });
   await app.register(internalIngestRoutes, { prefix: '/internal/tenders' });
   await app.register(matchingRoutes, { prefix: '/matching' });

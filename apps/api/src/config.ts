@@ -98,6 +98,15 @@ export interface AppConfig {
    * de fabricar una URL absoluta que podría ser la equivocada.
    */
   apiPublicUrl: string | undefined;
+  /**
+   * Patrón Likida/atiende.ai #7 (onboarding conversacional): si está
+   * definida, `modules/onboarding/routes.ts` usa `OpenAIResponsesProvider`
+   * real; si no, `FakeProvider` (mismo criterio que `apps/worker`
+   * `config.ts`/`handlers/run-agent.ts::buildLlmProvider` -- pasar la
+   * suite con `FakeProvider` NO certifica ninguna integración real, ver
+   * packages/agents/README.md).
+   */
+  openaiApiKey?: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -147,5 +156,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     whatsappWebhookAppSecret: env.WHATSAPP_WEBHOOK_APP_SECRET,
     whatsappWebhookVerifyToken: env.WHATSAPP_WEBHOOK_VERIFY_TOKEN,
     apiPublicUrl: env.API_PUBLIC_URL,
+    openaiApiKey: env.OPENAI_API_KEY,
   };
 }

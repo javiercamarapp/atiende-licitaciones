@@ -388,6 +388,32 @@ sensibles) y aprueban tarifas.
   (`field_provenance`: `ownerUserId`, `source='manual'`, `updated_at`) —
   ver `GET .../provenance` en cada subrecurso vía `lib/company-crud.ts`.
 
+### onboarding (patrón Likida/atiende.ai #7 — capa conversacional)
+- `GET /onboarding/state` — SOLO LECTURA. Calcula, contra datos reales
+  (organización/`company_profiles`/`invitations`+`memberships`/
+  `company_documents`), qué falta y cuál es la siguiente pregunta en
+  lenguaje natural (`@atiende/agents::nextOnboardingQuestion`). No requiere
+  `X-Org-Id` (responde también antes de tener organización); si se manda
+  uno de una organización de la que no se es miembro, se ignora (se
+  degrada a la primera organización propia, o a ninguna) — nunca 403,
+  este endpoint es informativo.
+- `isComplete` es la GUARDA DETERMINISTA del patrón: `true` únicamente
+  cuando organización + razón social + RFC + giro ya están capturados —
+  calculada en `packages/agents/src/onboarding.ts::computeOnboardingProgress`,
+  nunca decidida por el LLM. Más estricto que
+  `apps/web/.../OnboardingPage.tsx` en un punto: ahí `sector` es opcional,
+  aquí es obligatorio a propósito (el patrón lo pide explícitamente).
+- `nextAction` siempre apunta a un endpoint YA existente y ya auditado
+  (`POST /organizations`, `PUT /company/profile`,
+  `POST /organizations/invitations`, `POST /company/documents`) — este
+  módulo nunca duplica esa lógica de escritura, solo dice cuál llamar.
+- `questionSource` es `"llm"` solo cuando `OPENAI_API_KEY` está configurada
+  y el proveedor respondió contenido real; sin ella (o ante cualquier
+  fallo del proveedor) es `"canned"` — mismo patrón "esqueleto honesto"
+  (`FakeProvider` por defecto) que `apps/worker` ya usa para los agentes
+  nombrados. PENDIENTE (igual que ahí): la integración real contra OpenAI
+  no se ha ejercitado con credenciales de producción.
+
 ### tenders (E3/E4 — convocatorias)
 - `GET /tenders` — filtros `status`/`source`, paginación por cursor.
 - `GET /tenders/:id`, `GET /tenders/:id/versions`, `GET /tenders/:id/change-events`.

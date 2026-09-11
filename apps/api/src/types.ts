@@ -1,5 +1,6 @@
 import type { DbClient } from '@atiende/db';
 import type { OrgRole, OicRole } from '@atiende/db';
+import type { LLMProvider } from '@atiende/agents';
 import type { MailProvider, MailService } from '@atiende/mail';
 import type { WhatsAppProvider } from '@atiende/whatsapp';
 import type { AppConfig } from './config.js';
@@ -22,6 +23,8 @@ declare module 'fastify' {
     waitForPendingMail: () => Promise<void>;
     /** Límites de tasa resueltos para el perfil activo (`config.rateLimitProfile`), ver `lib/rate-limit-settings.ts`. */
     rateLimitSettings: RateLimitSettings;
+    /** Patrón Likida/atiende.ai #7: `LLMProvider` único del proceso para `modules/onboarding/routes.ts` -- ver `lib/llm-provider.ts::buildLlmProvider`. */
+    llmProvider: LLMProvider;
     authenticate: (request: FastifyRequest) => Promise<void>;
     requireOrg: (request: FastifyRequest) => Promise<void>;
     /** REQ-060: paralelo de `requireOrg`, pero para el lado comprador (OIC).

@@ -27,3 +27,4 @@ export * from "./similarity/cross-tenant-detector.js";
 export * from "./audit/gates.js";
 export * from "./audit/judge.js";
 export * from "./audit/audit-report.js";
+export * from "./onboarding.js";

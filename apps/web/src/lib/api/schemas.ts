@@ -771,3 +771,31 @@ export type ChangePasswordResponse = z.infer<typeof changePasswordResponseSchema
 // POST /auth/google/unlink (apps/api/src/modules/auth/google/unlink.routes.ts).
 export const unlinkGoogleResponseSchema = z.object({ unlinked: z.literal(true) });
 export type UnlinkGoogleResponse = z.infer<typeof unlinkGoogleResponseSchema>;
+
+// --- Patrón Likida/atiende.ai #7 (onboarding conversacional) --
+// GET /onboarding/state (apps/api/src/modules/onboarding/routes.ts).
+const onboardingFieldIdSchema = z.enum(["organization", "legalName", "taxId", "sector", "team", "document"]);
+export type OnboardingFieldId = z.infer<typeof onboardingFieldIdSchema>;
+
+export const onboardingStateSchema = z.object({
+  // `z.string()` sin `.uuid()` -- mismo criterio que myOrgSchema.id de
+  // arriba: los ids reales de apps/api SÍ son UUID, pero exigirlo aquí
+  // rompería contra fixtures de prueba que usan ids legibles ("org-a").
+  orgId: z.string().nullable(),
+  hasOrganization: z.boolean(),
+  legalName: z.string().nullable(),
+  taxId: z.string().nullable(),
+  sector: z.string().nullable(),
+  teamInvited: z.boolean(),
+  firstDocumentUploaded: z.boolean(),
+  missingRequired: z.array(onboardingFieldIdSchema),
+  missingOptional: z.array(onboardingFieldIdSchema),
+  isComplete: z.boolean(),
+  nextField: onboardingFieldIdSchema.nullable(),
+  question: z.string(),
+  questionSource: z.enum(["llm", "canned"]),
+  nextAction: z
+    .object({ method: z.enum(["GET", "POST", "PUT"]), path: z.string(), hint: z.string() })
+    .nullable(),
+});
+export type OnboardingState = z.infer<typeof onboardingStateSchema>;
