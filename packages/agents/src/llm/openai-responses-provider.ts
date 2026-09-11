@@ -83,6 +83,9 @@ export class OpenAIResponsesProvider implements LLMProvider {
     if (request.maxOutputTokens !== undefined) {
       body.max_output_tokens = request.maxOutputTokens;
     }
+    if (request.temperature !== undefined) {
+      body.temperature = request.temperature;
+    }
     return body;
   }
 

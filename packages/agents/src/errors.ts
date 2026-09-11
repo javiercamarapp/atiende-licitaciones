@@ -252,6 +252,22 @@ export class ModelGateFailedError extends AgentsError {
 }
 
 /**
+ * REQ-037: se lanza cuando se intenta crear un `approval_request` a partir
+ * de un `AuditReport` cuyo `blocking[]` NO está vacío. `blocking=[]` es
+ * condición NECESARIA (no la evalúa el juez LLM, la evalúan los 5 gates
+ * deterministos de `packages/agents/src/audit/gates.ts` — ver
+ * `assertApprovalRequestAllowed` en `audit/audit-report.ts`).
+ */
+export class AuditBlockedError extends AgentsError {
+  constructor(readonly blockingCodes: string[]) {
+    super(
+      `No se puede crear approval_request: AuditReport.blocking no está vacío (${blockingCodes.join(", ")})`,
+      false,
+    );
+  }
+}
+
+/**
  * Clasifica un error como reintentable o no. Reglas (REQ-077/REQ-078):
  * - HTTP 429 y 5xx: reintentable.
  * - HTTP 4xx (salvo 429): no reintentable.

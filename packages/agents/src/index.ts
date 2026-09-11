@@ -16,3 +16,6 @@ export * from "./llm/provider.js";
 export * from "./llm/fake-provider.js";
 export * from "./llm/openai-responses-provider.js";
 export * from "./llm/router.js";
+export * from "./audit/gates.js";
+export * from "./audit/judge.js";
+export * from "./audit/audit-report.js";
