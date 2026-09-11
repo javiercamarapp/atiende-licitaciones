@@ -1,4 +1,4 @@
--- 0100_req041_junta_questions.sql
+-- 0110_req041_junta_questions.sql
 -- REQ-041 ("Diff de requisitos aplicado también a actas de junta de
 -- aclaraciones, con ventana de 24h para preguntas fundadas (cita + numeral +
 -- alternativa)"): historial INMUTABLE de corridas del generador determinista

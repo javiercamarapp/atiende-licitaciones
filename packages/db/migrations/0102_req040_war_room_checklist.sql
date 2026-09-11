@@ -1,4 +1,4 @@
--- 0099_req040_war_room_checklist.sql
+-- 0102_req040_war_room_checklist.sql
 -- REQ-040 ("sala de guerra" el día de apertura): historial INMUTABLE de
 -- corridas del `WarRoomChecklist` (packages/expediente) para un expediente
 -- concreto -- checklist anti-desechamiento (estado real del expediente

@@ -1,4 +1,4 @@
--- 0101_req112_worker_kyc_cross_tenant_reads.sql
+-- 0109_req112_worker_kyc_cross_tenant_reads.sql
 -- REQ-112: el job nocturno de KYC negativo/fingerprint de interpósita
 -- persona (`apps/worker`) corre como una corrida de PLATAFORMA (sin
 -- organización activa) y necesita leer, de TODOS los tenants a la vez, las
@@ -16,6 +16,16 @@
 -- el perfil de una empresa), y solo estas 4 tablas -- exactamente las que
 -- `packages/kyc` necesita para construir un `EntityFingerprintInput` por
 -- organización (ver `apps/worker/src/handlers/kyc-screening.ts`).
+--
+-- NOTA DE CONSOLIDACIÓN (workflow de cierre, fusión de ~20 items en una
+-- sola rama): 0103_req060_oic_module.sql (REQ-060, módulo comprador/OIC)
+-- YA redefine `sel_organizations` en la misma ronda de cierre, añadiendo
+-- `app.has_oic_role(...)` a la política. Como ambas migraciones hacen
+-- `drop policy if exists` + `create policy` sobre el MISMO nombre de
+-- política, la que se aplica DESPUÉS (esta, 0109 > 0103) determina el
+-- estado final -- por eso aquí se conserva EXPLÍCITAMENTE también la
+-- cláusula OIC de 0103, para no perderla silenciosamente. Si en el futuro
+-- se toca de nuevo `sel_organizations`, replicar las 4 condiciones de abajo.
 
 grant select on organizations to worker_role;
 grant select on company_profiles to worker_role;
@@ -28,6 +38,7 @@ create policy sel_organizations on organizations
     current_user = 'worker_role'
     or app.is_superadmin()
     or app.has_role(id, '{owner,admin,analyst,writer,reviewer,viewer}'::org_role[])
+    or app.has_oic_role(id, '{director_oic,analista_oic,consulta_oic}'::oic_role[])
   );
 
 drop policy if exists sel_company_profiles on company_profiles;

@@ -3,7 +3,7 @@
  * (`proposal_facts` con fuente, doc_id, página)", tolerancia cero) -- wiring
  * real entre los `SourceRef` que YA produce `packages/expediente`
  * (`TechnicalProposalBuilder`/`EconomicProposalBuilder`) y la tabla
- * `proposal_facts` (packages/db/migrations/0099_req035_proposal_facts.sql).
+ * `proposal_facts` (packages/db/migrations/0101_req035_proposal_facts.sql).
  *
  * Nunca se fabrica un `doc_id`/página aquí: esta capa solo desestructura el
  * `SourceRef` real que ya trae cada `ProposalStatement`/`EconomicLineItem` y

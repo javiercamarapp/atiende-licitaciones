@@ -1,4 +1,4 @@
--- 0099_req026_kyc_negativo_69b_fingerprint.sql
+-- 0107_req026_kyc_negativo_69b_fingerprint.sql
 -- REQ-026/REQ-111/REQ-112 (docs/REQUISITOS.md): KYC negativo obligatorio
 -- (cruce contra la lista 69-B del SAT -- CFF Art. 69-B, verificado
 -- 2026-09-10/11 contra https://www.diputados.gob.mx/LeyesBiblio/pdf/CFF.pdf,

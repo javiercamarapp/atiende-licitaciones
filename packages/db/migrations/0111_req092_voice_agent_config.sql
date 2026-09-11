@@ -1,4 +1,4 @@
--- 0100_req092_voice_agent_config.sql
+-- 0111_req092_voice_agent_config.sql
 -- REQ-092/REQ-093 (docs/REQUISITOS.md §21 "Móvil / Canales"): configuración
 -- por organización del agente de voz/Realtime (ElevenLabs Conversational
 -- AI) -- mismo patrón de tabla ya usado en el repo hermano atiende-hoteles

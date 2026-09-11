@@ -1,4 +1,4 @@
--- 0099_req032_proposal_section_fingerprints.sql
+-- 0100_req032_proposal_section_fingerprints.sql
 -- REQ-032 (BLUEPRINT L625-627, G-11): "Huellas de similitud (MinHash) entre
 -- tenants sin cruzar contenido; generación condicionada al estilo/evidencia
 -- de cada tenant". REQ-034: prohibido compartir plantillas/contenido entre

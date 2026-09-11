@@ -1,4 +1,4 @@
--- 0099_req090_whatsapp_interactive_webhook.sql
+-- 0105_req090_whatsapp_interactive_webhook.sql
 -- REQ-090 (WhatsApp como interfaz de trabajo primaria, decide vía
 -- botones/listas) + REQ-074 (webhooks de WhatsApp idempotentes por wamid).
 --

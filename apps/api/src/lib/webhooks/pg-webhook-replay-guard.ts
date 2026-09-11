@@ -4,7 +4,7 @@ import type { WebhookReplayGuard } from '@atiende/webhooks';
 /**
  * REQ-096: implementación real de `WebhookReplayGuard` (`@atiende/webhooks`)
  * sobre la tabla GENÉRICA `webhook_events_seen`
- * (`packages/db/migrations/0099_req096_generic_webhook_replay_guard.sql`),
+ * (`packages/db/migrations/0106_req096_generic_webhook_replay_guard.sql`),
  * lista para que CUALQUIER webhook entrante nuevo la instancie sin tener
  * que crear su propia tabla/función SQL desde cero — a diferencia de
  * `apps/api/src/lib/mail/pg-webhook-replay-guard.ts` (que sigue existiendo

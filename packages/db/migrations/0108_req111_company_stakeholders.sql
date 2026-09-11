@@ -1,4 +1,4 @@
--- 0100_req111_company_stakeholders.sql
+-- 0108_req111_company_stakeholders.sql
 -- REQ-111 (docs/REQUISITOS.md): el fingerprint de entidad para detectar
 -- interpósita persona requiere RFC + SOCIOS + representantes + domicilio.
 -- `company_profiles.tax_id` (RFC), `locations` (domicilio) y

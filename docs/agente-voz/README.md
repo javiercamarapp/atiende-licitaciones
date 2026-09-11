@@ -55,7 +55,7 @@ en cada turno de voz. Ver §4 para el detalle y el pendiente honesto.
   firmar, actuar en un portal, contactar a un tercero) con o sin la palabra "confirmo",
   y (c) "confirmo" sin ninguna acción sensible adjunta → se registra como intención,
   nunca como ejecución.
-- `packages/db/migrations/0100_req092_voice_agent_config.sql`: tabla `voice_agent_config`
+- `packages/db/migrations/0111_req092_voice_agent_config.sql`: tabla `voice_agent_config`
   por organización (secreto de webhook + `elevenlabs_agent_id` + `enabled`, apagado por
   default), RLS restringida a `owner`/`admin`.
 - `apps/api/src/modules/voice/routes.ts` (+ `schemas.ts`): el webhook público

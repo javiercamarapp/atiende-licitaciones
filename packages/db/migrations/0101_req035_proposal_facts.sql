@@ -1,4 +1,4 @@
--- 0099_req035_proposal_facts.sql
+-- 0101_req035_proposal_facts.sql
 -- REQ-035 ("Cada dato renderizado en la propuesta lleva procedencia
 -- (`proposal_facts` con fuente, doc_id, página)", tolerancia cero):
 -- normaliza en una tabla propia y consultable la procedencia de cada hecho

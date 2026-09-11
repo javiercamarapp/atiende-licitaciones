@@ -7,7 +7,7 @@ import { createMigratedDb, seedOrg, seedMember, seedTender, asActor } from './he
  * (`proposal_facts` con fuente, doc_id, página)", tolerancia cero).
  *
  * Estas pruebas cubren la tabla a nivel de esquema (constraints reales, no
- * solo validación en la capa de aplicación -- ver 0099_req035_proposal_
+ * solo validación en la capa de aplicación -- ver 0101_req035_proposal_
  * facts.sql). El aislamiento multi-tenant genérico (RLS) para esta tabla ya
  * está cubierto por `rls-isolation.test.ts` vía `DOMAIN_TABLES`.
  *

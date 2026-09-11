@@ -1,7 +1,7 @@
 /**
  * REQ-060: módulo de lado comprador (OIC/contraloría), con su propio
  * aislamiento de datos y roles respecto al lado proveedor -- ver
- * packages/db/migrations/0099_req060_oic_module.sql para el diseño
+ * packages/db/migrations/0103_req060_oic_module.sql para el diseño
  * completo y packages/db/test/req060-oic-isolation.test.ts para la prueba
  * de aislamiento adversarial (criterio de aceptación literal de REQ-060).
  *

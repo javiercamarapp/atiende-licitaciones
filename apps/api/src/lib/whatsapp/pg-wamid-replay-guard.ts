@@ -4,7 +4,7 @@ import type { WamidReplayGuard } from '@atiende/whatsapp';
 /**
  * Implementación real de `WamidReplayGuard` (`@atiende/whatsapp`, REQ-074)
  * sobre `whatsapp_webhook_events_seen` (packages/db/migrations/
- * 0099_req090_whatsapp_interactive_webhook.sql). Usada por
+ * 0105_req090_whatsapp_interactive_webhook.sql). Usada por
  * `POST /webhooks/whatsapp` (`modules/whatsapp/webhook.routes.ts`).
  *
  * Mismo patrón que `PgWebhookReplayGuard` (`lib/mail/pg-webhook-replay-guard.ts`),

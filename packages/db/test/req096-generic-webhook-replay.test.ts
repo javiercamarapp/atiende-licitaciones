@@ -4,7 +4,7 @@ import type { DbClient } from '../src/driver.js';
 import { createMigratedDb, asActor } from './helpers.js';
 
 /**
- * REQ-096 (0099_req096_generic_webhook_replay_guard.sql): generaliza el
+ * REQ-096 (0106_req096_generic_webhook_replay_guard.sql): generaliza el
  * anti-replay de webhooks (ML-05, hasta ahora solo para correo --
  * `app.mail_webhook_claim`, ver req181-mail.test.ts) a
  * `app.webhook_claim(provider, event_id, tolerance_seconds)`, reutilizable

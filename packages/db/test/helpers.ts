@@ -504,7 +504,7 @@ export const DOMAIN_TABLES: DomainTableSpec[] = [
       return rows[0].id;
     },
   },
-  // --- REQ-032 (0099_req032_proposal_section_fingerprints.sql) ---
+  // --- REQ-032 (0100_req032_proposal_section_fingerprints.sql) ---
   {
     table: 'proposal_section_fingerprints',
     seedAux: insertTenderAux,

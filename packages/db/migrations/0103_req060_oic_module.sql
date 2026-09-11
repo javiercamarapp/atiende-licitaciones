@@ -1,4 +1,4 @@
--- 0099_req060_oic_module.sql
+-- 0103_req060_oic_module.sql
 -- REQ-060: "Separación estricta de datos por tenant para producto de lado
 -- comprador (OIC/contralorías): nunca exponer información privada de
 -- proveedores propios" (docs/REQUISITOS.md §10; L09 §5.4/§8 hallazgo 49).

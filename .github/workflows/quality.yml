@@ -55,6 +55,9 @@ jobs:
           - packages/evals
           - packages/sources
           - packages/whatsapp
+          - packages/kyc
+          - packages/ocr
+          - packages/webhooks
     steps:
       - uses: actions/checkout@v4
 
@@ -90,7 +93,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-${{ matrix.workspace == 'apps/api' && 'apps-api' || matrix.workspace == 'apps/web' && 'apps-web' || matrix.workspace == 'apps/worker' && 'apps-worker' || matrix.workspace == 'packages/db' && 'packages-db' || matrix.workspace == 'packages/agents' && 'packages-agents' || matrix.workspace == 'packages/expediente' && 'packages-expediente' || matrix.workspace == 'packages/evals' && 'packages-evals' || matrix.workspace == 'packages/sources' && 'packages-sources' || 'packages-whatsapp' }}
+          name: coverage-${{ matrix.workspace == 'apps/api' && 'apps-api' || matrix.workspace == 'apps/web' && 'apps-web' || matrix.workspace == 'apps/worker' && 'apps-worker' || matrix.workspace == 'packages/db' && 'packages-db' || matrix.workspace == 'packages/agents' && 'packages-agents' || matrix.workspace == 'packages/expediente' && 'packages-expediente' || matrix.workspace == 'packages/evals' && 'packages-evals' || matrix.workspace == 'packages/sources' && 'packages-sources' || matrix.workspace == 'packages/whatsapp' && 'packages-whatsapp' || matrix.workspace == 'packages/kyc' && 'packages-kyc' || matrix.workspace == 'packages/ocr' && 'packages-ocr' || 'packages-webhooks' }}
           path: ${{ matrix.workspace }}/coverage/**
           if-no-files-found: ignore
           retention-days: 14

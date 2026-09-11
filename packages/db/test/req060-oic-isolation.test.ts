@@ -19,7 +19,7 @@ import {
  * "Test de aislamiento confirma que el producto de lado comprador no
  * expone datos de proveedores propios".
  *
- * Ver packages/db/migrations/0099_req060_oic_module.sql para el diseño
+ * Ver packages/db/migrations/0103_req060_oic_module.sql para el diseño
  * completo (nota al inicio del archivo).
  */
 describe('REQ-060: módulo comprador (OIC) -- aislamiento de datos y roles', () => {

@@ -1,4 +1,4 @@
--- 0099_req096_generic_webhook_replay_guard.sql
+-- 0106_req096_generic_webhook_replay_guard.sql
 -- REQ-096: generaliza el anti-replay de webhooks (ML-05, hasta ahora solo
 -- para el webhook de correo -- `mail_webhook_events_seen`/
 -- `app.mail_webhook_claim`, 0081) a una tabla/función ÚNICA reutilizable por
