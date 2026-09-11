@@ -53,6 +53,7 @@ import { expedienteContractRoutes } from './modules/expediente/contract.routes.j
 import { expedienteInconformidadRoutes } from './modules/expediente/inconformidad.routes.js';
 import { expedienteFalloAutopsyRoutes } from './modules/expediente/fallo-autopsy.routes.js';
 import { expedienteRenewalRadarRoutes } from './modules/expediente/renewal-radar.routes.js';
+import { expedienteJuntaQuestionsRoutes } from './modules/expediente/junta-questions.routes.js';
 import { MAX_BASE64_LENGTH } from './lib/storage.js';
 import './types.js';
 
@@ -340,6 +341,9 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   await app.register(expedienteInconformidadRoutes, { prefix: '/expediente' });
   await app.register(expedienteFalloAutopsyRoutes, { prefix: '/expediente' });
   await app.register(expedienteRenewalRadarRoutes, { prefix: '/expediente' });
+  // REQ-041: generador de preguntas de junta de aclaraciones con fuente
+  // verificable (nunca una pregunta sin cita real).
+  await app.register(expedienteJuntaQuestionsRoutes, { prefix: '/expediente' });
 
   return app;
 }

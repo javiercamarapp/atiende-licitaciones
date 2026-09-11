@@ -2,6 +2,7 @@ export * from "./types.js";
 export * from "./money.js";
 export * from "./number-to-words.js";
 export * from "./requirement-matrix.js";
+export * from "./junta-questions.js";
 export * from "./llm/extractor.js";
 export * from "./company-data.js";
 export * from "./technical-proposal.js";
