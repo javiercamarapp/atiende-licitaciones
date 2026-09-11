@@ -2,7 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import fp from 'fastify-plugin';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { verifyAccessToken } from '../lib/jwt.js';
-import { UnauthorizedError, ForbiddenError, BadRequestError } from '../lib/errors.js';
+import { UnauthorizedError, ForbiddenError, BadRequestError, KycSuspendedError } from '../lib/errors.js';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -46,11 +46,27 @@ async function authPluginImpl(app: FastifyInstance): Promise<void> {
       // `p_user_id` arbitrario que permitiera consultar el rol de otro
       // usuario. Ver packages/db/migrations/0019_fix_db01_security_definer_scope.sql.
       await tx.query("select set_config('app.current_user_id', $1, true)", [request.userId]);
-      return tx.query<{ role: string | null }>('select app.membership_role($1) as role', [orgId]);
+      // REQ-026: se resuelve en la MISMA consulta (sin round trip extra) el
+      // veredicto de KYC vigente del tenant -- `app.tenant_kyc_verdict` es
+      // SECURITY DEFINER (packages/db/migrations/0099_*.sql) y no expone
+      // nada más que ese único valor.
+      return tx.query<{ role: string | null; kyc_verdict: string | null }>(
+        'select app.membership_role($1) as role, app.tenant_kyc_verdict($1) as kyc_verdict',
+        [orgId]
+      );
     });
     const role = rows[0]?.role;
     if (!role) {
       throw new ForbiddenError('No eres miembro de esta organización');
+    }
+    // REQ-026 (tolerancia cero): un tenant con veredicto de KYC "suspended"
+    // (su RFC apareció en la lista 69-B del SAT con situación "Definitivo",
+    // al capturarlo o en el cruce nocturno de apps/worker) queda bloqueado
+    // en TODA ruta que dependa de `requireOrg` -- no solo en la que
+    // capturó el RFC. `kyc_verdict === null` ("nunca verificado") NUNCA se
+    // trata como suspendido: solo el valor explícito 'suspended' bloquea.
+    if (rows[0]?.kyc_verdict === 'suspended') {
+      throw new KycSuspendedError();
     }
     request.orgId = orgId;
     request.orgRole = role as FastifyRequest['orgRole'];

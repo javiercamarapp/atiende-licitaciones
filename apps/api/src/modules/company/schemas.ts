@@ -174,6 +174,27 @@ export const signatorySchema = z.object({
 });
 
 // ---------------------------------------------------------------------------
+// company_stakeholders (socios/accionistas -- REQ-111, fingerprint de
+// interpósita persona. Migración 0100: no existía esta tabla antes.)
+// ---------------------------------------------------------------------------
+export const stakeholderCreateSchema = z.object({
+  kind: z.string().min(1),
+  fullName: z.string().min(1),
+  rfc: z.string().optional(),
+  participationPct: z.number().min(0).max(100).optional(),
+});
+export const stakeholderUpdateSchema = stakeholderCreateSchema.partial();
+export const stakeholderSchema = z.object({
+  id: z.string().uuid(),
+  kind: z.string(),
+  fullName: z.string(),
+  rfc: z.string().nullable(),
+  participationPct: z.number().nullable(),
+  createdAt: isoTimestamp,
+  updatedAt: isoTimestamp,
+});
+
+// ---------------------------------------------------------------------------
 // restrictions
 // ---------------------------------------------------------------------------
 export const restrictionCreateSchema = z.object({

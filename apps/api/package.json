@@ -15,6 +15,7 @@
     "@atiende/agents": "*",
     "@atiende/db": "*",
     "@atiende/expediente": "*",
+    "@atiende/kyc": "*",
     "@atiende/mail": "*",
     "@atiende/sources": "*",
     "@atiende/whatsapp": "*",
