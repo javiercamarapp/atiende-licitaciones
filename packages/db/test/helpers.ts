@@ -487,4 +487,28 @@ export const DOMAIN_TABLES: DomainTableSpec[] = [
       return rows[0].id;
     },
   },
+  // --- REQ-006 (0099_req006_semantic_matching_pgvector.sql) ---
+  {
+    table: 'tender_embeddings',
+    seedAux: insertTenderAux,
+    async insertRow(db, orgId, aux) {
+      const { rows } = await db.query<{ id: string }>(
+        `insert into tender_embeddings (org_id, tender_id, source_text_hash, model, dims, embedding_fallback)
+         values ($1, $2, 'seed-hash', 'seed-model', 2, $3) returning id`,
+        [orgId, aux.tenderId, [0.1, 0.2]]
+      );
+      return rows[0].id;
+    },
+  },
+  {
+    table: 'company_profile_embeddings',
+    async insertRow(db, orgId) {
+      const { rows } = await db.query<{ id: string }>(
+        `insert into company_profile_embeddings (org_id, source_text_hash, model, dims, embedding_fallback)
+         values ($1, 'seed-hash', 'seed-model', 2, $2) returning id`,
+        [orgId, [0.1, 0.2]]
+      );
+      return rows[0].id;
+    },
+  },
 ];

@@ -212,6 +212,14 @@ services:
       WHATSAPP_API_VERSION: ${WHATSAPP_API_VERSION:-}
       WHATSAPP_DEFAULT_LANGUAGE: ${WHATSAPP_DEFAULT_LANGUAGE:-}
       WHATSAPP_CAPTURE_FILE: ${WHATSAPP_CAPTURE_FILE:-}
+      # REQ-006 (motor de matching semántico/pgvector): sin ella,
+      # `resolveEmbeddingProvider` (apps/api/src/modules/matching/semantic.ts)
+      # usa FakeEmbeddingProvider -- determinista y sin red, el mismo
+      # comportamiento honesto que el resto del repo ante credenciales
+      # ausentes (ver README.md "Pendientes": verificado_contra_real=false
+      # hasta tener esta clave real). Mismo valor que ya usa `worker` más
+      # abajo (una sola cuenta de OpenAI para todo el despliegue).
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     volumes:
       - api_storage:/app/data/storage
     depends_on:
