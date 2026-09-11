@@ -2,7 +2,7 @@ import { createPgliteClient } from '../src/driver.js';
 import { applyMigrations } from '../src/migrate.js';
 import { withTenantContext, type TenantContext } from '../src/context.js';
 import type { DbClient, DbExecutor } from '../src/driver.js';
-import type { OrgRole } from '../src/roles.js';
+import type { OrgRole, OicRole } from '../src/roles.js';
 
 /** Crea una base PGlite en memoria y aplica todas las migraciones reales. */
 export async function createMigratedDb(): Promise<DbClient> {
@@ -53,6 +53,22 @@ export async function seedMember(db: DbClient, orgId: string, email: string, rol
 export async function seedSuperadmin(db: DbClient, email: string): Promise<string> {
   const userId = await seedUser(db, email);
   await db.query('insert into platform_admins (user_id) values ($1)', [userId]);
+  return userId;
+}
+
+/** REQ-060: crea una organización kind='comprador' (OIC/contraloría) directamente (sin RLS). */
+export async function seedOicOrg(db: DbClient, slug: string, name = slug): Promise<SeededOrg> {
+  const { rows } = await db.query<{ id: string }>(
+    "insert into organizations (name, slug, kind) values ($1, $2, 'comprador') returning id",
+    [name, slug]
+  );
+  return { orgId: rows[0].id, slug };
+}
+
+/** REQ-060: crea un usuario y lo hace miembro OIC (oic_memberships) de una organización compradora. */
+export async function seedOicMember(db: DbClient, orgId: string, email: string, role: OicRole): Promise<string> {
+  const userId = await seedUser(db, email);
+  await db.query('insert into oic_memberships (org_id, user_id, role) values ($1, $2, $3)', [orgId, userId, role]);
   return userId;
 }
 

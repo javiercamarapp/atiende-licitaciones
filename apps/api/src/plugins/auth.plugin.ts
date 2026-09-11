@@ -56,6 +56,49 @@ async function authPluginImpl(app: FastifyInstance): Promise<void> {
     request.orgRole = role as FastifyRequest['orgRole'];
   });
 
+  // REQ-060: paralelo de `requireOrg`, pero para el lado comprador (OIC).
+  // Usa una cabecera PROPIA (`X-Oic-Org-Id`, nunca `X-Org-Id`) y resuelve el
+  // rol contra `app.oic_membership_role` (oic_memberships), nunca contra
+  // `app.membership_role` (memberships) -- ningún camino de código puede
+  // confundir un id de organización compradora con uno proveedor, ni por
+  // typo ni por copiar/pegar de `requireOrg`. Además de la RLS real
+  // (última línea de defensa, packages/db/migrations/0099), se verifica
+  // aquí explícitamente que la organización sea kind='comprador': si un
+  // actor con oic_memberships en alguna organización manda por error (o a
+  // propósito) el id de una organización proveedora, el mensaje de error es
+  // claro (403) en vez de un "no eres miembro" genérico que no distingue
+  // el motivo.
+  app.decorate('requireOicOrg', async function requireOicOrg(request: FastifyRequest): Promise<void> {
+    if (!request.userId) {
+      throw new UnauthorizedError();
+    }
+    const orgId = request.headers['x-oic-org-id'];
+    if (!orgId || typeof orgId !== 'string') {
+      throw new ForbiddenError('Falta encabezado X-Oic-Org-Id');
+    }
+    if (!UUID_PATTERN.test(orgId)) {
+      throw new BadRequestError('X-Oic-Org-Id no es un UUID válido');
+    }
+    const { rows } = await app.db.transaction(async (tx) => {
+      await tx.query('set local role app_role');
+      await tx.query("select set_config('app.current_user_id', $1, true)", [request.userId]);
+      return tx.query<{ role: string | null; kind: string | null }>(
+        `select app.oic_membership_role($1) as role,
+                (select kind from organizations where id = $1) as kind`,
+        [orgId]
+      );
+    });
+    const row = rows[0];
+    if (row?.kind !== 'comprador') {
+      throw new ForbiddenError('Esta organización no es de lado comprador (OIC)');
+    }
+    if (!row?.role) {
+      throw new ForbiddenError('No eres miembro OIC de esta organización');
+    }
+    request.oicOrgId = orgId;
+    request.oicRole = row.role as FastifyRequest['oicRole'];
+  });
+
   // Autenticación de servicios internos (p.ej. apps/worker) vía cabecera
   // `X-Platform-Api-Key` comparada contra `config.platformApiKey`. Falla
   // CERRADO: si la variable de entorno no está configurada, NINGUNA

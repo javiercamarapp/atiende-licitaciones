@@ -1,5 +1,5 @@
 import type { DbClient } from '@atiende/db';
-import type { OrgRole } from '@atiende/db';
+import type { OrgRole, OicRole } from '@atiende/db';
 import type { MailProvider, MailService } from '@atiende/mail';
 import type { WhatsAppProvider } from '@atiende/whatsapp';
 import type { AppConfig } from './config.js';
@@ -24,6 +24,12 @@ declare module 'fastify' {
     rateLimitSettings: RateLimitSettings;
     authenticate: (request: FastifyRequest) => Promise<void>;
     requireOrg: (request: FastifyRequest) => Promise<void>;
+    /** REQ-060: paralelo de `requireOrg`, pero para el lado comprador (OIC).
+     *  Físicamente separado de `requireOrg` a propósito (ver
+     *  `plugins/auth.plugin.ts`) -- ninguno de los dos puede resolver una
+     *  organización del otro lado, ni siquiera por error de programación,
+     *  porque cada uno solo sabe consultar su propia tabla de membresías. */
+    requireOicOrg: (request: FastifyRequest) => Promise<void>;
     requireSuperadmin: (request: FastifyRequest) => Promise<void>;
     requirePlatformApiKey: (request: FastifyRequest) => Promise<void>;
   }
@@ -33,6 +39,10 @@ declare module 'fastify' {
     orgId?: string;
     orgRole?: OrgRole;
     isSuperadmin?: boolean;
+    /** REQ-060: organización activa del lado comprador (OIC), resuelta por `requireOicOrg`. */
+    oicOrgId?: string;
+    /** REQ-060: rol OIC del actor en `oicOrgId`, resuelto por `requireOicOrg`. */
+    oicRole?: OicRole;
     /** REQ-171: id de correlación de negocio (heredado de `X-Correlation-Id` o generado), ver `plugins/correlation-id.plugin.ts`. */
     correlationId?: string;
   }

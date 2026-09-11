@@ -24,6 +24,7 @@ import { authPasswordRoutes } from './modules/auth/password.routes.js';
 import { twofaRoutes } from './modules/twofa/routes.js';
 import { legalRoutes } from './modules/legal/routes.js';
 import { organizationRoutes } from './modules/organizations/routes.js';
+import { oicRoutes } from './modules/oic/routes.js';
 import { meRoutes } from './modules/me/routes.js';
 import { companyRoutes } from './modules/company/routes.js';
 import { tenderRoutes } from './modules/tenders/routes.js';
@@ -301,6 +302,9 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   await app.register(sessionsRoutes, { prefix: '/auth' });
   await app.register(authPasswordRoutes, { prefix: '/auth' });
   await app.register(organizationRoutes, { prefix: '/organizations' });
+  // REQ-060: módulo de lado comprador (OIC/contraloría), aislado del lado
+  // proveedor -- ver modules/oic/routes.ts.
+  await app.register(oicRoutes, { prefix: '/oic' });
   await app.register(meRoutes);
   await app.register(companyRoutes, { prefix: '/company' });
   await app.register(tenderRoutes, { prefix: '/tenders' });
