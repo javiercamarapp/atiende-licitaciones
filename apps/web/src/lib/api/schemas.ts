@@ -608,6 +608,29 @@ export const packageAssembleResponseSchema = z.object({
 });
 export type PackageAssembleResponse = z.infer<typeof packageAssembleResponseSchema>;
 
+// --- checklist de "sala de guerra" (REQ-040) --------------------------------------
+export const WAR_ROOM_DIMENSIONS = ["checklist_anti_desechamiento", "cuenta_regresiva", "hash_zip", "holgura_24h"] as const;
+export type WarRoomDimension = (typeof WAR_ROOM_DIMENSIONS)[number];
+
+export const warRoomItemSchema = z.object({
+  dimension: z.enum(WAR_ROOM_DIMENSIONS),
+  status: z.enum(COMPLIANCE_RESULTS),
+  detail: z.string(),
+  evidence: z.array(z.string()),
+});
+export type WarRoomItem = z.infer<typeof warRoomItemSchema>;
+
+export const warRoomReportSchema = z.object({
+  id: z.string(),
+  overallStatus: z.enum(COMPLIANCE_RESULTS),
+  items: z.array(warRoomItemSchema),
+  hoursUntilDeadline: z.number().nullable(),
+  submissionDeadlineIso: z.string().nullable(),
+  computedAt: z.string(),
+  runBy: z.string().nullable(),
+});
+export type WarRoomReport = z.infer<typeof warRoomReportSchema>;
+
 // --- presentación declarada por el usuario (E9, A15) ----------------------------
 export const submissionSchema = z.object({
   id: z.string(),

@@ -24,7 +24,8 @@ import { notifySubmissionPackageReadyToResponsibles } from '../../lib/mail/submi
 import { timestampToIso } from '../../lib/expediente/dates.js';
 import { packageAssembleResponseSchema } from './schemas.js';
 
-async function loadChecklistReport(tx: DbExecutor, orgId: string, proposalId: string): Promise<ChecklistReport> {
+/** Exportado para reutilizarse en `war-room.routes.ts` (REQ-040): misma fuente de verdad del checklist de integridad, nunca una segunda lectura ad hoc de `compliance_items`. */
+export async function loadChecklistReport(tx: DbExecutor, orgId: string, proposalId: string): Promise<ChecklistReport> {
   const rows = (
     await tx.query<Record<string, unknown>>(
       "select * from compliance_items where org_id = $1 and proposal_id = $2 and dimension is not null and invalidated_at is null order by dimension asc",
@@ -56,7 +57,8 @@ async function loadChecklistReport(tx: DbExecutor, orgId: string, proposalId: st
  * /package/download` rechaza con 409 explícito si el paquete guardado
  * ERA "ready" pero ya no lo es, en vez de servir el ZIP viejo.
  */
-async function deriveCurrentManifest(
+/** Exportado para reutilizarse en `war-room.routes.ts` (REQ-040): mismo criterio AE-14 de re-derivar el estado ACTUAL del paquete, nunca confiar en el `status` guardado de la última corrida. */
+export async function deriveCurrentManifest(
   tx: DbExecutor,
   params: { orgId: string; tenderId: string; proposalId: string }
 ): Promise<PackageManifest> {

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { FolderKanban, FileSearch, FolderCheck, PenLine, ClipboardCheck, PackageCheck, Send, ArrowRight } from "lucide-react";
+import { FolderKanban, FileSearch, FolderCheck, PenLine, ClipboardCheck, PackageCheck, Send, ArrowRight, AlertTriangle } from "lucide-react";
 
 import { SectionHeader } from "@/components/layout/SectionHeader";
 import { TenderSelect } from "@/components/expediente/TenderSelect";
@@ -15,6 +15,7 @@ import {
   useChecklist,
   useApprovalState,
   useLatestPackage,
+  useWarRoomChecklist,
   useSubmission,
 } from "@/hooks/useExpediente";
 
@@ -49,6 +50,7 @@ function ExpedienteOverview({ tenderId }: { tenderId: string }) {
   const { data: checklist } = useChecklist(tenderId);
   const { data: approval } = useApprovalState(tenderId);
   const { data: pkg } = useLatestPackage(tenderId);
+  const { data: warRoom } = useWarRoomChecklist(tenderId);
   const { data: submission } = useSubmission(tenderId);
 
   const activeRequirements = (matrix ?? []).filter((r) => !r.invalidatedAt);
@@ -99,6 +101,16 @@ function ExpedienteOverview({ tenderId }: { tenderId: string }) {
           <Badge variant={pkg.status === "ready" ? "success" : "outline"}>{pkg.status === "ready" ? "Listo" : "Borrador"}</Badge>
         ) : (
           <p className="text-sm text-muted-foreground">Aún no se ha ensamblado ningún paquete.</p>
+        )}
+      </OverviewCard>
+
+      <OverviewCard icon={AlertTriangle} title="Sala de guerra" to="/entrega/sala-de-guerra">
+        {warRoom ? (
+          <Badge variant={warRoom.overallStatus === "verde" ? "success" : warRoom.overallStatus === "ambar" ? "warning" : "destructive"}>
+            Última corrida: {warRoom.overallStatus}
+          </Badge>
+        ) : (
+          <p className="text-sm text-muted-foreground">Checklist de sala de guerra aún no ejecutado.</p>
         )}
       </OverviewCard>
 

@@ -815,3 +815,25 @@ export const renewalUpcomingResponseSchema = z.object({
   truncated: z.boolean(),
   groups: z.array(renewalUpcomingGroupSchema),
 });
+
+// ---------------------------------------------------------------------------
+// Checklist de "sala de guerra" (REQ-040) -- gate final antes del acto de
+// apertura, independiente del checklist de integridad (REQ-160).
+// ---------------------------------------------------------------------------
+export const warRoomItemSchema = z.object({
+  dimension: z.enum(['checklist_anti_desechamiento', 'cuenta_regresiva', 'hash_zip', 'holgura_24h']),
+  status: z.enum(['verde', 'ambar', 'rojo']),
+  detail: z.string(),
+  evidence: z.array(z.string()),
+});
+
+export const warRoomReportSchema = z.object({
+  id: z.string().uuid(),
+  overallStatus: z.enum(['verde', 'ambar', 'rojo']),
+  items: z.array(warRoomItemSchema),
+  /** Horas (con fracción) hasta la fecha límite de presentación al momento de esta corrida; negativo si ya venció; `null` si la convocatoria no tiene fecha límite fijada. */
+  hoursUntilDeadline: z.number().nullable(),
+  submissionDeadlineIso: nullableIsoTimestamp,
+  computedAt: isoTimestamp,
+  runBy: z.string().uuid().nullable(),
+});

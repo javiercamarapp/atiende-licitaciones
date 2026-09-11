@@ -46,6 +46,7 @@ import { expedienteProposalRoutes } from './modules/expediente/proposal.routes.j
 import { expedienteChecklistRoutes } from './modules/expediente/checklist.routes.js';
 import { expedienteApprovalRoutes } from './modules/expediente/approval.routes.js';
 import { expedientePackageRoutes } from './modules/expediente/package.routes.js';
+import { expedienteWarRoomRoutes } from './modules/expediente/war-room.routes.js';
 import { expedienteSubmissionRoutes } from './modules/expediente/submission.routes.js';
 import { expedientePostAwardRoutes } from './modules/expediente/post-award.routes.js';
 import { expedienteCollectionRoutes } from './modules/expediente/collection.routes.js';
@@ -327,6 +328,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   await app.register(expedienteChecklistRoutes, { prefix: '/expediente' });
   await app.register(expedienteApprovalRoutes, { prefix: '/expediente' });
   await app.register(expedientePackageRoutes, { prefix: '/expediente' });
+  // REQ-040: checklist de "sala de guerra" antes de cada acto de apertura.
+  await app.register(expedienteWarRoomRoutes, { prefix: '/expediente' });
   await app.register(expedienteSubmissionRoutes, { prefix: '/expediente' });
   await app.register(expedientePostAwardRoutes, { prefix: '/expediente' });
   // REQ-051 (máquina de estados de COBRANZA para post_award_followups de
