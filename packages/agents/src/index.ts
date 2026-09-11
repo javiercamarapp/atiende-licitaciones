@@ -17,3 +17,7 @@ export * from "./llm/fake-provider.js";
 export * from "./llm/openai-responses-provider.js";
 export * from "./llm/router.js";
 export * from "./analytics/index.js";
+export * from "./embeddings/provider.js";
+export * from "./embeddings/similarity.js";
+export * from "./embeddings/fake-embedding-provider.js";
+export * from "./embeddings/openai-embedding-provider.js";

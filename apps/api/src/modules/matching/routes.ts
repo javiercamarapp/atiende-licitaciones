@@ -12,6 +12,7 @@ import {
   type TenderRowForMatching,
 } from './engine.js';
 import { matchResultSchema, matchListResponseSchema } from './schemas.js';
+import { computeSemanticRelevance, buildProfileEmbeddingText, buildTenderEmbeddingText } from './semantic.js';
 
 /**
  * Construye el perfil de matching real (E5) a partir del perfil de empresa
@@ -89,6 +90,22 @@ export async function buildProfileAndEligibility(
   return { profileInput: { keywords, states }, hardEligibility, missingProfileFields };
 }
 
+/**
+ * REQ-006: texto extraído de los anexos técnicos REALES de la convocatoria
+ * (`tender_documents.extracted_text`) para el embedding semántico -- el
+ * requisito exige explícitamente ir más allá de solo metadatos/título.
+ * `extracted_text` puede ser `null` (documento subido pero aún no
+ * procesado/extraído): se omite sin inventar contenido, nunca se produce un
+ * texto sintético para rellenar el hueco.
+ */
+export async function fetchAttachmentTexts(tx: DbExecutor, orgId: string, tenderId: string): Promise<string[]> {
+  const { rows } = await tx.query<{ extracted_text: string | null }>(
+    'select extracted_text from tender_documents where org_id = $1 and tender_id = $2 and extracted_text is not null',
+    [orgId, tenderId]
+  );
+  return rows.map((r) => r.extracted_text).filter((t): t is string => Boolean(t && t.trim().length > 0));
+}
+
 /** Exportada por el mismo motivo que `buildProfileAndEligibility` arriba: `new-tender-match-notify.ts` persiste el match calculado en la ingesta con la MISMA función (nunca un INSERT paralelo). */
 export async function persistMatch(tx: DbExecutor, orgId: string, tenderId: string, result: FullMatchResult): Promise<void> {
   await tx.query(
@@ -143,7 +160,21 @@ export async function matchingRoutes(app: FastifyInstance): Promise<void> {
         const { profileInput, hardEligibility, missingProfileFields } = await buildProfileAndEligibility(tx, orgId);
         const record = toTenderRecord(tenderRes.rows[0]);
         const profile = toOrganizationProfile(profileInput);
-        const matched = computeMatch(record, profile, hardEligibility, missingProfileFields);
+
+        const attachmentTexts = await fetchAttachmentTexts(tx, orgId, request.params.tenderId);
+        const semantic = await computeSemanticRelevance(
+          tx,
+          orgId,
+          request.params.tenderId,
+          buildProfileEmbeddingText(profileInput.keywords),
+          buildTenderEmbeddingText({
+            title: tenderRes.rows[0].title,
+            contractingBody: tenderRes.rows[0].contracting_body,
+            cpvCodes: tenderRes.rows[0].cpv_codes,
+            attachmentTexts,
+          })
+        );
+        const matched = computeMatch(record, profile, hardEligibility, missingProfileFields, semantic);
 
         await persistMatch(tx, orgId, request.params.tenderId, matched);
 
@@ -176,9 +207,26 @@ export async function matchingRoutes(app: FastifyInstance): Promise<void> {
         const profile = toOrganizationProfile(profileInput);
 
         const results = [];
+        // Secuencial (no Promise.all): cada iteración hace varias queries
+        // sobre la MISMA transacción/conexión `tx` (ver nota en
+        // `computeSemanticRelevance`); además el volumen ya está acotado por
+        // el `limit 50` de arriba.
         for (const row of tendersRes.rows) {
           const record = toTenderRecord(row);
-          const matched = computeMatch(record, profile, hardEligibility, missingProfileFields);
+          const attachmentTexts = await fetchAttachmentTexts(tx, orgId, row.id);
+          const semantic = await computeSemanticRelevance(
+            tx,
+            orgId,
+            row.id,
+            buildProfileEmbeddingText(profileInput.keywords),
+            buildTenderEmbeddingText({
+              title: row.title,
+              contractingBody: row.contracting_body,
+              cpvCodes: row.cpv_codes,
+              attachmentTexts,
+            })
+          );
+          const matched = computeMatch(record, profile, hardEligibility, missingProfileFields, semantic);
           await persistMatch(tx, orgId, row.id, matched);
           results.push({ tenderId: row.id, ...matched });
         }
