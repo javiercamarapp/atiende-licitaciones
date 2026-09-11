@@ -51,6 +51,13 @@ src/
     fake-provider.ts           FakeProvider determinista (sin red) para tests/dev
     openai-responses-provider.ts OpenAIResponsesProvider real (fetch a Responses API)
     router.ts                  ProviderRouter: tolerancia cero + 5 gates de modelo alternativo
+  similarity/
+    minhash.ts                  MinHash + LSH real (REQ-032): shingling, firma, estimador de
+                                 Jaccard, bandas LSH — puro, sin dependencia de Postgres
+    cross-tenant-detector.ts    CrossTenantSimilarityDetector: decide "misma plantilla entre
+                                 tenants" vía el puerto FingerprintStore (adaptador Postgres real
+                                 en apps/worker/src/agents/similarity-store.pg.ts, adaptador en
+                                 memoria InMemoryFingerprintStore solo para test unitario)
 ```
 
 ### ToolRegistry (REQ-069)

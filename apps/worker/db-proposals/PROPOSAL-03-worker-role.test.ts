@@ -37,12 +37,13 @@ describe('PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real', () => {
     }
   });
 
-  it('worker_role tiene EXACTAMENTE grants sobre {jobs, source_runs, agent_runs} + las 10 tablas de lectura de negocio de 0098 (E6/PROPOSAL-06), ninguna otra', async () => {
+  it('worker_role tiene EXACTAMENTE grants sobre {jobs, source_runs, agent_runs} + las 10 tablas de lectura de negocio de 0098 (E6/PROPOSAL-06) + las 2 tablas de huellas de 0099 (REQ-032), ninguna otra', async () => {
     // Ampliado por packages/db/migrations/0098_e6_agent_business_tools_grants.sql
-    // (E6, docs/BLOQUEOS.md "E6-ciclo-agentes") — ver
-    // packages/db/test/worker-role-and-job-proposals.test.ts para el mismo
-    // contrato con más profundidad (incluida la razón de negocio de cada
-    // tabla añadida).
+    // (E6, docs/BLOQUEOS.md "E6-ciclo-agentes") y por
+    // packages/db/migrations/0099_req032_proposal_section_fingerprints.sql
+    // (REQ-032) — ver packages/db/test/worker-role-and-job-proposals.test.ts
+    // para el mismo contrato con más profundidad (incluida la razón de
+    // negocio de cada tabla añadida).
     const db = await createMigratedDb();
     try {
       const { rows } = await db.query<{ table_name: string }>(
@@ -64,6 +65,8 @@ describe('PROPOSAL-03 (WK-08/WK-22/WK-23): worker_role con RLS real', () => {
           'experience_records',
           'compliance_items',
           'proposals',
+          'proposal_section_fingerprints',
+          'proposal_similarity_flags',
         ].sort(),
       );
     } finally {

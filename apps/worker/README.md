@@ -603,6 +603,15 @@ ningún `packages/*`.
     evidence_ref` real — nunca redacta una afirmación de experiencia sin
     evidencia. Declara `extractSensitiveValues` para que
     `NoFabricationPolicy` (packages/agents) lo verifique de verdad.
+    **REQ-032** (huellas MinHash/LSH entre tenants, `@atiende/agents`
+    `CrossTenantSimilarityDetector` + `src/agents/similarity-store.pg.ts`):
+    tras generar el borrador, compara su huella contra las de CUALQUIER
+    otra organización (nunca contra contenido, solo hashes —
+    `packages/db/migrations/0099`); sobre el umbral, regenera UNA vez con
+    estilo propio y devuelve `collusionRisk: {flagged, similarityScore,
+    regenerated}` — nunca decide colusión ni bloquea la sección por sí
+    solo, el evento de cumplimiento (`proposal_similarity_flags`, visible
+    SOLO a superadmin) queda para revisión humana.
   - `programar_alerta`: encola un job REAL (`send_agent_alert`) en la
     tabla `jobs` que este worker ya posee por completo (mismo mecanismo de
     dedupe por `jobKey` que el resto del worker) — nunca envía nada a un

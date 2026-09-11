@@ -476,6 +476,19 @@ export const DOMAIN_TABLES: DomainTableSpec[] = [
       return rows[0].id;
     },
   },
+  // --- REQ-032 (0099_req032_proposal_section_fingerprints.sql) ---
+  {
+    table: 'proposal_section_fingerprints',
+    seedAux: insertTenderAux,
+    async insertRow(db, orgId, aux) {
+      const { rows } = await db.query<{ id: string }>(
+        `insert into proposal_section_fingerprints (org_id, tender_id, section_key, algorithm_version, signature, band_hashes, shingle_count)
+         values ($1, $2, 'experiencia', 1, '{1,2,3}', '{"0:1","1:2"}', 3) returning id`,
+        [orgId, aux.tenderId]
+      );
+      return rows[0].id;
+    },
+  },
   // --- Ronda 2 (0017_ronda2_extensions.sql) ---
   {
     table: 'incidents',

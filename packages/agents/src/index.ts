@@ -16,3 +16,5 @@ export * from "./llm/provider.js";
 export * from "./llm/fake-provider.js";
 export * from "./llm/openai-responses-provider.js";
 export * from "./llm/router.js";
+export * from "./similarity/minhash.js";
+export * from "./similarity/cross-tenant-detector.js";

@@ -183,3 +183,78 @@ export async function withWorkerAgentRunsInsertContext<T>(
     throw error;
   }
 }
+
+/**
+ * REQ-032 (huellas MinHash entre tenants, `packages/db/migrations/0099`):
+ * upsert de la huella PROPIA de una organización (`org_id =
+ * app.current_org_id()`, políticas `ins_`/`upd_proposal_section_
+ * fingerprints_worker_role`). Nunca cruza organización -- para eso está
+ * `withFingerprintCompareContext`, abajo.
+ */
+export async function withFingerprintWriteContext<T>(
+  db: DbClient,
+  orgId: string,
+  fn: (tx: DbExecutor) => Promise<T>,
+): Promise<T> {
+  try {
+    return await db.transaction(async (tx) => {
+      await tx.query('set local role worker_role');
+      await tx.query("select set_config('app.current_org_id', $1, true)", [orgId]);
+      await assertWorkerPolicyExists(tx, 'proposal_section_fingerprints', 'ins_proposal_section_fingerprints_worker_role');
+      await assertWorkerPolicyExists(tx, 'proposal_section_fingerprints', 'upd_proposal_section_fingerprints_worker_role');
+      return fn(tx);
+    });
+  } catch (error) {
+    if (error instanceof SchemaGrantPendingError) throw error;
+    if (isPermissionDeniedError(error)) {
+      throw new SchemaGrantPendingError('upsert on proposal_section_fingerprints', error);
+    }
+    throw error;
+  }
+}
+
+/**
+ * REQ-032: comparación CROSS-TENANT de huellas por banda LSH -- SIN fijar
+ * `app.current_org_id` (mismo motivo que `withWorkerPlatformReadContext`:
+ * necesita ver huellas de CUALQUIER organización). Solo huellas/hashes,
+ * nunca contenido -- ver comentario de `packages/db/migrations/0099`.
+ */
+export async function withFingerprintCompareContext<T>(db: DbClient, fn: (tx: DbExecutor) => Promise<T>): Promise<T> {
+  try {
+    return await db.transaction(async (tx) => {
+      await tx.query('set local role worker_role');
+      await assertWorkerPolicyExists(tx, 'proposal_section_fingerprints', 'sel_proposal_section_fingerprints_worker_role');
+      return fn(tx);
+    });
+  } catch (error) {
+    if (error instanceof SchemaGrantPendingError) throw error;
+    if (isPermissionDeniedError(error)) {
+      throw new SchemaGrantPendingError('select on proposal_section_fingerprints', error);
+    }
+    throw error;
+  }
+}
+
+/**
+ * REQ-032: registra un evento de cumplimiento (`proposal_similarity_flags`)
+ * cuando la huella de `orgId` superó el umbral contra la de otra
+ * organización. La política de INSERT solo exige `current_user =
+ * 'worker_role'` (ver 0099) -- que la fila quede atribuida a la
+ * organización SEÑALADA correcta lo garantiza el propio `INSERT` (columna
+ * `org_id` = `orgId` del contexto de ejecución real), nunca el modelo/LLM.
+ */
+export async function withSimilarityFlagInsertContext<T>(db: DbClient, fn: (tx: DbExecutor) => Promise<T>): Promise<T> {
+  try {
+    return await db.transaction(async (tx) => {
+      await tx.query('set local role worker_role');
+      await assertWorkerPolicyExists(tx, 'proposal_similarity_flags', 'ins_proposal_similarity_flags_worker_role');
+      return fn(tx);
+    });
+  } catch (error) {
+    if (error instanceof SchemaGrantPendingError) throw error;
+    if (isPermissionDeniedError(error)) {
+      throw new SchemaGrantPendingError('insert on proposal_similarity_flags', error);
+    }
+    throw error;
+  }
+}
